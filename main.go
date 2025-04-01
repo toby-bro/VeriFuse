@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -24,7 +26,13 @@ type EnumCast struct {
 	Line       string
 	EnumType   string
 	Expression string
-	DefaultVal string // Added field for default value
+	DefaultVal string
+}
+
+type UndefinedIdentifier struct {
+	Line    string
+	Name    string
+	Context string
 }
 
 func compileIVerilog() error {
@@ -38,14 +46,11 @@ func compileVerilator() error {
 }
 
 func detectEnumCasts() []EnumCast {
-	// Read the SystemVerilog file
 	content, err := os.ReadFile("ibex_branch_predict.sv")
 	if err != nil {
 		log.Fatal("Failed to read SystemVerilog file:", err)
 	}
 
-	// Regular expression to match enum casts
-	// Matches patterns like: enum_type'(expression)
 	enumCastRegex := regexp.MustCompile(`(\w+)'?\(([^)]+)\)`)
 
 	var casts []EnumCast
@@ -69,48 +74,130 @@ func detectEnumCasts() []EnumCast {
 	return casts
 }
 
+func detectUndefinedIdentifiers() []UndefinedIdentifier {
+	content, err := os.ReadFile("ibex_branch_predict.sv")
+	if err != nil {
+		log.Fatal("Failed to read SystemVerilog file:", err)
+	}
+
+	knownKeywords := map[string]bool{
+		"module": true, "input": true, "output": true, "logic": true,
+		"always_comb": true, "assign": true, "begin": true, "end": true,
+		"if": true, "else": true, "case": true, "endcase": true,
+		"unique": true, "default": true, "parameter": true,
+	}
+
+	var undefinedVars []UndefinedIdentifier
+	lines := strings.Split(string(content), "\n")
+
+	identifierRegex := regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*)\b`)
+
+	for _, line := range lines {
+		if strings.Contains(line, "//") || strings.Contains(line, "/*") {
+			continue
+		}
+
+		matches := identifierRegex.FindAllStringSubmatch(line, -1)
+		for _, match := range matches {
+			identifier := match[1]
+			if !knownKeywords[identifier] && strings.Contains(line, identifier) {
+				if strings.HasSuffix(identifier, "_e") || strings.HasSuffix(identifier, "_t") ||
+					strings.HasPrefix(identifier, "OPCODE_") {
+					undefinedVars = append(undefinedVars, UndefinedIdentifier{
+						Line:    strings.TrimSpace(line),
+						Name:    identifier,
+						Context: inferContext(line),
+					})
+				}
+			}
+		}
+	}
+
+	return undefinedVars
+}
+
+func inferContext(line string) string {
+	if strings.Contains(line, "opcode_e") {
+		return "opcode"
+	} else if strings.Contains(line, "assign") {
+		return "signal"
+	} else if strings.Contains(line, "parameter") {
+		return "parameter"
+	}
+	return "unknown"
+}
+
+func generateRandomBitString(width int) string {
+	val := rand.Uint64() & ((1 << width) - 1)
+	return fmt.Sprintf("%d'b%b", width, val)
+}
+
+func generateRandomHexString(width int) string {
+	bytes := (width + 3) / 4
+	val := rand.Uint64() & ((1 << (bytes * 4)) - 1)
+	return fmt.Sprintf("%d'h%x", width, val)
+}
+
+func inferBitWidth(context string) int {
+	if match := regexp.MustCompile(`\[(\d+):0\]`).FindStringSubmatch(context); match != nil {
+		if width, err := strconv.Atoi(match[1]); err == nil {
+			return width + 1
+		}
+	}
+
+	switch {
+	case strings.Contains(context, "opcode"):
+		return 7
+	case strings.Contains(context, "branch"):
+		return 3
+	default:
+		return rand.Intn(32) + 1
+	}
+}
+
 func getPlausibleValue(enumType string) string {
-	// Common SystemVerilog enum types and their plausible values
-	enumDefaults := map[string]string{
-		"ibex_mubi_t":   "MuBi4True", // Common Ibex type
-		"rv32b_e":       "RV32BNone", // RISC-V extension type
-		"rv32m_e":       "RV32MFast", // RISC-V M extension type
-		"opcode_e":      "2'b00",     // Generic opcode
-		"branch_op_e":   "3'b000",    // Branch operation
-		"alu_op_e":      "4'b0000",   // ALU operation
-		"csr_op_e":      "2'b00",     // CSR operation
-		"decoder_err_e": "1'b0",      // Decoder error flag
-		"priv_lvl_e":    "2'b00",     // Privilege level
-		"operation_e":   "1'b0",      // Generic operation
-		"status_e":      "1'b0",      // Status indicator
-	}
+	width := inferBitWidth("")
 
-	if val, ok := enumDefaults[enumType]; ok {
-		return val
+	switch {
+	case strings.HasSuffix(enumType, "_e"):
+		return fmt.Sprintf("%d", rand.Intn(8))
+	case strings.HasSuffix(enumType, "_t"):
+		return generateRandomBitString(width)
+	default:
+		if rand.Float32() < 0.5 {
+			return generateRandomBitString(width)
+		}
+		return generateRandomHexString(width)
 	}
+}
 
-	// Default fallback values based on common patterns
-	if strings.HasSuffix(enumType, "_e") {
-		return "0" // Enums typically start at 0
+func mockIdentifier(id UndefinedIdentifier) string {
+	width := inferBitWidth(id.Context)
+
+	switch {
+	case strings.HasPrefix(id.Name, "OPCODE_"):
+		return generateRandomBitString(7)
+	case strings.Contains(id.Context, "enum"):
+		return fmt.Sprintf("%d", rand.Intn(8))
+	case strings.Contains(id.Context, "logic"):
+		return generateRandomBitString(width)
+	default:
+		if rand.Float32() < 0.5 {
+			return generateRandomBitString(width)
+		}
+		return generateRandomHexString(width)
 	}
-	if strings.HasSuffix(enumType, "_t") {
-		return "1'b0" // Type suffixed enums, assume boolean
-	}
-	return "0" // Generic fallback
 }
 
 func mock_enum_cast(cast EnumCast) string {
-	// If the expression is already a number, use it
 	if regexp.MustCompile(`^[0-9]+('?[bdh][0-9a-fA-F_]+)?$`).MatchString(cast.Expression) {
 		return cast.Expression
 	}
 
-	// Otherwise, provide a plausible value based on the enum type
 	return getPlausibleValue(cast.EnumType)
 }
 
 func generateTestbench() error {
-	// Create SystemVerilog testbench
 	svTb := `
 module testbench;
     logic clk_i;
@@ -127,14 +214,12 @@ module testbench;
         $dumpfile("dump.vcd");
         $dumpvars(0, testbench);
         
-        // Read inputs from stdin
         $readmemh("input.hex", fetch_rdata_i);
         $readmemh("pc.hex", fetch_pc_i);
         $readmemb("valid.hex", fetch_valid_i);
 
         #1;
         
-        // Write outputs to files
         $writememb("taken.hex", predict_branch_taken_o);
         $writememh("target.hex", predict_branch_pc_o);
         
@@ -146,12 +231,10 @@ endmodule`
 }
 
 func runTest(input TestCase) (SimResult, SimResult, error) {
-	// Write input files
 	writeHexFile("input.hex", input.FetchRdata)
 	writeHexFile("pc.hex", input.FetchPc)
 	writeBinFile("valid.hex", input.FetchValid)
 
-	// Run iverilog simulation
 	if err := exec.Command("./ibex_sim_iv").Run(); err != nil {
 		return SimResult{}, SimResult{}, fmt.Errorf("iverilog sim failed: %v", err)
 	}
@@ -160,7 +243,6 @@ func runTest(input TestCase) (SimResult, SimResult, error) {
 		return SimResult{}, SimResult{}, err
 	}
 
-	// Run verilator simulation
 	if err := exec.Command("./obj_dir/Vibex_branch_predict").Run(); err != nil {
 		return SimResult{}, SimResult{}, fmt.Errorf("verilator sim failed: %v", err)
 	}
@@ -234,13 +316,11 @@ func writeMockedSV(content string) error {
 }
 
 func main() {
-	// Read original SystemVerilog file
 	originalContent, err := readOriginalSV("ibex_branch_predict.sv")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Detect and mock enum casts
 	enumCasts := detectEnumCasts()
 	if len(enumCasts) > 0 {
 		log.Println("Detected enum casts and their mocked values:")
@@ -249,16 +329,29 @@ func main() {
 			log.Printf("  Type: %s, Expression: %s -> Mocked: %s\n",
 				cast.EnumType, cast.Expression, mockedValue)
 		}
-
-		// Create mocked version
-		mockedContent := replaceMockedEnumCasts(originalContent, enumCasts)
-		if err := writeMockedSV(mockedContent); err != nil {
-			log.Fatal("Failed to write mocked SV file:", err)
-		}
-		log.Println("Created mocked SystemVerilog file: ibex_branch_predict_mocked.sv")
 	}
 
-	// Setup
+	undefinedVars := detectUndefinedIdentifiers()
+	if len(undefinedVars) > 0 {
+		log.Println("Detected undefined identifiers and their mocked values:")
+		for _, undef := range undefinedVars {
+			mockedValue := mockIdentifier(undef)
+			log.Printf("  Name: %s, Context: %s -> Mocked: %s\n",
+				undef.Name, undef.Context, mockedValue)
+		}
+	}
+
+	mockedContent := replaceMockedEnumCasts(originalContent, enumCasts)
+	for _, undef := range undefinedVars {
+		mockedContent = strings.Replace(mockedContent, undef.Name,
+			mockIdentifier(undef), -1)
+	}
+
+	if err := writeMockedSV(mockedContent); err != nil {
+		log.Fatal("Failed to write mocked SV file:", err)
+	}
+	log.Println("Created mocked SystemVerilog file: ibex_branch_predict_mocked.sv")
+
 	if err := generateTestbench(); err != nil {
 		log.Fatal("Failed to generate testbench:", err)
 	}
@@ -271,10 +364,9 @@ func main() {
 		log.Fatal("Failed to compile with verilator:", err)
 	}
 
-	// Fuzzing loop
 	for i := 0; i < 1000; i++ {
 		testCase := TestCase{
-			FetchRdata: uint32(i), // You can make this more random
+			FetchRdata: uint32(i),
 			FetchPc:    uint32(i * 4),
 			FetchValid: 1,
 		}
