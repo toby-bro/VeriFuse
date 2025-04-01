@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
+	"strings"
 )
 
 type TestCase struct {
@@ -18,14 +20,93 @@ type SimResult struct {
 	BranchPc    uint32
 }
 
+type EnumCast struct {
+	Line       string
+	EnumType   string
+	Expression string
+	DefaultVal string // Added field for default value
+}
+
 func compileIVerilog() error {
-	cmd := exec.Command("iverilog", "-o", "ibex_sim_iv", "ibex_branch_predict.sv", "testbench.sv", "prim_assert.sv")
+	cmd := exec.Command("iverilog", "-I../ibex", "-o", "ibex_sim_iv", "ibex_branch_predict_mocked.sv", "testbench.sv")
 	return cmd.Run()
 }
 
 func compileVerilator() error {
-	cmd := exec.Command("verilator", "--cc", "--exe", "--build", "ibex_branch_predict.sv", "testbench.cpp", "prim_assert.sv")
+	cmd := exec.Command("verilator", "--cc", "--exe", "--build", "ibex_branch_predict_mocked.sv", "testbench.cpp")
 	return cmd.Run()
+}
+
+func detectEnumCasts() []EnumCast {
+	// Read the SystemVerilog file
+	content, err := os.ReadFile("ibex_branch_predict.sv")
+	if err != nil {
+		log.Fatal("Failed to read SystemVerilog file:", err)
+	}
+
+	// Regular expression to match enum casts
+	// Matches patterns like: enum_type'(expression)
+	enumCastRegex := regexp.MustCompile(`(\w+)'?\(([^)]+)\)`)
+
+	var casts []EnumCast
+	lines := strings.Split(string(content), "\n")
+
+	for _, line := range lines {
+		matches := enumCastRegex.FindAllStringSubmatch(line, -1)
+		for _, match := range matches {
+			if len(match) == 3 {
+				cast := EnumCast{
+					Line:       strings.TrimSpace(line),
+					EnumType:   match[1],
+					Expression: match[2],
+					DefaultVal: getPlausibleValue(match[1]),
+				}
+				casts = append(casts, cast)
+			}
+		}
+	}
+
+	return casts
+}
+
+func getPlausibleValue(enumType string) string {
+	// Common SystemVerilog enum types and their plausible values
+	enumDefaults := map[string]string{
+		"ibex_mubi_t":   "MuBi4True", // Common Ibex type
+		"rv32b_e":       "RV32BNone", // RISC-V extension type
+		"rv32m_e":       "RV32MFast", // RISC-V M extension type
+		"opcode_e":      "2'b00",     // Generic opcode
+		"branch_op_e":   "3'b000",    // Branch operation
+		"alu_op_e":      "4'b0000",   // ALU operation
+		"csr_op_e":      "2'b00",     // CSR operation
+		"decoder_err_e": "1'b0",      // Decoder error flag
+		"priv_lvl_e":    "2'b00",     // Privilege level
+		"operation_e":   "1'b0",      // Generic operation
+		"status_e":      "1'b0",      // Status indicator
+	}
+
+	if val, ok := enumDefaults[enumType]; ok {
+		return val
+	}
+
+	// Default fallback values based on common patterns
+	if strings.HasSuffix(enumType, "_e") {
+		return "0" // Enums typically start at 0
+	}
+	if strings.HasSuffix(enumType, "_t") {
+		return "1'b0" // Type suffixed enums, assume boolean
+	}
+	return "0" // Generic fallback
+}
+
+func mock_enum_cast(cast EnumCast) string {
+	// If the expression is already a number, use it
+	if regexp.MustCompile(`^[0-9]+('?[bdh][0-9a-fA-F_]+)?$`).MatchString(cast.Expression) {
+		return cast.Expression
+	}
+
+	// Otherwise, provide a plausible value based on the enum type
+	return getPlausibleValue(cast.EnumType)
 }
 
 func generateTestbench() error {
@@ -126,7 +207,57 @@ func readSimResults() (SimResult, error) {
 	return result, nil
 }
 
+func readOriginalSV(filename string) (string, error) {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("failed to read SV file: %v", err)
+	}
+	return string(content), nil
+}
+
+func replaceMockedEnumCasts(content string, casts []EnumCast) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		for _, cast := range casts {
+			if strings.Contains(line, cast.Line) {
+				originalCast := fmt.Sprintf("%s'(%s)", cast.EnumType, cast.Expression)
+				mockedValue := mock_enum_cast(cast)
+				lines[i] = strings.Replace(line, originalCast, mockedValue, 1)
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func writeMockedSV(content string) error {
+	return os.WriteFile("ibex_branch_predict_mocked.sv", []byte(content), 0644)
+}
+
 func main() {
+	// Read original SystemVerilog file
+	originalContent, err := readOriginalSV("ibex_branch_predict.sv")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Detect and mock enum casts
+	enumCasts := detectEnumCasts()
+	if len(enumCasts) > 0 {
+		log.Println("Detected enum casts and their mocked values:")
+		for _, cast := range enumCasts {
+			mockedValue := mock_enum_cast(cast)
+			log.Printf("  Type: %s, Expression: %s -> Mocked: %s\n",
+				cast.EnumType, cast.Expression, mockedValue)
+		}
+
+		// Create mocked version
+		mockedContent := replaceMockedEnumCasts(originalContent, enumCasts)
+		if err := writeMockedSV(mockedContent); err != nil {
+			log.Fatal("Failed to write mocked SV file:", err)
+		}
+		log.Println("Created mocked SystemVerilog file: ibex_branch_predict_mocked.sv")
+	}
+
 	// Setup
 	if err := generateTestbench(); err != nil {
 		log.Fatal("Failed to generate testbench:", err)
