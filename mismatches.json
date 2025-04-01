@@ -1,0 +1,68 @@
+[
+  {
+    "id": 0,
+    "instruction": 1005064673,
+    "pc": 3985040,
+    "valid": 1,
+    "iverilog_taken": 0,
+    "verilator_taken": 0,
+    "iverilog_pc": 0,
+    "verilator_pc": 0,
+    "opcode_type": "OTHER"
+  },
+  {
+    "id": 1,
+    "instruction": 811378787,
+    "pc": 3556680,
+    "valid": 1,
+    "iverilog_taken": 0,
+    "verilator_taken": 0,
+    "iverilog_pc": 0,
+    "verilator_pc": 0,
+    "opcode_type": "BRANCH"
+  },
+  {
+    "id": 11,
+    "instruction": 2149814627,
+    "pc": 3739800,
+    "valid": 1,
+    "iverilog_taken": 0,
+    "verilator_taken": 0,
+    "iverilog_pc": 0,
+    "verilator_pc": 0,
+    "opcode_type": "BRANCH"
+  },
+  {
+    "id": 15,
+    "instruction": 26909,
+    "pc": 3945612,
+    "valid": 1,
+    "iverilog_taken": 0,
+    "verilator_taken": 0,
+    "iverilog_pc": 0,
+    "verilator_pc": 0,
+    "opcode_type": "OTHER"
+  },
+  {
+    "id": 2,
+    "instruction": 63497,
+    "pc": 711184,
+    "valid": 1,
+    "iverilog_taken": 0,
+    "verilator_taken": 0,
+    "iverilog_pc": 0,
+    "verilator_pc": 0,
+    "opcode_type": "OTHER"
+  },
+  {
+    "id": 3,
+    "instruction": 1661968743,
+    "pc": 3186496,
+    "valid": 1,
+    "iverilog_taken": 0,
+    "verilator_taken": 0,
+    "iverilog_pc": 0,
+    "verilator_pc": 0,
+    "opcode_type": "OTHER"
+  }
+]
