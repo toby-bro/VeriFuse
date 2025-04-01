@@ -68,8 +68,8 @@ module ibex_branch_predict (
   // Determine if the instruction is a branch or a jump
 
   // Uncompressed branch/jump
-  assign instr_b = 4 == 7'b111001;
-  assign instr_j = 7 == 7'b1001100;
+  assign instr_b = instr[6:0] == 7'b1111101;
+  assign instr_j = instr[6:0] == 7'b1111111;
 
   // Compressed branch/jump
   assign instr_cb = (instr[1:0] == 2'b01) & ((instr[15:13] == 3'b110) | (instr[15:13] == 3'b111));
