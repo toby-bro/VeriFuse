@@ -8,6 +8,18 @@ import (
 
 // TMP_DIR is the directory where all generated files are stored
 const TMP_DIR = "tmp_gen"
+const MISMATCHES_DIR = "mismatches"
+
+// EnsureDirs creates necessary directories if they don't exist
+func EnsureDirs() error {
+	if err := os.MkdirAll(TMP_DIR, 0755); err != nil {
+		return fmt.Errorf("failed to create tmp directory: %v", err)
+	}
+	if err := os.MkdirAll(MISMATCHES_DIR, 0755); err != nil {
+		return fmt.Errorf("failed to create mismatches directory: %v", err)
+	}
+	return nil
+}
 
 // EnsureTmpDir creates the temporary directory if it doesn't exist
 func EnsureTmpDir() error {

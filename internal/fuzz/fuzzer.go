@@ -45,9 +45,9 @@ func NewFuzzer(strategy string, workers int, verbose bool, seed int64) *Fuzzer {
 
 // Setup prepares the environment for fuzzing
 func (f *Fuzzer) Setup() error {
-	// Ensure tmp_gen directory exists
-	if err := utils.EnsureTmpDir(); err != nil {
-		return fmt.Errorf("failed to create temporary directory: %v", err)
+	// Ensure directories exist
+	if err := utils.EnsureDirs(); err != nil {
+		return fmt.Errorf("failed to create directories: %v", err)
 	}
 
 	// Analyze and mock Verilog file
@@ -137,9 +137,27 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 		f.stats.AddTest()
 
 		// Write input files
-		utils.WriteHexFile(filepath.Join(utils.TMP_DIR, "input.hex"), testCase.FetchRdata)
-		utils.WriteHexFile(filepath.Join(utils.TMP_DIR, "pc.hex"), testCase.FetchPc)
-		utils.WriteBinFile(filepath.Join(utils.TMP_DIR, "valid.hex"), testCase.FetchValid)
+		if err := utils.WriteHexFile(filepath.Join(utils.TMP_DIR, "input.hex"), testCase.FetchRdata); err != nil {
+			if f.verbose {
+				log.Printf("Test %d failed to write input file: %v", i, err)
+			}
+			f.stats.AddSimError()
+			continue
+		}
+		if err := utils.WriteHexFile(filepath.Join(utils.TMP_DIR, "pc.hex"), testCase.FetchPc); err != nil {
+			if f.verbose {
+				log.Printf("Test %d failed to write pc file: %v", i, err)
+			}
+			f.stats.AddSimError()
+			continue
+		}
+		if err := utils.WriteBinFile(filepath.Join(utils.TMP_DIR, "valid.hex"), testCase.FetchValid); err != nil {
+			if f.verbose {
+				log.Printf("Test %d failed to write valid file: %v", i, err)
+			}
+			f.stats.AddSimError()
+			continue
+		}
 
 		// Run IVerilog simulation
 		if err := ivsim.Run(); err != nil {
@@ -149,6 +167,7 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 			f.stats.AddSimError()
 			continue
 		}
+
 		ivResult, err := ivsim.ReadResults()
 		if err != nil {
 			if f.verbose {
@@ -166,6 +185,7 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 			f.stats.AddSimError()
 			continue
 		}
+
 		vlResult, err := vlsim.ReadResults()
 		if err != nil {
 			if f.verbose {
@@ -176,25 +196,144 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 		}
 
 		if ivResult != vlResult {
+			// Determine what fields are mismatched
+			branchTakenMismatch := ivResult.BranchTaken != vlResult.BranchTaken
+			pcMismatch := ivResult.BranchPc != vlResult.BranchPc
+
 			log.Printf("Mismatch found in test %d:\n", i)
 			log.Printf("  Input: rdata=0x%08x pc=0x%08x valid=%d\n",
 				testCase.FetchRdata, testCase.FetchPc, testCase.FetchValid)
-			log.Printf("  IVerilog: taken=%d pc=0x%08x\n",
-				ivResult.BranchTaken, ivResult.BranchPc)
-			log.Printf("  Verilator: taken=%d pc=0x%08x\n",
-				vlResult.BranchTaken, vlResult.BranchPc)
+
+			// Display decoded instruction
+			instFields := decodeInstruction(testCase.FetchRdata)
+			log.Printf("  Decoded: %s\n", instFields)
+
+			// Highlight the specific mismatched field
+			if branchTakenMismatch {
+				log.Printf("  TAKEN MISMATCH: IVerilog=%d vs Verilator=%d\n",
+					ivResult.BranchTaken, vlResult.BranchTaken)
+			}
+			if pcMismatch {
+				log.Printf("  TARGET MISMATCH: IVerilog=0x%08x vs Verilator=0x%08x (diff=0x%x)\n",
+					ivResult.BranchPc, vlResult.BranchPc, ivResult.BranchPc^vlResult.BranchPc)
+			}
 
 			f.stats.AddMismatch(testCase)
 
-			// Save testcase to file for reproduction
-			filename := fmt.Sprintf("mismatch_%d.txt", i)
+			// Save testcase to file for reproduction in mismatches directory
+			filename := filepath.Join(utils.MISMATCHES_DIR, fmt.Sprintf("mismatch_%d.txt", i))
 			file, err := os.Create(filename)
 			if err == nil {
-				fmt.Fprintf(file, "rdata=0x%08x\npc=0x%08x\nvalid=%d\n",
+				fmt.Fprintf(file, "Test case %d\n", i)
+				fmt.Fprintf(file, "Inputs:\n")
+				fmt.Fprintf(file, "  rdata=0x%08x\n  pc=0x%08x\n  valid=%d\n",
 					testCase.FetchRdata, testCase.FetchPc, testCase.FetchValid)
+				fmt.Fprintf(file, "\nResults:\n")
+				fmt.Fprintf(file, "  IVerilog: taken=%d pc=0x%08x\n",
+					ivResult.BranchTaken, ivResult.BranchPc)
+				fmt.Fprintf(file, "  Verilator: taken=%d pc=0x%08x\n",
+					vlResult.BranchTaken, vlResult.BranchPc)
 				file.Close()
 				log.Printf("  Saved to %s for reproduction\n", filename)
 			}
 		}
+	}
+}
+
+// decodeInstruction returns a human-readable description of an instruction
+func decodeInstruction(instr uint32) string {
+	opcode := instr & 0x7F
+
+	switch opcode {
+	case 0x63: // BRANCH
+		funct3 := (instr >> 12) & 0x7
+		rs1 := (instr >> 15) & 0x1F
+		rs2 := (instr >> 20) & 0x1F
+		imm12 := (instr >> 31) & 0x1
+		imm10_5 := (instr >> 25) & 0x3F
+		imm4_1 := (instr >> 8) & 0xF
+		imm11 := (instr >> 7) & 0x1
+
+		// Reconstruct the immediate value
+		imm := (imm12 << 12) | (imm11 << 11) | (imm10_5 << 5) | (imm4_1 << 1)
+		// Sign extend
+		if imm12 > 0 {
+			imm |= 0xFFFFE000
+		}
+
+		branchTypes := []string{"BEQ", "BNE", "???", "???", "BLT", "BGE", "BLTU", "BGEU"}
+		return fmt.Sprintf("BRANCH %s rs1=%d rs2=%d imm=0x%x (%d)",
+			branchTypes[funct3], rs1, rs2, imm, int32(imm))
+
+	case 0x6F: // JAL
+		rd := (instr >> 7) & 0x1F
+		imm20 := (instr >> 31) & 0x1
+		imm10_1 := (instr >> 21) & 0x3FF
+		imm11 := (instr >> 20) & 0x1
+		imm19_12 := (instr >> 12) & 0xFF
+
+		// Reconstruct the immediate value
+		imm := (imm20 << 20) | (imm19_12 << 12) | (imm11 << 11) | (imm10_1 << 1)
+		// Sign extend
+		if imm20 > 0 {
+			imm |= 0xFFE00000
+		}
+
+		return fmt.Sprintf("JAL rd=%d imm=0x%x (%d)", rd, imm, int32(imm))
+
+	case 0x01: // Compressed
+		funct3 := (instr >> 13) & 0x7
+		if funct3 == 0x5 || funct3 == 0x1 {
+			// C.J or C.JAL
+			cjType := "C.J"
+			if funct3 == 0x1 {
+				cjType = "C.JAL"
+			}
+			imm11 := (instr >> 12) & 0x1
+			imm4 := (instr >> 11) & 0x1
+			imm9_8 := (instr >> 9) & 0x3
+			imm10 := (instr >> 8) & 0x1
+			imm6 := (instr >> 7) & 0x1
+			imm7 := (instr >> 6) & 0x1
+			imm3_1 := (instr >> 3) & 0x7
+			imm5 := (instr >> 2) & 0x1
+
+			// Reconstruct the immediate
+			imm := (imm11 << 11) | (imm10 << 10) | (imm9_8 << 8) | (imm7 << 7) |
+				(imm6 << 6) | (imm5 << 5) | (imm4 << 4) | (imm3_1 << 1)
+			// Sign extend
+			if imm11 > 0 {
+				imm |= 0xFFFFF800
+			}
+
+			return fmt.Sprintf("%s imm=0x%x (%d)", cjType, imm, int32(imm))
+
+		} else if funct3 == 0x6 || funct3 == 0x7 {
+			// C.BEQZ or C.BNEZ
+			cbType := "C.BEQZ"
+			if funct3 == 0x7 {
+				cbType = "C.BNEZ"
+			}
+			imm8 := (instr >> 12) & 0x1
+			imm4_3 := (instr >> 10) & 0x3
+			imm7_6 := (instr >> 5) & 0x3
+			imm2_1 := (instr >> 3) & 0x3
+			imm5 := (instr >> 2) & 0x1
+			rs1 := (instr >> 7) & 0x7
+
+			// Reconstruct the immediate
+			imm := (imm8 << 8) | (imm7_6 << 6) | (imm5 << 5) | (imm4_3 << 3) | (imm2_1 << 1)
+			// Sign extend
+			if imm8 > 0 {
+				imm |= 0xFFFFFE00
+			}
+
+			return fmt.Sprintf("%s rs1=%d imm=0x%x (%d)", cbType, rs1+8, imm, int32(imm))
+		}
+
+		return fmt.Sprintf("COMPRESSED 0x%04x", instr&0xFFFF)
+
+	default:
+		return fmt.Sprintf("UNKNOWN opcode=0x%02x", opcode)
 	}
 }

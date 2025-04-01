@@ -1,7 +1,9 @@
 package simulator
 
 import (
+	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -35,8 +37,23 @@ func (sim *IVerilogSimulator) Compile() error {
 
 // Run runs the simulator with the given test case
 func (sim *IVerilogSimulator) Run() error {
+	// Check if the simulator binary exists
+	if _, err := os.Stat(sim.execPath); os.IsNotExist(err) {
+		return fmt.Errorf("simulator executable not found at %s", sim.execPath)
+	}
+
+	// Run the simulator
 	cmd := exec.Command(sim.execPath)
-	return cmd.Run()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("simulator execution failed: %v - %s", err, stderr.String())
+	}
+
+	// Verify output files were created
+	return verifyOutputFiles()
 }
 
 // ReadResults reads the simulation results
