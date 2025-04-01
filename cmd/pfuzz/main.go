@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"time"
 
-	// Update the import path to match the module name
 	"github.com/jns/pfuzz/internal/fuzz"
 )
 
@@ -20,7 +19,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Verbose output")
 	flag.Parse()
 
-	// Create and setup fuzzer using the new package structure
+	// Create and setup fuzzer
 	fuzzer := fuzz.NewFuzzer(*strategy, *workers, *verbose, *seedFlag)
 
 	if err := fuzzer.Setup(); err != nil {
