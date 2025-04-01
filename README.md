@@ -13,3 +13,5 @@ The first challenge is to try and resolve the imports without using the imports.
 List of things to mock:
 
 - enum casts
+- imported variables
+- imported functions
