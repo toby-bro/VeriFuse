@@ -15,3 +15,8 @@ List of things to mock:
 - enum casts
 - imported variables
 - imported functions
+
+### Unsupported constructs
+
+- iverilog doesn't support
+  - unique

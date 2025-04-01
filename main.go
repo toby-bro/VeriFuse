@@ -36,7 +36,7 @@ type UndefinedIdentifier struct {
 }
 
 func compileIVerilog() error {
-	cmd := exec.Command("iverilog", "-I../ibex", "-o", "ibex_sim_iv", "ibex_branch_predict_mocked.sv", "testbench.sv")
+	cmd := exec.Command("iverilog", "-o", "ibex_sim_iv", "-g2012", "ibex_branch_predict_mocked.sv", "testbench.sv")
 	return cmd.Run()
 }
 
@@ -318,10 +318,67 @@ func writeMockedSV(content string) error {
 	return os.WriteFile("ibex_branch_predict_mocked.sv", []byte(content), 0644)
 }
 
+func detectMacros(content string) []string {
+	var macros []string
+	// Match macro invocations starting with ` or $ and include statements
+	macroRegex := regexp.MustCompile("(`|\\$)\\w+|`include\\s+\"[^\"]+\"")
+
+	matches := macroRegex.FindAllString(content, -1)
+	for _, match := range matches {
+		macros = append(macros, match)
+	}
+
+	return macros
+}
+
+func removeMacros(content string, macros []string) string {
+	lines := strings.Split(content, "\n")
+	var result []string
+
+	for _, line := range lines {
+		shouldKeep := true
+		for _, macro := range macros {
+			if strings.Contains(line, macro) {
+				shouldKeep = false
+				break
+			}
+		}
+		if shouldKeep {
+			result = append(result, line)
+		}
+	}
+
+	return strings.Join(result, "\n")
+}
+
+func removeUniqueCases(content string) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if strings.Contains(line, "unique case") {
+			lines[i] = strings.Replace(line, "unique case", "case", 1)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 func main() {
 	originalContent, err := readOriginalSV("ibex_branch_predict.sv")
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// Remove unique from case statements
+	originalContent = removeUniqueCases(originalContent)
+
+	// Detect macros first
+	macros := detectMacros(originalContent)
+	if len(macros) > 0 {
+		log.Println("Detected macros that will be removed:")
+		for _, macro := range macros {
+			log.Printf("  %s\n", macro)
+		}
+		// Remove macros from content
+		originalContent = removeMacros(originalContent, macros)
 	}
 
 	enumCasts := detectEnumCasts()
