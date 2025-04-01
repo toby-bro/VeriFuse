@@ -156,8 +156,11 @@ func inferBitWidth(context string) int {
 }
 
 func getPlausibleValue(enumType string) string {
-	width := inferBitWidth("")
+	if strings.Contains(enumType, "opcode_e") {
+		return "instr[6:0]"
+	}
 
+	width := inferBitWidth("")
 	switch {
 	case strings.HasSuffix(enumType, "_e"):
 		return fmt.Sprintf("%d", rand.Intn(8))
