@@ -15,7 +15,6 @@
  * The predictor is entirely combinational but takes clk/rst_n signals for use by assertions.
  */
 
-`include "prim_assert.sv"
 
 module ibex_branch_predict (
   input  logic clk_i,
@@ -68,8 +67,8 @@ module ibex_branch_predict (
   // Determine if the instruction is a branch or a jump
 
   // Uncompressed branch/jump
-  assign instr_b = instr[6:0] == 7'b1111101;
-  assign instr_j = instr[6:0] == 7'b1111111;
+  assign instr_b = instr[6:0] == 7'b1101111;
+  assign instr_j = instr[6:0] == 7'b1000101;
 
   // Compressed branch/jump
   assign instr_cb = (instr[1:0] == 2'b01) & ((instr[15:13] == 3'b110) | (instr[15:13] == 3'b111));
@@ -79,7 +78,7 @@ module ibex_branch_predict (
   always_comb begin
     branch_imm = imm_b_type;
 
-    unique case (1'b1)
+    case (1'b1)
       instr_j  : branch_imm = imm_j_type;
       instr_b  : branch_imm = imm_b_type;
       instr_cj : branch_imm = imm_cj_type;
@@ -88,12 +87,10 @@ module ibex_branch_predict (
     endcase
   end
 
-  `ASSERT_IF(BranchInsTypeOneHot, $onehot0({instr_j, instr_b, instr_cj, instr_cb}), fetch_valid_i)
 
   // Determine branch prediction, taken if offset is negative
   assign instr_b_taken = (instr_b & imm_b_type[31]) | (instr_cb & imm_cb_type[31]);
 
-  // Always predict jumps taken otherwise take prediction from `instr_b_taken`
   assign predict_branch_taken_o = fetch_valid_i & (instr_j | instr_cj | instr_b_taken);
   // Calculate target
   assign predict_branch_pc_o    = fetch_pc_i + branch_imm;
