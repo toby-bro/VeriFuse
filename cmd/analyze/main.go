@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -18,40 +19,81 @@ func main() {
 	// Check if we have a mismatch file to analyze
 	args := flag.Args()
 	if len(args) < 1 {
-		fmt.Println("Usage: analyze <mismatch_file.txt> [--step]")
+		fmt.Println("Usage: analyze <mismatch_file_or_dir> [--step]")
 		os.Exit(1)
 	}
 
-	mismatchFile := args[0]
+	mismatchPath := args[0]
 	stepMode := len(args) > 1 && args[1] == "--step"
 
-	// Parse the mismatch file
-	content, err := os.ReadFile(mismatchFile)
+	// Handle both directory and file formats
+	isMismatchDir := false
+	fileInfo, err := os.Stat(mismatchPath)
 	if err != nil {
-		log.Fatalf("Failed to read mismatch file: %v", err)
+		log.Fatalf("Failed to access mismatch path: %v", err)
+	}
+
+	if fileInfo.IsDir() {
+		isMismatchDir = true
+		fmt.Printf("Analyzing mismatch directory: %s\n", mismatchPath)
+	} else {
+		fmt.Printf("Analyzing mismatch file: %s\n", mismatchPath)
 	}
 
 	var fetchRdata, fetchPc uint32
 	var fetchValid uint8
 
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
+	// Based on whether it's a directory or file, get the information differently
+	if isMismatchDir {
+		// Read data from the input files in the directory
+		inputPath := filepath.Join(mismatchPath, "input.hex")
+		pcPath := filepath.Join(mismatchPath, "pc.hex")
+		validPath := filepath.Join(mismatchPath, "valid.hex")
 
-		if strings.HasPrefix(line, "rdata=0x") {
-			hex := strings.TrimPrefix(line, "rdata=0x")
-			if val, err := strconv.ParseUint(hex, 16, 32); err == nil {
-				fetchRdata = uint32(val)
-			}
-		} else if strings.HasPrefix(line, "pc=0x") {
-			hex := strings.TrimPrefix(line, "pc=0x")
-			if val, err := strconv.ParseUint(hex, 16, 32); err == nil {
-				fetchPc = uint32(val)
-			}
-		} else if strings.HasPrefix(line, "valid=") {
-			val := strings.TrimPrefix(line, "valid=")
-			if v, err := strconv.Atoi(val); err == nil {
-				fetchValid = uint8(v)
+		// Read instruction data
+		inputContent, err := os.ReadFile(inputPath)
+		if err != nil {
+			log.Fatalf("Failed to read input file: %v", err)
+		}
+		pcContent, err := os.ReadFile(pcPath)
+		if err != nil {
+			log.Fatalf("Failed to read pc file: %v", err)
+		}
+		validContent, err := os.ReadFile(validPath)
+		if err != nil {
+			log.Fatalf("Failed to read valid file: %v", err)
+		}
+
+		// Parse the values
+		fmt.Sscanf(string(inputContent), "%x", &fetchRdata)
+		fmt.Sscanf(string(pcContent), "%x", &fetchPc)
+		fetchValid = validContent[0] - '0'
+	} else {
+		// Original text file parsing
+		content, err := os.ReadFile(mismatchPath)
+		if err != nil {
+			log.Fatalf("Failed to read mismatch file: %v", err)
+		}
+
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+
+			if strings.HasPrefix(line, "rdata=0x") {
+				hex := strings.TrimPrefix(line, "rdata=0x")
+				if val, err := strconv.ParseUint(hex, 16, 32); err == nil {
+					fetchRdata = uint32(val)
+				}
+			} else if strings.HasPrefix(line, "pc=0x") {
+				hex := strings.TrimPrefix(line, "pc=0x")
+				if val, err := strconv.ParseUint(hex, 16, 32); err == nil {
+					fetchPc = uint32(val)
+				}
+			} else if strings.HasPrefix(line, "valid=") {
+				val := strings.TrimPrefix(line, "valid=")
+				if v, err := strconv.Atoi(val); err == nil {
+					fetchValid = uint8(v)
+				}
 			}
 		}
 	}
@@ -73,10 +115,85 @@ func main() {
 		log.Fatal("Failed to create directories:", err)
 	}
 
+	// Create a separate directory for analysis
+	analysisDir := filepath.Join(utils.TMP_DIR, "analysis")
+	if err := os.MkdirAll(analysisDir, 0755); err != nil {
+		log.Fatal("Failed to create analysis directory:", err)
+	}
+
 	// Write input files
-	utils.WriteHexFile(utils.TmpPath("input.hex"), fetchRdata)
-	utils.WriteHexFile(utils.TmpPath("pc.hex"), fetchPc)
-	utils.WriteBinFile(utils.TmpPath("valid.hex"), fetchValid)
+	inputPath := filepath.Join(analysisDir, "input.hex")
+	pcPath := filepath.Join(analysisDir, "pc.hex")
+	validPath := filepath.Join(analysisDir, "valid.hex")
+	ivTakenPath := filepath.Join(analysisDir, "iv_taken.hex")
+	ivTargetPath := filepath.Join(analysisDir, "iv_target.hex")
+	vlTakenPath := filepath.Join(analysisDir, "vl_taken.hex")
+	vlTargetPath := filepath.Join(analysisDir, "vl_target.hex")
+
+	if err := utils.WriteHexFile(inputPath, fetchRdata); err != nil {
+		log.Fatal("Failed to write input file:", err)
+	}
+	if err := utils.WriteHexFile(pcPath, fetchPc); err != nil {
+		log.Fatal("Failed to write PC file:", err)
+	}
+	if err := utils.WriteBinFile(validPath, fetchValid); err != nil {
+		log.Fatal("Failed to write valid file:", err)
+	}
+
+	// If path is a directory, use the stored simulation results
+	if isMismatchDir {
+		fmt.Println("Using saved simulation results from mismatch directory")
+
+		// Read IVerilog results
+		ivTakenPath := filepath.Join(mismatchPath, "iv_taken.hex")
+		ivTargetPath := filepath.Join(mismatchPath, "iv_target.hex")
+		ivTakenContent, err := os.ReadFile(ivTakenPath)
+		if err != nil {
+			log.Fatalf("Failed to read IVerilog taken file: %v", err)
+		}
+		ivTargetContent, err := os.ReadFile(ivTargetPath)
+		if err != nil {
+			log.Fatalf("Failed to read IVerilog target file: %v", err)
+		}
+
+		// Read Verilator results
+		vlTakenPath := filepath.Join(mismatchPath, "vl_taken.hex")
+		vlTargetPath := filepath.Join(mismatchPath, "vl_target.hex")
+		vlTakenContent, err := os.ReadFile(vlTakenPath)
+		if err != nil {
+			log.Fatalf("Failed to read Verilator taken file: %v", err)
+		}
+		vlTargetContent, err := os.ReadFile(vlTargetPath)
+		if err != nil {
+			log.Fatalf("Failed to read Verilator target file: %v", err)
+		}
+
+		// Parse the results
+		var ivResult, vlResult simulator.SimResult
+		ivResult.BranchTaken = ivTakenContent[0] - '0'
+		vlResult.BranchTaken = vlTakenContent[0] - '0'
+
+		fmt.Sscanf(string(ivTargetContent), "%x", &ivResult.BranchPc)
+		fmt.Sscanf(string(vlTargetContent), "%x", &vlResult.BranchPc)
+
+		// Compare and display results
+		fmt.Println("\n=== Simulation Results (from saved files) ===")
+		fmt.Printf("IVerilog: taken=%d pc=0x%08x\n", ivResult.BranchTaken, ivResult.BranchPc)
+		fmt.Printf("Verilator: taken=%d pc=0x%08x\n", vlResult.BranchTaken, vlResult.BranchPc)
+
+		if ivResult.BranchTaken != vlResult.BranchTaken {
+			fmt.Printf("\n*** BRANCH TAKEN MISMATCH ***\n")
+			analyzePredictionDifference(fetchRdata)
+		}
+
+		if ivResult.BranchPc != vlResult.BranchPc {
+			fmt.Printf("\n*** BRANCH TARGET MISMATCH ***\n")
+			fmt.Printf("PC difference: 0x%x\n", ivResult.BranchPc^vlResult.BranchPc)
+			analyzeTargetDifference(fetchRdata, fetchPc)
+		}
+
+		return
+	}
 
 	// Add debug instrumentation to the Verilog files if in step mode
 	if stepMode {
@@ -85,17 +202,17 @@ func main() {
 	}
 
 	// Run the simulations
-	ivSim := simulator.NewIVerilogSimulator()
-	vlSim := simulator.NewVerilatorSimulator()
+	ivSim := simulator.NewIVerilogSimulator(analysisDir)
+	vlSim := simulator.NewVerilatorSimulator(analysisDir)
 
 	fmt.Println("Running IVerilog simulation...")
 	if err := ivSim.Compile(); err != nil {
 		log.Fatal("Failed to compile IVerilog:", err)
 	}
-	if err := ivSim.Run(); err != nil {
+	if err := ivSim.RunTest(inputPath, pcPath, validPath, ivTakenPath, ivTargetPath); err != nil {
 		log.Fatal("Failed to run IVerilog:", err)
 	}
-	ivResult, err := ivSim.ReadResults()
+	ivResult, err := simulator.ReadSimResultsFromFiles(ivTakenPath, ivTargetPath)
 	if err != nil {
 		log.Fatal("Failed to read IVerilog results:", err)
 	}
@@ -104,10 +221,10 @@ func main() {
 	if err := vlSim.Compile(); err != nil {
 		log.Fatal("Failed to compile Verilator:", err)
 	}
-	if err := vlSim.Run(); err != nil {
+	if err := vlSim.RunTest(inputPath, pcPath, validPath, vlTakenPath, vlTargetPath); err != nil {
 		log.Fatal("Failed to run Verilator:", err)
 	}
-	vlResult, err := vlSim.ReadResults()
+	vlResult, err := simulator.ReadSimResultsFromFiles(vlTakenPath, vlTargetPath)
 	if err != nil {
 		log.Fatal("Failed to read Verilator results:", err)
 	}

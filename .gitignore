@@ -4,8 +4,12 @@ obj_dir/
 testbench.*
 tmp_gen/
 pfuzz
+!cmd/pfuzz
 mismatches/
 analyze
+!cmd/analyze
 focused
+!cmd/focused
 mismatches.json
 patterns
+!cmd/patterns
