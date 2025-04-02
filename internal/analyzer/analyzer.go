@@ -34,6 +34,9 @@ func AnalyzeVerilogFile(filepath string) (string, error) {
 	// Remove unique from case statements
 	content = utils.RemoveUniqueCases(content)
 
+	// Remove assertion macro calls and strings that might cause trouble with iverilog
+	content = RemoveAssertions(content)
+
 	// Detect and remove macros
 	macros := DetectMacros(content)
 	if len(macros) > 0 {
@@ -77,4 +80,17 @@ func AnalyzeVerilogFile(filepath string) (string, error) {
 	content = moduleRegex.ReplaceAllString(content, "module ${1}_mocked (")
 
 	return content, nil
+}
+
+// RemoveAssertions removes assertion macros that might cause compilation issues
+func RemoveAssertions(content string) string {
+	// Remove any assertion macro calls
+	assertRegex := regexp.MustCompile("`ASSERT[^;]*;")
+	content = assertRegex.ReplaceAllString(content, "")
+
+	// Remove any $value$plusargs or similar complex functions
+	plusargsRegex := regexp.MustCompile("\\$value\\$plusargs[^;]*;")
+	content = plusargsRegex.ReplaceAllString(content, "")
+
+	return content
 }

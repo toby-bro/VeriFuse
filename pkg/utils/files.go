@@ -63,3 +63,12 @@ func WriteFileContent(filename string, content string) error {
 func TmpPath(filename string) string {
 	return filepath.Join(TMP_DIR, filename)
 }
+
+// CopyFile copies a file from src to dst
+func CopyFile(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0644)
+}

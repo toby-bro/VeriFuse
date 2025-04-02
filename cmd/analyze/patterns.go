@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -26,7 +26,7 @@ type MismatchInfo struct {
 func main() {
 	flag.Parse()
 
-	// Collect all mismatch files
+	// Collect all mismatch directories
 	mismatchDir := "mismatches"
 	files, err := ioutil.ReadDir(mismatchDir)
 	if err != nil {
@@ -39,18 +39,26 @@ func main() {
 			continue
 		}
 
-		data, err := ioutil.ReadFile(filepath.Join(mismatchDir, file.Name()))
-		if err != nil {
-			log.Printf("Failed to read %s: %v", file.Name(), err)
+		// Check if it's a directory containing test data
+		dirPath := filepath.Join(mismatchDir, file.Name())
+		fileInfo, err := os.Stat(dirPath)
+		if err != nil || !fileInfo.IsDir() {
+			// Skip if not a directory
 			continue
 		}
 
-		mismatch := parseMismatchFile(string(data), file.Name())
+		// Process mismatch directory
+		mismatch, err := parseMismatchDir(dirPath, file.Name())
+		if err != nil {
+			log.Printf("Failed to process directory %s: %v", file.Name(), err)
+			continue
+		}
+
 		mismatches = append(mismatches, mismatch)
 	}
 
 	if len(mismatches) == 0 {
-		log.Fatal("No mismatch files found")
+		log.Fatal("No mismatch directories found. Run the fuzzer first to generate mismatches.")
 	}
 
 	// Export as JSON for further analysis
@@ -61,79 +69,92 @@ func main() {
 	if err := ioutil.WriteFile("mismatches.json", jsonData, 0644); err != nil {
 		log.Fatalf("Failed to write JSON file: %v", err)
 	}
+	fmt.Println("Exported all mismatch data to mismatches.json")
 
 	// Analyze patterns
 	fmt.Printf("Found %d mismatches\n", len(mismatches))
 	analyzePatterns(mismatches)
 }
 
-// Parse a mismatch file into structured data
-func parseMismatchFile(content string, filename string) MismatchInfo {
+// Parse a mismatch directory into structured data
+func parseMismatchDir(dirPath, dirName string) (MismatchInfo, error) {
 	// Extract the test case ID from filename
 	var id int
-	fmt.Sscanf(filename, "mismatch_%d.txt", &id)
+	fmt.Sscanf(dirName, "mismatch_%d", &id)
 
 	// Initialize the mismatch info
 	result := MismatchInfo{
 		ID: id,
 	}
 
-	// Parse the content line by line
-	lines := strings.Split(content, "\n")
-	for i, line := range lines {
-		line = strings.TrimSpace(line)
+	// Read input files
+	inputPath := filepath.Join(dirPath, "input.hex")
+	pcPath := filepath.Join(dirPath, "pc.hex")
+	validPath := filepath.Join(dirPath, "valid.hex")
 
-		// Extract instruction details
-		if strings.HasPrefix(line, "rdata=0x") {
-			val, _ := strconv.ParseUint(strings.TrimPrefix(line, "rdata=0x"), 16, 32)
-			result.Instruction = uint32(val)
-		} else if strings.HasPrefix(line, "pc=0x") {
-			val, _ := strconv.ParseUint(strings.TrimPrefix(line, "pc=0x"), 16, 32)
-			result.PC = uint32(val)
-		} else if strings.HasPrefix(line, "valid=") {
-			val, _ := strconv.ParseUint(strings.TrimPrefix(line, "valid="), 10, 8)
-			result.Valid = uint8(val)
-		}
+	// Read IVerilog result files
+	ivTakenPath := filepath.Join(dirPath, "iv_taken.hex")
+	ivTargetPath := filepath.Join(dirPath, "iv_target.hex")
 
-		// Extract simulation results
-		if strings.Contains(line, "IVerilog: taken=") {
-			fmt.Sscanf(line, "  IVerilog: taken=%d pc=0x%x",
-				&result.IVerilogTaken, &result.IVerilogPC)
-		} else if strings.Contains(line, "Verilator: taken=") {
-			fmt.Sscanf(line, "  Verilator: taken=%d pc=0x%x",
-				&result.VerilatorTaken, &result.VerilatorPC)
-		}
+	// Read Verilator result files
+	vlTakenPath := filepath.Join(dirPath, "vl_taken.hex")
+	vlTargetPath := filepath.Join(dirPath, "vl_target.hex")
 
-		// Try to determine opcode type
-		if i == 0 && strings.Contains(line, "Decoded:") {
-			if strings.Contains(line, "BRANCH") {
-				result.OpcodeType = "BRANCH"
-			} else if strings.Contains(line, "JAL") {
-				result.OpcodeType = "JAL"
-			} else if strings.Contains(line, "C.") {
-				result.OpcodeType = "COMPRESSED"
-			} else {
-				result.OpcodeType = "OTHER"
-			}
+	// Check if all files exist
+	requiredFiles := []string{inputPath, pcPath, validPath, ivTakenPath, ivTargetPath, vlTakenPath, vlTargetPath}
+	for _, filePath := range requiredFiles {
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			return result, fmt.Errorf("missing required file: %s", filePath)
 		}
 	}
 
-	// Determine opcode type if not already set
-	if result.OpcodeType == "" {
-		opcode := result.Instruction & 0x7F
-		switch opcode {
-		case 0x63:
-			result.OpcodeType = "BRANCH"
-		case 0x6F:
-			result.OpcodeType = "JAL"
-		case 0x01:
-			result.OpcodeType = "COMPRESSED"
-		default:
-			result.OpcodeType = "OTHER"
-		}
+	// Read input data
+	inputContent, err := os.ReadFile(inputPath)
+	if err != nil {
+		return result, err
+	}
+	pcContent, err := os.ReadFile(pcPath)
+	if err != nil {
+		return result, err
+	}
+	validContent, err := os.ReadFile(validPath)
+	if err != nil {
+		return result, err
 	}
 
-	return result
+	// Parse input values
+	fmt.Sscanf(string(inputContent), "%x", &result.Instruction)
+	fmt.Sscanf(string(pcContent), "%x", &result.PC)
+	result.Valid = validContent[0] - '0'
+
+	// Read IVerilog results
+	ivTakenContent, _ := os.ReadFile(ivTakenPath)
+	ivTargetContent, _ := os.ReadFile(ivTargetPath)
+
+	// Read Verilator results
+	vlTakenContent, _ := os.ReadFile(vlTakenPath)
+	vlTargetContent, _ := os.ReadFile(vlTargetPath)
+
+	// Parse simulator results
+	result.IVerilogTaken = ivTakenContent[0] - '0'
+	result.VerilatorTaken = vlTakenContent[0] - '0'
+	fmt.Sscanf(string(ivTargetContent), "%x", &result.IVerilogPC)
+	fmt.Sscanf(string(vlTargetContent), "%x", &result.VerilatorPC)
+
+	// Determine opcode type
+	opcode := result.Instruction & 0x7F
+	switch opcode {
+	case 0x63:
+		result.OpcodeType = "BRANCH"
+	case 0x6F:
+		result.OpcodeType = "JAL"
+	case 0x01:
+		result.OpcodeType = "COMPRESSED"
+	default:
+		result.OpcodeType = "OTHER"
+	}
+
+	return result, nil
 }
 
 // Analyze patterns in mismatches
