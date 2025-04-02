@@ -24,14 +24,14 @@ build-focused:
 
 # Run fuzzer with default settings
 run: clean
-	./pfuzz -n 1000 -strategy opcode-aware -workers 8 -v
+	./pfuzz -n 30 -strategy opcode-aware -workers 8 -v
 
 # Run analysis tools
 analyze-mismatch:
-	@if [ -z "$(FILE)" ]; then \
-		echo "Usage: make analyze-mismatch FILE=mismatches/mismatch_X.txt"; \
+	@if [ -z "$(MISMATCH)" ]; then \
+		echo "Usage: make analyze-mismatch MISMATCH=mismatches/mismatch_X"; \
 	else \
-		./analyze $(FILE); \
+		./analyze $(MISMATCH); \
 	fi
 
 patterns:
@@ -56,14 +56,14 @@ help:
 	@echo "  make run          - Run fuzzer"
 	@echo "  make clean        - Remove temporary files"
 	@echo "  make purge        - Remove all generated files and executables"
-	@echo "  make analyze-mismatch FILE=mismatches/mismatch_X.txt - Analyze a specific mismatch"
+	@echo "  make analyze-mismatch MISMATCH=mismatches/mismatch_X - Analyze a specific mismatch"
 	@echo "  make patterns     - Analyze patterns in mismatches"
 	@echo "  make focused      - Run focused test cases"
 	@echo ""
 	@echo "Example usage:"
 	@echo "  make              - Run default fuzzer"
 	@echo "  make run OPTS=\"-n 100 -strategy simple -v\" - Run with custom options"
-	@echo "  make analyze-mismatch FILE=mismatches/mismatch_0.txt - Analyze first mismatch"
+	@echo "  make analyze-mismatch MISMATCH=mismatches/mismatch_0 - Analyze first mismatch"
 
 # Allow passing custom options to the fuzzer
 ifneq ($(OPTS),)
