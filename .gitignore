@@ -5,3 +5,6 @@ testbench.*
 tmp_gen/
 pfuzz
 mismatches/
+analyze
+focused
+mismatches.json
