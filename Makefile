@@ -24,7 +24,7 @@ build-focused:
 
 # Run fuzzer with default settings
 run: clean
-	./pfuzz -n 20 -strategy opcode-aware -workers 8 -v
+	./pfuzz -n 1000 -strategy opcode-aware -workers 8 -v
 
 # Run analysis tools
 analyze-mismatch:
