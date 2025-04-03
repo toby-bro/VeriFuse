@@ -30,8 +30,8 @@ func (g *Generator) GenerateTestbenches() error {
 
 // GenerateSVTestbench creates the SystemVerilog testbench
 func (g *Generator) GenerateSVTestbench() error {
-	svTb := fmt.Sprintf(svTestbenchTemplate, utils.TMP_DIR, utils.TMP_DIR, utils.TMP_DIR, utils.TMP_DIR, utils.TMP_DIR)
-	return utils.WriteFileContent(filepath.Join(utils.TMP_DIR, "testbench.sv"), svTb)
+	// No need to use format string here anymore since paths are relative in template
+	return utils.WriteFileContent(filepath.Join(utils.TMP_DIR, "testbench.sv"), svTestbenchTemplate)
 }
 
 // GenerateCppTestbench creates the C++ testbench for Verilator
