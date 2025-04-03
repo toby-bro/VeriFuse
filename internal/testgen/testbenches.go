@@ -16,32 +16,45 @@ module testbench;
     initial begin
         string line;
         int fd;
+		int status;
         
-        // Read inputs
-        fd = $fopen("%s/input.hex", "r");
-        $fgets(line, fd);
-        $sscanf(line, "%%h", fetch_rdata_i);
+        // Read inputs - use relative paths
+        fd = $fopen("input.hex", "r");
+        if (fd == 0) begin
+            $display("Error: Unable to open input.hex");
+            $finish;
+        end
+        status = $fgets(line, fd);
+        status = $sscanf(line, "%h", fetch_rdata_i);
         $fclose(fd);
         
-        fd = $fopen("%s/pc.hex", "r");
-        $fgets(line, fd);
-        $sscanf(line, "%%h", fetch_pc_i);
+        fd = $fopen("pc.hex", "r");
+        if (fd == 0) begin
+            $display("Error: Unable to open pc.hex");
+            $finish;
+        end
+        status = $fgets(line, fd);
+        status = $sscanf(line, "%h", fetch_pc_i);
         $fclose(fd);
         
-        fd = $fopen("%s/valid.hex", "r");
-        $fgets(line, fd);
-        $sscanf(line, "%%b", fetch_valid_i);
+        fd = $fopen("valid.hex", "r");
+        if (fd == 0) begin
+            $display("Error: Unable to open valid.hex");
+            $finish;
+        end
+        status = $fgets(line, fd);
+        status = $sscanf(line, "%b", fetch_valid_i);
         $fclose(fd);
 
         #1;
         
-        // Write outputs
-        fd = $fopen("%s/taken.hex", "w");
-        $fwrite(fd, "%%0b", predict_branch_taken_o);
+        // Write outputs - use relative paths
+        fd = $fopen("taken.hex", "w");
+        $fwrite(fd, "%0b", predict_branch_taken_o);
         $fclose(fd);
         
-        fd = $fopen("%s/target.hex", "w");
-        $fwrite(fd, "%%h", predict_branch_pc_o);
+        fd = $fopen("target.hex", "w");
+        $fwrite(fd, "%h", predict_branch_pc_o);
         $fclose(fd);
         
         $finish;
@@ -54,6 +67,7 @@ const cppTestbenchTemplate = `// filepath: testbench.cpp
 #include "Vibex_branch_predict_mocked.h"  // Updated header name
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <cstdint>
 
 int main(int argc, char** argv) {
@@ -86,8 +100,11 @@ int main(int argc, char** argv) {
     std::ofstream taken_file("%s/taken.hex");
     std::ofstream target_file("%s/target.hex");
     
-    taken_file << (int)dut->predict_branch_taken_o;
-    target_file << std::hex << dut->predict_branch_pc_o;
+    // Write as a binary digit (0 or 1) instead of as an integer
+    taken_file << (dut->predict_branch_taken_o ? '1' : '0');
+    
+    // Use consistent hex format with leading zeros
+    target_file << std::hex << std::setfill('0') << std::setw(8) << dut->predict_branch_pc_o;
 
     delete dut;
     return 0;
@@ -137,21 +154,22 @@ module testbench;
         
         string line;
         int fd;
+		int status;
         
         // Read inputs
         fd = $fopen("%s/input.hex", "r");
-        $fgets(line, fd);
-        $sscanf(line, "%%h", fetch_rdata_i);
+        status = $fgets(line, fd);
+        status = $sscanf(line, "%h", fetch_rdata_i);
         $fclose(fd);
         
         fd = $fopen("%s/pc.hex", "r");
-        $fgets(line, fd);
-        $sscanf(line, "%%h", fetch_pc_i);
+        status = $fgets(line, fd);
+        status = $sscanf(line, "%h", fetch_pc_i);
         $fclose(fd);
         
         fd = $fopen("%s/valid.hex", "r");
-        $fgets(line, fd);
-        $sscanf(line, "%%b", fetch_valid_i);
+        status = $fgets(line, fd);
+        status = $sscanf(line, "%b", fetch_valid_i);
         $fclose(fd);
 
         #1;
@@ -172,11 +190,11 @@ module testbench;
         
         // Write outputs
         fd = $fopen("%s/taken.hex", "w");
-        $fwrite(fd, "%%0b", predict_branch_taken_o);
+        $fwrite(fd, "%0b", predict_branch_taken_o);
         $fclose(fd);
         
         fd = $fopen("%s/target.hex", "w");
-        $fwrite(fd, "%%h", predict_branch_pc_o);
+        $fwrite(fd, "%h", predict_branch_pc_o);
         $fclose(fd);
         
         $finish;
