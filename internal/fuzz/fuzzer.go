@@ -355,7 +355,7 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 		workerWg.Wait()
 
 		// Now it's safe to remove the directory
-		time.Sleep(500 * time.Millisecond) // Add longer delay for safety
+		//time.Sleep(500 * time.Millisecond) // Add longer delay for safety
 		if err := os.RemoveAll(workerDir); err != nil {
 			log.Printf("Warning: Failed to clean up worker directory %s: %v", workerDir, err)
 		} else if f.verbose {
