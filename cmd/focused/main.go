@@ -12,6 +12,8 @@ import (
 )
 
 func main() {
+	// Add verbose flag
+	verbose := flag.Bool("v", false, "Verbose output")
 	flag.Parse()
 
 	if err := utils.EnsureDirs(); err != nil {
@@ -83,8 +85,8 @@ func main() {
 		// Add more test cases as needed
 	}
 
-	// Prepare simulators
-	ivSim := simulator.NewIVerilogSimulator(focusedDir)
+	// Prepare simulators with verbose flag
+	ivSim := simulator.NewIVerilogSimulator(focusedDir, *verbose)
 	vlSim := simulator.NewVerilatorSimulator(focusedDir)
 
 	if err := ivSim.Compile(); err != nil {

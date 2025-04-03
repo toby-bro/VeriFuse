@@ -14,12 +14,14 @@ import (
 )
 
 func main() {
+	// Add verbose flag
+	verbose := flag.Bool("v", false, "Verbose output")
 	flag.Parse()
 
 	// Check if we have a mismatch file to analyze
 	args := flag.Args()
 	if len(args) < 1 {
-		fmt.Println("Usage: analyze <mismatch_file_or_dir> [--step]")
+		fmt.Println("Usage: analyze [-v] <mismatch_file_or_dir> [--step]")
 		os.Exit(1)
 	}
 
@@ -201,8 +203,8 @@ func main() {
 		generateDebugTestbench()
 	}
 
-	// Run the simulations
-	ivSim := simulator.NewIVerilogSimulator(analysisDir)
+	// Update simulator creation to pass verbose flag
+	ivSim := simulator.NewIVerilogSimulator(analysisDir, *verbose)
 	vlSim := simulator.NewVerilatorSimulator(analysisDir)
 
 	fmt.Println("Running IVerilog simulation...")
