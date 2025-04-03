@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -12,18 +11,21 @@ import (
 )
 
 func main() {
-	// Add verbose flag
 	verbose := flag.Bool("v", false, "Verbose output")
 	flag.Parse()
 
+	debug := utils.NewDebugLogger(*verbose)
+
 	if err := utils.EnsureDirs(); err != nil {
-		log.Fatal("Failed to create directories:", err)
+		debug.Log("Failed to create directories: %v", err)
+		os.Exit(1)
 	}
 
 	// Create a dedicated directory for focused tests
 	focusedDir := filepath.Join(utils.TMP_DIR, "focused")
 	if err := os.MkdirAll(focusedDir, 0755); err != nil {
-		log.Fatal("Failed to create focused directory:", err)
+		debug.Log("Failed to create focused directory: %v", err)
+		os.Exit(1)
 	}
 
 	// Create specific test cases targeting the branch prediction logic
@@ -90,25 +92,27 @@ func main() {
 	vlSim := simulator.NewVerilatorSimulator(focusedDir)
 
 	if err := ivSim.Compile(); err != nil {
-		log.Fatal("Failed to compile IVerilog:", err)
+		debug.Log("Failed to compile IVerilog: %v", err)
+		os.Exit(1)
 	}
 
 	if err := vlSim.Compile(); err != nil {
-		log.Fatal("Failed to compile Verilator:", err)
+		debug.Log("Failed to compile Verilator: %v", err)
+		os.Exit(1)
 	}
 
 	// Run all test cases
-	fmt.Println("Running focused test cases...")
+	debug.Log("Running focused test cases...")
 	for i, tc := range testCases {
-		fmt.Printf("\n=== Test case: %s ===\n", tc.Name)
-		fmt.Printf("Description: %s\n", tc.Description)
-		fmt.Printf("Instruction: 0x%08x  PC: 0x%08x  Valid: %d\n",
+		debug.Log("\n=== Test case: %s ===", tc.Name)
+		debug.Log("Description: %s", tc.Description)
+		debug.Log("Instruction: 0x%08x  PC: 0x%08x  Valid: %d",
 			tc.Instruction, tc.PC, tc.Valid)
 
 		// Create test-specific files
 		testCaseDir := filepath.Join(focusedDir, fmt.Sprintf("case_%d_%s", i, tc.Name))
 		if err := os.MkdirAll(testCaseDir, 0755); err != nil {
-			log.Printf("Failed to create test case directory: %v", err)
+			debug.Log("Failed to create test case directory: %v", err)
 			continue
 		}
 
@@ -127,36 +131,36 @@ func main() {
 
 		// Run simulations
 		if err := ivSim.RunTest(inputPath, pcPath, validPath, ivTakenPath, ivTargetPath); err != nil {
-			log.Printf("IVerilog simulation failed: %v", err)
+			debug.Log("IVerilog simulation failed: %v", err)
 			continue
 		}
 
 		ivResult, err := simulator.ReadSimResultsFromFiles(ivTakenPath, ivTargetPath)
 		if err != nil {
-			log.Printf("Failed to read IVerilog results: %v", err)
+			debug.Log("Failed to read IVerilog results: %v", err)
 			continue
 		}
 
 		if err := vlSim.RunTest(inputPath, pcPath, validPath, vlTakenPath, vlTargetPath); err != nil {
-			log.Printf("Verilator simulation failed: %v", err)
+			debug.Log("Verilator simulation failed: %v", err)
 			continue
 		}
 
 		vlResult, err := simulator.ReadSimResultsFromFiles(vlTakenPath, vlTargetPath)
 		if err != nil {
-			log.Printf("Failed to read Verilator results: %v", err)
+			debug.Log("Failed to read Verilator results: %v", err)
 			continue
 		}
 
 		// Compare results
-		fmt.Printf("IVerilog:  taken=%d target=0x%08x\n",
+		debug.Log("IVerilog:  taken=%d target=0x%08x",
 			ivResult.BranchTaken, ivResult.BranchPc)
-		fmt.Printf("Verilator: taken=%d target=0x%08x\n",
+		debug.Log("Verilator: taken=%d target=0x%08x",
 			vlResult.BranchTaken, vlResult.BranchPc)
 
 		if ivResult.BranchTaken != vlResult.BranchTaken ||
 			ivResult.BranchPc != vlResult.BranchPc {
-			fmt.Printf("MISMATCH DETECTED\n")
+			debug.Log("MISMATCH DETECTED")
 
 			// Save to mismatches directory for further analysis
 			mismatchDir := filepath.Join(utils.MISMATCHES_DIR, fmt.Sprintf("focused_%s", tc.Name))
@@ -187,7 +191,7 @@ func main() {
 				file.Close()
 			}
 		} else {
-			fmt.Printf("Results match\n")
+			debug.Log("Results match")
 		}
 	}
 }

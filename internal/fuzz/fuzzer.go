@@ -121,7 +121,7 @@ func (f *Fuzzer) Setup() error {
 		return fmt.Errorf("testbench file was not created at %s", testbenchPath)
 	}
 
-	log.Printf("Created testbenches in %s directory", utils.TMP_DIR)
+	f.debug.Log("Created testbenches in %s directory", utils.TMP_DIR)
 
 	// Create a setup directory for compilation
 	setupDir := filepath.Join(utils.TMP_DIR, "setup")
@@ -253,7 +253,7 @@ func testVerilator(setupDir string) error {
 
 // Run performs the fuzzing
 func (f *Fuzzer) Run(numTests int) error {
-	log.Printf("Starting fuzzing with %d test cases using strategy: %s\n", numTests, f.strategy.Name())
+	f.debug.Log("Starting fuzzing with %d test cases using strategy: %s\n", numTests, f.strategy.Name())
 
 	// Create a worker pool for parallel fuzzing
 	var wg sync.WaitGroup
@@ -283,11 +283,11 @@ func (f *Fuzzer) Run(numTests int) error {
 	f.stats.PrintSummary()
 
 	if f.stats.Mismatches > 0 {
-		log.Printf("Found %d mismatches between iverilog and verilator!\n", f.stats.Mismatches)
+		f.debug.Log("Found %d mismatches between iverilog and verilator!\n", f.stats.Mismatches)
 		return fmt.Errorf("%d mismatches found", f.stats.Mismatches)
 	}
 
-	log.Printf("No mismatches found after %d tests.\n", numTests)
+	f.debug.Log("No mismatches found after %d tests.\n", numTests)
 	return nil
 }
 
@@ -336,7 +336,7 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 	workerID := fmt.Sprintf("worker_%d", time.Now().UnixNano())
 	workerDir := filepath.Join(utils.TMP_DIR, workerID)
 
-	f.debug.Printf("DEBUG [%s]: Creating worker directory at %s", workerID, workerDir)
+	f.debug.Printf("[%s]: Creating worker directory at %s", workerID, workerDir)
 
 	// Create worker-specific directory
 	if err := os.MkdirAll(workerDir, 0755); err != nil {
@@ -364,7 +364,7 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 	}()
 
 	// Copy all required files to the worker directory
-	f.debug.Printf("DEBUG [%s]: Copying source files to worker directory", workerID)
+	f.debug.Printf("[%s]: Copying source files to worker directory", workerID)
 	setupFiles := []string{
 		mockedVerilogFile,
 		TESTBENCH_FILE,
@@ -380,15 +380,15 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 
 		// Verify the file was copied successfully
 		if fi, err := os.Stat(dstPath); err != nil || fi.Size() == 0 {
-			f.debug.Printf("DEBUG [%s]: File %s not copied correctly, size: %d, error: %v",
+			f.debug.Printf("[%s]: File %s not copied correctly, size: %d, error: %v",
 				workerID, dstPath, fi.Size(), err)
 			return
 		}
-		f.debug.Printf("DEBUG [%s]: Successfully copied %s", workerID, filename)
+		f.debug.Printf("[%s]: Successfully copied %s", workerID, filename)
 	}
 
 	// Create worker-specific simulators
-	f.debug.Printf("DEBUG [%s]: Creating simulators", workerID)
+	f.debug.Printf("[%s]: Creating simulators", workerID)
 	ivsim := simulator.NewIVerilogSimulator(workerDir, f.verbose)
 	vlsim := simulator.NewVerilatorSimulator(workerDir)
 
@@ -396,27 +396,27 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 	ivCheck := exec.Command("which", "iverilog")
 	ivCheckOutput, err := ivCheck.Output()
 	if err != nil {
-		f.debug.Printf("DEBUG [%s]: iverilog not found in PATH: %v", workerID, err)
+		f.debug.Printf("[%s]: iverilog not found in PATH: %v", workerID, err)
 	} else {
-		f.debug.Printf("DEBUG [%s]: iverilog found at: %s", workerID, strings.TrimSpace(string(ivCheckOutput)))
+		f.debug.Printf("[%s]: iverilog found at: %s", workerID, strings.TrimSpace(string(ivCheckOutput)))
 	}
 
 	// Try to compile directly with system command first
-	f.debug.Printf("DEBUG [%s]: Running direct iverilog compilation to test", workerID)
+	f.debug.Printf("[%s]: Running direct iverilog compilation to test", workerID)
 	directCmd := exec.Command("iverilog", "-o", IVERILOG_EXEC,
 		mockedVerilogFile, TESTBENCH_FILE, "-g2012")
 	directCmd.Dir = workerDir
 	var directStderr bytes.Buffer
 	directCmd.Stderr = &directStderr
 	if directErr := directCmd.Run(); directErr != nil {
-		f.debug.Printf("DEBUG [%s]: Direct iverilog compilation failed: %v - %s",
+		f.debug.Printf("[%s]: Direct iverilog compilation failed: %v - %s",
 			workerID, directErr, directStderr.String())
 	} else {
-		f.debug.Printf("DEBUG [%s]: Direct iverilog compilation succeeded", workerID)
+		f.debug.Printf("[%s]: Direct iverilog compilation succeeded", workerID)
 	}
 
 	// Now try the actual Compile method
-	f.debug.Printf("DEBUG [%s]: Compiling IVerilog simulator", workerID)
+	f.debug.Printf("[%s]: Compiling IVerilog simulator", workerID)
 	if err := ivsim.Compile(); err != nil {
 		log.Printf("Failed to compile IVerilog in worker %s: %v", workerID, err)
 		return
@@ -424,10 +424,10 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 
 	// Verify the iverilog executable exists and has correct permissions
 	ivExecPath := ivsim.GetExecPath()
-	f.debug.Printf("DEBUG [%s]: Verifying IVerilog executable at %s", workerID, ivExecPath)
+	f.debug.Printf("[%s]: Verifying IVerilog executable at %s", workerID, ivExecPath)
 	fileInfo, err := os.Stat(ivExecPath)
 	if err != nil {
-		f.debug.Printf("DEBUG [%s]: Executable stat failed: %v", workerID, err)
+		f.debug.Printf("[%s]: Executable stat failed: %v", workerID, err)
 		if os.IsNotExist(err) {
 			// List directory contents
 			files, _ := os.ReadDir(workerDir)
@@ -435,19 +435,19 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 			for _, f := range files {
 				fileList = append(fileList, f.Name())
 			}
-			f.debug.Printf("DEBUG [%s]: Directory contents: %v", workerID, fileList)
+			f.debug.Printf("[%s]: Directory contents: %v", workerID, fileList)
 		}
 		return
 	}
 
-	f.debug.Printf("DEBUG [%s]: Executable found, size: %d bytes, mode: %s",
+	f.debug.Printf("[%s]: Executable found, size: %d bytes, mode: %s",
 		workerID, fileInfo.Size(), fileInfo.Mode())
 
 	// Make sure it's executable
 	if fileInfo.Mode().Perm()&0111 == 0 {
-		f.debug.Printf("DEBUG [%s]: Adding execute permission to %s", workerID, ivExecPath)
+		f.debug.Printf("[%s]: Adding execute permission to %s", workerID, ivExecPath)
 		if err := os.Chmod(ivExecPath, 0755); err != nil {
-			f.debug.Printf("DEBUG [%s]: chmod failed: %v", workerID, err)
+			f.debug.Printf("[%s]: chmod failed: %v", workerID, err)
 			return
 		}
 	}
@@ -455,7 +455,7 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 	// Try to execute with "file" command to verify it's a valid executable
 	fileCmd := exec.Command("file", ivExecPath)
 	fileOutput, _ := fileCmd.Output()
-	f.debug.Printf("DEBUG [%s]: file command output: %s", workerID, string(fileOutput))
+	f.debug.Printf("[%s]: file command output: %s", workerID, string(fileOutput))
 
 	// Compile Verilator as normal
 	if err := vlsim.Compile(); err != nil {

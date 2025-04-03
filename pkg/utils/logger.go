@@ -15,6 +15,11 @@ func NewDebugLogger(verbose bool) *DebugLogger {
 // Printf prints debug messages if verbose mode is enabled
 func (d *DebugLogger) Printf(format string, v ...interface{}) {
 	if d.verbose {
-		log.Printf(format, v...)
+		log.Printf("DEBUG: "+format, v...)
 	}
+}
+
+// Log prints normal (non-debug) messages
+func (d *DebugLogger) Log(format string, v ...interface{}) {
+	log.Printf(format, v...)
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"io"
 	"log"
 	"os"
 	"runtime"
@@ -20,19 +19,11 @@ func main() {
 	verbose := flag.Bool("v", false, "Verbose output")
 	flag.Parse()
 
-	// Configure logging based on verbose flag
-	if !*verbose {
-		log.SetOutput(io.Discard) // Suppress DEBUG logs
-	}
-
 	// Create and setup fuzzer using the new package structure
 	fuzzer := fuzz.NewFuzzer(*strategy, *workers, *verbose, *seedFlag)
 
 	if err := fuzzer.Setup(); err != nil {
 		// Configure logging based on verbose flag
-		if !*verbose {
-			log.SetOutput(os.Stderr)
-		}
 		log.Fatal("Setup failed:", err)
 	}
 
