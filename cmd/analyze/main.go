@@ -13,10 +13,15 @@ import (
 	"github.com/jns/pfuzz/pkg/utils"
 )
 
+// Debug logger for both normal and debug messages
+var debug *utils.DebugLogger
+
 func main() {
-	// Add verbose flag
 	verbose := flag.Bool("v", false, "Verbose output")
 	flag.Parse()
+
+	// Initialize the debug logger
+	debug = utils.NewDebugLogger(*verbose)
 
 	// Check if we have a mismatch file to analyze
 	args := flag.Args()
@@ -37,9 +42,9 @@ func main() {
 
 	if fileInfo.IsDir() {
 		isMismatchDir = true
-		fmt.Printf("Analyzing mismatch directory: %s\n", mismatchPath)
+		debug.Log("Analyzing mismatch directory: %s", mismatchPath)
 	} else {
-		fmt.Printf("Analyzing mismatch file: %s\n", mismatchPath)
+		debug.Log("Analyzing mismatch file: %s", mismatchPath)
 	}
 
 	var fetchRdata, fetchPc uint32
@@ -100,13 +105,13 @@ func main() {
 		}
 	}
 
-	fmt.Printf("Analyzing mismatch with:\n")
-	fmt.Printf("  Instruction: 0x%08x\n", fetchRdata)
-	fmt.Printf("  PC: 0x%08x\n", fetchPc)
-	fmt.Printf("  Valid: %d\n", fetchValid)
+	debug.Log("Analyzing mismatch with:")
+	debug.Log("  Instruction: 0x%08x", fetchRdata)
+	debug.Log("  PC: 0x%08x", fetchPc)
+	debug.Log("  Valid: %d", fetchValid)
 
 	// Decode the instruction
-	fmt.Printf("Decoded instruction: %s\n\n", decodeInstruction(fetchRdata))
+	debug.Log("Decoded instruction: %s\n", decodeInstruction(fetchRdata))
 
 	// Create debug logs directory
 	debugDir := "debug_logs"
@@ -144,7 +149,7 @@ func main() {
 
 	// If path is a directory, use the stored simulation results
 	if isMismatchDir {
-		fmt.Println("Using saved simulation results from mismatch directory")
+		debug.Log("Using saved simulation results from mismatch directory")
 
 		// Read IVerilog results
 		ivTakenPath := filepath.Join(mismatchPath, "iv_taken.hex")
@@ -179,18 +184,18 @@ func main() {
 		fmt.Sscanf(string(vlTargetContent), "%x", &vlResult.BranchPc)
 
 		// Compare and display results
-		fmt.Println("\n=== Simulation Results (from saved files) ===")
-		fmt.Printf("IVerilog: taken=%d pc=0x%08x\n", ivResult.BranchTaken, ivResult.BranchPc)
-		fmt.Printf("Verilator: taken=%d pc=0x%08x\n", vlResult.BranchTaken, vlResult.BranchPc)
+		debug.Log("\n=== Simulation Results (from saved files) ===")
+		debug.Log("IVerilog: taken=%d pc=0x%08x", ivResult.BranchTaken, ivResult.BranchPc)
+		debug.Log("Verilator: taken=%d pc=0x%08x", vlResult.BranchTaken, vlResult.BranchPc)
 
 		if ivResult.BranchTaken != vlResult.BranchTaken {
-			fmt.Printf("\n*** BRANCH TAKEN MISMATCH ***\n")
+			debug.Log("\n*** BRANCH TAKEN MISMATCH ***")
 			analyzePredictionDifference(fetchRdata)
 		}
 
 		if ivResult.BranchPc != vlResult.BranchPc {
-			fmt.Printf("\n*** BRANCH TARGET MISMATCH ***\n")
-			fmt.Printf("PC difference: 0x%x\n", ivResult.BranchPc^vlResult.BranchPc)
+			debug.Log("\n*** BRANCH TARGET MISMATCH ***")
+			debug.Log("PC difference: 0x%x", ivResult.BranchPc^vlResult.BranchPc)
 			analyzeTargetDifference(fetchRdata, fetchPc)
 		}
 
@@ -207,7 +212,7 @@ func main() {
 	ivSim := simulator.NewIVerilogSimulator(analysisDir, *verbose)
 	vlSim := simulator.NewVerilatorSimulator(analysisDir)
 
-	fmt.Println("Running IVerilog simulation...")
+	debug.Log("Running IVerilog simulation...")
 	if err := ivSim.Compile(); err != nil {
 		log.Fatal("Failed to compile IVerilog:", err)
 	}
@@ -219,7 +224,7 @@ func main() {
 		log.Fatal("Failed to read IVerilog results:", err)
 	}
 
-	fmt.Println("Running Verilator simulation...")
+	debug.Log("Running Verilator simulation...")
 	if err := vlSim.Compile(); err != nil {
 		log.Fatal("Failed to compile Verilator:", err)
 	}
@@ -232,18 +237,18 @@ func main() {
 	}
 
 	// Compare and display results
-	fmt.Println("\n=== Simulation Results ===")
-	fmt.Printf("IVerilog: taken=%d pc=0x%08x\n", ivResult.BranchTaken, ivResult.BranchPc)
-	fmt.Printf("Verilator: taken=%d pc=0x%08x\n", vlResult.BranchTaken, vlResult.BranchPc)
+	debug.Log("\n=== Simulation Results ===")
+	debug.Log("IVerilog: taken=%d pc=0x%08x", ivResult.BranchTaken, ivResult.BranchPc)
+	debug.Log("Verilator: taken=%d pc=0x%08x", vlResult.BranchTaken, vlResult.BranchPc)
 
 	if ivResult.BranchTaken != vlResult.BranchTaken {
-		fmt.Printf("\n*** BRANCH TAKEN MISMATCH ***\n")
+		debug.Log("\n*** BRANCH TAKEN MISMATCH ***")
 		analyzePredictionDifference(fetchRdata)
 	}
 
 	if ivResult.BranchPc != vlResult.BranchPc {
-		fmt.Printf("\n*** BRANCH TARGET MISMATCH ***\n")
-		fmt.Printf("PC difference: 0x%x\n", ivResult.BranchPc^vlResult.BranchPc)
+		debug.Log("\n*** BRANCH TARGET MISMATCH ***")
+		debug.Log("PC difference: 0x%x", ivResult.BranchPc^vlResult.BranchPc)
 		analyzeTargetDifference(fetchRdata, fetchPc)
 	}
 }
@@ -357,48 +362,48 @@ func generateDebugTestbench() {
 func analyzePredictionDifference(instr uint32) {
 	opcode := instr & 0x7F
 
-	fmt.Println("Analyzing branch prediction difference...")
+	debug.Log("Analyzing branch prediction difference...")
 
 	if opcode == 0x63 { // BRANCH
 		funct3 := (instr >> 12) & 0x7
 		imm12 := (instr >> 31) & 0x1
-		fmt.Printf("Branch instruction with funct3=%d, sign bit=%d\n", funct3, imm12)
-		fmt.Printf("Expected prediction: taken if sign bit is 1 (negative offset)\n")
+		debug.Log("Branch instruction with funct3=%d, sign bit=%d", funct3, imm12)
+		debug.Log("Expected prediction: taken if sign bit is 1 (negative offset)")
 
 		if imm12 == 1 {
-			fmt.Println("This branch should be predicted taken - check if simulators differ here")
+			debug.Log("This branch should be predicted taken - check if simulators differ here")
 		} else {
-			fmt.Println("This branch should be predicted not taken - check for bugs in condition")
+			debug.Log("This branch should be predicted not taken - check for bugs in condition")
 		}
 	} else if opcode == 0x6F { // JAL
-		fmt.Println("JAL instructions should always be predicted taken")
-		fmt.Println("Check if one simulator is incorrectly handling JAL cases")
+		debug.Log("JAL instructions should always be predicted taken")
+		debug.Log("Check if one simulator is incorrectly handling JAL cases")
 	} else if opcode == 0x01 { // Compressed
 		funct3 := (instr >> 13) & 0x7
 		imm8 := (instr >> 12) & 0x1
 
 		if funct3 == 0x5 || funct3 == 0x1 { // C.J or C.JAL
-			fmt.Println("Compressed jump should always be predicted taken")
+			debug.Log("Compressed jump should always be predicted taken")
 		} else if funct3 == 0x6 || funct3 == 0x7 { // C.BEQZ or C.BNEZ
-			fmt.Printf("Compressed branch with sign bit=%d\n", imm8)
+			debug.Log("Compressed branch with sign bit=%d", imm8)
 			if imm8 == 1 {
-				fmt.Println("This compressed branch should be predicted taken - check if simulators differ")
+				debug.Log("This compressed branch should be predicted taken - check if simulators differ")
 			} else {
-				fmt.Println("This compressed branch should be predicted not taken - check for bugs")
+				debug.Log("This compressed branch should be predicted not taken - check for bugs")
 			}
 		}
 	}
 
-	fmt.Println("\nPossible issues:")
-	fmt.Println("1. Different handling of opcode detection")
-	fmt.Println("2. Different interpretation of sign bit")
-	fmt.Println("3. Bug in branch type determination")
+	debug.Log("\nPossible issues:")
+	debug.Log("1. Different handling of opcode detection")
+	debug.Log("2. Different interpretation of sign bit")
+	debug.Log("3. Bug in branch type determination")
 }
 
 // Analyze why branch targets differ
 func analyzeTargetDifference(instr uint32, pc uint32) {
-	fmt.Println("Analyzing branch target difference...")
-	fmt.Printf("Base PC: 0x%08x\n", pc)
+	debug.Log("Analyzing branch target difference...")
+	debug.Log("Base PC: 0x%08x", pc)
 
 	opcode := instr & 0x7F
 
@@ -416,8 +421,8 @@ func analyzeTargetDifference(instr uint32, pc uint32) {
 			imm |= 0xFFFFE000
 		}
 
-		fmt.Printf("B-type immediate: 0x%x (%d)\n", imm, int32(imm))
-		fmt.Printf("Expected target: 0x%08x\n", pc+imm)
+		debug.Log("B-type immediate: 0x%x (%d)", imm, int32(imm))
+		debug.Log("Expected target: 0x%08x", pc+imm)
 	} else if opcode == 0x6F { // JAL
 		// Extract immediate
 		imm20 := (instr >> 31) & 0x1
@@ -432,15 +437,15 @@ func analyzeTargetDifference(instr uint32, pc uint32) {
 			imm |= 0xFFE00000
 		}
 
-		fmt.Printf("J-type immediate: 0x%x (%d)\n", imm, int32(imm))
-		fmt.Printf("Expected target: 0x%08x\n", pc+imm)
+		debug.Log("J-type immediate: 0x%x (%d)", imm, int32(imm))
+		debug.Log("Expected target: 0x%08x", pc+imm)
 	} else if opcode == 0x01 { // Compressed
 		// Extract and process immediate based on compressed instruction format
 		// ...
 	}
 
-	fmt.Println("\nPossible issues:")
-	fmt.Println("1. Different immediate extraction/calculation")
-	fmt.Println("2. Sign extension differences")
-	fmt.Println("3. Incorrect bit field handling")
+	debug.Log("\nPossible issues:")
+	debug.Log("1. Different immediate extraction/calculation")
+	debug.Log("2. Sign extension differences")
+	debug.Log("3. Incorrect bit field handling")
 }
