@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/jns/pfuzz/pkg/utils"
 )
@@ -198,7 +197,7 @@ func (sim *IVerilogSimulator) RunTest(inputPath, pcPath, validPath, takenPath, t
 	sim.debug.Printf("Simulation completed successfully")
 
 	// Wait to ensure file system has completed writing the files
-	time.Sleep(100 * time.Millisecond)
+	//time.Sleep(100 * time.Millisecond)
 
 	// Verify files exist with multiple retries
 	if err := VerifyOutputFiles(tmpTakenPath, tmpTargetPath); err != nil {
