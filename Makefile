@@ -17,7 +17,7 @@ build-analyze:
 	go build -o analyze cmd/analyze/main.go
 
 build-patterns:
-	go build -o patterns cmd/analyze/patterns.go
+	go build -o patterns cmd/patterns/main.go
 
 build-focused:
 	go build -o focused cmd/focused/main.go
