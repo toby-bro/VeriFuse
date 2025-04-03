@@ -17,6 +17,26 @@ import (
 	"github.com/jns/pfuzz/pkg/utils"
 )
 
+const (
+	// Source file names
+	ORIGINAL_VERILOG_FILE = "ibex_branch_predict.sv"
+	TESTBENCH_FILE        = "testbench.sv"
+	IVERILOG_EXEC         = "ibex_sim_iv"
+
+	// Test file names
+	TEST_FILE_INPUT  = "input.hex"
+	TEST_FILE_PC     = "pc.hex"
+	TEST_FILE_VALID  = "valid.hex"
+	TEST_FILE_TAKEN  = "taken.hex"
+	TEST_FILE_TARGET = "target.hex"
+)
+
+// Test file prefixes for different simulators
+const (
+	IV_PREFIX = "iv_"
+	VL_PREFIX = "vl_"
+)
+
 // Fuzzer is the main fuzzing orchestrator
 type Fuzzer struct {
 	stats    *Stats
@@ -24,6 +44,7 @@ type Fuzzer struct {
 	workers  int
 	verbose  bool
 	seed     int64
+	debug    *utils.DebugLogger
 }
 
 // NewFuzzer creates a new fuzzer instance
@@ -44,24 +65,18 @@ func NewFuzzer(strategy string, workers int, verbose bool, seed int64) *Fuzzer {
 		workers:  workers,
 		verbose:  verbose,
 		seed:     seed,
+		debug:    utils.NewDebugLogger(verbose),
 	}
 }
 
-// Setup prepares the environment for fuzzing
-func (f *Fuzzer) Setup() error {
-	// Ensure directories exist first
-	if err := utils.EnsureDirs(); err != nil {
-		return fmt.Errorf("failed to create directories: %v", err)
-	}
-
+func PrepareSVFile(initialVerilogFile string, mockedVerilogPath string) error {
 	// Analyze and mock Verilog file
-	content, err := analyzer.AnalyzeVerilogFile("ibex_branch_predict.sv")
+	content, err := analyzer.AnalyzeVerilogFile(initialVerilogFile)
 	if err != nil {
 		return fmt.Errorf("failed to analyze Verilog file: %v", err)
 	}
 
 	// Create the mocked verilog file
-	mockedVerilogPath := filepath.Join(utils.TMP_DIR, "ibex_branch_predict_mocked.sv")
 	if err := utils.WriteFileContent(mockedVerilogPath, content); err != nil {
 		return fmt.Errorf("failed to write mocked SV file: %v", err)
 	}
@@ -71,6 +86,29 @@ func (f *Fuzzer) Setup() error {
 	if _, err := os.Stat(mockedVerilogPath); os.IsNotExist(err) {
 		return fmt.Errorf("mocked verilog file was not created at %s", mockedVerilogPath)
 	}
+	return nil
+}
+
+func addMockedSuffix(filename string) string {
+	ext := filepath.Ext(filename)
+	base := strings.TrimSuffix(filename, ext)
+	newFilename := base + "_mocked" + ext
+	return newFilename
+}
+
+// Setup prepares the environment for fuzzing
+func (f *Fuzzer) Setup() error {
+	// Ensure directories exist first
+	if err := utils.EnsureDirs(); err != nil {
+		return fmt.Errorf("failed to create directories: %v", err)
+	}
+
+	mockedVerilogFile := addMockedSuffix(ORIGINAL_VERILOG_FILE)
+	mockedVerilogPath := filepath.Join(utils.TMP_DIR, addMockedSuffix(ORIGINAL_VERILOG_FILE))
+
+	if err := PrepareSVFile(ORIGINAL_VERILOG_FILE, mockedVerilogPath); err != nil {
+		return err
+	}
 
 	// Generate testbenches
 	gen := testgen.NewGenerator()
@@ -78,8 +116,7 @@ func (f *Fuzzer) Setup() error {
 		return fmt.Errorf("failed to generate testbenches: %v", err)
 	}
 
-	// Verify testbench was created
-	testbenchPath := filepath.Join(utils.TMP_DIR, "testbench.sv")
+	testbenchPath := filepath.Join(utils.TMP_DIR, TESTBENCH_FILE)
 	if _, err := os.Stat(testbenchPath); os.IsNotExist(err) {
 		return fmt.Errorf("testbench file was not created at %s", testbenchPath)
 	}
@@ -93,10 +130,9 @@ func (f *Fuzzer) Setup() error {
 	}
 
 	// Copy the necessary files to the setup directory
-	setupVerilogPath := filepath.Join(setupDir, "ibex_branch_predict_mocked.sv")
-	setupTestbenchPath := filepath.Join(setupDir, "testbench.sv")
+	setupVerilogPath := filepath.Join(setupDir, mockedVerilogFile)
+	setupTestbenchPath := filepath.Join(setupDir, TESTBENCH_FILE)
 
-	// Better error handling for file copying
 	if err := utils.CopyFile(mockedVerilogPath, setupVerilogPath); err != nil {
 		return fmt.Errorf("failed to copy Verilog file to setup dir: %v", err)
 	}
@@ -113,6 +149,19 @@ func (f *Fuzzer) Setup() error {
 	if _, err := os.Stat(setupTestbenchPath); os.IsNotExist(err) {
 		return fmt.Errorf("failed to verify copied testbench in setup dir: %s", setupTestbenchPath)
 	}
+
+	// Test IVerilog compilation
+	if err := testIVerilog(setupDir, mockedVerilogFile); err != nil {
+		return fmt.Errorf("iverilog test failed: %v", err)
+	}
+	if err := testVerilator(setupDir); err != nil {
+		return fmt.Errorf("verilator test failed: %v", err)
+	}
+
+	return nil
+}
+
+func testIVerilog(setupDir string, mockedVerilogFile string) error {
 
 	// Create a test file to verify IVerilog works correctly
 	testFile := filepath.Join(setupDir, "test.sv")
@@ -160,8 +209,8 @@ func (f *Fuzzer) Setup() error {
 
 	// Compile simulators using local file paths and working directory with more robust error handling
 	log.Println("Compiling iverilog in setup directory...")
-	ivCmd := exec.Command("iverilog", "-o", "ibex_sim_iv",
-		"ibex_branch_predict_mocked.sv", "testbench.sv", "-g2012")
+	ivCmd := exec.Command("iverilog", "-o", IVERILOG_EXEC,
+		mockedVerilogFile, TESTBENCH_FILE, "-g2012")
 	ivCmd.Dir = setupDir
 	stderr.Reset()
 	ivCmd.Stderr = &stderr
@@ -170,18 +219,18 @@ func (f *Fuzzer) Setup() error {
 	}
 
 	// Verify iverilog executable was created
-	ivExecPath := filepath.Join(setupDir, "ibex_sim_iv")
+	ivExecPath := filepath.Join(setupDir, IVERILOG_EXEC)
 	if _, err := os.Stat(ivExecPath); os.IsNotExist(err) {
 		return fmt.Errorf("iverilog executable not created at %s", ivExecPath)
 	}
 
 	// Test the iverilog simulator to ensure it's valid
 	// This will fail without proper input files, but should at least start without errors
-	ivTestCmd := exec.Command("./ibex_sim_iv")
+	ivTestCmd := exec.Command("./" + IVERILOG_EXEC)
 	ivTestCmd.Dir = setupDir
 	stderr.Reset()
 	ivTestCmd.Stderr = &stderr
-	err = ivTestCmd.Run()
+	err := ivTestCmd.Run()
 	// We expect it to fail because we don't have input files, but check stderr
 	if err != nil && !strings.Contains(stderr.String(), "fopen") {
 		// Only return an error if it's not the expected "file not found" error
@@ -189,14 +238,16 @@ func (f *Fuzzer) Setup() error {
 	}
 
 	log.Println("Successfully compiled with iverilog")
+	return nil
+}
 
+func testVerilator(setupDir string) error {
 	// For verilator, use the simulator with proper error handling
 	vlsim := simulator.NewVerilatorSimulator(setupDir)
 	if err := vlsim.Compile(); err != nil {
 		return fmt.Errorf("failed to compile with verilator: %v", err)
 	}
 	log.Println("Successfully compiled with verilator")
-
 	return nil
 }
 
@@ -253,11 +304,6 @@ func (f *Fuzzer) runSimulator(simName string, sim simulator.Simulator, i int,
 		return simulator.SimResult{}, false
 	}
 
-	// Add delay for iverilog only (known issue with file output)
-	if simName == "iverilog" {
-		time.Sleep(100 * time.Millisecond)
-	}
-
 	// Verify output files exist
 	if !utils.FileExists(takenPath) || !utils.FileExists(targetPath) {
 		if f.verbose {
@@ -284,11 +330,13 @@ func (f *Fuzzer) runSimulator(simName string, sim simulator.Simulator, i int,
 func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) {
 	defer wg.Done()
 
+	mockedVerilogFile := addMockedSuffix(ORIGINAL_VERILOG_FILE)
+
 	// Each worker gets its own simulator instances and working directory
 	workerID := fmt.Sprintf("worker_%d", time.Now().UnixNano())
 	workerDir := filepath.Join(utils.TMP_DIR, workerID)
 
-	log.Printf("DEBUG [%s]: Creating worker directory at %s", workerID, workerDir)
+	f.debug.Printf("DEBUG [%s]: Creating worker directory at %s", workerID, workerDir)
 
 	// Create worker-specific directory
 	if err := os.MkdirAll(workerDir, 0755); err != nil {
@@ -316,10 +364,10 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 	}()
 
 	// Copy all required files to the worker directory
-	log.Printf("DEBUG [%s]: Copying source files to worker directory", workerID)
+	f.debug.Printf("DEBUG [%s]: Copying source files to worker directory", workerID)
 	setupFiles := []string{
-		"ibex_branch_predict_mocked.sv",
-		"testbench.sv",
+		mockedVerilogFile,
+		TESTBENCH_FILE,
 	}
 
 	for _, filename := range setupFiles {
@@ -332,43 +380,43 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 
 		// Verify the file was copied successfully
 		if fi, err := os.Stat(dstPath); err != nil || fi.Size() == 0 {
-			log.Printf("DEBUG [%s]: File %s not copied correctly, size: %d, error: %v",
+			f.debug.Printf("DEBUG [%s]: File %s not copied correctly, size: %d, error: %v",
 				workerID, dstPath, fi.Size(), err)
 			return
 		}
-		log.Printf("DEBUG [%s]: Successfully copied %s", workerID, filename)
+		f.debug.Printf("DEBUG [%s]: Successfully copied %s", workerID, filename)
 	}
 
 	// Create worker-specific simulators
-	log.Printf("DEBUG [%s]: Creating simulators", workerID)
-	ivsim := simulator.NewIVerilogSimulator(workerDir)
+	f.debug.Printf("DEBUG [%s]: Creating simulators", workerID)
+	ivsim := simulator.NewIVerilogSimulator(workerDir, f.verbose)
 	vlsim := simulator.NewVerilatorSimulator(workerDir)
 
 	// Check if iverilog is available on this system
 	ivCheck := exec.Command("which", "iverilog")
 	ivCheckOutput, err := ivCheck.Output()
 	if err != nil {
-		log.Printf("DEBUG [%s]: iverilog not found in PATH: %v", workerID, err)
+		f.debug.Printf("DEBUG [%s]: iverilog not found in PATH: %v", workerID, err)
 	} else {
-		log.Printf("DEBUG [%s]: iverilog found at: %s", workerID, strings.TrimSpace(string(ivCheckOutput)))
+		f.debug.Printf("DEBUG [%s]: iverilog found at: %s", workerID, strings.TrimSpace(string(ivCheckOutput)))
 	}
 
 	// Try to compile directly with system command first
-	log.Printf("DEBUG [%s]: Running direct iverilog compilation to test", workerID)
-	directCmd := exec.Command("iverilog", "-o", "ibex_sim_iv",
-		"ibex_branch_predict_mocked.sv", "testbench.sv", "-g2012")
+	f.debug.Printf("DEBUG [%s]: Running direct iverilog compilation to test", workerID)
+	directCmd := exec.Command("iverilog", "-o", IVERILOG_EXEC,
+		mockedVerilogFile, TESTBENCH_FILE, "-g2012")
 	directCmd.Dir = workerDir
 	var directStderr bytes.Buffer
 	directCmd.Stderr = &directStderr
 	if directErr := directCmd.Run(); directErr != nil {
-		log.Printf("DEBUG [%s]: Direct iverilog compilation failed: %v - %s",
+		f.debug.Printf("DEBUG [%s]: Direct iverilog compilation failed: %v - %s",
 			workerID, directErr, directStderr.String())
 	} else {
-		log.Printf("DEBUG [%s]: Direct iverilog compilation succeeded", workerID)
+		f.debug.Printf("DEBUG [%s]: Direct iverilog compilation succeeded", workerID)
 	}
 
 	// Now try the actual Compile method
-	log.Printf("DEBUG [%s]: Compiling IVerilog simulator", workerID)
+	f.debug.Printf("DEBUG [%s]: Compiling IVerilog simulator", workerID)
 	if err := ivsim.Compile(); err != nil {
 		log.Printf("Failed to compile IVerilog in worker %s: %v", workerID, err)
 		return
@@ -376,10 +424,10 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 
 	// Verify the iverilog executable exists and has correct permissions
 	ivExecPath := ivsim.GetExecPath()
-	log.Printf("DEBUG [%s]: Verifying IVerilog executable at %s", workerID, ivExecPath)
+	f.debug.Printf("DEBUG [%s]: Verifying IVerilog executable at %s", workerID, ivExecPath)
 	fileInfo, err := os.Stat(ivExecPath)
 	if err != nil {
-		log.Printf("DEBUG [%s]: Executable stat failed: %v", workerID, err)
+		f.debug.Printf("DEBUG [%s]: Executable stat failed: %v", workerID, err)
 		if os.IsNotExist(err) {
 			// List directory contents
 			files, _ := os.ReadDir(workerDir)
@@ -387,19 +435,19 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 			for _, f := range files {
 				fileList = append(fileList, f.Name())
 			}
-			log.Printf("DEBUG [%s]: Directory contents: %v", workerID, fileList)
+			f.debug.Printf("DEBUG [%s]: Directory contents: %v", workerID, fileList)
 		}
 		return
 	}
 
-	log.Printf("DEBUG [%s]: Executable found, size: %d bytes, mode: %s",
+	f.debug.Printf("DEBUG [%s]: Executable found, size: %d bytes, mode: %s",
 		workerID, fileInfo.Size(), fileInfo.Mode())
 
 	// Make sure it's executable
 	if fileInfo.Mode().Perm()&0111 == 0 {
-		log.Printf("DEBUG [%s]: Adding execute permission to %s", workerID, ivExecPath)
+		f.debug.Printf("DEBUG [%s]: Adding execute permission to %s", workerID, ivExecPath)
 		if err := os.Chmod(ivExecPath, 0755); err != nil {
-			log.Printf("DEBUG [%s]: chmod failed: %v", workerID, err)
+			f.debug.Printf("DEBUG [%s]: chmod failed: %v", workerID, err)
 			return
 		}
 	}
@@ -407,7 +455,7 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 	// Try to execute with "file" command to verify it's a valid executable
 	fileCmd := exec.Command("file", ivExecPath)
 	fileOutput, _ := fileCmd.Output()
-	log.Printf("DEBUG [%s]: file command output: %s", workerID, string(fileOutput))
+	f.debug.Printf("DEBUG [%s]: file command output: %s", workerID, string(fileOutput))
 
 	// Compile Verilator as normal
 	if err := vlsim.Compile(); err != nil {
@@ -435,13 +483,13 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 			}
 
 			// Write input files directly to the test directory
-			inputPath := filepath.Join(testDir, "input.hex")
-			pcPath := filepath.Join(testDir, "pc.hex")
-			validPath := filepath.Join(testDir, "valid.hex")
-			ivTakenPath := filepath.Join(testDir, "iv_taken.hex")
-			ivTargetPath := filepath.Join(testDir, "iv_target.hex")
-			vlTakenPath := filepath.Join(testDir, "vl_taken.hex")
-			vlTargetPath := filepath.Join(testDir, "vl_target.hex")
+			inputPath := filepath.Join(testDir, TEST_FILE_INPUT)
+			pcPath := filepath.Join(testDir, TEST_FILE_PC)
+			validPath := filepath.Join(testDir, TEST_FILE_VALID)
+			ivTakenPath := filepath.Join(testDir, IV_PREFIX+TEST_FILE_TAKEN)
+			ivTargetPath := filepath.Join(testDir, IV_PREFIX+TEST_FILE_TARGET)
+			vlTakenPath := filepath.Join(testDir, VL_PREFIX+TEST_FILE_TAKEN)
+			vlTargetPath := filepath.Join(testDir, VL_PREFIX+TEST_FILE_TARGET)
 
 			// Write test inputs
 			if err := utils.WriteHexFile(inputPath, testCase.FetchRdata); err != nil {
@@ -509,13 +557,13 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 				os.MkdirAll(mismatchDir, 0755)
 
 				// Copy all input and output files to the mismatch directory
-				utils.CopyFile(inputPath, filepath.Join(mismatchDir, "input.hex"))
-				utils.CopyFile(pcPath, filepath.Join(mismatchDir, "pc.hex"))
-				utils.CopyFile(validPath, filepath.Join(mismatchDir, "valid.hex"))
-				utils.CopyFile(ivTakenPath, filepath.Join(mismatchDir, "iv_taken.hex"))
-				utils.CopyFile(ivTargetPath, filepath.Join(mismatchDir, "iv_target.hex"))
-				utils.CopyFile(vlTakenPath, filepath.Join(mismatchDir, "vl_taken.hex"))
-				utils.CopyFile(vlTargetPath, filepath.Join(mismatchDir, "vl_target.hex"))
+				utils.CopyFile(inputPath, filepath.Join(mismatchDir, TEST_FILE_INPUT))
+				utils.CopyFile(pcPath, filepath.Join(mismatchDir, TEST_FILE_PC))
+				utils.CopyFile(validPath, filepath.Join(mismatchDir, TEST_FILE_VALID))
+				utils.CopyFile(ivTakenPath, filepath.Join(mismatchDir, IV_PREFIX+TEST_FILE_TAKEN))
+				utils.CopyFile(ivTargetPath, filepath.Join(mismatchDir, IV_PREFIX+TEST_FILE_TARGET))
+				utils.CopyFile(vlTakenPath, filepath.Join(mismatchDir, VL_PREFIX+TEST_FILE_TAKEN))
+				utils.CopyFile(vlTargetPath, filepath.Join(mismatchDir, VL_PREFIX+TEST_FILE_TARGET))
 
 				// Create a summary file with all information
 				filename := filepath.Join(utils.MISMATCHES_DIR, fmt.Sprintf("mismatch_%d.txt", i))
