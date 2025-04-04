@@ -19,6 +19,13 @@ const (
 	INOUT
 )
 
+// Parameter represents a module parameter
+type Parameter struct {
+	Name         string
+	Type         string
+	DefaultValue string
+}
+
 // Port represents a single port in a Verilog module
 type Port struct {
 	Name      string
@@ -30,10 +37,11 @@ type Port struct {
 
 // Module represents a parsed Verilog module
 type Module struct {
-	Name     string
-	Filename string
-	Ports    []Port
-	Content  string
+	Name       string
+	Filename   string
+	Ports      []Port
+	Parameters []Parameter
+	Content    string
 }
 
 // Utility functions for bit width parsing
@@ -98,31 +106,55 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 		targetModule = strings.TrimSuffix(baseName, filepath.Ext(baseName))
 	}
 
-	// Find module declaration
-	moduleRegex := regexp.MustCompile(fmt.Sprintf(`module\s+%s\s*\(([\s\S]*?)\);`, regexp.QuoteMeta(targetModule)))
+	// Find module declaration - now supports parameter section with #(...)
+	moduleRegex := regexp.MustCompile(fmt.Sprintf(`module\s+%s\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);`, regexp.QuoteMeta(targetModule)))
 	moduleMatches := moduleRegex.FindSubmatch(content)
 
-	if len(moduleMatches) < 2 {
+	if len(moduleMatches) < 3 {
 		// Try with any module name if specific module not found
-		generalModuleRegex := regexp.MustCompile(`module\s+(\w+)\s*\(([\s\S]*?)\);`)
+		generalModuleRegex := regexp.MustCompile(`module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);`)
 		generalMatches := generalModuleRegex.FindSubmatch(content)
 
-		if len(generalMatches) < 3 {
+		if len(generalMatches) < 4 {
 			return nil, fmt.Errorf("no module found in the file")
 		}
 
 		targetModule = string(generalMatches[1])
-		moduleMatches = [][]byte{generalMatches[0], generalMatches[2]}
+		// If parameters section exists, it will be in index 2, and port list in index 3
+		// If no parameters, then port list will be in index 2
+		var paramList, portList []byte
+		if len(generalMatches[2]) > 0 {
+			paramList = generalMatches[2]
+			portList = generalMatches[3]
+		} else {
+			portList = generalMatches[3]
+		}
+		moduleMatches = [][]byte{generalMatches[0], paramList, portList}
 	}
 
-	portList := string(moduleMatches[1])
+	// Extract parameters and port list
+	var paramList string
+	var portList string
+
+	if len(moduleMatches) >= 3 {
+		if len(moduleMatches[1]) > 0 {
+			paramList = string(moduleMatches[1])
+		}
+		portList = string(moduleMatches[2])
+	}
 
 	// Create a new module structure
 	module := &Module{
-		Name:     targetModule,
-		Filename: filename,
-		Ports:    []Port{},
-		Content:  string(content),
+		Name:       targetModule,
+		Filename:   filename,
+		Ports:      []Port{},
+		Parameters: []Parameter{},
+		Content:    string(content),
+	}
+
+	// Parse parameters if they exist
+	if paramList != "" {
+		parseParameters(paramList, module)
 	}
 
 	// Now scan the file to find port declarations
@@ -275,4 +307,50 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 	}
 
 	return module, nil
+}
+
+// parseParameters extracts parameters from the module parameter list
+func parseParameters(paramList string, module *Module) {
+	// Split by commas, but handle multi-line parameters
+	params := strings.Split(paramList, ",")
+
+	for _, param := range params {
+		param = strings.TrimSpace(param)
+		if param == "" {
+			continue
+		}
+
+		// Better parameter regex that handles both formats:
+		// 1. parameter [type] NAME = VALUE
+		// 2. parameter type qualifier NAME = VALUE (e.g., int unsigned NUM_REQS = 2)
+		paramRegex := regexp.MustCompile(`(?:parameter)?\s*(?:(\w+(?:\s+(?:unsigned|signed))?)|(\w+))\s+(\w+)(?:\s*=\s*([^,]+))?`)
+
+		matches := paramRegex.FindStringSubmatch(param)
+
+		if len(matches) >= 4 {
+			var paramType, paramName, paramValue string
+
+			// Extract type and name based on which pattern matched
+			if matches[1] != "" {
+				// Case with type qualifier like "int unsigned"
+				paramType = strings.TrimSpace(matches[1])
+				paramName = strings.TrimSpace(matches[3])
+			} else {
+				// Simple case like "parameter bit NAME"
+				paramType = strings.TrimSpace(matches[2])
+				paramName = strings.TrimSpace(matches[3])
+			}
+
+			// Get default value if present
+			if len(matches) >= 5 && matches[4] != "" {
+				paramValue = strings.TrimSpace(matches[4])
+			}
+
+			module.Parameters = append(module.Parameters, Parameter{
+				Name:         paramName,
+				Type:         paramType,
+				DefaultValue: paramValue,
+			})
+		}
+	}
 }
