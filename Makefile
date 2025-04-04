@@ -24,7 +24,7 @@ build-focused:
 
 # Run fuzzer with default settings
 run: clean
-	./pfuzz -n 1 -strategy smart -workers 1 -v -file ibex_branch_predict.sv
+	./pfuzz -n 1000 -strategy smart -workers 10 -v -file ibex_branch_predict.sv
 
 # Run analysis tools
 analyze-mismatch:

@@ -6,6 +6,10 @@ To do this we are trying to take valid sv code and run it as a standalone progra
 
 ## Example usage
 
+```bash
+make
+```
+
 - Change the name of the file in the `Makefile` in the `run` to the file you want as base for the fuzzing.
 - To remove the verbose remove the -v flag in the `Makefile`.
 - To see stats on the discrepancies run `./patterns`.
