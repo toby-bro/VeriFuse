@@ -142,17 +142,17 @@ func MockEnumCast(cast EnumCast) string {
 	return GetPlausibleValue(cast.EnumType)
 }
 
-// ReplaceMockedEnumCasts replaces enum casts with mocked values
-func ReplaceMockedEnumCasts(content string, casts []EnumCast) string {
-	lines := strings.Split(content, "\n")
-	for i, line := range lines {
-		for _, cast := range casts {
-			if strings.Contains(line, cast.Line) {
-				originalCast := fmt.Sprintf("%s'(%s)", cast.EnumType, cast.Expression)
-				mockedValue := MockEnumCast(cast)
-				lines[i] = strings.Replace(line, originalCast, mockedValue, 1)
-			}
-		}
+func ReplaceMockedEnumCasts(content string, enumCasts []EnumCast) string {
+	for _, cast := range enumCasts {
+		escapedExpr := regexp.QuoteMeta(cast.Expression)
+
+		pattern := fmt.Sprintf(`(%s)\s*'\(\s*%s\s*\)`,
+			regexp.QuoteMeta(cast.EnumType), escapedExpr)
+
+		r := regexp.MustCompile(pattern)
+
+		mockedValue := MockEnumCast(cast)
+		content = r.ReplaceAllString(content, mockedValue)
 	}
-	return strings.Join(lines, "\n")
+	return content
 }

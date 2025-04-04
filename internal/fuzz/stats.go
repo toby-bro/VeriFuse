@@ -13,26 +13,29 @@ type Stats struct {
 	Mismatches     int
 	SimErrors      int
 	mutex          sync.Mutex
-	FoundMutants   map[string]bool // Track unique mismatches
-	LastMismatches []TestCase      // Store recent mismatches
+	FoundMutants   map[string]bool     // Track unique mismatches
+	LastMismatches []map[string]string // Store recent mismatches
 }
 
 // NewStats creates a new Stats instance
 func NewStats() *Stats {
 	return &Stats{
 		FoundMutants:   make(map[string]bool),
-		LastMismatches: make([]TestCase, 0),
+		LastMismatches: make([]map[string]string, 0),
 	}
 }
 
 // AddMismatch records a mismatch
-func (fs *Stats) AddMismatch(tc TestCase) {
+func (fs *Stats) AddMismatch(tc map[string]string) {
 	fs.mutex.Lock()
 	defer fs.mutex.Unlock()
 	fs.Mismatches++
 
-	// Create a unique key for this mismatch type
-	key := fmt.Sprintf("R%x_P%x_V%d", tc.FetchRdata, tc.FetchPc, tc.FetchValid)
+	// Create a unique key for this mismatch by combining input values
+	var key string
+	for k, v := range tc {
+		key += fmt.Sprintf("%s=%s_", k, v)
+	}
 
 	// Track unique mismatches
 	if !fs.FoundMutants[key] {
@@ -71,8 +74,11 @@ func (fs *Stats) PrintSummary() {
 	if len(fs.LastMismatches) > 0 {
 		fmt.Printf("\nLast %d unique mismatches:\n", len(fs.LastMismatches))
 		for i, tc := range fs.LastMismatches {
-			fmt.Printf("%d: rdata=0x%08x, pc=0x%08x, valid=%d\n",
-				i+1, tc.FetchRdata, tc.FetchPc, tc.FetchValid)
+			fmt.Printf("%d: ", i+1)
+			for k, v := range tc {
+				fmt.Printf("%s=%s ", k, v)
+			}
+			fmt.Println()
 		}
 	}
 }

@@ -4,23 +4,25 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
+// OutputPair represents an output value pair from both simulators
+type OutputPair struct {
+	IVerilog  string `json:"iverilog"`
+	Verilator string `json:"verilator"`
+}
+
+// MismatchInfo represents a generic mismatch between simulators
 type MismatchInfo struct {
-	ID             int    `json:"id"`
-	Instruction    uint32 `json:"instruction"`
-	PC             uint32 `json:"pc"`
-	Valid          uint8  `json:"valid"`
-	IVerilogTaken  uint8  `json:"iverilog_taken"`
-	VerilatorTaken uint8  `json:"verilator_taken"`
-	IVerilogPC     uint32 `json:"iverilog_pc"`
-	VerilatorPC    uint32 `json:"verilator_pc"`
-	OpcodeType     string `json:"opcode_type"`
+	ID        int                   `json:"id"`
+	Inputs    map[string]string     `json:"inputs"`
+	Outputs   map[string]OutputPair `json:"outputs"`
+	Timestamp time.Time             `json:"timestamp"`
 }
 
 func main() {
@@ -28,7 +30,7 @@ func main() {
 
 	// Collect all mismatch directories
 	mismatchDir := "mismatches"
-	files, err := ioutil.ReadDir(mismatchDir)
+	files, err := os.ReadDir(mismatchDir)
 	if err != nil {
 		log.Fatalf("Failed to read mismatches directory: %v", err)
 	}
@@ -66,7 +68,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to convert to JSON: %v", err)
 	}
-	if err := ioutil.WriteFile("mismatches.json", jsonData, 0644); err != nil {
+	if err := os.WriteFile("mismatches.json", jsonData, 0644); err != nil {
 		log.Fatalf("Failed to write JSON file: %v", err)
 	}
 	fmt.Println("Exported all mismatch data to mismatches.json")
@@ -84,74 +86,73 @@ func parseMismatchDir(dirPath, dirName string) (MismatchInfo, error) {
 
 	// Initialize the mismatch info
 	result := MismatchInfo{
-		ID: id,
+		ID:        id,
+		Inputs:    make(map[string]string),
+		Outputs:   make(map[string]OutputPair),
+		Timestamp: time.Now(),
 	}
 
-	// Read input files
-	inputPath := filepath.Join(dirPath, "input.hex")
-	pcPath := filepath.Join(dirPath, "pc.hex")
-	validPath := filepath.Join(dirPath, "valid.hex")
+	// Find all input files
+	inputFiles, err := filepath.Glob(filepath.Join(dirPath, "input_*.hex"))
+	if err != nil || len(inputFiles) == 0 {
+		return result, fmt.Errorf("no input files found in %s", dirPath)
+	}
 
-	// Read IVerilog result files
-	ivTakenPath := filepath.Join(dirPath, "iv_taken.hex")
-	ivTargetPath := filepath.Join(dirPath, "iv_target.hex")
+	// Process each input file
+	for _, inputFile := range inputFiles {
+		portName := strings.TrimPrefix(filepath.Base(inputFile), "input_")
+		portName = strings.TrimSuffix(portName, ".hex")
 
-	// Read Verilator result files
-	vlTakenPath := filepath.Join(dirPath, "vl_taken.hex")
-	vlTargetPath := filepath.Join(dirPath, "vl_target.hex")
+		content, err := os.ReadFile(inputFile)
+		if err != nil {
+			return result, fmt.Errorf("failed to read input file %s: %v", inputFile, err)
+		}
 
-	// Check if all files exist
-	requiredFiles := []string{inputPath, pcPath, validPath, ivTakenPath, ivTargetPath, vlTakenPath, vlTargetPath}
-	for _, filePath := range requiredFiles {
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			return result, fmt.Errorf("missing required file: %s", filePath)
+		result.Inputs[portName] = strings.TrimSpace(string(content))
+	}
+
+	// Find all IVerilog output files
+	ivOutputFiles, err := filepath.Glob(filepath.Join(dirPath, "iv_*.hex"))
+	if err != nil || len(ivOutputFiles) == 0 {
+		return result, fmt.Errorf("no IVerilog output files found in %s", dirPath)
+	}
+
+	// Process each output file
+	for _, ivFile := range ivOutputFiles {
+		portName := strings.TrimPrefix(filepath.Base(ivFile), "iv_")
+		portName = strings.TrimSuffix(portName, ".hex")
+
+		// Find corresponding Verilator output
+		vlFile := filepath.Join(dirPath, "vl_"+portName+".hex")
+		if _, err := os.Stat(vlFile); os.IsNotExist(err) {
+			continue // Skip if no corresponding Verilator file
+		}
+
+		// Read both outputs
+		ivContent, err := os.ReadFile(ivFile)
+		if err != nil {
+			continue
+		}
+
+		vlContent, err := os.ReadFile(vlFile)
+		if err != nil {
+			continue
+		}
+
+		// Only add ports where outputs differ
+		ivValue := strings.TrimSpace(string(ivContent))
+		vlValue := strings.TrimSpace(string(vlContent))
+
+		if ivValue != vlValue {
+			result.Outputs[portName] = OutputPair{
+				IVerilog:  ivValue,
+				Verilator: vlValue,
+			}
 		}
 	}
 
-	// Read input data
-	inputContent, err := os.ReadFile(inputPath)
-	if err != nil {
-		return result, err
-	}
-	pcContent, err := os.ReadFile(pcPath)
-	if err != nil {
-		return result, err
-	}
-	validContent, err := os.ReadFile(validPath)
-	if err != nil {
-		return result, err
-	}
-
-	// Parse input values
-	fmt.Sscanf(string(inputContent), "%x", &result.Instruction)
-	fmt.Sscanf(string(pcContent), "%x", &result.PC)
-	result.Valid = validContent[0] - '0'
-
-	// Read IVerilog results
-	ivTakenContent, _ := os.ReadFile(ivTakenPath)
-	ivTargetContent, _ := os.ReadFile(ivTargetPath)
-
-	// Read Verilator results
-	vlTakenContent, _ := os.ReadFile(vlTakenPath)
-	vlTargetContent, _ := os.ReadFile(vlTargetPath)
-
-	// Parse simulator results
-	result.IVerilogTaken = ivTakenContent[0] - '0'
-	result.VerilatorTaken = vlTakenContent[0] - '0'
-	fmt.Sscanf(string(ivTargetContent), "%x", &result.IVerilogPC)
-	fmt.Sscanf(string(vlTargetContent), "%x", &result.VerilatorPC)
-
-	// Determine opcode type
-	opcode := result.Instruction & 0x7F
-	switch opcode {
-	case 0x63:
-		result.OpcodeType = "BRANCH"
-	case 0x6F:
-		result.OpcodeType = "JAL"
-	case 0x01:
-		result.OpcodeType = "COMPRESSED"
-	default:
-		result.OpcodeType = "OTHER"
+	if len(result.Outputs) == 0 {
+		return result, fmt.Errorf("no mismatched outputs found in %s", dirPath)
 	}
 
 	return result, nil
@@ -159,51 +160,71 @@ func parseMismatchDir(dirPath, dirName string) (MismatchInfo, error) {
 
 // Analyze patterns in mismatches
 func analyzePatterns(mismatches []MismatchInfo) {
-	// Count by opcode type
-	opcodeStats := make(map[string]int)
+	// Count mismatched outputs by port name
+	portMismatchCounts := make(map[string]int)
 
-	// Track branch taken vs. not taken discrepancies
-	takenMismatches := 0
-
-	// Track PC mismatches
-	pcMismatches := 0
-
-	// Track bit patterns
-	opcodePatterns := make(map[uint32]int)
+	// Track patterns in input values
+	inputPatterns := make(map[string]map[string]int)
 
 	for _, m := range mismatches {
-		opcodeStats[m.OpcodeType]++
-
-		if m.IVerilogTaken != m.VerilatorTaken {
-			takenMismatches++
+		// Count port-specific mismatches
+		for portName := range m.Outputs {
+			portMismatchCounts[portName]++
 		}
 
-		if m.IVerilogPC != m.VerilatorPC {
-			pcMismatches++
+		// Track patterns in inputs
+		for portName, value := range m.Inputs {
+			if _, exists := inputPatterns[portName]; !exists {
+				inputPatterns[portName] = make(map[string]int)
+			}
+			inputPatterns[portName][value]++
 		}
-
-		// Track the opcode byte
-		opcodeByte := m.Instruction & 0x7F
-		opcodePatterns[opcodeByte]++
 	}
 
 	// Display results
 	fmt.Println("\n=== Mismatch Patterns ===")
-	fmt.Printf("Branch taken mismatches: %d (%.1f%%)\n", takenMismatches,
-		float64(takenMismatches)/float64(len(mismatches))*100)
-	fmt.Printf("Branch target mismatches: %d (%.1f%%)\n", pcMismatches,
-		float64(pcMismatches)/float64(len(mismatches))*100)
 
-	fmt.Println("\nOpcode distribution:")
-	for opcode, count := range opcodeStats {
-		fmt.Printf("  %s: %d (%.1f%%)\n", opcode, count,
+	// Most common mismatched outputs
+	fmt.Println("\nMost frequently mismatched output ports:")
+	for port, count := range portMismatchCounts {
+		fmt.Printf("  %s: %d mismatches (%.1f%%)\n", port, count,
 			float64(count)/float64(len(mismatches))*100)
 	}
 
-	fmt.Println("\nMost common opcode bytes:")
-	for opcode, count := range opcodePatterns {
-		if count > 1 {
-			fmt.Printf("  0x%02x: %d occurrences\n", opcode, count)
+	// Most common input patterns associated with mismatches
+	fmt.Println("\nCommon input patterns in mismatches:")
+	for port, values := range inputPatterns {
+		fmt.Printf("  Port %s:\n", port)
+
+		// Find the top 3 most common values
+		type valuePair struct {
+			value string
+			count int
+		}
+		pairs := make([]valuePair, 0)
+		for val, count := range values {
+			pairs = append(pairs, valuePair{val, count})
+		}
+
+		// Sort by frequency (simple bubble sort is fine for small lists)
+		for i := 0; i < len(pairs)-1; i++ {
+			for j := i + 1; j < len(pairs); j++ {
+				if pairs[j].count > pairs[i].count {
+					pairs[i], pairs[j] = pairs[j], pairs[i]
+				}
+			}
+		}
+
+		// Print top values (up to 3)
+		limit := 3
+		if len(pairs) < limit {
+			limit = len(pairs)
+		}
+
+		for i := 0; i < limit; i++ {
+			fmt.Printf("    Value '%s': %d occurrences (%.1f%%)\n",
+				pairs[i].value, pairs[i].count,
+				float64(pairs[i].count)/float64(len(mismatches))*100)
 		}
 	}
 }

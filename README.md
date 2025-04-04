@@ -20,3 +20,11 @@ List of things to mock:
 
 - iverilog doesn't support
   - unique
+
+## TODO
+
+- [ ] Parmetrized constructs
+- [ ] Repair the focused and analysed modules
+- [ ] Use the example_usage to effectively test many modules
+- [ ] Combine many different sv files
+- [ ] Start doing coverage based fuzzing

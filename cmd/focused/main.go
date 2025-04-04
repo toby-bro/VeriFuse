@@ -3,15 +3,20 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/jns/pfuzz/internal/simulator"
+	"github.com/jns/pfuzz/internal/verilog"
 	"github.com/jns/pfuzz/pkg/utils"
 )
 
 func main() {
 	verbose := flag.Bool("v", false, "Verbose output")
+	verilogFile := flag.String("file", "", "Path to Verilog file (required)")
+	moduleName := flag.String("module", "", "Module name (if different from filename)")
 	flag.Parse()
 
 	debug := utils.NewDebugLogger(*verbose)
