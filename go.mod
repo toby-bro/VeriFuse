@@ -1,3 +1,3 @@
-module gofuzz
+module github.com/toby-bro/pfuzz
 
-go 1.24.1
+go 1.20

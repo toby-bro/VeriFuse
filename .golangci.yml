@@ -1,5 +1,7 @@
+version: "0.1"
 linters:
-  disable-all: true
+  disable:
+    - all
   enable:
     # # default: https://golangci-lint.run/usage/linters/#enabled-by-default
     - errcheck
@@ -29,15 +31,5 @@ linters:
     - exhaustive
     - contextcheck
     - whitespace
-  fast: true
-linters-settings:
-  exhaustive:
-    check:
-      - switch
-      - map
-    default-signifies-exhaustive: true
-    ignore-enum-members: '.+UNSPECIFIED'
-severity:
-  default-severity: error
 run:
   timeout: 5m

@@ -1,0 +1,313 @@
+package testgen
+
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+
+	"github.com/toby-bro/pfuzz/internal/verilog"
+	"github.com/toby-bro/pfuzz/pkg/utils"
+)
+
+// Generator handles testbench generation
+type Generator struct {
+	module *verilog.Module
+}
+
+// NewGenerator creates a new testbench generator
+func NewGenerator(module *verilog.Module) *Generator {
+	return &Generator{
+		module: module,
+	}
+}
+
+// GenerateTestbenches creates both SystemVerilog and C++ testbenches
+func (g *Generator) GenerateTestbenches() error {
+	if err := g.GenerateSVTestbench(); err != nil {
+		return fmt.Errorf("failed to generate SystemVerilog testbench: %v", err)
+	}
+
+	if err := g.GenerateCppTestbench(); err != nil {
+		return fmt.Errorf("failed to generate C++ testbench: %v", err)
+	}
+
+	return nil
+}
+
+// GenerateSVTestbench creates the SystemVerilog testbench
+func (g *Generator) GenerateSVTestbench() error {
+	// Generate port declarations with proper widths
+	var declarations strings.Builder
+
+	for _, port := range g.module.Ports {
+		var typeDecl string
+		// Ensure we're declaring the right bit width for each port
+		if port.Width > 1 {
+			typeDecl = fmt.Sprintf("logic [%d:0] ", port.Width-1)
+		} else {
+			typeDecl = "logic "
+		}
+
+		// Clean port name
+		portName := strings.TrimSpace(port.Name)
+		declarations.WriteString(fmt.Sprintf("    %s%s;\n", typeDecl, portName))
+	}
+
+	// Generate input file reading code
+	var inputReads strings.Builder
+	var inputCount int
+	var clockPorts []string
+
+	// First pass to identify clock ports
+	for _, port := range g.module.Ports {
+		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
+			// Identify clock ports by name convention
+			portName := strings.TrimSpace(port.Name)
+			if strings.Contains(strings.ToLower(portName), "clk") ||
+				strings.Contains(strings.ToLower(portName), "clock") {
+				clockPorts = append(clockPorts, portName)
+			}
+		}
+	}
+
+	// Generate input reading for non-clock ports
+	for _, port := range g.module.Ports {
+		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
+			portName := strings.TrimSpace(port.Name)
+
+			// Skip clock ports, we'll handle them separately
+			isClockPort := false
+			for _, clockPort := range clockPorts {
+				if portName == clockPort {
+					isClockPort = true
+					break
+				}
+			}
+
+			if isClockPort {
+				// Initialize clocks to 0
+				inputReads.WriteString(fmt.Sprintf("        %s = 0;\n", portName))
+				continue
+			}
+
+			inputCount++
+			// Make sure we're using just the clean port name with no extra info
+			fileName := fmt.Sprintf("input_%s.hex", portName)
+
+			inputReads.WriteString(fmt.Sprintf(`
+        fd = $fopen("%s", "r");
+        if (fd == 0) begin
+            $display("Error: Unable to open %s");
+            $finish;
+        end
+        status = $fgets(line, fd);
+        `, fileName, fileName))
+
+			if port.Width > 1 {
+				inputReads.WriteString(fmt.Sprintf("status = $sscanf(line, \"%%h\", %s);\n", portName))
+			} else {
+				inputReads.WriteString(fmt.Sprintf("status = $sscanf(line, \"%%b\", %s);\n", portName))
+			}
+
+			inputReads.WriteString("        $fclose(fd);\n")
+		}
+	}
+
+	// Generate clock toggling code if we have clock ports
+	if len(clockPorts) > 0 {
+		inputReads.WriteString("\n        // Toggle clocks for several cycles\n")
+		inputReads.WriteString("        repeat (10) begin\n")
+
+		for _, clockPort := range clockPorts {
+			inputReads.WriteString(fmt.Sprintf("            %s = 0;\n", clockPort))
+		}
+		inputReads.WriteString("            #5;\n")
+
+		for _, clockPort := range clockPorts {
+			inputReads.WriteString(fmt.Sprintf("            %s = 1;\n", clockPort))
+		}
+		inputReads.WriteString("            #5;\n")
+
+		inputReads.WriteString("        end\n")
+	} else {
+		// If no clock ports, just add a delay
+		inputReads.WriteString("\n        // Allow module to process\n")
+		inputReads.WriteString("        #10;\n")
+	}
+
+	// Generate output file writing code
+	var outputWrites strings.Builder
+	var outputCount int
+
+	for _, port := range g.module.Ports {
+		if port.Direction == verilog.OUTPUT {
+			outputCount++
+			// Make sure we're using just the clean port name with no extra info
+			portName := strings.TrimSpace(port.Name)
+			fileName := fmt.Sprintf("output_%s.hex", portName)
+
+			outputWrites.WriteString(fmt.Sprintf(`
+        fd = $fopen("%s", "w");
+        `, fileName))
+
+			if port.Width > 1 {
+				outputWrites.WriteString(fmt.Sprintf("$fwrite(fd, \"%%h\", %s);\n", portName))
+			} else {
+				outputWrites.WriteString(fmt.Sprintf("$fwrite(fd, \"%%0b\", %s);\n", portName))
+			}
+
+			outputWrites.WriteString("        $fclose(fd);\n")
+		}
+	}
+
+	// Create the module instance
+	var moduleInst strings.Builder
+	moduleInst.WriteString(fmt.Sprintf("    %s_mocked dut (", g.module.Name))
+
+	// Use SystemVerilog .* connection for simplicity
+	moduleInst.WriteString(".*);\n")
+
+	// Apply the generated code to the template
+	testbench := fmt.Sprintf(svTestbenchTemplate,
+		declarations.String(),
+		moduleInst.String(),
+		inputCount,
+		inputReads.String(),
+		outputCount,
+		outputWrites.String())
+
+	return utils.WriteFileContent(filepath.Join(utils.TMP_DIR, "testbench.sv"), testbench)
+}
+
+// GenerateCppTestbench creates the C++ testbench for Verilator
+func (g *Generator) GenerateCppTestbench() error {
+	// Generate input reading code
+	var inputReads strings.Builder
+	var inputDecls strings.Builder
+	var inputApply strings.Builder
+
+	for _, port := range g.module.Ports {
+		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
+			// Make sure we're using just the clean port name with no extra info
+			portName := strings.TrimSpace(port.Name)
+			fileName := fmt.Sprintf("input_%s.hex", portName)
+
+			// Add variable declaration
+			if port.Width > 1 {
+				inputDecls.WriteString(fmt.Sprintf("    uint%d_t %s;\n",
+					nextPowerOfTwo(port.Width), portName))
+			} else {
+				inputDecls.WriteString(fmt.Sprintf("    uint8_t %s;\n", portName))
+			}
+
+			// Add file reading
+			inputReads.WriteString(fmt.Sprintf(`    std::ifstream %s_file("%s/%s");
+    if (!%s_file.is_open()) {
+        std::cerr << "Error opening file: %s" << std::endl;
+        delete dut;
+        return 1;
+    }
+`, portName, utils.TMP_DIR, fileName, portName, fileName))
+
+			// Add value parsing
+			if port.Width > 1 {
+				inputReads.WriteString(fmt.Sprintf("    %s_file >> std::hex >> %s;\n",
+					portName, portName))
+			} else {
+				inputReads.WriteString(fmt.Sprintf(`    char %s_val;
+    %s_file >> %s_val;
+    %s = (%s_val == '1' ? 1 : 0);
+`, portName, portName, portName, portName, portName))
+			}
+
+			// Apply inputs to the DUT
+			inputApply.WriteString(fmt.Sprintf("    dut->%s = %s;\n", portName, portName))
+		}
+	}
+
+	// Generate output writing code
+	var outputWrites strings.Builder
+
+	for _, port := range g.module.Ports {
+		if port.Direction == verilog.OUTPUT {
+			// Make sure we're using just the clean port name with no extra info
+			portName := strings.TrimSpace(port.Name)
+			fileName := fmt.Sprintf("output_%s.hex", portName)
+
+			outputWrites.WriteString(fmt.Sprintf(`    std::ofstream %s_file("%s/%s");
+    if (!%s_file.is_open()) {
+        std::cerr << "Error opening output file: %s" << std::endl;
+        delete dut;
+        return 1;
+    }
+`, portName, utils.TMP_DIR, fileName, portName, fileName))
+
+			if port.Width > 1 {
+				outputWrites.WriteString(fmt.Sprintf("    %s_file << std::hex << dut->%s;\n",
+					portName, portName))
+			} else {
+				outputWrites.WriteString(fmt.Sprintf("    %s_file << (dut->%s ? '1' : '0');\n",
+					portName, portName))
+			}
+
+			outputWrites.WriteString(fmt.Sprintf("    %s_file.close();\n", portName))
+		}
+	}
+
+	// Add clock toggling code to C++ template
+	var clockHandling strings.Builder
+	var hasClock bool
+
+	for _, port := range g.module.Ports {
+		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
+			portName := strings.TrimSpace(port.Name)
+			if strings.Contains(strings.ToLower(portName), "clk") ||
+				strings.Contains(strings.ToLower(portName), "clock") {
+				hasClock = true
+				clockHandling.WriteString(fmt.Sprintf("\n    // Clock toggling for %s\n", portName))
+				clockHandling.WriteString(fmt.Sprintf("    dut->%s = 0;\n", portName))
+				clockHandling.WriteString("    for (int cycle = 0; cycle < 10; cycle++) {\n")
+				clockHandling.WriteString(fmt.Sprintf("        dut->%s = 0;\n", portName))
+				clockHandling.WriteString("        dut->eval();\n")
+				clockHandling.WriteString("        contextp->timeInc(5);\n")
+				clockHandling.WriteString(fmt.Sprintf("        dut->%s = 1;\n", portName))
+				clockHandling.WriteString("        dut->eval();\n")
+				clockHandling.WriteString("        contextp->timeInc(5);\n")
+				clockHandling.WriteString("    }\n")
+			}
+		}
+	}
+
+	// If no clock was found, still add a basic eval
+	if !hasClock {
+		clockHandling.WriteString("    // No clock found, just evaluate once\n")
+		clockHandling.WriteString("    dut->eval();\n")
+	}
+
+	// Apply the generated code to the template including clock handling
+	testbench := fmt.Sprintf(cppTestbenchTemplate,
+		g.module.Name,
+		g.module.Name,
+		g.module.Name,
+		inputDecls.String(),
+		inputReads.String(),
+		inputApply.String(),
+		clockHandling.String(), // Add the clock handling code
+		outputWrites.String())
+
+	return utils.WriteFileContent(filepath.Join(utils.TMP_DIR, "testbench.cpp"), testbench)
+}
+
+// Helper function to find the next power of two
+func nextPowerOfTwo(n int) int {
+	if n <= 8 {
+		return 8
+	} else if n <= 16 {
+		return 16
+	} else if n <= 32 {
+		return 32
+	} else if n <= 64 {
+		return 64
+	}
+	return 128 // Cap at 128-bit for extremely wide signals
+}
