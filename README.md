@@ -4,6 +4,13 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
 
 To do this we are trying to take valid sv code and run it as a standalone program and fuzz it's inputs and try and detect discrepancies in the output.
 
+## Example usage
+
+- Change the name of the file in the `Makefile` in the `run` to the file you want as base for the fuzzing.
+- To remove the verbose remove the -v flag in the `Makefile`.
+- To see stats on the discrepancies run `./patterns`.
+- The rest of the Makefile is self explanatory.
+
 ## Challenges
 
 ### Imports
