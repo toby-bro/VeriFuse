@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/jns/pfuzz/internal/verilog"
+	"github.com/toby-bro/pfuzz/internal/verilog"
 )
 
 // Strategy defines an interface for different fuzzing strategies

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jns/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 	}{
 		{
 			name:        "ibex_branch_predictor",
-			modulePath:  "/home/jns/Documents/Berkeley/pfuzz/ibex_branch_predict.sv",
+			modulePath:  "/home/toby-bro/Documents/Berkeley/pfuzz/ibex_branch_predict.sv",
 			moduleName:  "ibex_branch_predict",
 			description: "Branch predictor from the Ibex RISC-V core",
 			numTests:    100,

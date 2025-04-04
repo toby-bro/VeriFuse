@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jns/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 // IVerilogSimulator represents the IVerilog simulator

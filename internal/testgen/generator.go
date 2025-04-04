@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jns/pfuzz/internal/verilog"
-	"github.com/jns/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/internal/verilog"
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 // Generator handles testbench generation

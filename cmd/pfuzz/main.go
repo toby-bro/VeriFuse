@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/jns/pfuzz/internal/fuzz"
+	"github.com/toby-bro/pfuzz/internal/fuzz"
 )
 
 func main() {
