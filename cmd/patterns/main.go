@@ -166,6 +166,10 @@ func analyzePatterns(mismatches []MismatchInfo) {
 	// Track patterns in input values
 	inputPatterns := make(map[string]map[string]int)
 
+	// Track potential parameter-related issues
+	paramMismatches := 0
+
+	// Analyze each mismatch for parameter-related patterns
 	for _, m := range mismatches {
 		// Count port-specific mismatches
 		for portName := range m.Outputs {
@@ -179,6 +183,16 @@ func analyzePatterns(mismatches []MismatchInfo) {
 			}
 			inputPatterns[portName][value]++
 		}
+
+		// Analyze parameter-related mismatches
+		for _, outputPair := range m.Outputs {
+			// Look for parameter-dependent mismatches (e.g., bit width issues)
+			if strings.Contains(outputPair.IVerilog, "x") && !strings.Contains(outputPair.Verilator, "x") ||
+				!strings.Contains(outputPair.IVerilog, "x") && strings.Contains(outputPair.Verilator, "x") {
+				paramMismatches++
+				break
+			}
+		}
 	}
 
 	// Display results
@@ -189,6 +203,12 @@ func analyzePatterns(mismatches []MismatchInfo) {
 	for port, count := range portMismatchCounts {
 		fmt.Printf("  %s: %d mismatches (%.1f%%)\n", port, count,
 			float64(count)/float64(len(mismatches))*100)
+	}
+
+	// Show parameter-related issues if any
+	if paramMismatches > 0 {
+		fmt.Printf("\nPotential parameter-related mismatches: %d (%.1f%%)\n",
+			paramMismatches, float64(paramMismatches)/float64(len(mismatches))*100)
 	}
 
 	// Most common input patterns associated with mismatches

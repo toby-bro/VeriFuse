@@ -75,8 +75,8 @@ func AnalyzeVerilogFile(filepath string) (string, error) {
 	}
 
 	// Rename the module
-	moduleRegex := regexp.MustCompile(`module\s+(\w+)\s*\(`)
-	content = moduleRegex.ReplaceAllString(content, "module ${1}_mocked (")
+	moduleRegex := regexp.MustCompile(`module\s+(\w+)\s*(\#\s*\([^)]*\))?\s*\(`)
+	content = moduleRegex.ReplaceAllString(content, "module ${1}_mocked${2} (")
 
 	return content, nil
 }

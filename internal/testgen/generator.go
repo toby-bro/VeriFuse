@@ -160,12 +160,59 @@ func (g *Generator) GenerateSVTestbench() error {
 		}
 	}
 
-	// Create the module instance
+	// Create the module instance - use explicit port connections instead of .*
 	var moduleInst strings.Builder
-	moduleInst.WriteString(fmt.Sprintf("    %s_mocked dut (", g.module.Name))
+	moduleInst.WriteString(fmt.Sprintf("    %s_mocked", g.module.Name))
 
-	// Use SystemVerilog .* connection for simplicity
-	moduleInst.WriteString(".*);\n")
+	// Add parameters if present
+	if len(g.module.Parameters) > 0 {
+		moduleInst.WriteString(" #(\n")
+
+		// Track valid parameters to include (skip qualifiers)
+		paramCount := 0
+
+		for _, param := range g.module.Parameters {
+			// Skip parameters without a name or type qualifiers incorrectly parsed as parameters
+			if param.Name == "" || param.Name == "unsigned" || param.Name == "signed" {
+				continue
+			}
+
+			// Add comma between parameters
+			if paramCount > 0 {
+				moduleInst.WriteString(",\n")
+			}
+			paramCount++
+
+			defaultVal := param.DefaultValue
+			if defaultVal == "" {
+				// If no default value is provided in the source, use a reasonable default
+				if strings.HasPrefix(strings.ToLower(param.Type), "int") {
+					defaultVal = "1"
+				} else if strings.HasPrefix(strings.ToLower(param.Type), "bit") {
+					defaultVal = "1'b0"
+				} else {
+					defaultVal = "1"
+				}
+			}
+
+			moduleInst.WriteString(fmt.Sprintf("        .%s(%s)", param.Name, defaultVal))
+		}
+
+		moduleInst.WriteString("\n    )")
+	}
+
+	moduleInst.WriteString(" dut (\n")
+
+	// Add explicit port connections
+	for i, port := range g.module.Ports {
+		portName := strings.TrimSpace(port.Name)
+		moduleInst.WriteString(fmt.Sprintf("        .%s(%s)", portName, portName))
+		if i < len(g.module.Ports)-1 {
+			moduleInst.WriteString(",\n")
+		}
+	}
+
+	moduleInst.WriteString("\n    );\n")
 
 	// Apply the generated code to the template
 	testbench := fmt.Sprintf(svTestbenchTemplate,
