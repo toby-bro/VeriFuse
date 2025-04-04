@@ -26,10 +26,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y iverilog verilator
 
-      - name: Build and run
+      - name: Build
         run: |
-          make all
+          make build
           if [ $? -ne 0 ]; then
-            echo "Make all failed"
+            echo "Make build failed"
+            exit 1
+          fi
+
+      - name: Run
+        run: |
+          make run
+          if [ $? -ne 0 ]; then
+            echo "Make run failed"
             exit 1
           fi
