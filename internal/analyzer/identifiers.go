@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
@@ -16,7 +17,8 @@ func DetectEnumCasts(filename string) []EnumCast {
 		return nil
 	}
 
-	enumCastRegex := regexp.MustCompile(`(\w+)'?\(([^)]+)\)`)
+	// Updated regex to better capture enum types with namespaces (e.g. ibex_pkg::rv32m_e)
+	enumCastRegex := regexp.MustCompile(`(\w+(?:::\w+)?)'?\(([^)]+)\)`)
 
 	var casts []EnumCast
 	lines := strings.Split(content, "\n")
@@ -133,26 +135,98 @@ func MockIdentifier(id UndefinedIdentifier) string {
 	}
 }
 
-// MockEnumCast provides a mock value for an enum cast
+// MockEnumCast provides a mock value for an enum cast while preserving type information
 func MockEnumCast(cast EnumCast) string {
+	// If the expression is already a literal, just return it
 	if regexp.MustCompile(`^[0-9]+('?[bdh][0-9a-fA-F_]+)?$`).MatchString(cast.Expression) {
 		return cast.Expression
 	}
 
+	// Determine if we need to preserve a specific bit width
+	widthMatch := regexp.MustCompile(`(\d+)'([bdh])([0-9a-fA-F_]+)`).FindStringSubmatch(cast.DefaultVal)
+
+	// If we have a specific width in the default value, preserve it
+	if len(widthMatch) > 3 {
+		width, _ := strconv.Atoi(widthMatch[1])
+		base := widthMatch[2]
+		// Generate a value with the same width and format
+		switch base {
+		case "b":
+			return fmt.Sprintf("%d'b%s", width, utils.GenerateRandomBitsOfWidth(width))
+		case "h":
+			return fmt.Sprintf("%d'h%s", width, utils.GenerateRandomHexOfWidth(width))
+		case "d":
+			return fmt.Sprintf("%d'd%d", width, rand.Intn(1<<width))
+		}
+	}
+
+	// Default behavior
 	return GetPlausibleValue(cast.EnumType)
 }
 
+// ReplaceMockedEnumCasts replaces all enum casts in the content with mocked values
 func ReplaceMockedEnumCasts(content string, enumCasts []EnumCast) string {
-	for _, cast := range enumCasts {
-		escapedExpr := regexp.QuoteMeta(cast.Expression)
+	// First, extract and protect parameter declarations from modification
+	paramDecls := make(map[string]string)
+	paramRegex := regexp.MustCompile(`(parameter\s+)([^=;]+)(=\s*[^;]+;)`)
 
-		pattern := fmt.Sprintf(`(%s)\s*'\(\s*%s\s*\)`,
-			regexp.QuoteMeta(cast.EnumType), escapedExpr)
-
-		r := regexp.MustCompile(pattern)
-
-		mockedValue := MockEnumCast(cast)
-		content = r.ReplaceAllString(content, mockedValue)
+	// Find and store parameter declarations
+	matches := paramRegex.FindAllStringSubmatch(content, -1)
+	for i, match := range matches {
+		if len(match) >= 4 {
+			key := fmt.Sprintf("__PARAM_%d__", i)
+			paramDecls[key] = match[0]
+			content = strings.Replace(content, match[0], key, 1)
+		}
 	}
+
+	// Add Verilator lint pragma to disable width warnings at the top of the file
+	if !strings.Contains(content, "verilator lint_off WIDTHEXPAND") {
+		pragmaPos := strings.Index(content, "module ")
+		if pragmaPos > 0 {
+			content = content[:pragmaPos] +
+				"/* verilator lint_off WIDTHEXPAND */\n" +
+				content[pragmaPos:]
+		}
+	}
+
+	// Process enum casts - now they won't affect parameter declarations
+	for _, cast := range enumCasts {
+		// Skip parameter declarations - they're already protected
+		if strings.Contains(cast.Line, "parameter") {
+			continue
+		}
+
+		// For non-parameter casting expressions, handle enum casts specially
+		// Replace the entire casting expression with just the inner expression for opcode enums
+		if strings.Contains(cast.EnumType, "opcode_e") && strings.Contains(cast.Expression, "instr") {
+			// For opcode-related enums, just use the inner expression without the cast
+			pattern := fmt.Sprintf(`%s'\\(%s\\)`, regexp.QuoteMeta(cast.EnumType), regexp.QuoteMeta(cast.Expression))
+			r := regexp.MustCompile(pattern)
+			content = r.ReplaceAllString(content, cast.Expression)
+		} else {
+			// For other casts, completely replace the cast with a simple value of correct width
+			pattern := fmt.Sprintf(`%s'\\(%s\\)`, regexp.QuoteMeta(cast.EnumType), regexp.QuoteMeta(cast.Expression))
+			r := regexp.MustCompile(pattern)
+
+			// Try to extract width from the enum type if it's a literal like '7'h78'
+			width := 7 // Default width for enums
+			if match := regexp.MustCompile(`^(\d+)'[hbd]`).FindStringSubmatch(cast.EnumType); len(match) > 1 {
+				if w, err := strconv.Atoi(match[1]); err == nil {
+					width = w
+				}
+			}
+
+			// Generate a simple value of the right width
+			replacementValue := fmt.Sprintf("%d'h%s", width, utils.GenerateRandomHexOfWidth(width))
+			content = r.ReplaceAllString(content, replacementValue)
+		}
+	}
+
+	// Restore parameter declarations
+	for key, value := range paramDecls {
+		content = strings.Replace(content, key, value, 1)
+	}
+
 	return content
 }

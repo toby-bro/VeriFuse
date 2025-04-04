@@ -21,6 +21,47 @@ func GenerateRandomHexString(width int) string {
 	return fmt.Sprintf("%d'h%x", width, val)
 }
 
+// GenerateRandomBitsOfWidth generates a random binary pattern of exactly the specified width
+func GenerateRandomBitsOfWidth(width int) string {
+	// Handle invalid width
+	if width <= 0 {
+		return "0"
+	}
+
+	// Generate the required number of bits
+	bits := make([]byte, width)
+	for i := 0; i < width; i++ {
+		if rand.Intn(2) == 1 {
+			bits[i] = '1'
+		} else {
+			bits[i] = '0'
+		}
+	}
+
+	return string(bits)
+}
+
+// GenerateRandomHexOfWidth generates a random hex pattern of exactly the specified bit width
+func GenerateRandomHexOfWidth(width int) string {
+	// Calculate number of hex characters needed
+	hexDigits := (width + 3) / 4
+
+	// Handle invalid width
+	if hexDigits <= 0 {
+		return "0"
+	}
+
+	// Generate the required number of hex characters
+	hexChars := "0123456789abcdef"
+	result := make([]byte, hexDigits)
+
+	for i := 0; i < hexDigits; i++ {
+		result[i] = hexChars[rand.Intn(len(hexChars))]
+	}
+
+	return string(result)
+}
+
 // InferBitWidth tries to determine bit width from context
 func InferBitWidth(context string) int {
 	if match := regexp.MustCompile(`\[(\d+):0\]`).FindStringSubmatch(context); match != nil {

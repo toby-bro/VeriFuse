@@ -46,19 +46,7 @@ func AnalyzeVerilogFile(filepath string) (string, error) {
 		content = RemoveMacros(content, macros)
 	}
 
-	// Detect enum casts
-	enumCasts := DetectEnumCasts(filepath)
-	if len(enumCasts) > 0 {
-		log.Println("Detected enum casts and their mocked values:")
-		for _, cast := range enumCasts {
-			mockedValue := MockEnumCast(cast)
-			log.Printf("  Type: %s, Expression: %s -> Mocked: %s\n",
-				cast.EnumType, cast.Expression, mockedValue)
-		}
-		content = ReplaceMockedEnumCasts(content, enumCasts)
-	}
-
-	// Detect undefined identifiers
+	// Detect undefined identifiers (handle these first to avoid common package names)
 	undefinedVars := DetectUndefinedIdentifiers(filepath)
 	if len(undefinedVars) > 0 {
 		log.Println("Detected undefined identifiers and their mocked values:")
@@ -69,9 +57,26 @@ func AnalyzeVerilogFile(filepath string) (string, error) {
 		}
 
 		for _, undef := range undefinedVars {
+			// // Avoid mocking common package prefixes, enum types, and parameters
+			// if !strings.Contains(undef.Name, "_pkg") &&
+			//    !strings.HasSuffix(undef.Name, "_e") &&
+			//    !strings.HasSuffix(undef.Name, "_t") &&
+			//    !strings.Contains(undef.Context, "parameter") {
 			content = strings.Replace(content, undef.Name,
 				MockIdentifier(undef), -1)
 		}
+	}
+
+	// Detect enum casts
+	enumCasts := DetectEnumCasts(filepath)
+	if len(enumCasts) > 0 {
+		log.Println("Detected enum casts and their mocked values:")
+		for _, cast := range enumCasts {
+			mockedValue := MockEnumCast(cast)
+			log.Printf("  Type: %s, Expression: %s -> Mocked: %s\n",
+				cast.EnumType, cast.Expression, mockedValue)
+		}
+		content = ReplaceMockedEnumCasts(content, enumCasts)
 	}
 
 	// Rename the module
