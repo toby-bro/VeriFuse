@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"text/template"
+
+	"github.com/toby-bro/pfuzz/internal/verilog"
 )
 
 // VerilatorSimulator represents the Verilator simulator
@@ -14,14 +16,24 @@ type VerilatorSimulator struct {
 	execPath   string
 	workDir    string
 	moduleName string
+	module     *verilog.Module // Add module reference
 }
 
 // NewVerilatorSimulator creates a new Verilator simulator instance
 func NewVerilatorSimulator(workDir string, moduleName string) *VerilatorSimulator {
+	// Parse the module to get port and parameter information
+	moduleFile := filepath.Join(workDir, moduleName+"_mocked.sv")
+	module, err := verilog.ParseVerilogFile(moduleFile, moduleName+"_mocked")
+	if err != nil {
+		// If we can't parse, just continue with nil module - will use generic template
+		module = nil
+	}
+
 	return &VerilatorSimulator{
 		execPath:   filepath.Join(workDir, "obj_dir", fmt.Sprintf("V%s_mocked", moduleName)),
 		workDir:    workDir,
 		moduleName: moduleName,
+		module:     module,
 	}
 }
 
@@ -51,7 +63,7 @@ func (sim *VerilatorSimulator) Compile() error {
 	testbenchPath := filepath.Join(sim.workDir, "verilator_testbench.cpp")
 
 	// Create a testbench that takes file paths as command-line arguments
-	testbench := generateVerilatorTestbench(sim.moduleName)
+	testbench := generateVerilatorTestbench(sim.moduleName, sim.module)
 	if err := os.WriteFile(testbenchPath, []byte(testbench), 0644); err != nil {
 		return fmt.Errorf("failed to write Verilator testbench: %v", err)
 	}
@@ -62,12 +74,14 @@ func (sim *VerilatorSimulator) Compile() error {
 		return fmt.Errorf("failed to create obj_dir: %v", err)
 	}
 
-	// Build verilator command with all SV files
+	// Build verilator command with all SV files and parameters
 	verilatorArgs := []string{
 		"--cc", "--exe", "--build", "-Mdir", "obj_dir",
 		"--timing", // Add timing option to handle delays
 		"verilator_testbench.cpp",
 	}
+
+	// Add module files
 	verilatorArgs = append(verilatorArgs, moduleFiles...)
 
 	// Run Verilator in the worker directory
@@ -122,14 +136,40 @@ func (sim *VerilatorSimulator) GetExecPath() string {
 	return sim.execPath
 }
 
+// VerilatorTestbenchData contains data for the testbench template
+type VerilatorTestbenchData struct {
+	ModuleName string
+	Inputs     []verilog.Port
+	Outputs    []verilog.Port
+	HasModule  bool
+}
+
 // generateVerilatorTestbench creates a C++ testbench that accepts file paths as command-line arguments
-func generateVerilatorTestbench(moduleName string) string {
-	tmpl := template.Must(template.New("verilator_tb").Parse(`
+func generateVerilatorTestbench(moduleName string, module *verilog.Module) string {
+	// Prepare template data
+	templateData := VerilatorTestbenchData{
+		ModuleName: moduleName,
+		HasModule:  (module != nil),
+	}
+
+	// If we have module info, categorize ports
+	if module != nil {
+		for _, port := range module.Ports {
+			if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
+				templateData.Inputs = append(templateData.Inputs, port)
+			}
+			if port.Direction == verilog.OUTPUT || port.Direction == verilog.INOUT {
+				templateData.Outputs = append(templateData.Outputs, port)
+			}
+		}
+	}
+
+	tmplText := `
 #include <verilated.h>
 #include "V{{.ModuleName}}_mocked.h"
 #include <fstream>
 #include <iostream>
-#include <iomanip>  // Added for std::setw, std::setfill
+#include <iomanip>  // For std::setw, std::setfill
 #include <cstdint>
 #include <string>
 #include <map>
@@ -137,6 +177,24 @@ func generateVerilatorTestbench(moduleName string) string {
 #include <filesystem>
 
 namespace fs = std::filesystem;
+
+// Helper function to write output values cleanly
+template<typename T>
+void writeOutputValue(std::ofstream& outFile, T value, bool isBinary, int width = 0) {
+    if (isBinary) {
+        // For binary (1-bit) values
+        outFile << (value ? '1' : '0');
+    } else {
+        // For multi-bit values, format as hex with proper width
+        outFile << std::hex << std::setfill('0');
+        if (width > 0) {
+            outFile << std::setw(width) << static_cast<uint64_t>(value);
+        } else {
+            outFile << static_cast<uint64_t>(value);
+        }
+    }
+    outFile << std::endl; // Ensure proper line ending
+}
 
 int main(int argc, char** argv) {
     // Parse command line args
@@ -215,30 +273,36 @@ int main(int argc, char** argv) {
         inFile >> valueStr;
         inFile.close();
         
-        // Apply the value to the appropriate port
-        // This approach requires checking for each possible port name
-        // It's verbose but avoids using the non-existent setenv method
-        
-        // Note: Replace this part with actual port assignments for your specific module
-        // For example:
-        if (portName == "clk_i") {
+        // Apply the value to the appropriate port based on name
+        {{if .HasModule}}
+        // Use dynamic port handling for this module
+        {{range .Inputs}}
+        if (portName == "{{.Name}}") {
+            {{if eq .Width 1}}
+            dut->{{.Name}} = (valueStr[0] == '1' ? 1 : 0);
+            {{else}}
+            dut->{{.Name}} = std::stoull(valueStr, nullptr, 16);
+            {{end}}
+        } else 
+        {{end}}
+        {{else}}
+        // Generic approach - handle common ports
+        if (portName == "clk_i" || portName.find("clk") == 0) {
             dut->clk_i = (valueStr[0] == '1' ? 1 : 0);
-        }
-        else if (portName == "rst_ni") {
+        } else if (portName == "rst_ni" || portName == "rst_n") {
             dut->rst_ni = (valueStr[0] == '1' ? 1 : 0);
-        }
-        else if (portName == "fetch_valid_i") {
-            dut->fetch_valid_i = (valueStr[0] == '1' ? 1 : 0);
-        }
-        else if (portName == "fetch_rdata_i") {
-            dut->fetch_rdata_i = std::stoull(valueStr, nullptr, 16);
-        }
-        else if (portName == "fetch_pc_i") {
-            dut->fetch_pc_i = std::stoull(valueStr, nullptr, 16);
-        }
-        // Add additional ports as needed
-        else {
-            std::cerr << "Warning: Unknown port name: " << portName << std::endl;
+        } else if (portName.find("valid") != std::string::npos) {
+            // Try to set any valid signal
+            try {
+                if (portName == "in_valid_i") dut->in_valid_i = (valueStr[0] == '1' ? 1 : 0);
+                // Add other valid signals as needed
+            } catch (...) {
+                std::cerr << "Error setting valid signal: " << portName << std::endl;
+            }
+        } else 
+        {{end}}
+        {
+            std::cerr << "Warning: Unknown input port: " << portName << std::endl;
         }
     }
     
@@ -250,25 +314,38 @@ int main(int argc, char** argv) {
         const std::string& portName = output.first;
         const std::string& filePath = output.second;
         
-        std::ofstream outFile(filePath);
+        std::ofstream outFile(filePath, std::ios::out | std::ios::trunc);
         if (!outFile.is_open()) {
             std::cerr << "Error opening output file: " << filePath << std::endl;
             continue;
         }
         
-        // Read from the appropriate port and write to file
-        // This approach requires checking for each possible port name
-        if (portName == "predict_branch_taken_o") {
-            outFile << (dut->predict_branch_taken_o ? '1' : '0');
-        }
-        else if (portName == "predict_branch_pc_o") {
-            outFile << std::hex << std::setfill('0') << std::setw(8) << dut->predict_branch_pc_o;
-        }
-        // Add additional ports as needed
-        else {
+        // Handle output ports
+        {{if .HasModule}}
+        // Use dynamic port handling for this module
+        {{range .Outputs}}
+        if (portName == "{{.Name}}") {
+            {{if eq .Width 1}}
+            writeOutputValue(outFile, dut->{{.Name}}, true);
+            {{else}}
+            writeOutputValue(outFile, dut->{{.Name}}, false, ({{.Width}}+3)/4);
+            {{end}}
+        } else 
+        {{end}}
+        {{else}}
+        // Generic fallback approach
+        if (portName == "out_valid_o") {
+            writeOutputValue(outFile, dut->out_valid_o, true);
+        } else if (portName == "out_addr_o") {
+            writeOutputValue(outFile, dut->out_addr_o, false, 8);
+        } else 
+        {{end}}
+        {
             std::cerr << "Warning: Unknown output port: " << portName << std::endl;
+            outFile << "0" << std::endl; // Write default value
         }
         
+        outFile.flush(); // Ensure all data is written
         outFile.close();
     }
     
@@ -276,9 +353,10 @@ int main(int argc, char** argv) {
     delete dut;
     return 0;
 }
-`))
+`
 
+	tmpl := template.Must(template.New("verilator_tb").Parse(tmplText))
 	var buf bytes.Buffer
-	tmpl.Execute(&buf, struct{ ModuleName string }{ModuleName: moduleName})
+	tmpl.Execute(&buf, templateData)
 	return buf.String()
 }
