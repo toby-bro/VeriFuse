@@ -1,0 +1,16 @@
+- FIX:
+    - multiline macros with weird operations
+    - Repair the focused and analyze modules
+
+- FEAT:
+    - support parametrized constructs
+    - Combine many different sv files
+    - Start doing coverage-based fuzzing
+    - always_* modules
+
+- CHORE:
+    - make unit tests for the modules
+    - Use the example_usage to effectively test many modules
+    - Add a real CI to check that builds are clean
+    - Make the program send an exit code non null when simulator errors
+    - Add precommit hooks
