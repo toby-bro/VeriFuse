@@ -3,50 +3,55 @@ package simulator
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-
-	"github.com/jns/pfuzz/pkg/utils"
+	"text/template"
 )
 
 // VerilatorSimulator represents the Verilator simulator
 type VerilatorSimulator struct {
-	execPath string
-	workDir  string
+	execPath   string
+	workDir    string
+	moduleName string
 }
 
 // NewVerilatorSimulator creates a new Verilator simulator instance
-func NewVerilatorSimulator(workDir string) *VerilatorSimulator {
+func NewVerilatorSimulator(workDir string, moduleName string) *VerilatorSimulator {
 	return &VerilatorSimulator{
-		execPath: filepath.Join(workDir, "obj_dir", "Vibex_branch_predict_mocked"),
-		workDir:  workDir,
+		execPath:   filepath.Join(workDir, "obj_dir", fmt.Sprintf("V%s_mocked", moduleName)),
+		workDir:    workDir,
+		moduleName: moduleName,
 	}
 }
 
 // Compile compiles the verilog files with Verilator
 func (sim *VerilatorSimulator) Compile() error {
-	// First check if the file already exists in the work directory
-	workerVerilogPath := filepath.Join(sim.workDir, "ibex_branch_predict_mocked.sv")
+	// Find all SystemVerilog files in work directory - excluding testbench.sv
+	moduleFiles := []string{}
+	entries, err := os.ReadDir(sim.workDir)
+	if err != nil {
+		return fmt.Errorf("failed to read work directory: %v", err)
+	}
 
-	// If not, try to copy from tmp_gen
-	if _, err := os.Stat(workerVerilogPath); os.IsNotExist(err) {
-		verilogPath := filepath.Join(utils.TMP_DIR, "ibex_branch_predict_mocked.sv")
-		if _, err := os.Stat(verilogPath); os.IsNotExist(err) {
-			return fmt.Errorf("verilog file not found at %s", verilogPath)
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".sv" {
+			// Skip the SystemVerilog testbench - it's for iverilog only
+			if entry.Name() != "testbench.sv" && entry.Name() != "test.sv" {
+				moduleFiles = append(moduleFiles, entry.Name())
+			}
 		}
+	}
 
-		if err := utils.CopyFile(verilogPath, workerVerilogPath); err != nil {
-			return fmt.Errorf("failed to copy Verilog file: %v", err)
-		}
+	if len(moduleFiles) == 0 {
+		return fmt.Errorf("no SystemVerilog module files found in %s", sim.workDir)
 	}
 
 	// Create Verilator testbench
 	testbenchPath := filepath.Join(sim.workDir, "verilator_testbench.cpp")
 
 	// Create a testbench that takes file paths as command-line arguments
-	testbench := generateVerilatorTestbench()
+	testbench := generateVerilatorTestbench(sim.moduleName)
 	if err := os.WriteFile(testbenchPath, []byte(testbench), 0644); err != nil {
 		return fmt.Errorf("failed to write Verilator testbench: %v", err)
 	}
@@ -57,40 +62,44 @@ func (sim *VerilatorSimulator) Compile() error {
 		return fmt.Errorf("failed to create obj_dir: %v", err)
 	}
 
+	// Build verilator command with all SV files
+	verilatorArgs := []string{
+		"--cc", "--exe", "--build", "-Mdir", "obj_dir",
+		"--timing", // Add timing option to handle delays
+		"verilator_testbench.cpp",
+	}
+	verilatorArgs = append(verilatorArgs, moduleFiles...)
+
 	// Run Verilator in the worker directory
-	cmd := exec.Command("verilator", "--cc", "--exe", "--build", "-Mdir", "obj_dir",
-		"ibex_branch_predict_mocked.sv", "verilator_testbench.cpp")
+	cmd := exec.Command("verilator", verilatorArgs...)
 	cmd.Dir = sim.workDir
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
-		log.Printf("Verilator error: %s\n%s", err, stderr.String())
-		return fmt.Errorf("verilator compilation failed: %v", err)
+		return fmt.Errorf("verilator compilation failed: %v\n%s", err, stderr.String())
 	}
 
 	return nil
 }
 
-// RunTest runs the simulator with specific input and output files
-func (sim *VerilatorSimulator) RunTest(inputPath, pcPath, validPath, takenPath, targetPath string) error {
-	// Get absolute paths
-	absInputPath, _ := filepath.Abs(inputPath)
-	absPcPath, _ := filepath.Abs(pcPath)
-	absValidPath, _ := filepath.Abs(validPath)
-	absTakenPath, _ := filepath.Abs(takenPath)
-	absTargetPath, _ := filepath.Abs(targetPath)
+// RunTest runs the simulator with provided input directory and output paths
+func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]string) error {
+	// Create command line args for all inputs and outputs
+	args := []string{}
+
+	// Add the input directory path
+	args = append(args, fmt.Sprintf("--input-dir=%s", inputDir))
+
+	// Add output file paths
+	for portName, outputPath := range outputPaths {
+		args = append(args, fmt.Sprintf("--output-%s=%s", portName, outputPath))
+	}
 
 	// Run the simulator with file paths as arguments
-	cmd := exec.Command(sim.execPath,
-		"--input="+absInputPath,
-		"--pc="+absPcPath,
-		"--valid="+absValidPath,
-		"--taken="+absTakenPath,
-		"--target="+absTargetPath)
-
+	cmd := exec.Command(sim.execPath, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
@@ -99,7 +108,13 @@ func (sim *VerilatorSimulator) RunTest(inputPath, pcPath, validPath, takenPath, 
 	}
 
 	// Verify output files were created
-	return VerifyOutputFiles(takenPath, targetPath)
+	for _, outputPath := range outputPaths {
+		if _, err := os.Stat(outputPath); os.IsNotExist(err) {
+			return fmt.Errorf("output file was not created: %s", outputPath)
+		}
+	}
+
+	return nil
 }
 
 // GetExecPath returns the path to the compiled simulator executable
@@ -108,93 +123,162 @@ func (sim *VerilatorSimulator) GetExecPath() string {
 }
 
 // generateVerilatorTestbench creates a C++ testbench that accepts file paths as command-line arguments
-func generateVerilatorTestbench() string {
-	return `
+func generateVerilatorTestbench(moduleName string) string {
+	tmpl := template.Must(template.New("verilator_tb").Parse(`
 #include <verilated.h>
-#include "Vibex_branch_predict_mocked.h"
+#include "V{{.ModuleName}}_mocked.h"
 #include <fstream>
 #include <iostream>
+#include <iomanip>  // Added for std::setw, std::setfill
 #include <cstdint>
 #include <string>
+#include <map>
+#include <vector>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 int main(int argc, char** argv) {
-    // Parse command line for files
+    // Parse command line args
     Verilated::commandArgs(argc, argv);
     
-    std::string input_path, pc_path, valid_path, taken_path, target_path;
+    std::string inputDir;
+    std::map<std::string, std::string> outputPaths;
     
-    // Process command line args for filenames
+    // Parse command line arguments
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
-        if (arg.find("--input=") == 0) {
-            input_path = arg.substr(8);
-        } else if (arg.find("--pc=") == 0) {
-            pc_path = arg.substr(5);
-        } else if (arg.find("--valid=") == 0) {
-            valid_path = arg.substr(8);
-        } else if (arg.find("--taken=") == 0) {
-            taken_path = arg.substr(8);
-        } else if (arg.find("--target=") == 0) {
-            target_path = arg.substr(9);
+        
+        // Parse input directory
+        if (arg.find("--input-dir=") == 0) {
+            inputDir = arg.substr(12);
+            continue;
+        }
+        
+        // Parse output file paths
+        if (arg.find("--output-") == 0) {
+            size_t equalPos = arg.find('=');
+            if (equalPos != std::string::npos) {
+                std::string portName = arg.substr(9, equalPos-9);
+                std::string filePath = arg.substr(equalPos+1);
+                outputPaths[portName] = filePath;
+            }
         }
     }
     
-    if (input_path.empty() || pc_path.empty() || valid_path.empty() || 
-        taken_path.empty() || target_path.empty()) {
-        std::cerr << "Error: Missing required file paths" << std::endl;
+    if (inputDir.empty()) {
+        std::cerr << "Error: No input directory specified (--input-dir)" << std::endl;
         return 1;
     }
     
-    // Create and initialize the model
-    Vibex_branch_predict_mocked* dut = new Vibex_branch_predict_mocked;
+    // Create the module instance
+    V{{.ModuleName}}_mocked* dut = new V{{.ModuleName}}_mocked;
     
-    // Read input values
-    std::ifstream input_file(input_path);
-    std::ifstream pc_file(pc_path);
-    std::ifstream valid_file(valid_path);
-    
-    if (!input_file || !pc_file || !valid_file) {
-        std::cerr << "Error: Failed to open input files" << std::endl;
+    // Find all input files in the input directory
+    std::vector<std::string> inputFiles;
+    try {
+        for (const auto& entry : fs::directory_iterator(inputDir)) {
+            if (entry.is_regular_file()) {
+                std::string filename = entry.path().filename().string();
+                if (filename.find("input_") == 0) {
+                    inputFiles.push_back(entry.path().string());
+                }
+            }
+        }
+    } catch (const fs::filesystem_error& ex) {
+        std::cerr << "Error accessing input directory: " << ex.what() << std::endl;
         delete dut;
         return 1;
     }
     
-    uint32_t fetch_rdata, fetch_pc;
-    uint8_t fetch_valid;
+    if (inputFiles.empty()) {
+        std::cerr << "Error: No input files found in " << inputDir << std::endl;
+        delete dut;
+        return 1;
+    }
     
-    input_file >> std::hex >> fetch_rdata;
-    pc_file >> std::hex >> fetch_pc;
-    valid_file >> fetch_valid;
+    // Process each input file and apply to DUT
+    for (const auto& inputPath : inputFiles) {
+        std::string filename = fs::path(inputPath).filename().string();
+        // Extract port name from filename (input_portname.hex)
+        std::string portName = filename.substr(6);
+        portName = portName.substr(0, portName.find("."));
+        
+        // Open and read the file
+        std::ifstream inFile(inputPath);
+        if (!inFile.is_open()) {
+            std::cerr << "Error opening input file: " << inputPath << std::endl;
+            continue;
+        }
+        
+        std::string valueStr;
+        inFile >> valueStr;
+        inFile.close();
+        
+        // Apply the value to the appropriate port
+        // This approach requires checking for each possible port name
+        // It's verbose but avoids using the non-existent setenv method
+        
+        // Note: Replace this part with actual port assignments for your specific module
+        // For example:
+        if (portName == "clk_i") {
+            dut->clk_i = (valueStr[0] == '1' ? 1 : 0);
+        }
+        else if (portName == "rst_ni") {
+            dut->rst_ni = (valueStr[0] == '1' ? 1 : 0);
+        }
+        else if (portName == "fetch_valid_i") {
+            dut->fetch_valid_i = (valueStr[0] == '1' ? 1 : 0);
+        }
+        else if (portName == "fetch_rdata_i") {
+            dut->fetch_rdata_i = std::stoull(valueStr, nullptr, 16);
+        }
+        else if (portName == "fetch_pc_i") {
+            dut->fetch_pc_i = std::stoull(valueStr, nullptr, 16);
+        }
+        // Add additional ports as needed
+        else {
+            std::cerr << "Warning: Unknown port name: " << portName << std::endl;
+        }
+    }
     
-    // Apply inputs
-    dut->fetch_rdata_i = fetch_rdata;
-    dut->fetch_pc_i = fetch_pc;
-    dut->fetch_valid_i = fetch_valid;
-    dut->clk_i = 0;
-    dut->rst_ni = 1;
-    
-    // Evaluate
+    // Evaluate the model
     dut->eval();
     
-    // Write outputs
-    std::ofstream taken_file(taken_path);
-    std::ofstream target_file(target_path);
-    
-    if (!taken_file || !target_file) {
-        std::cerr << "Error: Failed to open output files" << std::endl;
-        delete dut;
-        return 1;
+    // Write outputs to the specified paths
+    for (const auto& output : outputPaths) {
+        const std::string& portName = output.first;
+        const std::string& filePath = output.second;
+        
+        std::ofstream outFile(filePath);
+        if (!outFile.is_open()) {
+            std::cerr << "Error opening output file: " << filePath << std::endl;
+            continue;
+        }
+        
+        // Read from the appropriate port and write to file
+        // This approach requires checking for each possible port name
+        if (portName == "predict_branch_taken_o") {
+            outFile << (dut->predict_branch_taken_o ? '1' : '0');
+        }
+        else if (portName == "predict_branch_pc_o") {
+            outFile << std::hex << std::setfill('0') << std::setw(8) << dut->predict_branch_pc_o;
+        }
+        // Add additional ports as needed
+        else {
+            std::cerr << "Warning: Unknown output port: " << portName << std::endl;
+        }
+        
+        outFile.close();
     }
     
-    taken_file << (int)dut->predict_branch_taken_o;
-    target_file << std::hex << dut->predict_branch_pc_o;
-    
     // Clean up
-    taken_file.close();
-    target_file.close();
     delete dut;
-    
     return 0;
 }
-`
+`))
+
+	var buf bytes.Buffer
+	tmpl.Execute(&buf, struct{ ModuleName string }{ModuleName: moduleName})
+	return buf.String()
 }

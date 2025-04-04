@@ -36,6 +36,5 @@ func RemoveMacros(content string, macros []string) string {
 			result = append(result, line)
 		}
 	}
-
 	return strings.Join(result, "\n")
 }

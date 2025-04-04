@@ -21,7 +21,7 @@ type IVerilogSimulator struct {
 // NewIVerilogSimulator creates a new IVerilog simulator instance
 func NewIVerilogSimulator(workDir string, verbose bool) *IVerilogSimulator {
 	return &IVerilogSimulator{
-		execPath: filepath.Join(workDir, "ibex_sim_iv"),
+		execPath: filepath.Join(workDir, "module_sim_iv"),
 		workDir:  workDir,
 		debug:    utils.NewDebugLogger(verbose),
 	}
@@ -31,63 +31,26 @@ func NewIVerilogSimulator(workDir string, verbose bool) *IVerilogSimulator {
 func (sim *IVerilogSimulator) Compile() error {
 	sim.debug.Printf("Starting IVerilog compile in %s", sim.workDir)
 
-	// Look for the Verilog file directly in the work directory first
-	verilogPath := filepath.Join(sim.workDir, "ibex_branch_predict_mocked.sv")
-	testbenchPath := filepath.Join(sim.workDir, "testbench.sv")
-
-	// First verify that the source files exist or copy them
-	if _, err := os.Stat(verilogPath); os.IsNotExist(err) {
-		sim.debug.Printf("Source verilog file not found at %s, copying from TMP_DIR", verilogPath)
-		// Copy from TMP_DIR
-		tmpVerilogPath := filepath.Join(utils.TMP_DIR, "ibex_branch_predict_mocked.sv")
-		if _, err := os.Stat(tmpVerilogPath); os.IsNotExist(err) {
-			return fmt.Errorf("verilog file not found at source: %s", tmpVerilogPath)
-		}
-
-		// Make sure the directory exists
-		if err := os.MkdirAll(filepath.Dir(verilogPath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory for verilog file: %v", err)
-		}
-
-		if err := utils.CopyFile(tmpVerilogPath, verilogPath); err != nil {
-			return fmt.Errorf("failed to copy verilog file to work dir: %v", err)
-		}
-		sim.debug.Printf("Copied verilog file from %s to %s", tmpVerilogPath, verilogPath)
+	// Look for all Verilog files in the work directory
+	files, err := filepath.Glob(filepath.Join(sim.workDir, "*.sv"))
+	if err != nil {
+		return fmt.Errorf("failed to find Verilog files: %v", err)
 	}
 
-	if _, err := os.Stat(testbenchPath); os.IsNotExist(err) {
-		sim.debug.Printf("Source testbench file not found at %s, copying from TMP_DIR", testbenchPath)
-		// Copy from TMP_DIR
-		tmpTestbenchPath := filepath.Join(utils.TMP_DIR, "testbench.sv")
-		if _, err := os.Stat(tmpTestbenchPath); os.IsNotExist(err) {
-			return fmt.Errorf("testbench file not found at source: %s", tmpTestbenchPath)
-		}
-
-		if err := utils.CopyFile(tmpTestbenchPath, testbenchPath); err != nil {
-			return fmt.Errorf("failed to copy testbench to work dir: %v", err)
-		}
-		sim.debug.Printf("Copied testbench file from %s to %s", tmpTestbenchPath, testbenchPath)
+	if len(files) == 0 {
+		return fmt.Errorf("no Verilog files found in %s", sim.workDir)
 	}
 
-	// Verify files exist in work directory
-	if _, err := os.Stat(verilogPath); os.IsNotExist(err) {
-		return fmt.Errorf("verilog file not found at: %s", verilogPath)
+	// Get just the filenames for the command
+	fileNames := make([]string, 0, len(files))
+	for _, f := range files {
+		fileNames = append(fileNames, filepath.Base(f))
 	}
 
-	if _, err := os.Stat(testbenchPath); os.IsNotExist(err) {
-		return fmt.Errorf("testbench file not found at: %s", testbenchPath)
-	}
-
-	// Create output directory
-	outDir := filepath.Dir(sim.execPath)
-	if err := os.MkdirAll(outDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %v", err)
-	}
-	sim.debug.Printf("Ensured output directory exists: %s", outDir)
-
-	// Compile directly in the work directory with simple command
-	cmdArgs := []string{"-o", "ibex_sim_iv", "ibex_branch_predict_mocked.sv", "testbench.sv", "-g2012"}
-	sim.debug.Printf("Running iverilog command: iverilog %s in directory %s", strings.Join(cmdArgs, " "), sim.workDir)
+	// Compile directly in the work directory
+	cmdArgs := append([]string{"-o", "module_sim_iv", "-g2012"}, fileNames...)
+	sim.debug.Printf("Running iverilog command: iverilog %s in directory %s",
+		strings.Join(cmdArgs, " "), sim.workDir)
 
 	cmd := exec.Command("iverilog", cmdArgs...)
 	cmd.Dir = sim.workDir
@@ -106,9 +69,9 @@ func (sim *IVerilogSimulator) Compile() error {
 	}
 
 	// Check if executable was created
-	execPath := filepath.Join(sim.workDir, "ibex_sim_iv")
+	execPath := filepath.Join(sim.workDir, "module_sim_iv")
 	sim.debug.Printf("Checking for compiled executable at %s", execPath)
-	fileInfo, err := os.Stat(execPath)
+	_, err = os.Stat(execPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// List the directory contents to debug
@@ -122,65 +85,45 @@ func (sim *IVerilogSimulator) Compile() error {
 		}
 		return fmt.Errorf("error checking executable: %v", err)
 	}
-	sim.debug.Printf("Found executable, size: %d bytes, mode: %s", fileInfo.Size(), fileInfo.Mode())
 
 	// Make sure the executable has the right permissions
 	if err := os.Chmod(execPath, 0755); err != nil {
 		return fmt.Errorf("failed to set executable permissions: %v", err)
 	}
-	sim.debug.Printf("Set executable permissions to 0755")
-
-	// Verify executable exists and has non-zero size
-	if fileInfo.Size() == 0 {
-		return fmt.Errorf("executable has zero size at: %s", execPath)
-	}
-
-	// Run a quick test run of the executable to verify it's a valid binary
-	sim.debug.Printf("Testing executable with 'file' command")
-	fileCmd := exec.Command("file", execPath)
-	var fileOutput bytes.Buffer
-	fileCmd.Stdout = &fileOutput
-	if err := fileCmd.Run(); err == nil {
-		sim.debug.Printf("file command output: %s", fileOutput.String())
-	}
 
 	return nil
 }
 
-// RunTest runs the simulator with specific input and output files
-func (sim *IVerilogSimulator) RunTest(inputPath, pcPath, validPath, takenPath, targetPath string) error {
-	// Use worker-specific temporary files - store them directly in the work dir
-	tmpInputPath := filepath.Join(sim.workDir, "input.hex")
-	tmpPcPath := filepath.Join(sim.workDir, "pc.hex")
-	tmpValidPath := filepath.Join(sim.workDir, "valid.hex")
-	tmpTakenPath := filepath.Join(sim.workDir, "taken.hex")
-	tmpTargetPath := filepath.Join(sim.workDir, "target.hex")
+// RunTest runs the simulator with the provided input directory and output paths
+func (sim *IVerilogSimulator) RunTest(inputDir string, outputPaths map[string]string) error {
+	// Make sure input and output directories exist
+	if _, err := os.Stat(inputDir); os.IsNotExist(err) {
+		return fmt.Errorf("input directory does not exist: %s", inputDir)
+	}
 
-	// Make sure any existing output files are removed first
-	os.Remove(tmpTakenPath)
-	os.Remove(tmpTargetPath)
-	sim.debug.Printf("Cleared any existing output files")
+	// Make sure input directory contains input files
+	inputFiles, err := filepath.Glob(filepath.Join(inputDir, "input_*.hex"))
+	if err != nil || len(inputFiles) == 0 {
+		return fmt.Errorf("no input files found in: %s", inputDir)
+	}
 
-	// Copy input files (simple, synchronous approach)
-	if err := utils.CopyFile(inputPath, tmpInputPath); err != nil {
-		return fmt.Errorf("failed to copy input file: %v", err)
+	// Copy input files to work directory
+	for _, inputFile := range inputFiles {
+		filename := filepath.Base(inputFile)
+		destPath := filepath.Join(sim.workDir, filename)
+		if err := utils.CopyFile(inputFile, destPath); err != nil {
+			return fmt.Errorf("failed to copy input file %s: %v", filename, err)
+		}
 	}
-	if err := utils.CopyFile(pcPath, tmpPcPath); err != nil {
-		return fmt.Errorf("failed to copy PC file: %v", err)
-	}
-	if err := utils.CopyFile(validPath, tmpValidPath); err != nil {
-		return fmt.Errorf("failed to copy valid file: %v", err)
-	}
-	sim.debug.Printf("Copied input files successfully")
 
 	// Verify that the executable exists
 	if _, err := os.Stat(sim.execPath); os.IsNotExist(err) {
 		return fmt.Errorf("iverilog executable not found at: %s", sim.execPath)
 	}
 
+	// Run the simulation
 	relExecPath := filepath.Base(sim.execPath)
 	cmd := exec.Command("vvp", relExecPath)
-
 	cmd.Dir = sim.workDir
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer
@@ -196,20 +139,19 @@ func (sim *IVerilogSimulator) RunTest(inputPath, pcPath, validPath, takenPath, t
 
 	sim.debug.Printf("Simulation completed successfully")
 
-	// Wait to ensure file system has completed writing the files
-	//time.Sleep(100 * time.Millisecond)
+	// Wait to ensure file system has completed writing
+	//time.Sleep(50 * time.Millisecond)
 
-	// Verify files exist with multiple retries
-	if err := VerifyOutputFiles(tmpTakenPath, tmpTargetPath); err != nil {
-		return err
-	}
+	// Copy output files to their expected paths with the iv_ prefix
+	for portName, outputPath := range outputPaths {
+		srcPath := filepath.Join(sim.workDir, fmt.Sprintf("output_%s.hex", portName))
+		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
+			return fmt.Errorf("output file not created for port %s", portName)
+		}
 
-	// Copy output files back to their expected locations
-	if err := utils.CopyFile(tmpTakenPath, takenPath); err != nil {
-		return fmt.Errorf("failed to copy taken output: %v", err)
-	}
-	if err := utils.CopyFile(tmpTargetPath, targetPath); err != nil {
-		return fmt.Errorf("failed to copy target output: %v", err)
+		if err := utils.CopyFile(srcPath, outputPath); err != nil {
+			return fmt.Errorf("failed to copy output file %s: %v", portName, err)
+		}
 	}
 
 	return nil

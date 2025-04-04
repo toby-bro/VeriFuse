@@ -8,7 +8,7 @@ build: build-fuzzer build-tools
 
 # Build the main fuzzer
 build-fuzzer:
-	go build -o pfuzz
+	go build -o pfuzz cmd/pfuzz/main.go
 
 # Build additional analysis tools
 build-tools: build-analyze build-patterns build-focused
@@ -24,7 +24,7 @@ build-focused:
 
 # Run fuzzer with default settings
 run: clean
-	./pfuzz -n 10 -strategy opcode-aware -workers 5 -v
+	./pfuzz -n 1 -strategy smart -workers 1 -v -file ibex_branch_predict.sv
 
 # Run analysis tools
 analyze-mismatch:

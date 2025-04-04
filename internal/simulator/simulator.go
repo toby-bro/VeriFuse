@@ -3,6 +3,8 @@ package simulator
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -13,163 +15,146 @@ type Simulator interface {
 	Compile() error
 
 	// RunTest runs the simulator with the provided input and output files
-	RunTest(inputPath, pcPath, validPath, takenPath, targetPath string) error
+	// inputDir is the directory containing input files
+	// outputPaths maps port names to output file paths
+	RunTest(inputDir string, outputPaths map[string]string) error
 
 	// GetExecPath returns the path to the compiled simulator executable
 	GetExecPath() string
 }
 
-// SimResult represents the results of a simulation run
-type SimResult struct {
-	BranchTaken uint8
-	BranchPc    uint32
+// OutputResult represents the results of a simulation run for any output port
+type OutputResult struct {
+	PortName string
+	Value    string
 }
 
 var fileAccessMutex sync.Mutex
 
-// ReadSimResultsFromFiles reads the simulation results from specified output files
-func ReadSimResultsFromFiles(takenPath, targetPath string) (SimResult, error) {
-	var result SimResult
+// ReadOutputFiles reads multiple output files concurrently and returns their contents
+func ReadOutputFiles(filePaths map[string]string) (map[string]string, error) {
+	results := make(map[string]string)
 	var wg sync.WaitGroup
-	var takenErr, targetErr error
-	var taken, target []byte
+	var mu sync.Mutex
+	var errorFound bool
+	var firstError error
 
-	// Use goroutines to read files concurrently
-	wg.Add(2)
+	for portName, filePath := range filePaths {
+		wg.Add(1)
+		go func(port, path string) {
+			defer wg.Done()
 
-	// Goroutine to read taken file
-	go func() {
-		defer wg.Done()
-
-		// Try to read the taken.hex file with retries
-		for retries := 0; retries < 10; retries++ {
-			fileAccessMutex.Lock()
-			taken, takenErr = os.ReadFile(takenPath)
-			fileAccessMutex.Unlock()
-
-			if takenErr == nil && len(taken) > 0 {
-				break
+			content, err := ReadOutputFile(path)
+			if err != nil {
+				mu.Lock()
+				if !errorFound {
+					errorFound = true
+					firstError = fmt.Errorf("failed to read output for %s: %v", port, err)
+				}
+				mu.Unlock()
+				return
 			}
 
-			// Exponential backoff
-			waitTime := time.Duration(20*(1<<retries)) * time.Millisecond
-			if waitTime > 500*time.Millisecond {
-				waitTime = 500 * time.Millisecond
-			}
-			time.Sleep(waitTime)
-		}
-	}()
+			mu.Lock()
+			results[port] = content
+			mu.Unlock()
+		}(portName, filePath)
+	}
 
-	// Goroutine to read target file
-	go func() {
-		defer wg.Done()
-
-		// Try to read the target.hex file with retries
-		for retries := 0; retries < 10; retries++ {
-			fileAccessMutex.Lock()
-			target, targetErr = os.ReadFile(targetPath)
-			fileAccessMutex.Unlock()
-
-			if targetErr == nil && len(target) > 0 {
-				break
-			}
-
-			// Exponential backoff
-			waitTime := time.Duration(20*(1<<retries)) * time.Millisecond
-			if waitTime > 500*time.Millisecond {
-				waitTime = 500 * time.Millisecond
-			}
-			time.Sleep(waitTime)
-		}
-	}()
-
-	// Wait for both goroutines to finish
 	wg.Wait()
 
-	// Handle taken file errors
-	if takenErr != nil || len(taken) == 0 {
-		return SimResult{}, fmt.Errorf("failed to read taken file %s: %v", takenPath, takenErr)
+	if errorFound {
+		return nil, firstError
 	}
-
-	// Parse taken value with robust error handling
-	result.BranchTaken = 0
-	if len(taken) > 0 {
-		if taken[0] == '1' {
-			result.BranchTaken = 1
-		} else if taken[0] != '0' {
-			// If it's not 0 or 1, try parsing as an integer
-			var takenVal int
-			if _, err := fmt.Sscanf(string(taken), "%d", &takenVal); err == nil && takenVal > 0 {
-				result.BranchTaken = 1
-			}
-		}
-	}
-
-	// Handle target file errors
-	if targetErr != nil || len(target) == 0 {
-		return SimResult{}, fmt.Errorf("failed to read target file %s: %v", targetPath, targetErr)
-	}
-
-	// Parse target value
-	var targetVal uint32
-	if _, err := fmt.Sscanf(string(target), "%x", &targetVal); err != nil {
-		return SimResult{}, fmt.Errorf("failed to parse target value '%s': %v", string(target), err)
-	}
-	result.BranchPc = targetVal
-
-	return result, nil
+	return results, nil
 }
 
-// VerifyOutputFiles ensures both output files exist and are non-empty using concurrent checks
-func VerifyOutputFiles(takenPath, targetPath string) error {
+// CompareOutputFiles compares the contents of output files for specified ports
+func CompareOutputFiles(ivDir, vlDir string, portNames []string) (map[string]bool, error) {
+	results := make(map[string]bool)
 	var wg sync.WaitGroup
-	var takenOk, targetOk bool
-	var takenSize, targetSize int64
+	var mu sync.Mutex
 
-	// Use goroutines to check files concurrently
-	wg.Add(2)
+	for _, portName := range portNames {
+		wg.Add(1)
+		go func(port string) {
+			defer wg.Done()
 
-	// Goroutine to check taken file
-	go func() {
-		defer wg.Done()
-		for retry := 0; retry < 5; retry++ {
-			fileAccessMutex.Lock()
-			stat, err := os.Stat(takenPath)
-			fileAccessMutex.Unlock()
+			ivPath := filepath.Join(ivDir, fmt.Sprintf("iv_%s.hex", port))
+			vlPath := filepath.Join(vlDir, fmt.Sprintf("vl_%s.hex", port))
 
-			if err == nil && stat.Size() > 0 {
-				takenOk = true
-				takenSize = stat.Size()
+			ivContent, err1 := ReadOutputFile(ivPath)
+			vlContent, err2 := ReadOutputFile(vlPath)
+
+			if err1 != nil || err2 != nil {
 				return
 			}
-			time.Sleep(50 * time.Millisecond)
-		}
-	}()
 
-	// Goroutine to check target file
-	go func() {
-		defer wg.Done()
-		for retry := 0; retry < 5; retry++ {
-			fileAccessMutex.Lock()
-			stat, err := os.Stat(targetPath)
-			fileAccessMutex.Unlock()
+			mu.Lock()
+			results[port] = (ivContent == vlContent)
+			mu.Unlock()
+		}(portName)
+	}
 
-			if err == nil && stat.Size() > 0 {
-				targetOk = true
-				targetSize = stat.Size()
-				return
+	wg.Wait()
+	return results, nil
+}
+
+// VerifyOutputFiles ensures output files exist and are non-empty
+func VerifyOutputFiles(outputPaths map[string]string) error {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var missing []string
+
+	for portName, path := range outputPaths {
+		wg.Add(1)
+		go func(name, filePath string) {
+			defer wg.Done()
+
+			for retry := 0; retry < 5; retry++ {
+				fileAccessMutex.Lock()
+				stat, err := os.Stat(filePath)
+				fileAccessMutex.Unlock()
+
+				if err == nil && stat.Size() > 0 {
+					return
+				}
+				time.Sleep(50 * time.Millisecond)
 			}
-			time.Sleep(50 * time.Millisecond)
-		}
-	}()
 
-	// Wait for both checks to complete
+			mu.Lock()
+			missing = append(missing, name)
+			mu.Unlock()
+		}(portName, path)
+	}
+
 	wg.Wait()
 
-	if !takenOk || !targetOk {
-		return fmt.Errorf("output files not created properly: taken=%s (%v, %d bytes), target=%s (%v, %d bytes)",
-			takenPath, takenOk, takenSize, targetPath, targetOk, targetSize)
+	if len(missing) > 0 {
+		return fmt.Errorf("output files not created properly for ports: %v", missing)
 	}
 
 	return nil
+}
+
+// ReadOutputFile reads the content of an output file with retries
+func ReadOutputFile(path string) (string, error) {
+	var content []byte
+	var err error
+
+	for retries := 0; retries < 5; retries++ {
+		fileAccessMutex.Lock()
+		content, err = os.ReadFile(path)
+		fileAccessMutex.Unlock()
+
+		if err == nil && len(content) > 0 {
+			return strings.TrimSpace(string(content)), nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("failed to read file after retries: %v", err)
+	}
+	return "", fmt.Errorf("file exists but is empty")
 }
