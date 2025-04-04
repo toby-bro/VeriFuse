@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jns/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 // EnumCast represents a detected enum cast in SystemVerilog

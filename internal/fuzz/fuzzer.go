@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jns/pfuzz/internal/analyzer"
-	"github.com/jns/pfuzz/internal/simulator"
-	"github.com/jns/pfuzz/internal/testgen"
-	"github.com/jns/pfuzz/internal/verilog"
-	"github.com/jns/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/internal/analyzer"
+	"github.com/toby-bro/pfuzz/internal/simulator"
+	"github.com/toby-bro/pfuzz/internal/testgen"
+	"github.com/toby-bro/pfuzz/internal/verilog"
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 // Test file prefixes for different simulators

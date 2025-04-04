@@ -3,7 +3,7 @@ package fuzz
 import (
 	"strings"
 
-	"github.com/jns/pfuzz/internal/verilog"
+	"github.com/toby-bro/pfuzz/internal/verilog"
 )
 
 // SignalType represents classification of an input signal

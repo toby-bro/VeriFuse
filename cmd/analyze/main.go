@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jns/pfuzz/internal/simulator"
-	"github.com/jns/pfuzz/internal/verilog"
-	"github.com/jns/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/internal/simulator"
+	"github.com/toby-bro/pfuzz/internal/verilog"
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 // Debug logger for both normal and debug messages
