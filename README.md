@@ -1,4 +1,4 @@
-# svfuzz
+# pfuzz
 
 The objective of this project is to create a fuzzing tool to fuzz system verilog simulators.
 
