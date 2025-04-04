@@ -104,7 +104,7 @@ List of things to mock:
 
 ## TODO
 
-- [ ] Suuport parametrized constructs
+- [ ] Suport parametrized constructs
 - [ ] Repair the focused and analyze modules
 - [ ] Use the example_usage to effectively test many modules
 - [ ] Combine many different sv files
