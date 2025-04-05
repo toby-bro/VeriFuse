@@ -29,22 +29,37 @@ func NewIVerilogSimulator(workDir string, verbose bool) *IVerilogSimulator {
 
 // Compile compiles the verilog files with IVerilog
 func (sim *IVerilogSimulator) Compile() error {
+	return sim.CompileSpecific(nil)
+}
+
+// CompileSpecific compiles only the specified files (or all .sv files if nil)
+func (sim *IVerilogSimulator) CompileSpecific(specificFiles []string) error {
 	sim.debug.Printf("Starting IVerilog compile in %s", sim.workDir)
 
-	// Look for all Verilog files in the work directory
-	files, err := filepath.Glob(filepath.Join(sim.workDir, "*.sv"))
-	if err != nil {
-		return fmt.Errorf("failed to find Verilog files: %v", err)
-	}
+	var fileNames []string
 
-	if len(files) == 0 {
-		return fmt.Errorf("no Verilog files found in %s", sim.workDir)
-	}
+	if specificFiles == nil || len(specificFiles) == 0 {
+		// Look for all Verilog files in the work directory
+		files, err := filepath.Glob(filepath.Join(sim.workDir, "*.sv"))
+		if err != nil {
+			return fmt.Errorf("failed to find Verilog files: %v", err)
+		}
 
-	// Get just the filenames for the command
-	fileNames := make([]string, 0, len(files))
-	for _, f := range files {
-		fileNames = append(fileNames, filepath.Base(f))
+		if len(files) == 0 {
+			return fmt.Errorf("no Verilog files found in %s", sim.workDir)
+		}
+
+		// Get just the filenames for the command
+		fileNames = make([]string, 0, len(files))
+		for _, f := range files {
+			fileNames = append(fileNames, filepath.Base(f))
+		}
+	} else {
+		// Use the specified files
+		fileNames = make([]string, len(specificFiles))
+		for i, f := range specificFiles {
+			fileNames[i] = filepath.Base(f)
+		}
 	}
 
 	// Compile directly in the work directory
@@ -71,16 +86,16 @@ func (sim *IVerilogSimulator) Compile() error {
 	// Check if executable was created
 	execPath := filepath.Join(sim.workDir, "module_sim_iv")
 	sim.debug.Printf("Checking for compiled executable at %s", execPath)
-	_, err = os.Stat(execPath)
+	_, err := os.Stat(execPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// List the directory contents to debug
 			files, _ := os.ReadDir(sim.workDir)
-			fileNames := make([]string, 0, len(files))
+			fileList := make([]string, 0, len(files))
 			for _, f := range files {
-				fileNames = append(fileNames, f.Name())
+				fileList = append(fileList, f.Name())
 			}
-			sim.debug.Printf("Directory contents: %v", fileNames)
+			sim.debug.Printf("Directory contents: %v", fileList)
 			return fmt.Errorf("executable not created at: %s (directory exists: %v)", execPath, true)
 		}
 		return fmt.Errorf("error checking executable: %v", err)
