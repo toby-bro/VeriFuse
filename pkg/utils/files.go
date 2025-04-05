@@ -7,21 +7,30 @@ import (
 	"sync"
 )
 
-// TMP_DIR is the directory where all generated files are stored
-const TMP_DIR = "tmp_gen"
-const MISMATCHES_DIR = "mismatches"
+// Common directory paths
+var (
+	TMP_DIR        = "tmp_gen"
+	MISMATCHES_DIR = "mismatches"
+	DEBUG_LOGS_DIR = "debug_logs"
+)
 
 // Global mutex for file operations
 var fileOpMutex sync.Mutex
 
-// EnsureDirs creates necessary directories if they don't exist
+// EnsureDirs creates required directories if they don't exist
 func EnsureDirs() error {
-	if err := os.MkdirAll(TMP_DIR, 0755); err != nil {
-		return fmt.Errorf("failed to create tmp directory: %v", err)
+	dirs := []string{
+		TMP_DIR,
+		MISMATCHES_DIR,
+		DEBUG_LOGS_DIR,
 	}
-	if err := os.MkdirAll(MISMATCHES_DIR, 0755); err != nil {
-		return fmt.Errorf("failed to create mismatches directory: %v", err)
+
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %v", dir, err)
+		}
 	}
+
 	return nil
 }
 
@@ -67,12 +76,18 @@ func ReadFileContent(filename string) (string, error) {
 	return string(content), nil
 }
 
-// Thread-safe version of WriteFileContent
-func WriteFileContent(filename string, content string) error {
+// WriteFileContent writes content to a file, creating directories as needed
+func WriteFileContent(path string, content string) error {
 	fileOpMutex.Lock()
 	defer fileOpMutex.Unlock()
 
-	return os.WriteFile(filename, []byte(content), 0644)
+	// Ensure the directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %v", dir, err)
+	}
+
+	return os.WriteFile(path, []byte(content), 0644)
 }
 
 // TmpPath returns the path within the temporary directory
@@ -80,26 +95,47 @@ func TmpPath(filename string) string {
 	return filepath.Join(TMP_DIR, filename)
 }
 
-// Thread-safe version of CopyFile
+// CopyFile copies a file from src to dst
 func CopyFile(src, dst string) error {
 	fileOpMutex.Lock()
 	defer fileOpMutex.Unlock()
 
+	// Ensure the destination directory exists
+	dir := filepath.Dir(dst)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %v", dir, err)
+	}
+
+	// Read source file
 	data, err := os.ReadFile(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read source file: %v", err)
 	}
+
+	// Write destination file
 	return os.WriteFile(dst, data, 0644)
 }
 
-// Thread-safe version of FileExists
+// FileExists checks if a file exists and is not a directory
 func FileExists(path string) bool {
 	fileOpMutex.Lock()
 	defer fileOpMutex.Unlock()
 
 	info, err := os.Stat(path)
-	if err != nil {
+	if os.IsNotExist(err) {
 		return false
 	}
-	return !info.IsDir() && info.Size() > 0
+	return !info.IsDir()
+}
+
+// TrimWhitespace removes whitespace, newlines, and tabs from a string
+func TrimWhitespace(s string) string {
+	// Custom implementation to handle whitespace
+	result := ""
+	for _, c := range s {
+		if c != ' ' && c != '\n' && c != '\r' && c != '\t' {
+			result += string(c)
+		}
+	}
+	return result
 }
