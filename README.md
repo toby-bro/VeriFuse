@@ -4,6 +4,8 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
 
 To do this we are trying to take valid sv code and run it as a standalone program and fuzz it's inputs and try and detect discrepancies in the output.
 
+I think this is an attempt at mutation based fuzzing with valid seeds.
+
 ## Example usage
 
 ```bash
@@ -101,3 +103,9 @@ List of things to mock:
 - Mock generation might not handle all possible enum cases correctly
 - Focused testing requires manual analysis of results
 - Limited ability to fuzz modules with complex timing requirements
+
+## Future Work
+
+- Use coverage to measure what we are missing
+- Try and use ML models to try and generate valid code that triggers more of the code
+  - make an embedding space of the verilog code and try and regenerate it
