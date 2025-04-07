@@ -41,3 +41,10 @@ jobs:
             echo "Make run failed"
             exit 1
           fi
+      - name: Test
+        run: |
+          make tests
+          if [ $? -ne 0 ]; then
+            echo "Make tests failed"
+            exit 1
+          fi
