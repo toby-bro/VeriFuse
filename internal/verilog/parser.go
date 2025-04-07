@@ -157,17 +157,33 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 		parseParameters(paramList, module)
 	}
 
+	// Extract module port names from the port list
+	portNames := make(map[string]bool)
+	for _, p := range strings.Split(portList, ",") {
+		portName := strings.TrimSpace(p)
+
+		// Extract just the identifier part without any data type or direction
+		if matches := regexp.MustCompile(`\.(\w+)\s*\(`).FindStringSubmatch(portName); len(matches) > 1 {
+			// Named port connection like .clk(clk)
+			portName = matches[1]
+		} else if matches := regexp.MustCompile(`(\w+)\s*$`).FindStringSubmatch(portName); len(matches) > 1 {
+			// Simple port like 'clk' or at the end of a declaration like 'input clk'
+			portName = matches[1]
+		}
+
+		if portName != "" {
+			portNames[portName] = true
+		}
+	}
+
 	// Now scan the file to find port declarations
 	file.Seek(0, 0) // Reset to beginning of file
 	scanner := bufio.NewScanner(file)
 
 	// Regular expressions for port declarations - updated to better isolate port names
-	inputRegex := regexp.MustCompile(`input\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`)   //(?:[,;]|\s*\)\s*;)`)
-	outputRegex := regexp.MustCompile(`output\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`) //(?:[,;]|\s*\)\s*;)`)
-	inoutRegex := regexp.MustCompile(`inout\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`)   //(?:[,;]|\s*\)\s*;)`)
-
-	// Clean declaration regex to extract just the port name from a full declaration line
-	cleanNameRegex := regexp.MustCompile(`.*\s+(\w+)\s*$`)
+	inputRegex := regexp.MustCompile(`input\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`)
+	outputRegex := regexp.MustCompile(`output\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`)
+	inoutRegex := regexp.MustCompile(`inout\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`)
 
 	// Process each line
 	inComment := false
@@ -211,15 +227,18 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 			// Clean any comments or extra whitespace from portName
 			portName = strings.TrimSpace(portName)
 
-			width, _ := parseRange(rangeStr)
+			// Only add if it's in the module port list
+			if portNames[portName] {
+				width, _ := parseRange(rangeStr)
 
-			module.Ports = append(module.Ports, Port{
-				Name:      portName,
-				Direction: INPUT,
-				Width:     width,
-				IsSigned:  false, // Assume unsigned by default
-				IsReg:     isReg,
-			})
+				module.Ports = append(module.Ports, Port{
+					Name:      portName,
+					Direction: INPUT,
+					Width:     width,
+					IsSigned:  false, // Assume unsigned by default
+					IsReg:     isReg,
+				})
+			}
 		}
 
 		// Check for output ports
@@ -231,15 +250,18 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 			// Clean any comments or extra whitespace from portName
 			portName = strings.TrimSpace(portName)
 
-			width, _ := parseRange(rangeStr)
+			// Only add if it's in the module port list
+			if portNames[portName] {
+				width, _ := parseRange(rangeStr)
 
-			module.Ports = append(module.Ports, Port{
-				Name:      portName,
-				Direction: OUTPUT,
-				Width:     width,
-				IsSigned:  false, // Assume unsigned by default
-				IsReg:     isReg,
-			})
+				module.Ports = append(module.Ports, Port{
+					Name:      portName,
+					Direction: OUTPUT,
+					Width:     width,
+					IsSigned:  false, // Assume unsigned by default
+					IsReg:     isReg,
+				})
+			}
 		}
 
 		// Check for inout ports
@@ -251,37 +273,25 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 			// Clean any comments or extra whitespace from portName
 			portName = strings.TrimSpace(portName)
 
-			width, _ := parseRange(rangeStr)
+			// Only add if it's in the module port list
+			if portNames[portName] {
+				width, _ := parseRange(rangeStr)
 
-			module.Ports = append(module.Ports, Port{
-				Name:      portName,
-				Direction: INOUT,
-				Width:     width,
-				IsSigned:  false,
-				IsReg:     isReg,
-			})
+				module.Ports = append(module.Ports, Port{
+					Name:      portName,
+					Direction: INOUT,
+					Width:     width,
+					IsSigned:  false,
+					IsReg:     isReg,
+				})
+			}
 		}
 	}
 
-	// If we couldn't find port declarations, try to extract from port list
+	// Fall back to simpler port list extraction if we couldn't find port declarations
 	if len(module.Ports) == 0 {
-		// Extract port names from portList
-		portNames := []string{}
-		for _, p := range strings.Split(portList, ",") {
-			portName := strings.TrimSpace(p)
-
-			// Extract just the identifier part if it's a full declaration
-			if matches := cleanNameRegex.FindStringSubmatch(portName); len(matches) > 1 {
-				portName = matches[1]
-			}
-
-			if portName != "" {
-				portNames = append(portNames, portName)
-			}
-		}
-
 		// Basic heuristic: assume inputs end with _i, outputs with _o
-		for _, portName := range portNames {
+		for portName := range portNames {
 			var direction PortDirection
 			if strings.HasSuffix(portName, "_i") || strings.HasSuffix(portName, "_in") {
 				direction = INPUT
