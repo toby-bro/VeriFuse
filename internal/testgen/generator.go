@@ -57,8 +57,10 @@ func (g *Generator) GenerateSVTestbench() error {
 	var inputReads strings.Builder
 	var inputCount int
 	var clockPorts []string
+	var resetPort string
+	var isActiveHigh bool
 
-	// First pass to identify clock ports
+	// First pass to identify clock and reset ports
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			// Identify clock ports by name convention
@@ -66,6 +68,17 @@ func (g *Generator) GenerateSVTestbench() error {
 			if strings.Contains(strings.ToLower(portName), "clk") ||
 				strings.Contains(strings.ToLower(portName), "clock") {
 				clockPorts = append(clockPorts, portName)
+				continue
+			}
+
+			// Identify reset ports by name convention
+			portNameLower := strings.ToLower(portName)
+			if strings.Contains(portNameLower, "rst") || strings.Contains(portNameLower, "reset") {
+				resetPort = portName
+				// Determine if active high or low (active low has _n, _ni, or _l suffix)
+				isActiveHigh = !(strings.HasSuffix(portNameLower, "_n") ||
+					strings.HasSuffix(portNameLower, "_ni") ||
+					strings.HasSuffix(portNameLower, "_l"))
 			}
 		}
 	}
@@ -133,6 +146,22 @@ func (g *Generator) GenerateSVTestbench() error {
 		// If no clock ports, just add a delay
 		inputReads.WriteString("\n        // Allow module to process\n")
 		inputReads.WriteString("        #10;\n")
+	}
+
+	// Generate reset toggle code if a reset signal was found
+	var resetToggle strings.Builder
+	if resetPort != "" {
+		resetToggle.WriteString(fmt.Sprintf("        // Toggle reset signal %s\n", resetPort))
+		if isActiveHigh {
+			resetToggle.WriteString(fmt.Sprintf("        %s = 1; // Assert reset (active high)\n", resetPort))
+			resetToggle.WriteString("        #10;\n")
+			resetToggle.WriteString(fmt.Sprintf("        %s = 0; // De-assert reset\n", resetPort))
+		} else {
+			resetToggle.WriteString(fmt.Sprintf("        %s = 0; // Assert reset (active low)\n", resetPort))
+			resetToggle.WriteString("        #10;\n")
+			resetToggle.WriteString(fmt.Sprintf("        %s = 1; // De-assert reset\n", resetPort))
+		}
+		resetToggle.WriteString("        #10;\n")
 	}
 
 	// Generate output file writing code
@@ -220,6 +249,7 @@ func (g *Generator) GenerateSVTestbench() error {
 		moduleInst.String(),
 		inputCount,
 		inputReads.String(),
+		resetToggle.String(), // Add the reset toggle code
 		outputCount,
 		outputWrites.String())
 
@@ -304,7 +334,51 @@ func (g *Generator) GenerateCppTestbench() error {
 	// Add clock toggling code to C++ template
 	var clockHandling strings.Builder
 	var hasClock bool
+	var hasReset bool
+	var resetName string
+	var resetActiveHigh bool
 
+	// First identify any reset signal
+	for _, port := range g.module.Ports {
+		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
+			portName := strings.TrimSpace(port.Name)
+			portNameLower := strings.ToLower(portName)
+
+			// Check for reset signals
+			if strings.Contains(portNameLower, "rst") || strings.Contains(portNameLower, "reset") {
+				hasReset = true
+				resetName = portName
+
+				// Determine if active high or low (default to active high if unclear)
+				resetActiveHigh = !(strings.HasSuffix(portNameLower, "_n") ||
+					strings.HasSuffix(portNameLower, "_ni") ||
+					strings.HasSuffix(portNameLower, "_l"))
+				break
+			}
+		}
+	}
+
+	// Add reset toggle code after inputs have been applied
+	if hasReset {
+		clockHandling.WriteString(fmt.Sprintf("\n    // Toggle reset after inputs are applied\n"))
+		if resetActiveHigh {
+			clockHandling.WriteString(fmt.Sprintf("    dut->%s = 1; // Assert reset (active high)\n", resetName))
+		} else {
+			clockHandling.WriteString(fmt.Sprintf("    dut->%s = 0; // Assert reset (active low)\n", resetName))
+		}
+		clockHandling.WriteString("    dut->eval();\n")
+		clockHandling.WriteString("    contextp->timeInc(10);\n")
+
+		if resetActiveHigh {
+			clockHandling.WriteString(fmt.Sprintf("    dut->%s = 0; // De-assert reset\n", resetName))
+		} else {
+			clockHandling.WriteString(fmt.Sprintf("    dut->%s = 1; // De-assert reset\n", resetName))
+		}
+		clockHandling.WriteString("    dut->eval();\n")
+		clockHandling.WriteString("    contextp->timeInc(10);\n")
+	}
+
+	// Add clock toggling after reset
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
