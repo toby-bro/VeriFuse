@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
+	"github.com/toby-bro/pfuzz/internal/testgen"
 	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
@@ -16,37 +17,37 @@ import (
 // Debug logger for both normal and debug messages
 var debug *utils.DebugLogger
 
+func getMockedVerilogFile() string {
+	tmpGen, err := os.ReadDir("tmp_gen")
+	if err != nil {
+		return ""
+	}
+	for _, file := range tmpGen {
+		if strings.HasSuffix(file.Name(), "_mocked.sv") {
+			return filepath.Join("tmp_gen", file.Name())
+		}
+	}
+	return ""
+}
+
 func main() {
 	verbose := flag.Bool("v", false, "Verbose output")
-	verilogFile := flag.String("file", "", "Path to Verilog file to analyze (required)")
 	moduleName := flag.String("module", "", "Module name (if different from filename)")
 	flag.Parse()
 
 	// Initialize the debug logger
 	debug = utils.NewDebugLogger(*verbose)
 
-	// Check if file is provided
-	if *verilogFile == "" {
-		log.Fatal("Error: No Verilog file specified. Use -file option.")
-	}
-
-	// Determine module name from the file if not specified
-	module, err := verilog.ParseVerilogFile(*verilogFile, *moduleName)
-	if err != nil {
-		log.Fatalf("Failed to parse Verilog file: %v", err)
-	}
-
-	debug.Log("Using module: %s", module.Name)
-
-	// Check if we have a mismatch file to analyze
+	// Check if we have a mismatch file or directory to analyze
 	args := flag.Args()
 	if len(args) < 1 {
-		fmt.Println("Usage: analyze [-v] -file <verilog_file> <mismatch_file_or_dir> [--step]")
+		fmt.Println("Usage: analyze [-v] <mismatch_file_or_dir> [--step]")
 		os.Exit(1)
 	}
 
 	mismatchPath := args[0]
-	stepMode := len(args) > 1 && args[1] == "--step"
+
+	mismatchPath = strings.TrimSuffix(mismatchPath, ".txt")
 
 	// Handle both directory and file formats
 	isMismatchDir := false
@@ -79,11 +80,33 @@ func main() {
 
 	// If path is a directory, use the stored simulation results
 	if isMismatchDir {
-		debug.Log("Using saved simulation results from mismatch directory")
+		// Find the mocked Verilog file
+		verilogFile := getMockedVerilogFile()
+		if verilogFile == "" {
+			log.Fatal("Error: No mocked Verilog file found in tmp_gen directory.")
+		}
 
-		// Find all input files in the mismatch directory
+		// Determine module name from the file if not specified
+		module, err := verilog.ParseVerilogFile(verilogFile, *moduleName)
+		if err != nil {
+			log.Fatalf("Failed to parse Verilog file: %v", err)
+		}
+
+		debug.Log("Using module: %s", module.Name)
+
+		// Copy the mocked Verilog file to the analysis directory
+		analysisMockedFile := filepath.Join(analysisDir, filepath.Base(verilogFile))
+		if err := utils.CopyFile(verilogFile, analysisMockedFile); err != nil {
+			log.Fatalf("Failed to copy mocked Verilog file: %v", err)
+		}
+
+		// Generate debug testbenches
+		if err := generateDebugTestbench(module); err != nil {
+			log.Fatalf("Failed to generate debug testbenches: %v", err)
+		}
+
+		// Copy all input files from the mismatch directory to the analysis directory
 		inputFiles, _ := filepath.Glob(filepath.Join(mismatchPath, "input_*.hex"))
-
 		if len(inputFiles) > 0 {
 			debug.Log("Found %d input files:", len(inputFiles))
 			for _, f := range inputFiles {
@@ -91,14 +114,60 @@ func main() {
 				portName := strings.TrimPrefix(filepath.Base(f), "input_")
 				portName = strings.TrimSuffix(portName, ".hex")
 				debug.Log("  %s = %s", portName, strings.TrimSpace(string(content)))
+
+				// Copy the input file to analysis directory
+				destPath := filepath.Join(analysisDir, filepath.Base(f))
+				if err := utils.CopyFile(f, destPath); err != nil {
+					log.Fatalf("Failed to copy input file %s: %v", f, err)
+				}
+			}
+		} else {
+			log.Fatal("No input files found in mismatch directory")
+		}
+
+		// Create simulator instances
+		ivSim := simulator.NewIVerilogSimulator(analysisDir, *verbose)
+		vlSim := simulator.NewVerilatorSimulator(analysisDir, module.Name)
+
+		// Compile the simulators
+		debug.Log("Compiling IVerilog simulator...")
+		if err := ivSim.Compile(); err != nil {
+			log.Fatal("Failed to compile IVerilog:", err)
+		}
+
+		debug.Log("Compiling Verilator simulator...")
+		if err := vlSim.Compile(); err != nil {
+			log.Fatal("Failed to compile Verilator:", err)
+		}
+
+		// Create dynamic output paths based on module outputs
+		ivOutputPaths := make(map[string]string)
+		vlOutputPaths := make(map[string]string)
+
+		for _, port := range module.Ports {
+			if port.Direction == verilog.OUTPUT {
+				ivOutputPaths[port.Name] = filepath.Join(analysisDir, fmt.Sprintf("iv_%s.hex", port.Name))
+				vlOutputPaths[port.Name] = filepath.Join(analysisDir, fmt.Sprintf("vl_%s.hex", port.Name))
 			}
 		}
 
-		// Find all output files
+		// Run simulations
+		debug.Log("Running IVerilog simulation...")
+		if err := ivSim.RunTest(analysisDir, ivOutputPaths); err != nil {
+			log.Fatal("Failed to run IVerilog:", err)
+		}
+
+		debug.Log("Running Verilator simulation...")
+		if err := vlSim.RunTest(analysisDir, vlOutputPaths); err != nil {
+			log.Fatal("Failed to run Verilator:", err)
+		}
+
+		// Compare simulation results with saved results
+		debug.Log("\n=== Current Simulation Results ===")
+
+		// Compare with originally saved outputs
 		ivFiles, _ := filepath.Glob(filepath.Join(mismatchPath, "iv_*.hex"))
 		vlFiles, _ := filepath.Glob(filepath.Join(mismatchPath, "vl_*.hex"))
-
-		debug.Log("\n=== Simulation Results (from saved files) ===")
 
 		// Create a set of all unique port names from both simulator outputs
 		portNames := make(map[string]bool)
@@ -117,124 +186,108 @@ func main() {
 			portNames[portName] = true
 		}
 
-		// Process all unique ports
+		// Compare current results with saved results
+		debug.Log("\n=== Original vs. Current Simulation Results ===")
+
 		for portName := range portNames {
-			ivPath := filepath.Join(mismatchPath, "iv_"+portName+".hex")
-			vlPath := filepath.Join(mismatchPath, "vl_"+portName+".hex")
+			// Original results
+			origIvPath := filepath.Join(mismatchPath, fmt.Sprintf("iv_%s.hex", portName))
+			origVlPath := filepath.Join(mismatchPath, fmt.Sprintf("vl_%s.hex", portName))
 
-			// Check if both files exist
-			ivExists := false
-			vlExists := false
-			var ivContent, vlContent []byte
-			var ivErr, vlErr error
+			// Current results
+			newIvPath := ivOutputPaths[portName]
+			newVlPath := vlOutputPaths[portName]
 
-			// Read IVerilog output if it exists
-			if ivContent, ivErr = os.ReadFile(ivPath); ivErr == nil {
-				ivExists = true
+			var origIvContent, origVlContent, newIvContent, newVlContent []byte
+			var origIvErr, origVlErr, newIvErr, newVlErr error
+
+			// Read original outputs
+			origIvContent, origIvErr = os.ReadFile(origIvPath)
+			origVlContent, origVlErr = os.ReadFile(origVlPath)
+
+			// Read current outputs
+			if _, err := os.Stat(newIvPath); err == nil {
+				newIvContent, newIvErr = os.ReadFile(newIvPath)
+			}
+			if _, err := os.Stat(newVlPath); err == nil {
+				newVlContent, newVlErr = os.ReadFile(newVlPath)
 			}
 
-			// Read Verilator output if it exists
-			if vlContent, vlErr = os.ReadFile(vlPath); vlErr == nil {
-				vlExists = true
+			// Format values for display
+			origIvValue := "<missing>"
+			if origIvErr == nil {
+				origIvValue = strings.TrimSpace(string(origIvContent))
 			}
 
-			// Skip if neither output exists
-			if !ivExists && !vlExists {
-				continue
+			origVlValue := "<missing>"
+			if origVlErr == nil {
+				origVlValue = strings.TrimSpace(string(origVlContent))
 			}
 
-			// Display outputs and compare if both exist
-			if ivExists && vlExists {
-				ivValue := strings.TrimSpace(string(ivContent))
-				vlValue := strings.TrimSpace(string(vlContent))
-
-				debug.Log("Port %s: IVerilog=%s, Verilator=%s", portName, ivValue, vlValue)
-
-				if ivValue != vlValue {
-					debug.Log("*** MISMATCH DETECTED IN PORT %s ***", portName)
-				}
-			} else if ivExists {
-				debug.Log("Port %s: IVerilog=%s, Verilator=<missing>",
-					portName, strings.TrimSpace(string(ivContent)))
-			} else {
-				debug.Log("Port %s: IVerilog=<missing>, Verilator=%s",
-					portName, strings.TrimSpace(string(vlContent)))
+			newIvValue := "<missing>"
+			if newIvErr == nil {
+				newIvValue = strings.TrimSpace(string(newIvContent))
 			}
+
+			newVlValue := "<missing>"
+			if newVlErr == nil {
+				newVlValue = strings.TrimSpace(string(newVlContent))
+			}
+
+			// Display comparison
+			debug.Log("Port %s:", portName)
+			debug.Log("  Original: IVerilog=%s, Verilator=%s", origIvValue, origVlValue)
+			debug.Log("  Current:  IVerilog=%s, Verilator=%s", newIvValue, newVlValue)
+
+			// Compare original and current outputs
+			if origIvValue != newIvValue {
+				debug.Log("  *** IVerilog OUTPUT CHANGED! ***")
+			}
+			if origVlValue != newVlValue {
+				debug.Log("  *** Verilator OUTPUT CHANGED! ***")
+			}
+
+			// Compare outputs between simulators
+			if newIvValue != newVlValue {
+				debug.Log("  *** MISMATCH BETWEEN SIMULATORS STILL EXISTS ***")
+			} else if origIvValue != origVlValue {
+				debug.Log("  *** MISMATCH RESOLVED IN CURRENT RUN ***")
+			}
+
+			debug.Log("")
 		}
 
 		return
 	}
 
-	// Add debug instrumentation to the Verilog files if in step mode
-	if stepMode {
-		// In step mode, modify the testbench to output detailed signals
-		generateDebugTestbench(module)
-	}
-
-	// Update simulator creation to use parsed module name
-	ivSim := simulator.NewIVerilogSimulator(analysisDir, *verbose)
-	vlSim := simulator.NewVerilatorSimulator(analysisDir, module.Name)
-
-	debug.Log("Running IVerilog simulation...")
-	if err := ivSim.Compile(); err != nil {
-		log.Fatal("Failed to compile IVerilog:", err)
-	}
-
-	// Create dynamic output paths based on module outputs
-	ivOutputPaths := make(map[string]string)
-	vlOutputPaths := make(map[string]string)
-
-	for _, port := range module.Ports {
-		if port.Direction == verilog.OUTPUT {
-			ivOutputPaths[port.Name] = filepath.Join(analysisDir, fmt.Sprintf("iv_%s.hex", port.Name))
-			vlOutputPaths[port.Name] = filepath.Join(analysisDir, fmt.Sprintf("vl_%s.hex", port.Name))
-		}
-	}
-
-	// Run simulators with dynamic output paths
-	if err := ivSim.RunTest(analysisDir, ivOutputPaths); err != nil {
-		log.Fatal("Failed to run IVerilog:", err)
-	}
-
-	debug.Log("Running Verilator simulation...")
-	if err := vlSim.Compile(); err != nil {
-		log.Fatal("Failed to compile Verilator:", err)
-	}
-
-	if err := vlSim.RunTest(analysisDir, vlOutputPaths); err != nil {
-		log.Fatal("Failed to run Verilator:", err)
-	}
-
-	// Compare all output ports generically
-	debug.Log("\n=== Simulation Results ===")
-
-	for portName, ivPath := range ivOutputPaths {
-		vlPath := vlOutputPaths[portName]
-
-		ivContent, err := os.ReadFile(ivPath)
-		if err != nil {
-			log.Fatalf("Failed to read IVerilog output for %s: %v", portName, err)
-		}
-
-		vlContent, err := os.ReadFile(vlPath)
-		if err != nil {
-			log.Fatalf("Failed to read Verilator output for %s: %v", portName, err)
-		}
-
-		ivValue := strings.TrimSpace(string(ivContent))
-		vlValue := strings.TrimSpace(string(vlContent))
-
-		debug.Log("Port %s: IVerilog=%s, Verilator=%s", portName, ivValue, vlValue)
-
-		if ivValue != vlValue {
-			debug.Log("*** MISMATCH DETECTED IN PORT %s ***", portName)
-		}
-	}
+	// If we're analyzing a mismatch file (not a directory)
+	debug.Log("Text-based mismatch file analysis not yet implemented")
+	debug.Log("Please use a mismatch directory instead, e.g., mismatches/mismatch_23")
 }
 
 // generateDebugTestbench creates a testbench with debug instrumentation
-func generateDebugTestbench(module *verilog.Module) {
-	// Create a modified testbench that outputs intermediate values
-	// For now, just a placeholder for future implementation
-	return
+func generateDebugTestbench(module *verilog.Module) error {
+	// Generate a specialized testbench for debugging
+	gen := testgen.NewGenerator(module)
+
+	// Generate both the SystemVerilog and C++ testbenches
+	if err := gen.GenerateTestbenches(); err != nil {
+		return fmt.Errorf("failed to generate debug testbenches: %v", err)
+	}
+
+	// Copy testbenches to analysis directory
+	analysisDir := filepath.Join(utils.TMP_DIR, "analysis")
+
+	svTestbench := filepath.Join(utils.TMP_DIR, "testbench.sv")
+	cppTestbench := filepath.Join(utils.TMP_DIR, "testbench.cpp")
+
+	if err := utils.CopyFile(svTestbench, filepath.Join(analysisDir, "testbench.sv")); err != nil {
+		return fmt.Errorf("failed to copy SV testbench: %v", err)
+	}
+
+	if err := utils.CopyFile(cppTestbench, filepath.Join(analysisDir, "testbench.cpp")); err != nil {
+		return fmt.Errorf("failed to copy C++ testbench: %v", err)
+	}
+
+	return nil
 }

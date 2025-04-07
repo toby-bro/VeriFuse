@@ -6,7 +6,7 @@ package testgen
 // 2. Module instance
 // 3. Input count
 // 4. Input read code
-// 5. Reset toggle code (NEW parameter)
+// 5. Reset toggle code
 // 6. Output count
 // 7. Output write code
 const svTestbenchTemplate = `// filepath: testbench.sv
@@ -43,7 +43,7 @@ endmodule`
 // 4. Input declarations
 // 5. Input reads
 // 6. Input application
-// 7. Clock handling code - NEW parameter for toggling clocks
+// 7. Clock handling code
 // 8. Output writes
 const cppTestbenchTemplate = `// filepath: testbench.cpp
 #include <verilated.h>
@@ -53,7 +53,6 @@ const cppTestbenchTemplate = `// filepath: testbench.cpp
 #include <iomanip>
 #include <cstdint>
 #include <string>
-#include <verilated_context.h>
 
 int main(int argc, char** argv) {
     // Create context and module
