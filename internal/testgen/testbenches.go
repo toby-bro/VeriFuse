@@ -6,8 +6,9 @@ package testgen
 // 2. Module instance
 // 3. Input count
 // 4. Input read code
-// 5. Output count
-// 6. Output write code
+// 5. Reset toggle code (NEW parameter)
+// 6. Output count
+// 7. Output write code
 const svTestbenchTemplate = `// filepath: testbench.sv
 module testbench;
 %s
@@ -19,6 +20,9 @@ module testbench;
         int status;
         
         // Read %d input files
+%s
+        
+        // Toggle reset if a reset signal was identified
 %s
         
         // Allow module to process
