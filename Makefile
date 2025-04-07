@@ -41,9 +41,15 @@ focused:
 	./focused
 
 # Run all tests
-tests: build-fuzzer
+tests: build-fuzzer clean
 	@echo "Running tests on SystemVerilog modules..."
 	@bash scripts/run_tests.sh
+
+.PHONY: test-fails
+test-fails: build-fuzzer clean
+	@echo "Running tests on SystemVerilog modules..."
+	@bash scripts/run_tests.sh | grep FAIL
+
 
 test-module: clean
 	@if [ -z "$(FILE)" ]; then \
