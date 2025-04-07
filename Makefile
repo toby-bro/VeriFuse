@@ -45,7 +45,7 @@ tests: build-fuzzer
 	@echo "Running tests on SystemVerilog modules..."
 	@bash scripts/run_tests.sh
 
-test-module:
+test-module: clean
 	@if [ -z "$(FILE)" ]; then \
 		echo "Usage: make test-module FILE=path/to/module.sv"; \
 	else \

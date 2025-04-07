@@ -14,13 +14,11 @@ mkdir -p testfiles/sv
 mkdir -p tmp_gen
 
 # List of test files to run
-TEST_FILES=(
-    "testfiles/sv/simple_adder.sv"
-    "testfiles/sv/parameterized_module.sv"
-    "testfiles/sv/function_module.sv" 
-    "testfiles/sv/sequential_logic.sv"
-    "testfiles/sv/combinatorial_logic.sv"
-)
+# Get list of test files as an array
+TEST_FILES=()
+while IFS= read -r line; do
+    TEST_FILES+=("$line")
+done < <(find testfiles/sv/ -name '*.sv' -type f -print | sort)
 
 # Test each file individually
 PASS_COUNT=0

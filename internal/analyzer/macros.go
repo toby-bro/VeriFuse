@@ -67,8 +67,22 @@ func RemoveMacros(content string, macros []string) string {
 	content = includeRegex.ReplaceAllString(content, "")
 
 	// Now handle simple macros by removing only the macro identifier
+	// But preserve $error and other system tasks that are part of the language
 	simpleRegex := regexp.MustCompile("(`|\\$)(\\w+)")
-	content = simpleRegex.ReplaceAllString(content, "/* $1$2 */")
+	content = simpleRegex.ReplaceAllStringFunc(content, func(match string) string {
+		// Preserve $error and other standard system tasks
+		if match == "$error" || match == "$display" || match == "$finish" ||
+			match == "$time" || match == "$fatal" || match == "$warning" ||
+			match == "$info" || match == "$fopen" || match == "$fclose" ||
+			match == "$write" || match == "$fwrite" || match == "$fscanf" ||
+			match == "$fgets" || match == "$sscanf" || match == "$sformatf" ||
+			match == "$readmemh" || match == "$readmemb" {
+			return match // Keep these unchanged
+		}
+
+		// Comment out other macros
+		return "/* " + match + " */"
+	})
 
 	return content
 }
