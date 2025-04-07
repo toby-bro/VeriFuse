@@ -381,11 +381,19 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 	setupFiles := []string{
 		mockedVerilogFile,
 		"testbench.sv",
+		"testbench.cpp", // IMPORTANT: Make sure to include testbench.cpp
 	}
 
 	for _, filename := range setupFiles {
 		srcPath := filepath.Join(utils.TMP_DIR, filename)
 		dstPath := filepath.Join(workerDir, filename)
+
+		// Skip if source doesn't exist, but log it
+		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
+			f.debug.Printf("[%s]: Warning: Source file %s does not exist, skipping", workerID, srcPath)
+			continue
+		}
+
 		if err := utils.CopyFile(srcPath, dstPath); err != nil {
 			log.Printf("Failed to copy %s to worker directory: %v", filename, err)
 			return
@@ -592,21 +600,17 @@ func (f *Fuzzer) runSimulator(simName string, sim simulator.Simulator, testDir s
 		return nil, false
 	}
 
-	// Read all output values
-	results := make(map[string]string)
-	for portName, outputPath := range outputPaths {
-		if !utils.FileExists(outputPath) {
-			f.stats.AddSimError()
-			return nil, false
-		}
+	// Verify all output files were created
+	if err := simulator.VerifyOutputFiles(outputPaths); err != nil {
+		f.stats.AddSimError()
+		return nil, false
+	}
 
-		content, err := os.ReadFile(outputPath)
-		if err != nil {
-			f.stats.AddSimError()
-			return nil, false
-		}
-
-		results[portName] = strings.TrimSpace(string(content))
+	// Read all output values using the utility function
+	results, err := simulator.ReadOutputFiles(outputPaths)
+	if err != nil {
+		f.stats.AddSimError()
+		return nil, false
 	}
 
 	return results, true

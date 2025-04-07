@@ -53,6 +53,60 @@ func (g *Generator) GenerateSVTestbench() error {
 		declarations.WriteString(fmt.Sprintf("    %s%s;\n", typeDecl, portName))
 	}
 
+	// Create the module instance - use explicit port connections instead of .*
+	var moduleInst strings.Builder
+	moduleInst.WriteString(fmt.Sprintf("    %s_mocked", g.module.Name))
+
+	// Add parameters if present
+	if len(g.module.Parameters) > 0 {
+		moduleInst.WriteString(" #(\n")
+
+		// Track valid parameters to include (skip qualifiers)
+		paramCount := 0
+
+		for _, param := range g.module.Parameters {
+			// Skip parameters without a name or type qualifiers incorrectly parsed as parameters
+			if param.Name == "" || param.Name == "unsigned" || param.Name == "signed" {
+				continue
+			}
+
+			// Add comma between parameters
+			if paramCount > 0 {
+				moduleInst.WriteString(",\n")
+			}
+			paramCount++
+
+			defaultVal := param.DefaultValue
+			if defaultVal == "" {
+				// If no default value is provided in the source, use a reasonable default
+				if strings.HasPrefix(strings.ToLower(param.Type), "int") {
+					defaultVal = "1"
+				} else if strings.HasPrefix(strings.ToLower(param.Type), "bit") {
+					defaultVal = "1'b0"
+				} else {
+					defaultVal = "1"
+				}
+			}
+
+			moduleInst.WriteString(fmt.Sprintf("        .%s(%s)", param.Name, defaultVal))
+		}
+
+		moduleInst.WriteString("\n    )")
+	}
+
+	moduleInst.WriteString(" dut (\n")
+
+	// Add explicit port connections
+	for i, port := range g.module.Ports {
+		portName := strings.TrimSpace(port.Name)
+		moduleInst.WriteString(fmt.Sprintf("        .%s(%s)", portName, portName))
+		if i < len(g.module.Ports)-1 {
+			moduleInst.WriteString(",\n")
+		}
+	}
+
+	moduleInst.WriteString("\n    );\n")
+
 	// Generate input file reading code
 	var inputReads strings.Builder
 	var inputCount int
@@ -189,67 +243,13 @@ func (g *Generator) GenerateSVTestbench() error {
 		}
 	}
 
-	// Create the module instance - use explicit port connections instead of .*
-	var moduleInst strings.Builder
-	moduleInst.WriteString(fmt.Sprintf("    %s_mocked", g.module.Name))
-
-	// Add parameters if present
-	if len(g.module.Parameters) > 0 {
-		moduleInst.WriteString(" #(\n")
-
-		// Track valid parameters to include (skip qualifiers)
-		paramCount := 0
-
-		for _, param := range g.module.Parameters {
-			// Skip parameters without a name or type qualifiers incorrectly parsed as parameters
-			if param.Name == "" || param.Name == "unsigned" || param.Name == "signed" {
-				continue
-			}
-
-			// Add comma between parameters
-			if paramCount > 0 {
-				moduleInst.WriteString(",\n")
-			}
-			paramCount++
-
-			defaultVal := param.DefaultValue
-			if defaultVal == "" {
-				// If no default value is provided in the source, use a reasonable default
-				if strings.HasPrefix(strings.ToLower(param.Type), "int") {
-					defaultVal = "1"
-				} else if strings.HasPrefix(strings.ToLower(param.Type), "bit") {
-					defaultVal = "1'b0"
-				} else {
-					defaultVal = "1"
-				}
-			}
-
-			moduleInst.WriteString(fmt.Sprintf("        .%s(%s)", param.Name, defaultVal))
-		}
-
-		moduleInst.WriteString("\n    )")
-	}
-
-	moduleInst.WriteString(" dut (\n")
-
-	// Add explicit port connections
-	for i, port := range g.module.Ports {
-		portName := strings.TrimSpace(port.Name)
-		moduleInst.WriteString(fmt.Sprintf("        .%s(%s)", portName, portName))
-		if i < len(g.module.Ports)-1 {
-			moduleInst.WriteString(",\n")
-		}
-	}
-
-	moduleInst.WriteString("\n    );\n")
-
 	// Apply the generated code to the template
 	testbench := fmt.Sprintf(svTestbenchTemplate,
 		declarations.String(),
 		moduleInst.String(),
 		inputCount,
 		inputReads.String(),
-		resetToggle.String(), // Add the reset toggle code
+		resetToggle.String(),
 		outputCount,
 		outputWrites.String())
 
@@ -259,8 +259,8 @@ func (g *Generator) GenerateSVTestbench() error {
 // GenerateCppTestbench creates the C++ testbench for Verilator
 func (g *Generator) GenerateCppTestbench() error {
 	// Generate input reading code
-	var inputReads strings.Builder
 	var inputDecls strings.Builder
+	var inputReads strings.Builder
 	var inputApply strings.Builder
 
 	for _, port := range g.module.Ports {
@@ -302,36 +302,7 @@ func (g *Generator) GenerateCppTestbench() error {
 		}
 	}
 
-	// Generate output writing code
-	var outputWrites strings.Builder
-
-	for _, port := range g.module.Ports {
-		if port.Direction == verilog.OUTPUT {
-			// Make sure we're using just the clean port name with no extra info
-			portName := strings.TrimSpace(port.Name)
-			fileName := fmt.Sprintf("output_%s.hex", portName)
-
-			outputWrites.WriteString(fmt.Sprintf(`    std::ofstream %s_file("%s/%s");
-    if (!%s_file.is_open()) {
-        std::cerr << "Error opening output file: %s" << std::endl;
-        delete dut;
-        return 1;
-    }
-`, portName, utils.TMP_DIR, fileName, portName, fileName))
-
-			if port.Width > 1 {
-				outputWrites.WriteString(fmt.Sprintf("    %s_file << std::hex << dut->%s;\n",
-					portName, portName))
-			} else {
-				outputWrites.WriteString(fmt.Sprintf("    %s_file << (dut->%s ? '1' : '0');\n",
-					portName, portName))
-			}
-
-			outputWrites.WriteString(fmt.Sprintf("    %s_file.close();\n", portName))
-		}
-	}
-
-	// Add clock toggling code to C++ template
+	// Generate clock handling code
 	var clockHandling strings.Builder
 	var hasClock bool
 	var hasReset bool
@@ -405,7 +376,36 @@ func (g *Generator) GenerateCppTestbench() error {
 		clockHandling.WriteString("    dut->eval();\n")
 	}
 
-	// Apply the generated code to the template including clock handling
+	// Generate output writing code
+	var outputWrites strings.Builder
+
+	for _, port := range g.module.Ports {
+		if port.Direction == verilog.OUTPUT {
+			// Make sure we're using just the clean port name with no extra info
+			portName := strings.TrimSpace(port.Name)
+			fileName := fmt.Sprintf("output_%s.hex", portName)
+
+			outputWrites.WriteString(fmt.Sprintf(`    std::ofstream %s_file("%s/%s");
+    if (!%s_file.is_open()) {
+        std::cerr << "Error opening output file: %s" << std::endl;
+        delete dut;
+        return 1;
+    }
+`, portName, utils.TMP_DIR, fileName, portName, fileName))
+
+			if port.Width > 1 {
+				outputWrites.WriteString(fmt.Sprintf("    %s_file << std::hex << dut->%s;\n",
+					portName, portName))
+			} else {
+				outputWrites.WriteString(fmt.Sprintf("    %s_file << (dut->%s ? '1' : '0');\n",
+					portName, portName))
+			}
+
+			outputWrites.WriteString(fmt.Sprintf("    %s_file.close();\n", portName))
+		}
+	}
+
+	// Apply the generated code to the template
 	testbench := fmt.Sprintf(cppTestbenchTemplate,
 		g.module.Name,
 		g.module.Name,
@@ -413,7 +413,7 @@ func (g *Generator) GenerateCppTestbench() error {
 		inputDecls.String(),
 		inputReads.String(),
 		inputApply.String(),
-		clockHandling.String(), // Add the clock handling code
+		clockHandling.String(),
 		outputWrites.String())
 
 	return utils.WriteFileContent(filepath.Join(utils.TMP_DIR, "testbench.cpp"), testbench)
