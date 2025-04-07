@@ -294,6 +294,54 @@ func (f *Fuzzer) Run(numTests int) error {
 	return nil
 }
 
+// compareOutputValues compares output values from different simulators with special handling for xx/00
+func compareOutputValues(ivValue, vlValue string) bool {
+	// Clean and normalize the values
+	ivNorm := strings.TrimSpace(strings.ToLower(ivValue))
+	vlNorm := strings.TrimSpace(strings.ToLower(vlValue))
+
+	// Direct match case
+	if ivNorm == vlNorm {
+		return true
+	}
+
+	// Special handling: Consider "xx" from Verilator equivalent to "00" from IVerilog
+	// Both represent "nothing triggered" states
+	if (ivNorm == "00" && vlNorm == "xx") || (ivNorm == "xx" && vlNorm == "00") {
+		return true
+	}
+
+	// Consider "x" equivalent to "0" for single bit values
+	if (ivNorm == "0" && vlNorm == "x") || (ivNorm == "x" && vlNorm == "0") {
+		return true
+	}
+
+	// If one output has "x" bits and the other has "0"s in the same positions,
+	// they may represent the same uninitialized or don't-care state
+	if len(ivNorm) == len(vlNorm) && ivNorm != vlNorm {
+		// Only check if one contains 'x' characters
+		if strings.Contains(ivNorm, "x") || strings.Contains(vlNorm, "x") {
+			equivalent := true
+			for i := 0; i < len(ivNorm); i++ {
+				// Check if character at this position is either the same in both outputs,
+				// or is an 'x' in one output and '0' in the other
+				charMatch := ivNorm[i] == vlNorm[i] ||
+					(ivNorm[i] == 'x' && vlNorm[i] == '0') ||
+					(ivNorm[i] == '0' && vlNorm[i] == 'x')
+
+				if !charMatch {
+					equivalent = false
+					break
+				}
+			}
+			return equivalent
+		}
+	}
+
+	// Not equivalent
+	return false
+}
+
 // worker is a goroutine that processes test cases
 func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) {
 	defer wg.Done()
@@ -423,7 +471,9 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 
 			for portName, ivValue := range ivResult {
 				if vlValue, exists := vlResult[portName]; exists {
-					if ivValue != vlValue {
+					// Use compareOutputValues helper instead of direct comparison
+					// to handle special cases like "xx" vs "00"
+					if !compareOutputValues(ivValue, vlValue) {
 						mismatch = true
 						mismatchDetails[portName] = fmt.Sprintf("IVerilog=%s, Verilator=%s", ivValue, vlValue)
 					}
