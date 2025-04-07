@@ -211,7 +211,7 @@ func testIVerilog(setupDir string, mockedVerilogFile string) error {
 	// Now compile actual module
 	log.Println("Compiling iverilog in setup directory...")
 	ivCmd := exec.Command("iverilog", "-o", "module_sim_iv",
-		mockedVerilogFile, "testbench.sv", "-g2012")
+		mockedVerilogFile, "testbench.sv", "-g2012", "-gsupported-assertions")
 	ivCmd.Dir = setupDir
 	stderr.Reset()
 	ivCmd.Stderr = &stderr

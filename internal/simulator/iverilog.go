@@ -63,7 +63,7 @@ func (sim *IVerilogSimulator) CompileSpecific(specificFiles []string) error {
 	}
 
 	// Compile directly in the work directory
-	cmdArgs := append([]string{"-o", "module_sim_iv", "-g2012"}, fileNames...)
+	cmdArgs := append([]string{"-o", "module_sim_iv", "-g2012", "-gsupported-assertions"}, fileNames...)
 	sim.debug.Printf("Running iverilog command: iverilog %s in directory %s",
 		strings.Join(cmdArgs, " "), sim.workDir)
 
