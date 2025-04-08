@@ -21,9 +21,7 @@ func DetectMacros(content string) []string {
 	macroRegex := regexp.MustCompile("(`|\\$)\\w+|`include\\s+\"[^\"]+\"")
 
 	matches := macroRegex.FindAllString(content, -1)
-	for _, match := range matches {
-		macros = append(macros, match)
-	}
+	macros = append(macros, matches...)
 
 	return macros
 }

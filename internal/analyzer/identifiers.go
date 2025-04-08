@@ -5,11 +5,18 @@ import (
 	"log"
 	"math/rand"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
+
+// EnumDefinition represents an extracted enum type
+type EnumDefinition struct {
+	Name     string
+	Package  string
+	Values   []string
+	FullPath string // Package::EnumName format
+}
 
 // DetectEnumCasts identifies all enum casts in the SystemVerilog file
 func DetectEnumCasts(filename string) []EnumCast {
@@ -40,6 +47,316 @@ func DetectEnumCasts(filename string) []EnumCast {
 	}
 
 	return casts
+}
+
+// ExtractEnumTypes extracts all enum types from content
+func ExtractEnumTypes(content string) []EnumDefinition {
+	var enums []EnumDefinition
+
+	// Find already defined enums to avoid redefining them
+	definedEnums := extractLocallyDefinedEnums(content)
+
+	// Find all patterns like package::enum_name
+	enumRefRegex := regexp.MustCompile(`(\w+)::(\w+_[et])`)
+
+	// Also look for imported packages and used enum types
+	importRegex := regexp.MustCompile(`import\s+(\w+)::\*;`)
+
+	// Find references to enum types without package qualifier
+	enumTypeRegex := regexp.MustCompile(`\b(operation_t|[\w_]+_[et])\b`)
+
+	// Get unique matches
+	enumMap := make(map[string]EnumDefinition)
+
+	// First check for explicit imports
+	importMatches := importRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range importMatches {
+		if len(match) >= 2 {
+			pkgName := match[1]
+			// Look for uses of enums from this package
+			enumRefRegex := regexp.MustCompile(fmt.Sprintf(`%s::(\w+)`, pkgName))
+			enumTypeMatches := enumRefRegex.FindAllStringSubmatch(content, -1)
+
+			for _, enumMatch := range enumTypeMatches {
+				if len(enumMatch) >= 2 {
+					enumName := enumMatch[1]
+					fullPath := fmt.Sprintf("%s::%s", pkgName, enumName)
+
+					// Skip if already processed or defined
+					if _, exists := enumMap[fullPath]; exists || isEnumDefined(pkgName, enumName, definedEnums) {
+						continue
+					}
+
+					// Create enum definition with placeholder values
+					enum := EnumDefinition{
+						Name:     enumName,
+						Package:  pkgName,
+						FullPath: fullPath,
+						Values:   inferEnumValuesFromUsage(content, enumName),
+					}
+
+					enumMap[fullPath] = enum
+				}
+			}
+		}
+	}
+
+	// Check for explicit enum references with package::enum format
+	matches := enumRefRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range matches {
+		if len(match) >= 3 {
+			pkgName := match[1]
+			enumName := match[2]
+			fullPath := fmt.Sprintf("%s::%s", pkgName, enumName)
+
+			// Skip if already processed
+			if _, exists := enumMap[fullPath]; exists {
+				continue
+			}
+
+			// Skip if it's already defined in the module
+			if isEnumDefined(pkgName, enumName, definedEnums) {
+				log.Printf("Skipping already defined enum: %s::%s", pkgName, enumName)
+				continue
+			}
+
+			// Create enum definition with values inferred from usage
+			enum := EnumDefinition{
+				Name:     enumName,
+				Package:  pkgName,
+				FullPath: fullPath,
+				Values:   inferEnumValuesFromUsage(content, enumName),
+			}
+
+			enumMap[fullPath] = enum
+		}
+	}
+
+	// Handle standalone enum types that might be used without package qualifier
+	typeMatches := enumTypeRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range typeMatches {
+		if len(match) >= 2 {
+			enumName := match[1]
+
+			// Skip if already handled by package::enum format
+			alreadyHandled := false
+			for path := range enumMap {
+				if strings.HasSuffix(path, "::"+enumName) {
+					alreadyHandled = true
+					break
+				}
+			}
+
+			if alreadyHandled {
+				continue
+			}
+
+			// For standalone enums, try to infer package from context
+			pkgName := inferPackageNameFromContext(content, enumName)
+			fullPath := fmt.Sprintf("%s::%s", pkgName, enumName)
+
+			// Skip if already processed or defined
+			if _, exists := enumMap[fullPath]; exists {
+				continue
+			}
+
+			// Create enum definition with values inferred from usage
+			enum := EnumDefinition{
+				Name:     enumName,
+				Package:  pkgName,
+				FullPath: fullPath,
+				Values:   inferEnumValuesFromUsage(content, enumName),
+			}
+
+			enumMap[fullPath] = enum
+		}
+	}
+
+	// Convert map to slice
+	for _, enum := range enumMap {
+		enums = append(enums, enum)
+	}
+
+	return enums
+}
+
+// inferPackageNameFromContext tries to determine the package name for an enum type
+func inferPackageNameFromContext(content, enumName string) string {
+	// Look for import statements
+	importRegex := regexp.MustCompile(`import\s+(\w+)::\*;`)
+	matches := importRegex.FindAllStringSubmatch(content, -1)
+
+	if len(matches) > 0 {
+		// If we have imports, use the first one as a guess
+		return matches[0][1]
+	}
+
+	// For operation_t specifically, use operation_pkg
+	if enumName == "operation_t" {
+		return "operation_pkg"
+	}
+
+	// Create a package name based on the enum name
+	if strings.HasSuffix(enumName, "_t") {
+		return strings.TrimSuffix(enumName, "_t") + "_pkg"
+	}
+	if strings.HasSuffix(enumName, "_e") {
+		return strings.TrimSuffix(enumName, "_e") + "_pkg"
+	}
+
+	// Default package name
+	return "enum_pkg"
+}
+
+// inferEnumValuesFromUsage analyzes code to infer enum values based on usage
+func inferEnumValuesFromUsage(content, enumName string) []string {
+	var values []string
+
+	// Try to find case statements using this enum
+	caseRegex := regexp.MustCompile(`case\s*\([^)]*\)\s*([^:]+):`)
+	matches := caseRegex.FindAllStringSubmatch(content, -1)
+
+	// Track already added values to avoid duplicates
+	addedValues := make(map[string]bool)
+
+	// First look for case statements that might indicate enum values
+	for _, match := range matches {
+		if len(match) >= 2 {
+			value := strings.TrimSpace(match[1])
+			if !addedValues[value] && isLikelyEnumValue(value) {
+				addedValues[value] = true
+				values = append(values, value)
+			}
+		}
+	}
+
+	// Special case handling for operation_t
+	if enumName == "operation_t" {
+		// Standard operations we know should be in operation_t
+		standardOps := []string{"ADD", "SUB", "MUL", "DIV", "AND", "OR", "XOR"}
+		for _, op := range standardOps {
+			if !addedValues[op] {
+				addedValues[op] = true
+				values = append(values, op)
+			}
+		}
+	}
+
+	// If we didn't find any values, generate plausible ones
+	if len(values) == 0 {
+		values = generatePlausibleEnumValues(enumName)
+	}
+
+	// Always add a default/invalid value if it doesn't already exist
+	if !addedValues["INVALID"] {
+		values = append(values, "INVALID")
+	}
+
+	return values
+}
+
+// isLikelyEnumValue checks if a string looks like an enum value (all caps, no special chars)
+func isLikelyEnumValue(value string) bool {
+	if value == "" {
+		return false
+	}
+
+	// Check if it's all uppercase with underscores
+	upperRegex := regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
+	return upperRegex.MatchString(value)
+}
+
+// Helper function to check if an enum is already defined
+func isEnumDefined(pkgName, enumName string, definedEnums map[string]bool) bool {
+	key := fmt.Sprintf("%s::%s", pkgName, enumName)
+	return definedEnums[key]
+}
+
+// extractLocallyDefinedEnums finds all enums already defined in the file
+func extractLocallyDefinedEnums(content string) map[string]bool {
+	definedEnums := make(map[string]bool)
+
+	// Look for package definitions
+	packageRegex := regexp.MustCompile(`package\s+(\w+)\s*;([\s\S]*?)endpackage`)
+	pkgMatches := packageRegex.FindAllStringSubmatch(content, -1)
+
+	for _, pkgMatch := range pkgMatches {
+		if len(pkgMatch) >= 3 {
+			pkgName := pkgMatch[1]
+			pkgContent := pkgMatch[2]
+
+			// Find typedefs within this package
+			typedefRegex := regexp.MustCompile(`typedef\s+enum\s+[\s\S]*?}\s*(\w+_[et])\s*;`)
+			typeMatches := typedefRegex.FindAllStringSubmatch(pkgContent, -1)
+
+			for _, typeMatch := range typeMatches {
+				if len(typeMatch) >= 2 {
+					enumName := typeMatch[1]
+					key := fmt.Sprintf("%s::%s", pkgName, enumName)
+					definedEnums[key] = true
+				}
+			}
+		}
+	}
+
+	return definedEnums
+}
+
+// generatePlausibleEnumValues creates reasonable values for an enum based on its name
+func generatePlausibleEnumValues(enumName string) []string {
+	// Different enum types get different plausible values
+	enumNameLower := strings.ToLower(enumName)
+
+	if strings.Contains(enumNameLower, "opcode") {
+		return []string{"OPCODE_LOAD", "OPCODE_STORE", "OPCODE_BRANCH", "OPCODE_JALR",
+			"OPCODE_JAL", "OPCODE_OP_IMM", "OPCODE_OP", "OPCODE_SYSTEM"}
+	}
+
+	if strings.Contains(enumNameLower, "imm") && strings.Contains(enumNameLower, "sel") {
+		return []string{"IMM_A_ZERO", "IMM_A_CURR", "IMM_B_I", "IMM_B_S", "IMM_B_B",
+			"IMM_B_U", "IMM_B_J", "IMM_B_INCR_PC", "IMM_B_INCR_ADDR"}
+	}
+
+	if strings.Contains(enumNameLower, "op_a_sel") {
+		return []string{"OP_A_REG_A", "OP_A_FWD", "OP_A_CURRPC", "OP_A_IMM"}
+	}
+
+	if strings.Contains(enumNameLower, "op_b_sel") {
+		return []string{"OP_B_REG_B", "OP_B_FWD", "OP_B_IMM", "OP_B_NONE"}
+	}
+
+	if strings.Contains(enumNameLower, "md_op") {
+		return []string{"MD_OP_MULL", "MD_OP_MULH", "MD_OP_DIV", "MD_OP_REM"}
+	}
+
+	if strings.Contains(enumNameLower, "csr") && strings.Contains(enumNameLower, "op") {
+		return []string{"CSR_OP_READ", "CSR_OP_WRITE", "CSR_OP_SET", "CSR_OP_CLEAR"}
+	}
+
+	if strings.Contains(enumNameLower, "rv32") {
+		if strings.Contains(enumNameLower, "m") {
+			return []string{"RV32MNone", "RV32MSlow", "RV32MFast", "RV32MEmbedded"}
+		}
+		if strings.Contains(enumNameLower, "b") {
+			return []string{"RV32BNone", "RV32BBalanced", "RV32BOTEarlGrey", "RV32BFull"}
+		}
+	}
+
+	if strings.Contains(enumNameLower, "alu_op") {
+		return []string{"ALU_ADD", "ALU_SUB", "ALU_XOR", "ALU_OR", "ALU_AND",
+			"ALU_SRA", "ALU_SRL", "ALU_SLL", "ALU_LT", "ALU_LTU", "ALU_GE",
+			"ALU_GEU", "ALU_EQ", "ALU_NE"}
+	}
+
+	// Default: generate generic values
+	values := []string{
+		fmt.Sprintf("%s_VAL0", strings.ToUpper(enumName)),
+		fmt.Sprintf("%s_VAL1", strings.ToUpper(enumName)),
+		fmt.Sprintf("%s_VAL2", strings.ToUpper(enumName)),
+		fmt.Sprintf("%s_VAL3", strings.ToUpper(enumName)),
+	}
+
+	return values
 }
 
 // DetectUndefinedIdentifiers identifies undefined identifiers in the SystemVerilog file
@@ -102,7 +419,7 @@ func DetectUndefinedIdentifiers(filename string) []UndefinedIdentifier {
 	return undefinedVars
 }
 
-// Helper function to extract locally defined types from typedefs
+// extractLocallyDefinedTypes extracts locally defined types from typedefs
 func extractLocallyDefinedTypes(content string) map[string]bool {
 	definedTypes := make(map[string]bool)
 
@@ -165,6 +482,19 @@ func extractLocallyDefinedTypes(content string) map[string]bool {
 				inEnum = false
 				enumBuffer = ""
 			}
+		}
+	}
+
+	// Add support for detecting imported enums like ibex_pkg::*
+	importedEnumRegex := regexp.MustCompile(`(\w+)::(\w+_[et])`)
+	importedMatches := importedEnumRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range importedMatches {
+		if len(match) >= 3 {
+			pkgName := match[1]
+			enumName := match[2]
+			definedTypes[pkgName+"::"+enumName] = true
+			// Also add just the enum name as it might be imported
+			definedTypes[enumName] = true
 		}
 	}
 
@@ -231,10 +561,55 @@ func InferContext(line string) string {
 
 // GetPlausibleValue returns a plausible value for an enum type
 func GetPlausibleValue(enumType string) string {
-	if strings.Contains(enumType, "opcode_e") {
-		return "instr[6:0]"
+	// Enhanced to handle package::enum format
+	if strings.Contains(enumType, "::") {
+		parts := strings.Split(enumType, "::")
+		pkgName := parts[0]
+		enumName := parts[1]
+
+		// For known enum types, return appropriate values
+		if strings.Contains(enumName, "opcode_e") {
+			return "instr[6:0]"
+		}
+
+		if strings.Contains(enumName, "imm_") && strings.Contains(enumName, "sel_e") {
+			return fmt.Sprintf("%s::%s_I", pkgName, strings.ToUpper(strings.TrimSuffix(enumName, "_e")))
+		}
+
+		if strings.Contains(enumName, "op_a_sel_e") {
+			return fmt.Sprintf("%s::OP_A_REG_A", pkgName)
+		}
+
+		if strings.Contains(enumName, "op_b_sel_e") {
+			return fmt.Sprintf("%s::OP_B_REG_B", pkgName)
+		}
+
+		if strings.Contains(enumName, "csr_op_e") {
+			return fmt.Sprintf("%s::CSR_OP_READ", pkgName)
+		}
+
+		if strings.Contains(enumName, "md_op_e") {
+			return fmt.Sprintf("%s::MD_OP_MULL", pkgName)
+		}
+
+		if strings.Contains(enumName, "alu_op_e") {
+			return fmt.Sprintf("%s::ALU_ADD", pkgName)
+		}
+
+		// For rv32m_e and rv32b_e, use package-specific values
+		if strings.Contains(enumName, "rv32m_e") {
+			return fmt.Sprintf("%s::RV32MFast", pkgName)
+		}
+
+		if strings.Contains(enumName, "rv32b_e") {
+			return fmt.Sprintf("%s::RV32BNone", pkgName)
+		}
+
+		// Generic enum value with package namespace
+		return fmt.Sprintf("%s::%s_VAL0", pkgName, strings.ToUpper(strings.TrimSuffix(enumName, "_e")))
 	}
 
+	// For non-package enums, fall back to existing logic
 	width := utils.InferBitWidth("")
 	switch {
 	case strings.HasSuffix(enumType, "_e"):
@@ -270,30 +645,26 @@ func MockIdentifier(id UndefinedIdentifier) string {
 
 // MockEnumCast provides a mock value for an enum cast while preserving type information
 func MockEnumCast(cast EnumCast) string {
+	// If the cast is to operation_t, use a proper 3-bit value
+	if cast.EnumType == "operation_t" {
+		return "3'b000" // Default to ADD (0)
+	}
+
 	// If the expression is already a literal, just return it
 	if regexp.MustCompile(`^[0-9]+('?[bdh][0-9a-fA-F_]+)?$`).MatchString(cast.Expression) {
 		return cast.Expression
 	}
 
-	// Determine if we need to preserve a specific bit width
-	widthMatch := regexp.MustCompile(`(\d+)'([bdh])([0-9a-fA-F_]+)`).FindStringSubmatch(cast.DefaultVal)
+	// For other enum types, default to a reasonable value
+	if strings.HasSuffix(cast.EnumType, "_t") || strings.HasSuffix(cast.EnumType, "_e") {
+		// Try to infer bit width from context, default to 3 bits
+		width := 3
 
-	// If we have a specific width in the default value, preserve it
-	if len(widthMatch) > 3 {
-		width, _ := strconv.Atoi(widthMatch[1])
-		base := widthMatch[2]
-		// Generate a value with the same width and format
-		switch base {
-		case "b":
-			return fmt.Sprintf("%d'b%s", width, utils.GenerateRandomBitsOfWidth(width))
-		case "h":
-			return fmt.Sprintf("%d'h%s", width, utils.GenerateRandomHexOfWidth(width))
-		case "d":
-			return fmt.Sprintf("%d'd%d", width, rand.Intn(1<<width))
-		}
+		// Generate a value with the right width
+		return fmt.Sprintf("%d'b%s", width, strings.Repeat("0", width))
 	}
 
-	// Default behavior
+	// Default behavior for unknown types
 	return GetPlausibleValue(cast.EnumType)
 }
 
@@ -313,16 +684,6 @@ func ReplaceMockedEnumCasts(content string, enumCasts []EnumCast) string {
 		}
 	}
 
-	// Add Verilator lint pragma to disable width warnings at the top of the file
-	if !strings.Contains(content, "verilator lint_off WIDTHEXPAND") {
-		pragmaPos := strings.Index(content, "module ")
-		if pragmaPos > 0 {
-			content = content[:pragmaPos] +
-				"/* verilator lint_off WIDTHEXPAND */\n" +
-				content[pragmaPos:]
-		}
-	}
-
 	// Process enum casts - now they won't affect parameter declarations
 	for _, cast := range enumCasts {
 		// Skip parameter declarations - they're already protected
@@ -330,29 +691,16 @@ func ReplaceMockedEnumCasts(content string, enumCasts []EnumCast) string {
 			continue
 		}
 
-		// For non-parameter casting expressions, handle enum casts specially
-		// Replace the entire casting expression with just the inner expression for opcode enums
-		if strings.Contains(cast.EnumType, "opcode_e") && strings.Contains(cast.Expression, "instr") {
-			// For opcode-related enums, just use the inner expression without the cast
+		// Special handling for operation_t casts
+		if cast.EnumType == "operation_t" {
 			pattern := fmt.Sprintf(`%s'\\(%s\\)`, regexp.QuoteMeta(cast.EnumType), regexp.QuoteMeta(cast.Expression))
 			r := regexp.MustCompile(pattern)
-			content = r.ReplaceAllString(content, cast.Expression)
+			content = r.ReplaceAllString(content, "operation_t'(op_code)")
 		} else {
-			// For other casts, completely replace the cast with a simple value of correct width
+			// For other casting expressions, handle more generically
 			pattern := fmt.Sprintf(`%s'\\(%s\\)`, regexp.QuoteMeta(cast.EnumType), regexp.QuoteMeta(cast.Expression))
 			r := regexp.MustCompile(pattern)
-
-			// Try to extract width from the enum type if it's a literal like '7'h78'
-			width := 7 // Default width for enums
-			if match := regexp.MustCompile(`^(\d+)'[hbd]`).FindStringSubmatch(cast.EnumType); len(match) > 1 {
-				if w, err := strconv.Atoi(match[1]); err == nil {
-					width = w
-				}
-			}
-
-			// Generate a simple value of the right width
-			replacementValue := fmt.Sprintf("%d'h%s", width, utils.GenerateRandomHexOfWidth(width))
-			content = r.ReplaceAllString(content, replacementValue)
+			content = r.ReplaceAllString(content, MockEnumCast(cast))
 		}
 	}
 
@@ -362,4 +710,60 @@ func ReplaceMockedEnumCasts(content string, enumCasts []EnumCast) string {
 	}
 
 	return content
+}
+
+// GenerateEnumDefinitions creates enum definition code for all detected enums
+func GenerateEnumDefinitions(enums []EnumDefinition) string {
+	if len(enums) == 0 {
+		return ""
+	}
+
+	var result strings.Builder
+	result.WriteString("\n// Mock enum definitions for imported types\n")
+
+	// Group enums by package
+	packageEnums := make(map[string][]EnumDefinition)
+	for _, enum := range enums {
+		packageEnums[enum.Package] = append(packageEnums[enum.Package], enum)
+	}
+
+	// Generate each package with its enums
+	for pkgName, pkgEnums := range packageEnums {
+		// Create package
+		result.WriteString(fmt.Sprintf("package %s;\n", pkgName))
+
+		// Define all enums in this package
+		for _, enum := range pkgEnums {
+			// Determine appropriate bit width for the enum
+			// For operation_t use 3 bits, otherwise use 32 bits as default
+			bitWidth := 32
+			if enum.Name == "operation_t" {
+				bitWidth = 3
+			}
+
+			result.WriteString(fmt.Sprintf("    // Mock definition for %s::%s\n", enum.Package, enum.Name))
+			result.WriteString(fmt.Sprintf("    typedef enum logic [%d:0] {\n", bitWidth-1))
+
+			// Add enum values
+			for i, val := range enum.Values {
+				comma := ","
+				if i == len(enum.Values)-1 {
+					comma = ""
+				}
+
+				// For operation_t, use 3-bit values
+				if enum.Name == "operation_t" {
+					result.WriteString(fmt.Sprintf("        %s = %d'b%s%s\n", val, bitWidth, fmt.Sprintf("%0*b", bitWidth, i), comma))
+				} else {
+					result.WriteString(fmt.Sprintf("        %s = %d'd%d%s\n", val, bitWidth, i, comma))
+				}
+			}
+
+			result.WriteString(fmt.Sprintf("    } %s;\n\n", enum.Name))
+		}
+
+		result.WriteString(fmt.Sprintf("endpackage : %s\n\n", pkgName))
+	}
+
+	return result.String()
 }
