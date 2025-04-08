@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
@@ -212,15 +213,14 @@ func inferPackageNameFromContext(content, enumName string) string {
 func inferEnumValuesFromUsage(content, enumName string) []string {
 	var values []string
 
-	// Try to find case statements using this enum
-	caseRegex := regexp.MustCompile(`case\s*\([^)]*\)\s*([^:]+):`)
-	matches := caseRegex.FindAllStringSubmatch(content, -1)
-
 	// Track already added values to avoid duplicates
 	addedValues := make(map[string]bool)
 
-	// First look for case statements that might indicate enum values
-	for _, match := range matches {
+	// Look for case statements using this enum
+	caseRegex := regexp.MustCompile(`case\s*\([^)]*\)\s*([^:]+):`)
+	caseMatches := caseRegex.FindAllStringSubmatch(content, -1)
+
+	for _, match := range caseMatches {
 		if len(match) >= 2 {
 			value := strings.TrimSpace(match[1])
 			if !addedValues[value] && isLikelyEnumValue(value) {
@@ -230,19 +230,66 @@ func inferEnumValuesFromUsage(content, enumName string) []string {
 		}
 	}
 
-	// Special case handling for operation_t
-	if enumName == "operation_t" {
-		// Standard operations we know should be in operation_t
-		standardOps := []string{"ADD", "SUB", "MUL", "DIV", "AND", "OR", "XOR"}
-		for _, op := range standardOps {
-			if !addedValues[op] {
+	// Look for comparisons with enum constants like "== OPCODE_BRANCH"
+	comparisonRegex := regexp.MustCompile(`==\s*(\w+)`)
+	compMatches := comparisonRegex.FindAllStringSubmatch(content, -1)
+
+	for _, match := range compMatches {
+		if len(match) >= 2 {
+			value := strings.TrimSpace(match[1])
+			if !addedValues[value] && isLikelyEnumValue(value) {
+				addedValues[value] = true
+				values = append(values, value)
+			}
+		}
+	}
+
+	// Find enum constants used on the right side of comparisons like "OPCODE_BRANCH =="
+	rightCompRegex := regexp.MustCompile(`(\w+)\s*==`)
+	rightMatches := rightCompRegex.FindAllStringSubmatch(content, -1)
+
+	for _, match := range rightMatches {
+		if len(match) >= 2 {
+			value := strings.TrimSpace(match[1])
+			if !addedValues[value] && isLikelyEnumValue(value) {
+				addedValues[value] = true
+				values = append(values, value)
+			}
+		}
+	}
+
+	// Special handling for RISC-V opcodes if this is an opcode enum
+	if strings.Contains(strings.ToLower(enumName), "opcode") {
+		// Standard RISC-V opcodes
+		riscvOpcodes := []string{
+			"OPCODE_LOAD", "OPCODE_STORE", "OPCODE_BRANCH", "OPCODE_JALR",
+			"OPCODE_JAL", "OPCODE_OP_IMM", "OPCODE_OP", "OPCODE_SYSTEM",
+			"OPCODE_MISC_MEM", "OPCODE_AUIPC", "OPCODE_LUI",
+		}
+
+		// Add any RISC-V opcodes found in the code
+		for _, op := range riscvOpcodes {
+			if strings.Contains(content, op) && !addedValues[op] {
 				addedValues[op] = true
 				values = append(values, op)
 			}
 		}
 	}
 
-	// If we didn't find any values, generate plausible ones
+	// Special handling for operation_t enum common in ALUs
+	if enumName == "operation_t" || strings.HasSuffix(enumName, "_op_e") {
+		aluOps := []string{"ADD", "SUB", "MUL", "DIV", "AND", "OR", "XOR", "SLL", "SRL", "SRA"}
+
+		for _, op := range aluOps {
+			// Only add if it appears in the code and not already added
+			if strings.Contains(content, op) && !addedValues[op] {
+				addedValues[op] = true
+				values = append(values, op)
+			}
+		}
+	}
+
+	// If we didn't find any values, generate plausible ones based on enum name
 	if len(values) == 0 {
 		values = generatePlausibleEnumValues(enumName)
 	}
@@ -253,6 +300,19 @@ func inferEnumValuesFromUsage(content, enumName string) []string {
 	}
 
 	return values
+}
+
+// extractEnumPrefix gets a reasonable prefix for enum values based on the enum name
+func extractEnumPrefix(enumName string) string {
+	// Strip common suffixes
+	name := enumName
+	if strings.HasSuffix(name, "_t") {
+		name = strings.TrimSuffix(name, "_t")
+	} else if strings.HasSuffix(name, "_e") {
+		name = strings.TrimSuffix(name, "_e")
+	}
+
+	return strings.ToUpper(name)
 }
 
 // isLikelyEnumValue checks if a string looks like an enum value (all caps, no special chars)
@@ -285,6 +345,9 @@ func extractLocallyDefinedEnums(content string) map[string]bool {
 			pkgName := pkgMatch[1]
 			pkgContent := pkgMatch[2]
 
+			// Mark the package itself as defined
+			definedEnums[pkgName+"::"] = true
+
 			// Find typedefs within this package
 			typedefRegex := regexp.MustCompile(`typedef\s+enum\s+[\s\S]*?}\s*(\w+_[et])\s*;`)
 			typeMatches := typedefRegex.FindAllStringSubmatch(pkgContent, -1)
@@ -294,6 +357,7 @@ func extractLocallyDefinedEnums(content string) map[string]bool {
 					enumName := typeMatch[1]
 					key := fmt.Sprintf("%s::%s", pkgName, enumName)
 					definedEnums[key] = true
+					log.Printf("Found already defined enum: %s", key)
 				}
 			}
 		}
@@ -567,46 +631,8 @@ func GetPlausibleValue(enumType string) string {
 		pkgName := parts[0]
 		enumName := parts[1]
 
-		// For known enum types, return appropriate values
-		if strings.Contains(enumName, "opcode_e") {
-			return "instr[6:0]"
-		}
-
-		if strings.Contains(enumName, "imm_") && strings.Contains(enumName, "sel_e") {
-			return fmt.Sprintf("%s::%s_I", pkgName, strings.ToUpper(strings.TrimSuffix(enumName, "_e")))
-		}
-
-		if strings.Contains(enumName, "op_a_sel_e") {
-			return fmt.Sprintf("%s::OP_A_REG_A", pkgName)
-		}
-
-		if strings.Contains(enumName, "op_b_sel_e") {
-			return fmt.Sprintf("%s::OP_B_REG_B", pkgName)
-		}
-
-		if strings.Contains(enumName, "csr_op_e") {
-			return fmt.Sprintf("%s::CSR_OP_READ", pkgName)
-		}
-
-		if strings.Contains(enumName, "md_op_e") {
-			return fmt.Sprintf("%s::MD_OP_MULL", pkgName)
-		}
-
-		if strings.Contains(enumName, "alu_op_e") {
-			return fmt.Sprintf("%s::ALU_ADD", pkgName)
-		}
-
-		// For rv32m_e and rv32b_e, use package-specific values
-		if strings.Contains(enumName, "rv32m_e") {
-			return fmt.Sprintf("%s::RV32MFast", pkgName)
-		}
-
-		if strings.Contains(enumName, "rv32b_e") {
-			return fmt.Sprintf("%s::RV32BNone", pkgName)
-		}
-
-		// Generic enum value with package namespace
-		return fmt.Sprintf("%s::%s_VAL0", pkgName, strings.ToUpper(strings.TrimSuffix(enumName, "_e")))
+		// Generate a generic enum value with package namespace
+		return fmt.Sprintf("%s::%s_VALUE0", pkgName, extractEnumPrefix(enumName))
 	}
 
 	// For non-package enums, fall back to existing logic
@@ -645,20 +671,15 @@ func MockIdentifier(id UndefinedIdentifier) string {
 
 // MockEnumCast provides a mock value for an enum cast while preserving type information
 func MockEnumCast(cast EnumCast) string {
-	// If the cast is to operation_t, use a proper 3-bit value
-	if cast.EnumType == "operation_t" {
-		return "3'b000" // Default to ADD (0)
-	}
-
 	// If the expression is already a literal, just return it
 	if regexp.MustCompile(`^[0-9]+('?[bdh][0-9a-fA-F_]+)?$`).MatchString(cast.Expression) {
 		return cast.Expression
 	}
 
-	// For other enum types, default to a reasonable value
+	// For any enum types (identified by suffix _t or _e), use a default bit width
 	if strings.HasSuffix(cast.EnumType, "_t") || strings.HasSuffix(cast.EnumType, "_e") {
-		// Try to infer bit width from context, default to 3 bits
-		width := 3
+		// Infer reasonable bit width based on enum name or context
+		width := inferEnumBitWidth(cast.EnumType, cast.Line)
 
 		// Generate a value with the right width
 		return fmt.Sprintf("%d'b%s", width, strings.Repeat("0", width))
@@ -666,6 +687,32 @@ func MockEnumCast(cast EnumCast) string {
 
 	// Default behavior for unknown types
 	return GetPlausibleValue(cast.EnumType)
+}
+
+// inferEnumBitWidth determines a reasonable bit width for an enum type
+func inferEnumBitWidth(enumType, context string) int {
+	// Check if we can determine width from context
+	widthRegex := regexp.MustCompile(`\[(\d+):0\]`)
+	if matches := widthRegex.FindStringSubmatch(context); matches != nil {
+		if width, err := strconv.Atoi(matches[1]); err == nil {
+			return width + 1
+		}
+	}
+
+	// Check if enum name contains hints about its width
+	lowerType := strings.ToLower(enumType)
+
+	// Common widths for different types of enums
+	if strings.Contains(lowerType, "op") && strings.Contains(lowerType, "code") {
+		return 7 // Typical opcode width
+	} else if strings.Contains(lowerType, "oper") {
+		return 3 // Typical operation enum width
+	} else if strings.Contains(lowerType, "mode") || strings.Contains(lowerType, "state") {
+		return 2 // Typical mode/state enum width
+	}
+
+	// Default to 3 bits which is common for small enums
+	return 3
 }
 
 // ReplaceMockedEnumCasts replaces all enum casts in the content with mocked values
@@ -684,25 +731,8 @@ func ReplaceMockedEnumCasts(content string, enumCasts []EnumCast) string {
 		}
 	}
 
-	// Process enum casts - now they won't affect parameter declarations
-	for _, cast := range enumCasts {
-		// Skip parameter declarations - they're already protected
-		if strings.Contains(cast.Line, "parameter") {
-			continue
-		}
-
-		// Special handling for operation_t casts
-		if cast.EnumType == "operation_t" {
-			pattern := fmt.Sprintf(`%s'\\(%s\\)`, regexp.QuoteMeta(cast.EnumType), regexp.QuoteMeta(cast.Expression))
-			r := regexp.MustCompile(pattern)
-			content = r.ReplaceAllString(content, "operation_t'(op_code)")
-		} else {
-			// For other casting expressions, handle more generically
-			pattern := fmt.Sprintf(`%s'\\(%s\\)`, regexp.QuoteMeta(cast.EnumType), regexp.QuoteMeta(cast.Expression))
-			r := regexp.MustCompile(pattern)
-			content = r.ReplaceAllString(content, MockEnumCast(cast))
-		}
-	}
+	// Never replace enum casts - we want to preserve the SystemVerilog type casting
+	// The import statements will ensure these types are available
 
 	// Restore parameter declarations
 	for key, value := range paramDecls {
@@ -735,26 +765,59 @@ func GenerateEnumDefinitions(enums []EnumDefinition) string {
 		// Define all enums in this package
 		for _, enum := range pkgEnums {
 			// Determine appropriate bit width for the enum
-			// For operation_t use 3 bits, otherwise use 32 bits as default
-			bitWidth := 32
-			if enum.Name == "operation_t" {
-				bitWidth = 3
+			bitWidth := inferEnumBitWidth(enum.Name, "")
+
+			// RISC-V opcode enums need 7 bits
+			if strings.Contains(strings.ToLower(enum.Name), "opcode") {
+				bitWidth = 7
 			}
 
 			result.WriteString(fmt.Sprintf("    // Mock definition for %s::%s\n", enum.Package, enum.Name))
 			result.WriteString(fmt.Sprintf("    typedef enum logic [%d:0] {\n", bitWidth-1))
 
-			// Add enum values
+			// Add enum values with appropriate encoding
 			for i, val := range enum.Values {
 				comma := ","
 				if i == len(enum.Values)-1 {
 					comma = ""
 				}
 
-				// For operation_t, use 3-bit values
-				if enum.Name == "operation_t" {
-					result.WriteString(fmt.Sprintf("        %s = %d'b%s%s\n", val, bitWidth, fmt.Sprintf("%0*b", bitWidth, i), comma))
+				// Special case for RISC-V opcodes
+				if strings.Contains(strings.ToLower(enum.Name), "opcode") && strings.HasPrefix(val, "OPCODE_") {
+					var opcodeValue string
+					switch val {
+					case "OPCODE_LOAD":
+						opcodeValue = "7'b0000011" // 0x03
+					case "OPCODE_STORE":
+						opcodeValue = "7'b0100011" // 0x23
+					case "OPCODE_BRANCH":
+						opcodeValue = "7'b1100011" // 0x63
+					case "OPCODE_JALR":
+						opcodeValue = "7'b1100111" // 0x67
+					case "OPCODE_JAL":
+						opcodeValue = "7'b1101111" // 0x6F
+					case "OPCODE_OP_IMM":
+						opcodeValue = "7'b0010011" // 0x13
+					case "OPCODE_OP":
+						opcodeValue = "7'b0110011" // 0x33
+					case "OPCODE_SYSTEM":
+						opcodeValue = "7'b1110011" // 0x73
+					case "OPCODE_MISC_MEM":
+						opcodeValue = "7'b0001111" // 0x0F
+					case "OPCODE_AUIPC":
+						opcodeValue = "7'b0010111" // 0x17
+					case "OPCODE_LUI":
+						opcodeValue = "7'b0110111" // 0x37
+					default:
+						// For other opcodes, use sequential numbering starting from a high value
+						opcodeValue = fmt.Sprintf("7'd%d", 100+i)
+					}
+					result.WriteString(fmt.Sprintf("        %s = %s%s\n", val, opcodeValue, comma))
+				} else if enum.Name == "operation_t" {
+					// For operation_t, use sequential binary values
+					result.WriteString(fmt.Sprintf("        %s = %d'd%d%s\n", val, bitWidth, i, comma))
 				} else {
+					// Default case - use sequential decimal values
 					result.WriteString(fmt.Sprintf("        %s = %d'd%d%s\n", val, bitWidth, i, comma))
 				}
 			}

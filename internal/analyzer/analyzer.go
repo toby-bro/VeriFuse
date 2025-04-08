@@ -30,11 +30,15 @@ func AnalyzeVerilogFile(filepath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read verilog file: %v", err)
 	}
+
 	// Remove comments from the content
 	content = utils.RemoveComments(content)
 
 	// Remove unique from case statements
 	content = utils.RemoveUniqueCases(content)
+
+	// First, find all existing package definitions in the content
+	definedPackages := findExistingPackages(content)
 
 	// Extract enum types for later processing
 	enums := ExtractEnumTypes(content)
@@ -44,18 +48,56 @@ func AnalyzeVerilogFile(filepath string) (string, error) {
 			log.Printf("  %s::%s with %d values\n", enum.Package, enum.Name, len(enum.Values))
 		}
 
-		// Generate enum definitions
-		enumDefs := GenerateEnumDefinitions(enums)
-
-		// Add Verilator lint pragma to disable width warnings at the top of the file
-		if !strings.Contains(content, "verilator lint_off WIDTHEXPAND") {
-			content = "/* verilator lint_off WIDTHEXPAND */\n" + content
+		// Filter out enums from packages that are already defined
+		var newEnums []EnumDefinition
+		for _, enum := range enums {
+			if !definedPackages[enum.Package] {
+				newEnums = append(newEnums, enum)
+			} else {
+				log.Printf("Skipping enum from already defined package: %s::%s",
+					enum.Package, enum.Name)
+			}
 		}
 
-		// Insert the enum definitions before the module declaration
+		// Generate enum definitions only for packages that aren't defined already
+		if len(newEnums) > 0 {
+			enumDefs := GenerateEnumDefinitions(newEnums)
+
+			// Add Verilator lint pragma to disable width warnings at the top of the file
+			if !strings.Contains(content, "verilator lint_off WIDTHEXPAND") {
+				content = "/* verilator lint_off WIDTHEXPAND */\n" + content
+			}
+
+			// Insert the enum definitions before the module declaration
+			modulePos := strings.Index(content, "module ")
+			if modulePos > 0 {
+				content = content[:modulePos] + enumDefs + content[modulePos:]
+			}
+		}
+
+		// Insert import statements inside the module for ALL enum packages
+		// (even defined ones need to be imported)
 		modulePos := strings.Index(content, "module ")
-		if modulePos > 0 {
-			content = content[:modulePos] + enumDefs + content[modulePos:]
+		moduleHeaderEnd := strings.Index(content[modulePos:], ");")
+		if modulePos > 0 && moduleHeaderEnd > 0 {
+			moduleHeaderEnd += modulePos + 2 // +2 for ");"
+
+			// Generate the import statements for all the packages
+			var importStmt strings.Builder
+			importStmt.WriteString("\n  // Import statements for enum packages\n")
+
+			// Track packages to avoid duplicates
+			importedPackages := make(map[string]bool)
+
+			for _, enum := range enums {
+				if !importedPackages[enum.Package] {
+					importStmt.WriteString(fmt.Sprintf("  import %s::*;\n", enum.Package))
+					importedPackages[enum.Package] = true
+				}
+			}
+
+			// Insert imports after the module header
+			content = content[:moduleHeaderEnd] + importStmt.String() + content[moduleHeaderEnd:]
 		}
 	}
 
@@ -74,11 +116,11 @@ func AnalyzeVerilogFile(filepath string) (string, error) {
 	if len(enumCasts) > 0 {
 		log.Println("Detected enum casts and their mocked values:")
 		for _, cast := range enumCasts {
-			mockedValue := MockEnumCast(cast)
 			log.Printf("  Type: %s, Expression: %s -> Mocked: %s\n",
-				cast.EnumType, cast.Expression, mockedValue)
+				cast.EnumType, cast.Expression, cast.EnumType)
 		}
-		content = ReplaceMockedEnumCasts(content, enumCasts)
+		// We don't replace the casts anymore - we keep them intact
+		// The import statements will ensure the enum types are available
 	}
 
 	// Detect undefined identifiers (handle these after enum processing)
@@ -139,4 +181,22 @@ func containsDuplicatePackages(content string, enums []EnumDefinition) bool {
 		}
 	}
 	return false
+}
+
+// findExistingPackages returns a map of package names that are already defined in the content
+func findExistingPackages(content string) map[string]bool {
+	packages := make(map[string]bool)
+
+	packageRegex := regexp.MustCompile(`package\s+(\w+)\s*;`)
+	matches := packageRegex.FindAllStringSubmatch(content, -1)
+
+	for _, match := range matches {
+		if len(match) >= 2 {
+			pkgName := match[1]
+			packages[pkgName] = true
+			log.Printf("Found existing package definition: %s", pkgName)
+		}
+	}
+
+	return packages
 }
