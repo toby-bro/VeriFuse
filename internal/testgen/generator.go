@@ -16,6 +16,7 @@ type Generator struct {
 
 // NewGenerator creates a new testbench generator
 func NewGenerator(module *verilog.Module) *Generator {
+	// We don't need to extract enums here anymore since they're embedded in the mocked file
 	return &Generator{
 		module: module,
 	}
@@ -253,6 +254,8 @@ func (g *Generator) GenerateSVTestbench() error {
 		outputCount,
 		outputWrites.String())
 
+	// No need to include the mock_enums.sv file since the definitions are now in the mocked file
+
 	return utils.WriteFileContent(filepath.Join(utils.TMP_DIR, "testbench.sv"), testbench)
 }
 
@@ -331,7 +334,7 @@ func (g *Generator) GenerateCppTestbench() error {
 
 	// Add reset toggle code after inputs have been applied
 	if hasReset {
-		clockHandling.WriteString(fmt.Sprintf("\n    // Toggle reset after inputs are applied\n"))
+		clockHandling.WriteString("\n    // Toggle reset after inputs are applied\n")
 		if resetActiveHigh {
 			clockHandling.WriteString(fmt.Sprintf("    dut->%s = 1; // Assert reset (active high)\n", resetName))
 		} else {

@@ -194,8 +194,9 @@ type SmartStrategy struct {
 
 func (s *SmartStrategy) SetModule(module *verilog.Module) {
 	s.module = module
-	// Add signal classification
-	s.constraints = ClassifySignals(module)
+	// Use the enhanced signal constraints for smarter fuzzing
+	baseConstraints := ClassifySignals(module)
+	s.constraints = EnhanceSignalConstraints(baseConstraints, module)
 }
 
 func (s *SmartStrategy) Name() string {
