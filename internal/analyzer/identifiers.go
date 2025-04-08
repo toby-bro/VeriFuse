@@ -751,6 +751,12 @@ func GenerateEnumDefinitions(enums []EnumDefinition) string {
 	var result strings.Builder
 	result.WriteString("\n// Mock enum definitions for imported types\n")
 
+	// First, detect if we have duplicate package names to handle them specially
+	pkgCount := make(map[string]int)
+	for _, enum := range enums {
+		pkgCount[enum.Package]++
+	}
+
 	// Group enums by package
 	packageEnums := make(map[string][]EnumDefinition)
 	for _, enum := range enums {
@@ -761,6 +767,9 @@ func GenerateEnumDefinitions(enums []EnumDefinition) string {
 	for pkgName, pkgEnums := range packageEnums {
 		// Create package
 		result.WriteString(fmt.Sprintf("package %s;\n", pkgName))
+
+		// Track used enum values to avoid duplicates
+		usedEnumValues := make(map[string]bool)
 
 		// Define all enums in this package
 		for _, enum := range pkgEnums {
@@ -775,16 +784,33 @@ func GenerateEnumDefinitions(enums []EnumDefinition) string {
 			result.WriteString(fmt.Sprintf("    // Mock definition for %s::%s\n", enum.Package, enum.Name))
 			result.WriteString(fmt.Sprintf("    typedef enum logic [%d:0] {\n", bitWidth-1))
 
-			// Add enum values with appropriate encoding
+			// Add enum values with appropriate encoding and make them unique
 			for i, val := range enum.Values {
 				comma := ","
 				if i == len(enum.Values)-1 {
 					comma = ""
 				}
 
+				// Make the enum value unique by prefixing with enum name if it might be a duplicate
+				uniqueVal := val
+				if pkgCount[enum.Package] > 1 {
+					// Create a unique name by prefixing with the enum name
+					enumPrefix := strings.ToUpper(strings.TrimSuffix(
+						strings.TrimSuffix(enum.Name, "_e"), "_t"))
+					uniqueVal = fmt.Sprintf("%s_%s", enumPrefix, val)
+
+					// Skip if this value was already used
+					if usedEnumValues[uniqueVal] {
+						uniqueVal = fmt.Sprintf("%s_%s_%d", enumPrefix, val, i)
+					}
+				}
+
+				usedEnumValues[uniqueVal] = true
+
 				// Special case for RISC-V opcodes
 				if strings.Contains(strings.ToLower(enum.Name), "opcode") && strings.HasPrefix(val, "OPCODE_") {
 					var opcodeValue string
+					// Use standard RISC-V opcodes
 					switch val {
 					case "OPCODE_LOAD":
 						opcodeValue = "7'b0000011" // 0x03
@@ -809,16 +835,11 @@ func GenerateEnumDefinitions(enums []EnumDefinition) string {
 					case "OPCODE_LUI":
 						opcodeValue = "7'b0110111" // 0x37
 					default:
-						// For other opcodes, use sequential numbering starting from a high value
 						opcodeValue = fmt.Sprintf("7'd%d", 100+i)
 					}
-					result.WriteString(fmt.Sprintf("        %s = %s%s\n", val, opcodeValue, comma))
-				} else if enum.Name == "operation_t" {
-					// For operation_t, use sequential binary values
-					result.WriteString(fmt.Sprintf("        %s = %d'd%d%s\n", val, bitWidth, i, comma))
+					result.WriteString(fmt.Sprintf("        %s = %s%s\n", uniqueVal, opcodeValue, comma))
 				} else {
-					// Default case - use sequential decimal values
-					result.WriteString(fmt.Sprintf("        %s = %d'd%d%s\n", val, bitWidth, i, comma))
+					result.WriteString(fmt.Sprintf("        %s = %d'd%d%s\n", uniqueVal, bitWidth, i, comma))
 				}
 			}
 
