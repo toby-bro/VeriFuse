@@ -1,18 +1,5 @@
-package operation_pkg;
-    // Define an enumeration type for different operations
-    typedef enum logic [2:0] {
-        ADD     = 3'b000,
-        SUB     = 3'b001,
-        MUL     = 3'b010,
-        DIV     = 3'b011,
-        AND     = 3'b100,
-        OR      = 3'b101,
-        XOR     = 3'b110,
-        INVALID = 3'b111
-    } operation_t;
-endpackage
 
-module enum_cast (
+module enum_cast_undefined (
     input  logic        clk,
     input  logic        reset_n,
     input  logic [2:0]  op_code,

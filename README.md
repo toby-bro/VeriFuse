@@ -101,6 +101,7 @@ List of things to mock:
 
 - Limited handling of more complex SystemVerilog features (interfaces, UVM, etc.)
 - Mock generation might not handle all possible enum cases correctly
+  - especially package enums as types...
 - Focused testing requires manual analysis of results
 - Limited ability to fuzz modules with complex timing requirements
 
