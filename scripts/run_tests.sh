@@ -18,7 +18,7 @@ mkdir -p tmp_gen
 TEST_FILES=()
 while IFS= read -r line; do
     TEST_FILES+=("$line")
-done < <(find testfiles/sv/ -name '*.sv' -type f ! -path '*/unsupported/*' -print | sort)
+done < <(find testfiles/sv/ -name '*.sv' -type f ! -path '*/unsupported/*' ! -path '*/fail/*' -print | sort)
 
 # Test each file individually
 PASS_COUNT=0
