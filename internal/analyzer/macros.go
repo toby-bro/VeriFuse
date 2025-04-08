@@ -1,7 +1,6 @@
 package analyzer
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 )
@@ -157,12 +156,12 @@ func parseMacroDefinition(macroText string) MacroDefinition {
 }
 
 // RemoveMacros removes all occurrences of the specified macros from the content
-// but preserves functionality for certain macro types
+// by simply commenting them out
 func RemoveMacros(content string, macros []string) string {
-	// First handle assertion macros specially to preserve their logic
+	// First handle assertion macros specially - comment them out with their context
 	assertionMacros := FindAssertionMacros(content)
 	for _, assertion := range assertionMacros {
-		// Transform the assertion into valid SystemVerilog code
+		// Simply comment out the entire assertion
 		replacement := generateAssertionReplacement(assertion)
 		content = strings.Replace(content, assertion.FullText, replacement, -1)
 	}
@@ -171,11 +170,10 @@ func RemoveMacros(content string, macros []string) string {
 	includeRegex := regexp.MustCompile("`include\\s+\"[^\"]+\"\\s*\n?")
 	content = includeRegex.ReplaceAllString(content, "")
 
-	// Now handle simple macros by removing only the macro identifier
-	// But preserve $error and other system tasks that are part of the language
+	// Now handle simple macros by commenting them out
 	simpleRegex := regexp.MustCompile("(`|\\$)(\\w+)")
 	content = simpleRegex.ReplaceAllStringFunc(content, func(match string) string {
-		// Preserve $error and other standard system tasks
+		// Preserve standard system tasks
 		if match == "$error" || match == "$display" || match == "$finish" ||
 			match == "$time" || match == "$fatal" || match == "$warning" ||
 			match == "$info" || match == "$fopen" || match == "$fclose" ||
@@ -185,84 +183,26 @@ func RemoveMacros(content string, macros []string) string {
 			return match // Keep these unchanged
 		}
 
-		// Remove and replace with comment for other macros
+		// Comment out the macro
 		return "/* " + match + " */"
 	})
 
 	return content
 }
 
-// generateAssertionReplacement creates valid SystemVerilog code to represent an assertion
+// generateAssertionReplacement creates a simple comment for an assertion macro
 func generateAssertionReplacement(assertion MacroDefinition) string {
+	// Just convert the assertion to a comment
+	// Use //-- instead of // to make the comment more visible and avoid nested comment issues
 	var result strings.Builder
 
-	// Add a comment to indicate the original assertion
-	result.WriteString("// Original macro: " + assertion.MacroName + "\n")
+	result.WriteString("//-- Commented assertion macro: " + assertion.MacroName + "\n")
+	result.WriteString("//-- Original code: \n")
 
-	if len(assertion.Arguments) >= 2 {
-		// Extract assertion name (first argument)
-		assertName := assertion.Arguments[0]
-
-		// For each argument beyond the first, create a variable
-		for i := 1; i < len(assertion.Arguments); i++ {
-			argValue := assertion.Arguments[i]
-
-			// Clean up the argument text
-			argValue = strings.TrimSpace(argValue)
-			varName := fmt.Sprintf("var%d_%s", i, assertName)
-
-			// Replace unsupported SystemVerilog constructs
-			// Use a valid expression rather than commenting out
-			argValue = strings.Replace(argValue, "$isunknown", "0", -1)
-			argValue = strings.Replace(argValue, "$onehot0", "|", -1) // Replace with OR reduction
-
-			// Check if this is a multi-bit expression (concatenation, bit slicing)
-			if strings.Contains(argValue, "{") ||
-				strings.Contains(argValue, ":") ||
-				strings.Contains(argValue, "concat") {
-				// For multi-bit expressions, use a wire with sufficient width
-				result.WriteString(fmt.Sprintf("wire [31:0] %s_tmp;\n", varName))
-				result.WriteString(fmt.Sprintf("assign %s_tmp = %s;\n", varName, argValue))
-
-				// Create boolean result using reduction operator
-				result.WriteString(fmt.Sprintf("logic %s;\n", varName))
-				result.WriteString(fmt.Sprintf("assign %s = |%s_tmp;\n", varName, varName))
-			} else if strings.Contains(argValue, "(") && strings.Contains(argValue, ")") {
-				// For function calls or parenthesized expressions
-				result.WriteString(fmt.Sprintf("logic %s;\n", varName))
-
-				// If it looks like a comparison, use directly
-				if strings.Contains(argValue, "==") || strings.Contains(argValue, "!=") ||
-					strings.Contains(argValue, ">=") || strings.Contains(argValue, "<=") ||
-					strings.Contains(argValue, ">") || strings.Contains(argValue, "<") {
-					result.WriteString(fmt.Sprintf("assign %s = %s;\n", varName, argValue))
-				} else {
-					// Otherwise use a reduction to convert to boolean
-					result.WriteString(fmt.Sprintf("assign %s = |(%s);\n", varName, argValue))
-				}
-			} else {
-				// Simple expression
-				result.WriteString(fmt.Sprintf("logic %s;\n", varName))
-
-				// Handle comparison operators correctly
-				if strings.Contains(argValue, "==") {
-					result.WriteString(fmt.Sprintf("assign %s = %s;\n", varName, argValue))
-				} else if strings.Contains(argValue, "=") && !strings.Contains(argValue, "==") {
-					// Convert single = to == for boolean comparison
-					argValue = strings.Replace(argValue, "=", "==", 1)
-					result.WriteString(fmt.Sprintf("assign %s = %s;\n", varName, argValue))
-				} else {
-					// Simple value - convert to boolean if needed
-					result.WriteString(fmt.Sprintf("assign %s = %s;\n", varName, argValue))
-				}
-			}
-		}
-
-		// Add a comment that would explain the assertion's intent
-		result.WriteString(fmt.Sprintf("// Assertion check: %s\n", assertName))
-	} else {
-		// If we can't parse the arguments properly, add a comment
-		result.WriteString("// Unparseable assertion: " + assertion.FullText + "\n")
+	// Split the original text into lines and comment each line
+	lines := strings.Split(assertion.FullText, "\n")
+	for _, line := range lines {
+		result.WriteString("//-- " + line + "\n")
 	}
 
 	return result.String()
