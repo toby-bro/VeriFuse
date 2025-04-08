@@ -1,4 +1,4 @@
-module simple_with_macro (
+module multiline_macro (
     input  logic        clk,
     input  logic        rst_n,
     input  logic [31:0] instr,
