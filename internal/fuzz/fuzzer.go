@@ -457,7 +457,7 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 			}
 
 			// Write input files
-			if err := writeTestInputs(testDir, testCase, f.module); err != nil {
+			if err := writeTestInputs(testDir, testCase); err != nil {
 				f.stats.AddSimError()
 				continue
 			}
@@ -560,7 +560,7 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 }
 
 // writeTestInputs writes test case input files
-func writeTestInputs(testDir string, testCase map[string]string, module *verilog.Module) error {
+func writeTestInputs(testDir string, testCase map[string]string) error {
 	// Write all input files
 	for portName, value := range testCase {
 		inputPath := filepath.Join(testDir, fmt.Sprintf("input_%s.hex", portName))
