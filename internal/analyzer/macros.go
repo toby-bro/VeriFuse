@@ -170,6 +170,9 @@ func RemoveMacros(content string, macros []string) string {
 	includeRegex := regexp.MustCompile("`include\\s+\"[^\"]+\"\\s*\n?")
 	content = includeRegex.ReplaceAllString(content, "")
 
+	// Handle ifdef/endif pairs properly
+	content = processIfdefBlocks(content)
+
 	// Now handle simple macros by commenting them out
 	simpleRegex := regexp.MustCompile("(`|\\$)(\\w+)")
 	content = simpleRegex.ReplaceAllStringFunc(content, func(match string) string {
@@ -188,6 +191,41 @@ func RemoveMacros(content string, macros []string) string {
 	})
 
 	return content
+}
+
+// processIfdefBlocks properly handles `ifdef/`endif blocks by commenting them correctly
+func processIfdefBlocks(content string) string {
+	// Match `ifdef and its corresponding `endif in a non-greedy way
+	ifdefRegex := regexp.MustCompile("(?s)`ifdef\\s+([^\\s]+)(.*?)`endif")
+
+	return ifdefRegex.ReplaceAllStringFunc(content, func(block string) string {
+		// Extract the condition and the content within the block
+		matches := ifdefRegex.FindStringSubmatch(block)
+		if len(matches) >= 3 {
+			condition := matches[1]
+			blockContent := matches[2]
+
+			// Comment out the entire block
+			result := "// `ifdef " + condition + "\n"
+
+			// Add each line of the block content with comments
+			lines := strings.Split(blockContent, "\n")
+			for _, line := range lines {
+				trimmedLine := strings.TrimSpace(line)
+				if trimmedLine != "" {
+					result += "// " + line + "\n"
+				} else {
+					result += "\n"
+				}
+			}
+
+			result += "// `endif"
+			return result
+		}
+
+		// If regex match failed, return the original block commented out
+		return "// " + block
+	})
 }
 
 // generateAssertionReplacement creates a simple comment for an assertion macro
