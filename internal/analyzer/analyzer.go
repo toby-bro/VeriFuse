@@ -75,6 +75,15 @@ func AnalyzeVerilogFile(filepath string) (string, error) {
 			}
 		}
 
+		// Make port declarations more explicit by adding package qualification
+		// This helps prevent name collisions with enum values
+		for _, enum := range enums {
+			portRegex := regexp.MustCompile(fmt.Sprintf(`(input|output|inout)\\s+(%s)\\s+(\\w+)`,
+				regexp.QuoteMeta(enum.Name)))
+			content = portRegex.ReplaceAllString(content,
+				fmt.Sprintf("$1 %s::$2 $3", enum.Package))
+		}
+
 		// Insert import statements inside the module for ALL enum packages
 		// (even defined ones need to be imported)
 		modulePos := strings.Index(content, "module ")
@@ -100,6 +109,9 @@ func AnalyzeVerilogFile(filepath string) (string, error) {
 			content = content[:moduleHeaderEnd] + importStmt.String() + content[moduleHeaderEnd:]
 		}
 	}
+
+	// Fix module port declarations for enums (add package qualification to output params)
+	content = fixModulePortsForEnums(content, enums)
 
 	// Detect and remove macros
 	macros := DetectMacros(content)
@@ -199,4 +211,29 @@ func findExistingPackages(content string) map[string]bool {
 	}
 
 	return packages
+}
+
+// fixModulePortsForEnums adds package qualification to enum ports to avoid name conflicts
+func fixModulePortsForEnums(content string, enums []EnumDefinition) string {
+	moduleRegex := regexp.MustCompile(`(module\s+\w+_mocked\s*\()([^)]*)\)`)
+
+	return moduleRegex.ReplaceAllStringFunc(content, func(match string) string {
+		matches := moduleRegex.FindStringSubmatch(match)
+		if len(matches) < 3 {
+			return match
+		}
+
+		moduleHeader := matches[1]
+		portList := matches[2]
+
+		// Process each port in the port list
+		for _, enum := range enums {
+			enumRegex := regexp.MustCompile(fmt.Sprintf(`(output|input|inout)\s+(%s)\s+(\w+)`,
+				regexp.QuoteMeta(enum.Name)))
+			portList = enumRegex.ReplaceAllString(portList,
+				fmt.Sprintf("$1 %s::$2 $3", enum.Package))
+		}
+
+		return moduleHeader + portList + ")"
+	})
 }
