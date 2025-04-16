@@ -1,32 +1,33 @@
-.PHONY: all build run clean purge analyze patterns focused help tests test-modules test-module
-
-# Default target builds and runs basic fuzzer
+.PHONY: all
 all: build run
 
-# Build all tools
+.PHONY: build
 build: build-fuzzer build-tools
 
-# Build the main fuzzer
+.PHONY: build-fuzzer
 build-fuzzer:
 	go build -o pfuzz cmd/pfuzz/main.go
 
-# Build additional analysis tools
+.PHONY: build-tools
 build-tools: build-analyze build-patterns build-focused
 
+.PHONY: build-analyze
 build-analyze:
 	go build -o analyze cmd/analyze/main.go
 
+.PHONY: build-patterns
 build-patterns:
 	go build -o patterns cmd/patterns/main.go
 
+.PHONY: build-focused
 build-focused:
 	go build -o focused cmd/focused/main.go
 
-# Run fuzzer with default settings
+.PHONY: run
 run: clean
 	./pfuzz -n 100 -strategy smart -workers 10 -v -file ibex_branch_predict.sv
 
-# Run analysis tools
+.PHONY: analyze-mismatch
 analyze-mismatch:
 	@if [ -z "$(MISMATCH)" ]; then \
 		echo "Usage: make analyze-mismatch MISMATCH=mismatches/mismatch_X"; \
@@ -34,13 +35,15 @@ analyze-mismatch:
 		./analyze $(MISMATCH); \
 	fi
 
+.PHONY: patterns
 patterns:
 	./patterns
 
+.PHONY: focused
 focused:
 	./focused
 
-# Run all tests
+.PHONY: tests
 tests: build-fuzzer clean
 	@echo "Running tests on SystemVerilog modules..."
 	@bash scripts/run_tests.sh
@@ -50,7 +53,7 @@ test-fails: build-fuzzer clean
 	@echo "Running tests on SystemVerilog modules..."
 	@bash scripts/run_tests.sh | grep FAIL
 
-
+.PHONY: test-module
 test-module: clean
 	@if [ -z "$(FILE)" ]; then \
 		echo "Usage: make test-module FILE=path/to/module.sv"; \
@@ -58,14 +61,15 @@ test-module: clean
 		./pfuzz -n 100 -strategy smart -workers 10 -v -file $(FILE); \
 	fi
 
+.PHONY: clean
 clean:
 	rm -rf tmp_gen mismatches debug_logs *.json
 
-# Completely remove all generated files
+.PHONY: purge
 purge: clean
 	rm -f pfuzz analyze patterns focused mismatch_*.txt
 
-# Help information
+.PHONY: help
 help:
 	@echo "Available targets:"
 	@echo "  make              - Build and run basic fuzzer"
