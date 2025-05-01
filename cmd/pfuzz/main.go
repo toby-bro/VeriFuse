@@ -19,6 +19,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Verbose output")
 	verilogFile := flag.String("file", "", "Path to Verilog file to fuzz (required)")
 	moduleFlag := flag.String("module", "", "Module name to fuzz (if different from filename)")
+	mock := flag.Bool("mock", false, "Use mock enums and structs in the testbench")
 	flag.Parse()
 
 	// Check if Verilog file is provided
@@ -29,7 +30,7 @@ func main() {
 	// Create and setup fuzzer using the new package structure
 	fuzzer := fuzz.NewFuzzer(*strategy, *workers, *verbose, *seedFlag, *verilogFile, *moduleFlag)
 
-	if err := fuzzer.Setup(); err != nil {
+	if err := fuzzer.Setup(*mock); err != nil {
 		log.Fatal("Setup failed: ", err)
 	}
 

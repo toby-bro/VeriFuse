@@ -56,8 +56,7 @@ func (g *Generator) GenerateSVTestbench() error {
 
 	// Create the module instance - use explicit port connections instead of .*
 	var moduleInst strings.Builder
-	moduleInst.WriteString(fmt.Sprintf("    %s_mocked", g.module.Name))
-
+	moduleInst.WriteString(fmt.Sprintf("    %s", g.module.Name))
 	// Add parameters if present
 	if len(g.module.Parameters) > 0 {
 		moduleInst.WriteString(" #(\n")
@@ -244,8 +243,12 @@ func (g *Generator) GenerateSVTestbench() error {
 		}
 	}
 
+	// Include the mocked module file
+	includeDirective := fmt.Sprintf("`include \"%s.sv\"", g.module.Name)
+
 	// Apply the generated code to the template
 	testbench := fmt.Sprintf(svTestbenchTemplate,
+		includeDirective, // Add include directive here
 		declarations.String(),
 		moduleInst.String(),
 		inputCount,

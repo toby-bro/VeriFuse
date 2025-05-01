@@ -17,13 +17,14 @@ import (
 // Debug logger for both normal and debug messages
 var debug *utils.DebugLogger
 
-func getMockedVerilogFile() string {
+func getExecutedVerilogFile(mocked bool) string {
 	tmpGen, err := os.ReadDir("tmp_gen")
 	if err != nil {
 		return ""
 	}
 	for _, file := range tmpGen {
-		if strings.HasSuffix(file.Name(), "_mocked.sv") {
+		if (strings.HasSuffix(file.Name(), "_mocked.sv") && mocked) ||
+			(strings.HasSuffix(file.Name(), ".sv") && !mocked && !strings.Contains(file.Name(), "testbench")) {
 			return filepath.Join("tmp_gen", file.Name())
 		}
 	}
@@ -33,6 +34,7 @@ func getMockedVerilogFile() string {
 func main() {
 	verbose := flag.Bool("v", false, "Verbose output")
 	moduleName := flag.String("module", "", "Module name (if different from filename)")
+	mocked := flag.Bool("mocked", false, "Use mocked Verilog file")
 	flag.Parse()
 
 	// Initialize the debug logger
@@ -81,7 +83,7 @@ func main() {
 	// If path is a directory, use the stored simulation results
 	if isMismatchDir {
 		// Find the mocked Verilog file
-		verilogFile := getMockedVerilogFile()
+		verilogFile := getExecutedVerilogFile(*mocked)
 		if verilogFile == "" {
 			log.Fatal("Error: No mocked Verilog file found in tmp_gen directory.")
 		}

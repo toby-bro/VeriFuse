@@ -24,13 +24,11 @@ type UndefinedIdentifier struct {
 	Context string
 }
 
-// AnalyzeVerilogFile analyzes a SystemVerilog file and returns processed content
-func AnalyzeVerilogFile(filepath string) (string, error) {
+func MockVerilogFile(filepath string) (string, error) {
 	content, err := utils.ReadFileContent(filepath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read verilog file: %v", err)
+		return "", fmt.Errorf("failed to analyze verilog file: %v", err)
 	}
-
 	// Remove comments from the content
 	content = utils.RemoveComments(content)
 
