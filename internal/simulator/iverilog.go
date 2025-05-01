@@ -171,8 +171,3 @@ func (sim *IVerilogSimulator) RunTest(inputDir string, outputPaths map[string]st
 
 	return nil
 }
-
-// GetExecPath returns the path to the compiled simulator executable
-func (sim *IVerilogSimulator) GetExecPath() string {
-	return sim.execPath
-}

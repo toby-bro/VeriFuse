@@ -119,7 +119,7 @@ func (sim *VerilatorSimulator) Compile() error {
 	}
 
 	// Verify the executable was created
-	execPath := sim.GetExecPath()
+	execPath := sim.execPath
 	if _, err := os.Stat(execPath); os.IsNotExist(err) {
 		return fmt.Errorf("verilator executable not created at %s", execPath)
 	}
@@ -165,9 +165,4 @@ func verifyOutputs(outputPaths map[string]string) error {
 		}
 	}
 	return nil
-}
-
-// GetExecPath returns the path to the compiled simulator executable
-func (sim *VerilatorSimulator) GetExecPath() string {
-	return sim.execPath
 }
