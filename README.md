@@ -2,10 +2,6 @@
 
 The objective of this project is to create a fuzzing tool to fuzz system verilog simulators.
 
-To do this we are trying to take valid sv code and run it as a standalone program and fuzz it's inputs and try and detect discrepancies in the output.
-
-I think this is an attempt at mutation based fuzzing with valid seeds.
-
 ## Example usage
 
 ```bash
@@ -21,26 +17,26 @@ make
 
 pfuzz is a differential fuzzer for SystemVerilog modules that compares the behavior between different simulators (currently IVerilog and Verilator). Its core functionality includes:
 
-1. **Automated Mocking**: Taking a SystemVerilog module with dependencies (imports, enums, etc.) and automatically generating a standalone version by mocking required components.
+**Automated Mocking**: When used with the command `-mock` Taking a SystemVerilog module with dependencies (imports, enums, etc.) and automatically generating a standalone version by mocking required components. If we want to feed it with a valid verilog file from another project...
 
-2. **Generating Testbenches**: Creating SystemVerilog and C++ testbenches to run simulations with both simulators.
+**Generating Testbenches**: Creating SystemVerilog and C++ testbenches to run simulations with both simulators.
 
-3. **Fuzzing Strategies**: Implements multiple fuzzing strategies:
+**Fuzzing Strategies**: Implements multiple fuzzing strategies:
 
-   - Simple: Basic random value generation
-   - Random: Smarter random generation with special values
-   - Smart: Context-aware fuzzing that recognizes signal types (clocks, resets, valid signals)
+- Simple: Basic random value generation
+- Random: Smarter random generation with special values
+- Smart: Context-aware fuzzing that recognizes signal types (clocks, resets, valid signals)
 
-4. **Parallel Execution**: Leveraging multiple CPU cores for faster fuzzing with worker threads.
+**Parallel Execution**: Leveraging multiple CPU cores for faster fuzzing with worker threads.
 
-5. **Discrepancy Detection**: Finding and analyzing cases where different simulators produce different results.
+**Discrepancy Detection**: Finding and analyzing cases where different simulators produce different results.
 
-6. **Result Analysis**: Tools to analyze and categorize detected mismatches using pattern recognition.
+**Result Analysis**: Tools to analyze and categorize detected mismatches using pattern recognition.
 
 The workflow is:
 
 1. Parse a SystemVerilog module
-2. Mock dependencies and create testbenches
+2. (not by default) Mock dependencies and create testbenches
 3. Generate test inputs using selected strategy
 4. Run both simulators with identical inputs
 5. Compare outputs to find discrepancies

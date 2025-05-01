@@ -24,8 +24,7 @@ build-focused:
 	go build -o focused cmd/focused/main.go
 
 .PHONY: run
-run: clean
-	./pfuzz -n 100 -strategy smart -workers 10 -v -file ibex_branch_predict.sv
+run: test-module
 
 .PHONY: analyze-mismatch
 analyze-mismatch:
