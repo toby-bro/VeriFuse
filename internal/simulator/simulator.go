@@ -18,9 +18,6 @@ type Simulator interface {
 	// inputDir is the directory containing input files
 	// outputPaths maps port names to output file paths
 	RunTest(inputDir string, outputPaths map[string]string) error
-
-	// GetExecPath returns the path to the compiled simulator executable
-	GetExecPath() string
 }
 
 // OutputResult represents the results of a simulation run for any output port
