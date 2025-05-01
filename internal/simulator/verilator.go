@@ -30,10 +30,8 @@ func NewVerilatorSimulator(workDir string, moduleName string) *VerilatorSimulato
 		module = nil
 	}
 
-	compiledFile := fmt.Sprintf("V%s", moduleName)
-
 	return &VerilatorSimulator{
-		execPath:   filepath.Join(workDir, "obj_dir", compiledFile),
+		execPath:   filepath.Join(workDir, "obj_dir", "Vtestbench"),
 		workDir:    workDir,
 		moduleName: moduleName,
 		module:     module,
@@ -42,37 +40,16 @@ func NewVerilatorSimulator(workDir string, moduleName string) *VerilatorSimulato
 
 // Compile compiles the verilog files with Verilator
 func (sim *VerilatorSimulator) Compile() error {
-	// Find all SystemVerilog files in work directory - excluding testbench.sv
-	moduleFiles := []string{}
-	entries, err := os.ReadDir(sim.workDir)
-	if err != nil {
-		return fmt.Errorf("failed to read work directory: %v", err)
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".sv" {
-			// Skip the SystemVerilog testbench - it's for iverilog only
-			if entry.Name() != "testbench.sv" && entry.Name() != "test.sv" {
-				moduleFiles = append(moduleFiles, entry.Name())
-			}
-		}
-	}
-
-	if len(moduleFiles) == 0 {
-		return fmt.Errorf("no SystemVerilog module files found in %s", sim.workDir)
-	}
-
 	// Create the obj_dir in the worker directory
 	objDir := filepath.Join(sim.workDir, "obj_dir")
 	if err := os.MkdirAll(objDir, 0755); err != nil {
 		return fmt.Errorf("failed to create obj_dir: %v", err)
 	}
 
-	// IMPORTANT: Check for the C++ testbench file, copy it from tmp_gen if needed
-	testbenchPath := filepath.Join(sim.workDir, "testbench.cpp")
+	testbenchPath := filepath.Join(sim.workDir, "testbench.sv")
 	if _, err := os.Stat(testbenchPath); os.IsNotExist(err) {
-		// The testbench.cpp is not in the working directory, copy it from tmp_gen
-		srcTestbench := filepath.Join(utils.TMP_DIR, "testbench.cpp")
+		// The testbench.sv is not in the working directory, copy it from tmp_gen
+		srcTestbench := filepath.Join(utils.TMP_DIR, "testbench.sv")
 		if _, err := os.Stat(srcTestbench); os.IsNotExist(err) {
 			// If it doesn't exist in tmp_gen either, generate it if we have module info
 			if sim.module != nil {
@@ -81,30 +58,27 @@ func (sim *VerilatorSimulator) Compile() error {
 					return fmt.Errorf("failed to generate testbenches: %v", err)
 				}
 			} else {
-				return fmt.Errorf("testbench.cpp not found and module info not available")
+				return fmt.Errorf("testbench.sv not found and module info not available")
 			}
 		}
 
 		// Now copy from tmp_gen to the working directory
 		if err := utils.CopyFile(srcTestbench, testbenchPath); err != nil {
-			return fmt.Errorf("failed to copy testbench.cpp to working directory: %v", err)
+			return fmt.Errorf("failed to copy testbench.sv to working directory: %v", err)
 		}
 	}
 
 	// Verify the testbench file exists and has content
 	if info, err := os.Stat(testbenchPath); err != nil || info.Size() == 0 {
-		return fmt.Errorf("testbench.cpp is missing or empty in %s", sim.workDir)
+		return fmt.Errorf("testbench.sv is missing or empty in %s", sim.workDir)
 	}
 
 	// Build verilator command with all SV files and parameters
 	verilatorArgs := []string{
-		"--cc", "--exe", "--build", "-Mdir", "obj_dir",
+		"--binary", "--exe", "--build", "-Mdir", "obj_dir",
 		"--timing", // Add timing option to handle delays
-		"testbench.cpp",
+		"testbench.sv",
 	}
-
-	// Add module files
-	verilatorArgs = append(verilatorArgs, moduleFiles...)
 
 	// Run Verilator in the worker directory
 	cmd := exec.Command("verilator", verilatorArgs...)
@@ -113,7 +87,7 @@ func (sim *VerilatorSimulator) Compile() error {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
-	err = cmd.Run()
+	err := cmd.Run()
 	if err != nil {
 		return fmt.Errorf("verilator compilation failed: %v\n%s", err, stderr.String())
 	}
