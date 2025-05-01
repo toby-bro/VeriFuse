@@ -23,15 +23,17 @@ type VerilatorSimulator struct {
 // NewVerilatorSimulator creates a new Verilator simulator instance
 func NewVerilatorSimulator(workDir string, moduleName string) *VerilatorSimulator {
 	// Parse the module to get port and parameter information
-	moduleFile := filepath.Join(workDir, moduleName+"_mocked.sv")
-	module, err := verilog.ParseVerilogFile(moduleFile, moduleName+"_mocked")
+	moduleFile := filepath.Join(workDir, moduleName+".sv")
+	module, err := verilog.ParseVerilogFile(moduleFile, moduleName)
 	if err != nil {
 		// If we can't parse, just continue with nil module - will use generic template
 		module = nil
 	}
 
+	compiledFile := fmt.Sprintf("V%s", moduleName)
+
 	return &VerilatorSimulator{
-		execPath:   filepath.Join(workDir, "obj_dir", fmt.Sprintf("V%s_mocked", moduleName)),
+		execPath:   filepath.Join(workDir, "obj_dir", compiledFile),
 		workDir:    workDir,
 		moduleName: moduleName,
 		module:     module,

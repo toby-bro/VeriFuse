@@ -66,18 +66,25 @@ func NewFuzzer(strategy string, workers int, verbose bool, seed int64, verilogFi
 }
 
 // PrepareSVFile analyzes and prepares the Verilog file for testing
-func PrepareSVFile(initialVerilogFile string, mockedVerilogPath string) error {
+func PrepareSVFile(initialVerilogFile string, mockedVerilogPath string, mock bool) error {
 	// Analyze and mock Verilog file
-	content, err := analyzer.AnalyzeVerilogFile(initialVerilogFile)
-	if err != nil {
-		return fmt.Errorf("failed to analyze Verilog file: %v", err)
-	}
+	if mock {
+		content, err := analyzer.MockVerilogFile(initialVerilogFile)
+		if err != nil {
+			return fmt.Errorf("failed to analyze Verilog file: %v", err)
+		}
 
-	// Create the mocked verilog file
-	if err := utils.WriteFileContent(mockedVerilogPath, content); err != nil {
-		return fmt.Errorf("failed to write mocked SV file: %v", err)
+		// Create the mocked verilog file
+		if err := utils.WriteFileContent(mockedVerilogPath, content); err != nil {
+			return fmt.Errorf("failed to write mocked SV file: %v", err)
+		}
+		log.Printf("Created mocked SystemVerilog file: %s", mockedVerilogPath)
+	} else {
+		// Copy the original file to the mocked path
+		if err := utils.CopyFile(initialVerilogFile, mockedVerilogPath); err != nil {
+			return fmt.Errorf("failed to copy original Verilog file: %v", err)
+		}
 	}
-	log.Printf("Created mocked SystemVerilog file: %s", mockedVerilogPath)
 
 	// Verify the file exists
 	if _, err := os.Stat(mockedVerilogPath); os.IsNotExist(err) {
@@ -94,7 +101,7 @@ func addMockedSuffix(filename string) string {
 }
 
 // Setup prepares the environment for fuzzing
-func (f *Fuzzer) Setup() error {
+func (f *Fuzzer) Setup(mock bool) error {
 	// Ensure directories exist first
 	if err := utils.EnsureDirs(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
@@ -106,6 +113,11 @@ func (f *Fuzzer) Setup() error {
 		return fmt.Errorf("failed to parse Verilog file: %v", err)
 	}
 	f.module = module
+
+	if mock {
+		f.module.Name = addMockedSuffix(module.Name)
+		f.verilogFile = addMockedSuffix(f.verilogFile)
+	}
 
 	// Update the strategy with module information
 	if moduleAwareStrategy, ok := f.strategy.(ModuleAwareStrategy); ok {
@@ -125,10 +137,10 @@ func (f *Fuzzer) Setup() error {
 	}
 
 	// Prepare mocked Verilog file
-	mockedVerilogFile := addMockedSuffix(filepath.Base(f.verilogFile))
-	mockedVerilogPath := filepath.Join(utils.TMP_DIR, mockedVerilogFile)
+	VerilogFileName := filepath.Base(f.verilogFile)
+	VerilogPath := filepath.Join(utils.TMP_DIR, VerilogFileName)
 
-	if err := PrepareSVFile(f.verilogFile, mockedVerilogPath); err != nil {
+	if err := PrepareSVFile(f.verilogFile, VerilogPath, mock); err != nil {
 		return err
 	}
 
@@ -152,10 +164,10 @@ func (f *Fuzzer) Setup() error {
 	}
 
 	// Copy the necessary files to the setup directory
-	setupVerilogPath := filepath.Join(setupDir, mockedVerilogFile)
+	setupVerilogPath := filepath.Join(setupDir, VerilogFileName)
 	setupTestbenchPath := filepath.Join(setupDir, "testbench.sv")
 
-	if err := utils.CopyFile(mockedVerilogPath, setupVerilogPath); err != nil {
+	if err := utils.CopyFile(VerilogPath, setupVerilogPath); err != nil {
 		return fmt.Errorf("failed to copy Verilog file to setup dir: %v", err)
 	}
 
@@ -173,7 +185,7 @@ func (f *Fuzzer) Setup() error {
 	}
 
 	// Test IVerilog and Verilator compilation
-	if err := testIVerilog(setupDir, mockedVerilogFile); err != nil {
+	if err := testIVerilog(setupDir, VerilogFileName); err != nil {
 		return fmt.Errorf("iverilog test failed: %v", err)
 	}
 	if err := testVerilator(setupDir, module.Name); err != nil {
@@ -211,7 +223,7 @@ func testIVerilog(setupDir string, mockedVerilogFile string) error {
 	// Now compile actual module
 	log.Println("Compiling iverilog in setup directory...")
 	ivCmd := exec.Command("iverilog", "-o", "module_sim_iv",
-		mockedVerilogFile, "testbench.sv", "-g2012", "-gsupported-assertions")
+		"testbench.sv", "-g2012", "-gsupported-assertions")
 	ivCmd.Dir = setupDir
 	stderr.Reset()
 	ivCmd.Stderr = &stderr
@@ -346,7 +358,7 @@ func compareOutputValues(ivValue, vlValue string) bool {
 func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) {
 	defer wg.Done()
 
-	mockedVerilogFile := addMockedSuffix(filepath.Base(f.verilogFile))
+	VerilogFile := filepath.Base(f.verilogFile)
 
 	// Each worker gets its own simulator instances and working directory
 	workerID := fmt.Sprintf("worker_%d", time.Now().UnixNano())
@@ -379,7 +391,7 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int, numTests int) 
 	// Copy all required files to the worker directory
 	f.debug.Printf("[%s]: Copying source files to worker directory", workerID)
 	setupFiles := []string{
-		mockedVerilogFile,
+		VerilogFile,
 		"testbench.sv",
 		"testbench.cpp", // IMPORTANT: Make sure to include testbench.cpp
 	}

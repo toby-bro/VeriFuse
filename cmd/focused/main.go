@@ -17,6 +17,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Verbose output")
 	verilogFile := flag.String("file", "", "Path to Verilog file (required)")
 	moduleName := flag.String("module", "", "Module name (if different from filename)")
+	mocked := flag.Bool("mocked", false, "Use mocked Verilog file")
 	flag.Parse()
 
 	debug := utils.NewDebugLogger(*verbose)
@@ -37,6 +38,10 @@ func main() {
 	if err != nil {
 		debug.Log("Failed to parse Verilog file: %v", err)
 		os.Exit(1)
+	}
+
+	if *mocked {
+		module.Name = fmt.Sprintf("%s_mocked", module.Name)
 	}
 
 	debug.Log("Using module: %s", module.Name)
