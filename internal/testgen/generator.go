@@ -27,11 +27,6 @@ func (g *Generator) GenerateTestbenches() error {
 	if err := g.GenerateSVTestbench(); err != nil {
 		return fmt.Errorf("failed to generate SystemVerilog testbench: %v", err)
 	}
-
-	if err := g.GenerateCppTestbench(); err != nil {
-		return fmt.Errorf("failed to generate C++ testbench: %v", err)
-	}
-
 	return nil
 }
 
