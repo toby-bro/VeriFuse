@@ -1,4 +1,4 @@
-package analyzer
+package mocker
 
 import (
 	"fmt"
