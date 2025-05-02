@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/toby-bro/pfuzz/internal/analyzer"
+	"github.com/toby-bro/pfuzz/internal/mocker"
 	"github.com/toby-bro/pfuzz/internal/simulator"
 	"github.com/toby-bro/pfuzz/internal/testgen"
 	"github.com/toby-bro/pfuzz/internal/verilog"
@@ -69,7 +69,7 @@ func NewFuzzer(strategy string, workers int, verbose bool, seed int64, verilogFi
 func PrepareSVFile(initialVerilogFile string, mockedVerilogPath string, mock bool) error {
 	// Analyze and mock Verilog file
 	if mock {
-		content, err := analyzer.MockVerilogFile(initialVerilogFile)
+		content, err := mocker.MockVerilogFile(initialVerilogFile)
 		if err != nil {
 			return fmt.Errorf("failed to analyze Verilog file: %v", err)
 		}
