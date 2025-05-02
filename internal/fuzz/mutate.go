@@ -103,6 +103,10 @@ func InjectSnippet(originalContent, snippet string) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
+func AddCodeToSnippet(originalContent, snippet string) (string, error) {
+	return "", fmt.Errorf("not implemented")
+}
+
 func MutateFile(fileName string, snippets []string) error {
 	// Read the original file content
 	originalContent, err := utils.ReadFileContent(fileName)
