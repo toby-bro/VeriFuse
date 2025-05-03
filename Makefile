@@ -42,8 +42,13 @@ patterns:
 focused:
 	./focused
 
+.PHONY: test-go
+test-go: build-fuzzer
+	@echo "Running Go tests..."
+	@go test -v -parallel 1 -timeout 10m ./...
+
 .PHONY: tests
-tests: build-fuzzer clean
+tests: build-fuzzer clean test-go
 	@echo "Running tests on SystemVerilog modules..."
 	@bash scripts/run_tests.sh
 
