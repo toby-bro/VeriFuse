@@ -112,7 +112,6 @@ func parseMacroDefinition(macroText string) MacroDefinition {
 		} else if char == ')' {
 			parenLevel--
 			if parenLevel == 0 {
-				inArgs = false
 				break // Stop at the closing parenthesis
 			}
 		}
@@ -130,16 +129,23 @@ func parseMacroDefinition(macroText string) MacroDefinition {
 	for i := 0; i < len(argsText); i++ {
 		char := argsText[i]
 
-		if char == '(' {
+		switch char {
+		case '(':
 			parenLevel++
-		} else if char == ')' {
+		case ')':
 			parenLevel--
-		} else if char == ',' && parenLevel == 0 {
-			args = append(args, strings.TrimSpace(currentArg))
-			currentArg = ""
-			continue
+		case ',':
+			if parenLevel == 0 {
+				args = append(args, strings.TrimSpace(currentArg))
+				currentArg = ""
+				continue
+			}
+		case ' ', '\r', '\t', '\n':
+			if parenLevel == 0 {
+				// Ignore spaces outside parentheses
+				continue
+			}
 		}
-
 		currentArg += string(char)
 	}
 
@@ -157,7 +163,7 @@ func parseMacroDefinition(macroText string) MacroDefinition {
 
 // RemoveMacros removes all occurrences of the specified macros from the content
 // by simply commenting them out
-func RemoveMacros(content string, macros []string) string {
+func RemoveMacros(content string) string {
 	// First handle assertion macros specially - comment them out with their context
 	assertionMacros := FindAssertionMacros(content)
 	for _, assertion := range assertionMacros {

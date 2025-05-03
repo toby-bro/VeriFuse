@@ -7,10 +7,8 @@ linters:
     - durationcheck
     - exhaustive
     - gochecknoinits
-    - goconst
     - gocritic
     - gocyclo
-    - mnd
     - noctx
     - perfsprint
     - protogetter
@@ -29,7 +27,20 @@ linters:
       - third_party$
       - builtin$
       - examples$
+    rules:
+      - linters:
+          - revive
+        text: "var-naming: don't use ALL_CAPS in Go names; use CamelCase"
+      - linters:
+          - staticcheck
+        text: "ST1005"
 formatters:
+  enable:
+    - gofumpt
+    - goimports
+    - gofmt
+    - golines
+    - gci
   exclusions:
     generated: lax
     paths:

@@ -43,7 +43,7 @@ func NewVerilatorSimulator(workDir string, moduleName string) *VerilatorSimulato
 func (sim *VerilatorSimulator) Compile() error {
 	// Create the obj_dir in the worker directory
 	objDir := filepath.Join(sim.workDir, "obj_dir")
-	if err := os.MkdirAll(objDir, 0755); err != nil {
+	if err := os.MkdirAll(objDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create obj_dir: %v", err)
 	}
 

@@ -118,7 +118,7 @@ func MockVerilogFile(filepath string) (string, error) {
 		for _, macro := range macros {
 			log.Printf("  %s\n", macro)
 		}
-		content = RemoveMacros(content, macros)
+		content = RemoveMacros(content)
 	}
 
 	// Detect enum casts
@@ -175,19 +175,6 @@ func isEnumIdentifier(name string, enums []EnumDefinition) bool {
 			if val == name {
 				return true
 			}
-		}
-	}
-	return false
-}
-
-// Helper function to check if content already has package definitions for our enums
-func containsDuplicatePackages(content string, enums []EnumDefinition) bool {
-	for _, enum := range enums {
-		// Look for package definitions like "package ibex_pkg;"
-		packagePattern := fmt.Sprintf("package\\s+%s\\s*;", enum.Package)
-		packageRegex := regexp.MustCompile(packagePattern)
-		if packageRegex.MatchString(content) {
-			return true
 		}
 	}
 	return false

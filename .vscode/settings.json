@@ -1,7 +1,12 @@
 {
   "sonarlint.analysisExcludesStandalone": "**/tmp_gen/testbench.cpp",
   "go.lintTool": "golangci-lint",
-  "go.formatTool": "gofmt",
+  "go.lintFlags": ["--path-mode=abs", "--fast-only"],
+  "go.formatTool": "custom",
+  "go.alternateTools": {
+    "customFormatter": "golangci-lint"
+  },
+  "go.formatFlags": ["fmt", "--stdin"],
   "go.vetOnSave": "package",
   "go.useLanguageServer": true,
   "go.toolsManagement.autoUpdate": true,

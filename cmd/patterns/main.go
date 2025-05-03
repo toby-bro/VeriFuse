@@ -68,7 +68,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to convert to JSON: %v", err)
 	}
-	if err := os.WriteFile("mismatches.json", jsonData, 0644); err != nil {
+	if err := os.WriteFile("mismatches.json", jsonData, 0o644); err != nil {
 		log.Fatalf("Failed to write JSON file: %v", err)
 	}
 	fmt.Println("Exported all mismatch data to mismatches.json")
@@ -82,7 +82,10 @@ func main() {
 func parseMismatchDir(dirPath, dirName string) (MismatchInfo, error) {
 	// Extract the test case ID from filename
 	var id int
-	fmt.Sscanf(dirName, "mismatch_%d", &id)
+	n, err := fmt.Sscanf(dirName, "mismatch_%d", &id)
+	if err != nil || n != 1 {
+		return MismatchInfo{}, fmt.Errorf("invalid directory name %s: %v", dirName, err)
+	}
 
 	// Initialize the mismatch info
 	result := MismatchInfo{
@@ -187,8 +190,10 @@ func analyzePatterns(mismatches []MismatchInfo) {
 		// Analyze parameter-related mismatches
 		for _, outputPair := range m.Outputs {
 			// Look for parameter-dependent mismatches (e.g., bit width issues)
-			if strings.Contains(outputPair.IVerilog, "x") && !strings.Contains(outputPair.Verilator, "x") ||
-				!strings.Contains(outputPair.IVerilog, "x") && strings.Contains(outputPair.Verilator, "x") {
+			if strings.Contains(outputPair.IVerilog, "x") &&
+				!strings.Contains(outputPair.Verilator, "x") ||
+				!strings.Contains(outputPair.IVerilog, "x") &&
+					strings.Contains(outputPair.Verilator, "x") {
 				paramMismatches++
 				break
 			}

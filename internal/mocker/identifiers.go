@@ -84,7 +84,8 @@ func ExtractEnumTypes(content string) []EnumDefinition {
 					fullPath := fmt.Sprintf("%s::%s", pkgName, enumName)
 
 					// Skip if already processed or defined
-					if _, exists := enumMap[fullPath]; exists || isEnumDefined(pkgName, enumName, definedEnums) {
+					if _, exists := enumMap[fullPath]; exists ||
+						isEnumDefined(pkgName, enumName, definedEnums) {
 						continue
 					}
 
@@ -373,13 +374,17 @@ func generatePlausibleEnumValues(enumName string) []string {
 	enumNameLower := strings.ToLower(enumName)
 
 	if strings.Contains(enumNameLower, "opcode") {
-		return []string{"OPCODE_LOAD", "OPCODE_STORE", "OPCODE_BRANCH", "OPCODE_JALR",
-			"OPCODE_JAL", "OPCODE_OP_IMM", "OPCODE_OP", "OPCODE_SYSTEM"}
+		return []string{
+			"OPCODE_LOAD", "OPCODE_STORE", "OPCODE_BRANCH", "OPCODE_JALR",
+			"OPCODE_JAL", "OPCODE_OP_IMM", "OPCODE_OP", "OPCODE_SYSTEM",
+		}
 	}
 
 	if strings.Contains(enumNameLower, "imm") && strings.Contains(enumNameLower, "sel") {
-		return []string{"IMM_A_ZERO", "IMM_A_CURR", "IMM_B_I", "IMM_B_S", "IMM_B_B",
-			"IMM_B_U", "IMM_B_J", "IMM_B_INCR_PC", "IMM_B_INCR_ADDR"}
+		return []string{
+			"IMM_A_ZERO", "IMM_A_CURR", "IMM_B_I", "IMM_B_S", "IMM_B_B",
+			"IMM_B_U", "IMM_B_J", "IMM_B_INCR_PC", "IMM_B_INCR_ADDR",
+		}
 	}
 
 	if strings.Contains(enumNameLower, "op_a_sel") {
@@ -408,9 +413,11 @@ func generatePlausibleEnumValues(enumName string) []string {
 	}
 
 	if strings.Contains(enumNameLower, "alu_op") {
-		return []string{"ALU_ADD", "ALU_SUB", "ALU_XOR", "ALU_OR", "ALU_AND",
+		return []string{
+			"ALU_ADD", "ALU_SUB", "ALU_XOR", "ALU_OR", "ALU_AND",
 			"ALU_SRA", "ALU_SRL", "ALU_SLL", "ALU_LT", "ALU_LTU", "ALU_GE",
-			"ALU_GEU", "ALU_EQ", "ALU_NE"}
+			"ALU_GEU", "ALU_EQ", "ALU_NE",
+		}
 	}
 
 	// Default: generate generic values
@@ -520,7 +527,8 @@ func extractLocallyDefinedTypes(content string) map[string]bool {
 
 			// If the enum declaration is on a single line, process it immediately
 			if strings.Contains(trimmedLine, "}") && strings.Contains(trimmedLine, ";") {
-				enumNameMatch := regexp.MustCompile(`}\s*([a-zA-Z0-9_]+)\s*;`).FindStringSubmatch(trimmedLine)
+				enumNameMatch := regexp.MustCompile(`}\s*([a-zA-Z0-9_]+)\s*;`).
+					FindStringSubmatch(trimmedLine)
 				if len(enumNameMatch) >= 2 {
 					definedTypes[enumNameMatch[1]] = true
 				}
@@ -603,7 +611,9 @@ func extractModuleDeclarations(content string, knownKeywords map[string]bool) {
 	}
 
 	// Get signal names from port list and declarations
-	signalRegex := regexp.MustCompile(`\b(?:input|output|inout)\s+(?:logic|wire|reg)?\s*(?:\[[^\]]+\])?\s*([a-zA-Z0-9_]+)`)
+	signalRegex := regexp.MustCompile(
+		`\b(?:input|output|inout)\s+(?:logic|wire|reg)?\s*(?:\[[^\]]+\])?\s*([a-zA-Z0-9_]+)`,
+	)
 	matches = signalRegex.FindAllStringSubmatch(content, -1)
 	for _, match := range matches {
 		if len(match) >= 2 {
@@ -614,11 +624,12 @@ func extractModuleDeclarations(content string, knownKeywords map[string]bool) {
 
 // InferContext attempts to determine the context of an identifier
 func InferContext(line string) string {
-	if strings.Contains(line, "opcode_e") {
+	switch {
+	case strings.Contains(line, "opcode_e"):
 		return "opcode"
-	} else if strings.Contains(line, "assign") {
+	case strings.Contains(line, "assign"):
 		return "signal"
-	} else if strings.Contains(line, "parameter") {
+	case strings.Contains(line, "parameter"):
 		return "parameter"
 	}
 	return "unknown"
@@ -704,11 +715,12 @@ func inferEnumBitWidth(enumType, context string) int {
 	lowerType := strings.ToLower(enumType)
 
 	// Common widths for different types of enums
-	if strings.Contains(lowerType, "op") && strings.Contains(lowerType, "code") {
-		return 7 // Typical opcode width
-	} else if strings.Contains(lowerType, "oper") {
+	switch {
+	case strings.Contains(lowerType, "op") && strings.Contains(lowerType, "code"):
+		return 7 // RISC-V opcode width
+	case strings.Contains(lowerType, "oper"):
 		return 3 // Typical operation enum width
-	} else if strings.Contains(lowerType, "mode") || strings.Contains(lowerType, "state") {
+	case strings.Contains(lowerType, "mode") || strings.Contains(lowerType, "state"):
 		return 2 // Typical mode/state enum width
 	}
 
@@ -717,7 +729,7 @@ func inferEnumBitWidth(enumType, context string) int {
 }
 
 // ReplaceMockedEnumCasts replaces all enum casts in the content with mocked values
-func ReplaceMockedEnumCasts(content string, enumCasts []EnumCast) string {
+func ReplaceMockedEnumCasts(content string) string {
 	// First, extract and protect parameter declarations from modification
 	paramDecls := make(map[string]string)
 	paramRegex := regexp.MustCompile(`(parameter\s+)([^=;]+)(=\s*[^;]+;)`)
@@ -779,7 +791,9 @@ func GenerateEnumDefinitions(enums []EnumDefinition) string {
 				bitWidth = 7
 			}
 
-			result.WriteString(fmt.Sprintf("    // Mock definition for %s::%s\n", enum.Package, enum.Name))
+			result.WriteString(
+				fmt.Sprintf("    // Mock definition for %s::%s\n", enum.Package, enum.Name),
+			)
 			result.WriteString(fmt.Sprintf("    typedef enum logic [%d:0] {\n", bitWidth-1))
 
 			// Add enum values with appropriate encoding
@@ -790,7 +804,8 @@ func GenerateEnumDefinitions(enums []EnumDefinition) string {
 				}
 
 				// Handle special enum value types
-				if strings.Contains(strings.ToLower(enum.Name), "opcode") && strings.HasPrefix(val, "OPCODE_") {
+				if strings.Contains(strings.ToLower(enum.Name), "opcode") &&
+					strings.HasPrefix(val, "OPCODE_") {
 					var opcodeValue string
 					// Use standard RISC-V opcodes
 					switch val {
