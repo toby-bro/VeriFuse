@@ -1,3 +1,21 @@
 {
-  "sonarlint.analysisExcludesStandalone": "**/tmp_gen/testbench.cpp"
+  "sonarlint.analysisExcludesStandalone": "**/tmp_gen/testbench.cpp",
+  "go.lintTool": "golangci-lint",
+  "go.formatTool": "gofmt",
+  "go.vetOnSave": "package",
+  "go.useLanguageServer": true,
+  "go.toolsManagement.autoUpdate": true,
+  "go.testTimeout": "180s",
+  "go.testEnvVars": {
+    "E2E_TESTS": "true"
+  },
+  "go.testFlags": ["-v"],
+  "[go]": {
+    "editor.defaultFormatter": "golang.go",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  }
 }

@@ -75,7 +75,7 @@ func ExtractEnumTypes(content string) []EnumDefinition {
 		if len(match) >= 2 {
 			pkgName := match[1]
 			// Look for uses of enums from this package
-			enumRefRegex := regexp.MustCompile(fmt.Sprintf(`%s::(\w+)`, pkgName))
+			enumRefRegex := regexp.MustCompile(pkgName + "::(\\w+)")
 			enumTypeMatches := enumRefRegex.FindAllStringSubmatch(content, -1)
 
 			for _, enumMatch := range enumTypeMatches {
@@ -415,10 +415,10 @@ func generatePlausibleEnumValues(enumName string) []string {
 
 	// Default: generate generic values
 	values := []string{
-		fmt.Sprintf("%s_VAL0", strings.ToUpper(enumName)),
-		fmt.Sprintf("%s_VAL1", strings.ToUpper(enumName)),
-		fmt.Sprintf("%s_VAL2", strings.ToUpper(enumName)),
-		fmt.Sprintf("%s_VAL3", strings.ToUpper(enumName)),
+		strings.ToUpper(enumName) + "_VAL0",
+		strings.ToUpper(enumName) + "_VAL1",
+		strings.ToUpper(enumName) + "_VAL2",
+		strings.ToUpper(enumName) + "_VAL3",
 	}
 
 	return values
@@ -640,7 +640,7 @@ func GetPlausibleValue(enumType string) string {
 	width := utils.InferBitWidth("")
 	switch {
 	case strings.HasSuffix(enumType, "_e"):
-		return fmt.Sprintf("%d", rand.Intn(8))
+		return strconv.Itoa(rand.Intn(8))
 	case strings.HasSuffix(enumType, "_t"):
 		return utils.GenerateRandomBitString(width)
 	default:
@@ -659,7 +659,7 @@ func MockIdentifier(id UndefinedIdentifier) string {
 	case strings.HasPrefix(id.Name, "OPCODE_"):
 		return utils.GenerateRandomBitString(7)
 	case strings.Contains(id.Context, "enum"):
-		return fmt.Sprintf("%d", rand.Intn(8))
+		return strconv.Itoa(rand.Intn(8))
 	case strings.Contains(id.Context, "logic"):
 		return utils.GenerateRandomBitString(width)
 	default:

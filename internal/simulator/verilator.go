@@ -2,6 +2,7 @@ package simulator
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -58,7 +59,7 @@ func (sim *VerilatorSimulator) Compile() error {
 					return fmt.Errorf("failed to generate testbenches: %v", err)
 				}
 			} else {
-				return fmt.Errorf("testbench.sv not found and module info not available")
+				return errors.New("testbench.sv not found and module info not available")
 			}
 		}
 
@@ -107,7 +108,7 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 	args := []string{}
 
 	// Add the input directory path
-	args = append(args, fmt.Sprintf("--input-dir=%s", inputDir))
+	args = append(args, "--input-dir="+inputDir)
 
 	// Add output file paths
 	for portName, outputPath := range outputPaths {

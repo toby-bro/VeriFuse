@@ -128,9 +128,10 @@ func (f *Fuzzer) Setup(mock bool) error {
 
 	for i, port := range module.Ports {
 		dirStr := "INPUT"
-		if port.Direction == verilog.OUTPUT {
+		switch port.Direction {
+		case verilog.OUTPUT:
 			dirStr = "OUTPUT"
-		} else if port.Direction == verilog.INOUT {
+		case verilog.INOUT:
 			dirStr = "INOUT"
 		}
 		f.debug.Log("  Port %d: %s (%s) [%d bits]", i+1, port.Name, dirStr, port.Width)
