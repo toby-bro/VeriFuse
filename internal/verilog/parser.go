@@ -123,7 +123,6 @@ func parseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 				}
 				// Matched [PARAM:0]
 				return widthVal + 1, nil
-
 			}
 			// Parameter value is not a simple integer, fall through to other checks
 			fmt.Printf(
