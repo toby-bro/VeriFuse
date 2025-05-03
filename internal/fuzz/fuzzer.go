@@ -486,7 +486,6 @@ func (f *Fuzzer) runSingleTest(
 			testDir,
 			testCase,
 			mismatchDetails,
-			ivResult,
 			workerModule,
 		) // Pass workerModule
 	}
@@ -560,7 +559,6 @@ func (f *Fuzzer) handleMismatch(
 	testDir string,
 	testCase map[string]string,
 	mismatchDetails map[string]string,
-	ivResult map[string]string, // Keep ivResult for actual values
 	workerModule *verilog.Module, // Use worker module to know expected outputs
 ) {
 	log.Printf("Mismatch found in test %d:\n", testIndex)
@@ -657,7 +655,9 @@ func (f *Fuzzer) worker(
 		log.Printf("Worker setup failed for %s: %v", workerID, err)
 		return
 	}
-	defer cleanup()
+	if false {
+		defer cleanup()
+	}
 
 	if err := f.copyWorkerFiles(workerID, workerDir, VerilogFileName); err != nil {
 		log.Printf("Failed to copy files for worker %s: %v", workerID, err)
