@@ -121,187 +121,192 @@ func GetRandomSnippet() (string, error) {
 	return snippets[randomIndex], nil
 }
 
-// parseVerilogString parses module information from a string content.
-// NOTE: This is a simplified version using regex, not the full parser logic.
-// It primarily extracts module name and ports from the header.
-func parseVerilogString(content string) (*verilog.Module, error) {
-	module := &verilog.Module{
-		Name:    "",
-		Ports:   []verilog.Port{},
-		Content: content,
-	}
-
-	// Find module declaration and port list
-	// module my_module ( input logic clk, output logic [7:0] data );
-	moduleRegex := regexp.MustCompile(`module\s+(\w+)\s*\(([\s\S]*?)\);`)
-	moduleMatches := moduleRegex.FindStringSubmatch(content)
-
-	if len(moduleMatches) < 3 {
-		return nil, errors.New("could not find module definition")
-	}
-	module.Name = moduleMatches[1]
-	portList := moduleMatches[2]
-
-	// Basic ANSI port parsing from header
-	ansiPortRegex := regexp.MustCompile(
-		`^\s*(input|output|inout)?\s*` + // Optional direction (1)
-			`(logic|reg|wire|bit|int)?\s*` + // Optional type (2) - simplified types
-			`(\[\s*[\w\-\+\:\s]+\s*\])?\s*` + // Optional range (3)
-			`(\w+)\s*$`, // Port name (4)
-	)
-
-	portDeclarations := strings.Split(portList, ",")
-	for _, decl := range portDeclarations {
-		decl = strings.TrimSpace(decl)
-		if decl == "" {
-			continue
-		}
-
-		matches := ansiPortRegex.FindStringSubmatch(decl)
-		if len(matches) >= 5 {
-			directionStr := strings.TrimSpace(matches[1])
-			portType := strings.TrimSpace(matches[2])
-			rangeStr := strings.TrimSpace(matches[3])
-			portName := strings.TrimSpace(matches[4])
-
-			if portType == "" {
-				portType = "logic"
-			} // Default
-
-			var direction verilog.PortDirection
-			switch directionStr {
-			case "input":
-				direction = verilog.INPUT
-			case "output":
-				direction = verilog.OUTPUT
-			case "inout":
-				direction = verilog.INOUT
-			default:
-				direction = verilog.INPUT // Default if missing
-			}
-
-			width := 1
-			if rangeStr != "" {
-				// Very basic check for multi-bit
-				if strings.Contains(rangeStr, ":") {
-					// Attempt to parse simple [N:0]
-					simpleRangeRegex := regexp.MustCompile(`\[\s*(\d+)\s*:\s*0\s*\]`)
-					switch wMatches := simpleRangeRegex.FindStringSubmatch(rangeStr); {
-					case len(wMatches) > 1:
-						n, err := fmt.Sscanf(wMatches[1], "%d", &width)
-						if err != nil || n != 1 {
-							return nil, fmt.Errorf("failed to parse width from range: %s", rangeStr)
-						}
-						width++ // width = N+1
-					default:
-						width = 8 // Default guess for multi-bit
-					}
-				}
-			}
-
-			module.Ports = append(module.Ports, verilog.Port{
-				Name: portName, Direction: direction, Type: portType, Width: width,
-			})
-		} else {
-			// Fallback for simple names (assume 1-bit logic input)
-			simpleNameRegex := regexp.MustCompile(`^\s*(\w+)\s*$`)
-			if nameMatches := simpleNameRegex.FindStringSubmatch(decl); len(nameMatches) > 1 {
-				module.Ports = append(module.Ports, verilog.Port{
-					Name: nameMatches[1], Direction: verilog.INPUT, Type: "logic", Width: 1,
-				})
-			}
-		}
-	}
-	if len(module.Ports) == 0 {
-		return nil, errors.New("could not parse any ports from module header")
-	}
-	return module, nil
-}
-
 // InjectSnippet attempts to inject a snippet module instantiation into the original content.
-// Draft version: Uses simplified parsing and placeholder connections.
-func InjectSnippet(originalContent, snippet string) (string, error) {
-	origLines := strings.Split(originalContent, "\n")
-	if len(origLines) <= 1 {
-		return originalContent, errors.New("original content too short to inject")
-	}
-
-	// Parse the snippet
-	snippetModule, err := parseVerilogString(snippet)
+// Uses the verilog parser to understand both original and snippet structures and attempts
+// to connect snippet inputs to compatible signals in the original module.
+func InjectSnippet(originalContent string, snippet string) (string, error) {
+	// 1. Parse Original Content
+	originalModule, err := verilog.ParseVerilogContent(
+		[]byte(originalContent),
+		"",
+	)
 	if err != nil {
-		return originalContent, fmt.Errorf("failed to parse snippet: %v", err)
+		// If parsing original fails, we cannot reliably inject.
+		return originalContent, fmt.Errorf("failed to parse original content: %v", err)
+	}
+	if originalModule == nil || originalModule.Name == "" {
+		return originalContent, errors.New("could not identify module in original content")
 	}
 
-	// --- Draft Instantiation ---
-	// TODO: Parse originalContent properly to find matching signals.
-	// For now, create placeholder signal names based on snippet port names.
+	// 2. Parse Snippet Content
+	snippetModule, err := verilog.ParseVerilogContent([]byte(snippet), "")
+	if err != nil {
+		// Attempt fallback like before if full parse fails
+		generalModuleRegex := regexp.MustCompile(`module\s+(\w+)`)
+		matches := generalModuleRegex.FindStringSubmatch(snippet)
+		fallbackName := "unknown_snippet"
+		if len(matches) > 1 {
+			fallbackName = matches[1]
+		}
+		fmt.Printf(
+			"Warning: Failed to fully parse snippet: %v. Proceeding with fallback name '%s' and no port info.\n",
+			err,
+			fallbackName,
+		)
+		snippetModule = &verilog.Module{
+			Name:    fallbackName,
+			Ports:   []verilog.Port{},
+			Content: snippet,
+		}
+		// Fallback might lead to empty instantiation if no ports are found
+	}
+	if snippetModule == nil || snippetModule.Name == "" {
+		return originalContent, errors.New("failed to identify module name in snippet")
+	}
+
+	// 4. Iterate Snippet Ports and Determine Connections/Declarations
 	instanceName := fmt.Sprintf("%s_inst_%d", snippetModule.Name, seededRand.Intn(10000))
 	instantiation := fmt.Sprintf("%s %s (", snippetModule.Name, instanceName)
 	connections := []string{}
-	newDeclarations := []string{} // Wires needed for snippet outputs
+	newDeclarations := []string{} // Wires/logic needed for snippet outputs/inouts
 
-	for _, port := range snippetModule.Ports {
-		// Basic renaming: replace GGG prefix if present
-		signalName := port.Name
-		if strings.HasPrefix(signalName, "GGG") {
-			signalName = "inj_" + strings.ToLower(
-				port.Name[3:],
-			) + fmt.Sprintf(
-				"_%d",
-				seededRand.Intn(100),
-			)
-		} else {
-			signalName = "inj_" + strings.ToLower(port.Name) + fmt.Sprintf("_%d", seededRand.Intn(100))
-		}
+	for _, snipPort := range snippetModule.Ports {
+		signalName := ""
+		foundMatch := false
 
-		connections = append(connections, fmt.Sprintf(".%s(%s)", port.Name, signalName))
-
-		// If it's an output, declare a wire for it (simplistic)
-		if port.Direction == verilog.OUTPUT {
-			widthStr := ""
-			if port.Width > 1 {
-				widthStr = fmt.Sprintf("[%d:0] ", port.Width-1)
+		// 5. Match Inputs
+		if snipPort.Direction == verilog.INPUT {
+			// Search original module ports for a compatible match
+			for _, origPort := range originalModule.Ports {
+				// Check for compatibility (Type, Width, Signedness)
+				// Allow connecting snippet input to any original port type for now
+				if origPort.Type == snipPort.Type &&
+					origPort.Width == snipPort.Width &&
+					origPort.IsSigned == snipPort.IsSigned {
+					signalName = origPort.Name
+					fmt.Printf(
+						"    Matching snippet input '%s' to original port '%s'\n",
+						snipPort.Name,
+						signalName,
+					)
+					foundMatch = true
+					// break // Use the first compatible match found
+				}
 			}
-			newDeclarations = append(
-				newDeclarations,
-				fmt.Sprintf("logic %s%s;", widthStr, signalName),
-			)
+			// If no compatible port found, generate placeholder
+			if !foundMatch {
+				signalName = fmt.Sprintf(
+					"inj_unconnected_%s_%d",
+					strings.ToLower(snipPort.Name),
+					seededRand.Intn(100),
+				)
+				fmt.Printf(
+					"    No compatible port found for snippet input '%s'. Using placeholder '%s'.\n",
+					snipPort.Name,
+					signalName,
+				)
+				// Optionally, declare this unconnected input? For now, leave it.
+			}
+		} else { // 6. Handle Outputs/Inouts
+			// Generate unique internal signal name
+			directionPrefix := "output"
+			if snipPort.Direction == verilog.INOUT {
+				directionPrefix = "inout"
+			}
+			signalName = fmt.Sprintf("inj_%s_%s_%d", directionPrefix, strings.ToLower(snipPort.Name), seededRand.Intn(1000))
+
+			// Generate declaration for this internal signal
+			widthStr := ""
+			if snipPort.Width > 1 {
+				widthStr = fmt.Sprintf("[%d:0] ", snipPort.Width-1)
+			}
+			portType := snipPort.Type
+			if portType == "" {
+				portType = "logic"
+			} // Default
+			signedStr := ""
+			if snipPort.IsSigned {
+				signedStr = "signed "
+			}
+			newDeclarations = append(newDeclarations, fmt.Sprintf("%s %s%s%s;", portType, signedStr, widthStr, signalName))
+			fmt.Printf("    Declaring internal signal '%s' for snippet %s '%s'\n", signalName, directionPrefix, snipPort.Name)
 		}
-		// TODO: Need to find matching *input* signals in originalContent or declare them too?
-		// For now, assume inputs magically exist or are driven elsewhere.
+
+		connections = append(connections, fmt.Sprintf(".%s(%s)", snipPort.Name, signalName))
 	}
 	instantiation += strings.Join(connections, ", ") + ");"
-	// --- End Draft Instantiation ---
 
-	// Find insertion point: Just before the first `endmodule`
-	insertionPoint := -1
-	for i := len(origLines) - 1; i >= 0; i-- {
-		if strings.HasPrefix(strings.TrimSpace(origLines[i]), "endmodule") {
-			insertionPoint = i
-			break
+	// 7. Find Insertion Point in originalContent string
+	// Find the start of the original module definition to ensure we insert inside it.
+	// Use the parsed actualTargetModule name.
+	moduleStartRegexStr := "(?m)^\\s*module\\s+" + regexp.QuoteMeta(originalModule.Name)
+	moduleStartRegex := regexp.MustCompile(moduleStartRegexStr)
+	moduleStartMatch := moduleStartRegex.FindStringIndex(originalContent)
+	if moduleStartMatch == nil {
+		return originalContent, fmt.Errorf(
+			"could not find start of module '%s' in original content",
+			originalModule.Name,
+		)
+	}
+
+	// Find the endmodule relative to the start of the module
+	endModuleRegex := regexp.MustCompile(`(?m)^\s*endmodule`)
+	endModuleMatch := endModuleRegex.FindStringIndex(
+		originalContent[moduleStartMatch[1]:],
+	) // Search after module header
+
+	var insertionPointIndex int
+	if endModuleMatch != nil {
+		insertionPointIndex = moduleStartMatch[1] + endModuleMatch[0] // Index in originalContent
+	} else {
+		// Fallback: Insert at the end of the string if endmodule not found (less ideal)
+		insertionPointIndex = len(originalContent)
+		fmt.Printf("Warning: Could not find 'endmodule' for '%s'. Inserting near end of content.\n", originalModule.Name)
+	}
+
+	// Determine indentation for insertion (find indent of the line before endmodule)
+	indent := "    " // Default indent
+	if insertionPointIndex > 0 {
+		prevNewline := strings.LastIndex(originalContent[:insertionPointIndex], "\n")
+		if prevNewline != -1 {
+			lineBeforeEndmodule := originalContent[prevNewline+1 : insertionPointIndex]
+			indentRegex := regexp.MustCompile(`^(\s*)`)
+			if matches := indentRegex.FindStringSubmatch(lineBeforeEndmodule); len(matches) > 1 {
+				// Use indent of the line itself if endmodule was on its own line,
+				// or just grab whitespace if endmodule shared a line (less likely)
+				if strings.TrimSpace(lineBeforeEndmodule) == "" ||
+					strings.HasPrefix(strings.TrimSpace(lineBeforeEndmodule), "endmodule") {
+					indent = matches[1] + "    " // Add typical indent level
+				} else {
+					indent = matches[1] // Use existing line's indent
+				}
+			}
 		}
 	}
-	if insertionPoint == -1 {
-		insertionPoint = len(origLines) - 1 // Fallback: end of file
-	}
 
-	// Inject the snippet module definition at the beginning
-	// and the instantiation + declarations at the insertion point.
+	// 8. Construct Result
 	var result strings.Builder
-	result.WriteString(snippet) // Add the snippet module definition
+	// Add snippet definition *before* the original module
+	result.WriteString(snippet)
 	result.WriteString("\n\n")
 
-	for i, line := range origLines {
-		if i == insertionPoint {
-			// Add new wire declarations needed for snippet outputs
-			for _, decl := range newDeclarations {
-				result.WriteString("    " + decl + "\n") // Assuming inside a module, add indent
-			}
-			result.WriteString("    " + instantiation + "\n") // Add the instantiation
+	// Add original content up to insertion point
+	result.WriteString(originalContent[:insertionPointIndex])
+
+	// Add new declarations
+	if len(newDeclarations) > 0 {
+		result.WriteString("\n" + indent + "// Declarations for injected module instance\n")
+		for _, decl := range newDeclarations {
+			result.WriteString(indent + decl + "\n")
 		}
-		result.WriteString(line)
-		result.WriteString("\n")
 	}
+
+	// Add the instantiation
+	result.WriteString(indent + "// Instantiation of injected module\n")
+	result.WriteString(indent + instantiation + "\n\n")
+
+	// Add rest of original content
+	result.WriteString(originalContent[insertionPointIndex:])
 
 	return result.String(), nil
 }
@@ -321,13 +326,13 @@ func AddCodeToSnippet(originalContent, snippet string) (string, error) {
 
 	// Find the //INJECT marker
 	injectIndex := -1
-	indent := ""
+	markerIndent := "" // Indent of the marker line itself
 	indentRegex := regexp.MustCompile(`^(\s*)`)
 	for i, line := range snippetLines {
 		if strings.Contains(line, "//INJECT") {
 			injectIndex = i
 			if matches := indentRegex.FindStringSubmatch(line); len(matches) > 1 {
-				indent = matches[1]
+				markerIndent = matches[1]
 			}
 			break
 		}
@@ -339,24 +344,59 @@ func AddCodeToSnippet(originalContent, snippet string) (string, error) {
 		) // Return original snippet
 	}
 
-	// Select 1 to 3 random lines from the original content (excluding module/endmodule/comments)
+	// Select 1 to 3 random lines from the original content (excluding module/endmodule/comments/declarations)
 	numLinesToInject := utils.RandomInt(1, 3)
 	injectedLines := []string{}
-	maxAttempts := 20
+	maxAttempts := 30 // Increased attempts
 	attempts := 0
-	validLineRegex := regexp.MustCompile(`^\s*(?:\/\/|module|endmodule|\/\*|\*\/)`) // Lines to skip
+	// Lines to skip: comments, module defs, declarations (input, output, wire, reg, logic, parameter, localparam)
+	skipLineRegex := regexp.MustCompile(
+		`^\s*(?:\/\/|\/\*|\*\/|module|endmodule|input|output|inout|wire|reg|logic|parameter|localparam)\b`,
+	)
+
+	// Try to find lines within the main module body if possible
+	originalModule, origErr := verilog.ParseVerilogContent(
+		[]byte(originalContent),
+		"",
+	)
+	startLine, endLine := 0, len(originalLines)-1
+	if origErr == nil && originalModule != nil {
+		// Very rough estimate of body lines (after header, before endmodule)
+		// This needs better line number info from parser ideally
+		moduleHeaderEndApprox := strings.Index(originalContent, ");")
+		moduleEndApprox := strings.LastIndex(originalContent, "endmodule")
+		if moduleHeaderEndApprox != -1 {
+			startLine = strings.Count(originalContent[:moduleHeaderEndApprox], "\n") + 1
+		}
+		if moduleEndApprox != -1 {
+			endLine = strings.Count(originalContent[:moduleEndApprox], "\n")
+		}
+	}
+
 	for len(injectedLines) < numLinesToInject && attempts < maxAttempts {
 		attempts++
-		idx := utils.RandomInt(0, len(originalLines)-1)
-		trimmedLine := strings.TrimSpace(originalLines[idx])
+		// Try to pick lines from the estimated body
+		idx := utils.RandomInt(startLine, endLine)
+		if idx >= len(originalLines) {
+			continue // Bounds check
+		}
 
-		if trimmedLine != "" && !validLineRegex.MatchString(originalLines[idx]) {
-			injectedLines = append(injectedLines, originalLines[idx])
+		line := originalLines[idx]
+		trimmedLine := strings.TrimSpace(line)
+
+		// Check if line is non-empty and not a comment/declaration/module boundary
+		if trimmedLine != "" && !skipLineRegex.MatchString(line) {
+			// Basic check to avoid injecting simple end/begin keywords alone
+			if trimmedLine != "end" && trimmedLine != "begin" &&
+				!strings.HasPrefix(trimmedLine, "end ") {
+				injectedLines = append(injectedLines, line)
+			}
 		}
 	}
 
 	if len(injectedLines) == 0 {
 		// If no lines selected, just remove the marker
+		fmt.Println("    No suitable lines found to inject. Removing //INJECT marker.")
 		return strings.Join(
 			append(snippetLines[:injectIndex], snippetLines[injectIndex+1:]...),
 			"\n",
@@ -366,17 +406,24 @@ func AddCodeToSnippet(originalContent, snippet string) (string, error) {
 	// Replace the //INJECT line with the selected lines
 	var result strings.Builder
 	result.WriteString(strings.Join(snippetLines[:injectIndex], "\n"))
-	result.WriteString("\n") // Ensure newline before injected code
-
-	for _, line := range injectedLines {
-		// Try to preserve relative indentation from original line, plus snippet indent
-		originalIndent := ""
-		if matches := indentRegex.FindStringSubmatch(line); len(matches) > 1 {
-			originalIndent = matches[1]
-		}
-		result.WriteString(indent + originalIndent + strings.TrimSpace(line) + "\n")
+	// Keep newline before injected code only if injectIndex > 0
+	if injectIndex > 0 {
+		result.WriteString("\n")
 	}
-	result.WriteString(strings.Join(snippetLines[injectIndex+1:], "\n"))
+
+	fmt.Printf("    Injecting %d lines into snippet...\n", len(injectedLines))
+	for _, line := range injectedLines {
+		// Combine marker indent with the original line's content (trimmed and re-indented)
+		// This might double-indent if originalIndent wasn't just whitespace, be careful.
+		// Let's just use markerIndent + trimmed line for simplicity.
+		result.WriteString(markerIndent + strings.TrimSpace(line) + "\n")
+	}
+
+	// Add lines after the marker
+	if injectIndex+1 < len(snippetLines) {
+		// Ensure newline after injected code only if there are subsequent lines
+		result.WriteString(strings.Join(snippetLines[injectIndex+1:], "\n"))
+	}
 
 	// DRAFT: Returns the modified snippet. Caller needs to handle integration.
 	// TODO: Adapt snippet interface based on variables in injectedLines.
