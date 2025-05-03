@@ -2,6 +2,7 @@ package verilog
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -44,6 +45,75 @@ type Module struct {
 	Content    string
 }
 
+// --- Regex Helper Functions ---
+
+func matchSpecificModule(content []byte, targetModule string) [][]byte {
+	// Find module declaration - supports parameter section with #(...)
+	moduleRegex := regexp.MustCompile(
+		fmt.Sprintf(
+			`module\s+%s\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);`,
+			regexp.QuoteMeta(targetModule),
+		),
+	)
+	return moduleRegex.FindSubmatch(content)
+}
+
+func matchGeneralModule(content []byte) [][]byte {
+	// Try with any module name if specific module not found
+	generalModuleRegex := regexp.MustCompile(
+		`module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);`,
+	)
+	return generalModuleRegex.FindSubmatch(content)
+}
+
+func extractPortNameFromList(portString string) string {
+	portName := strings.TrimSpace(portString)
+	// Extract just the identifier part without any data type or direction
+	if matches := regexp.MustCompile(`\.(\w+)\s*\(`).FindStringSubmatch(portName); len(
+		matches,
+	) > 1 {
+		// Named port connection like .clk(clk)
+		return matches[1]
+	} else if matches := regexp.MustCompile(`(\w+)\s*$`).FindStringSubmatch(portName); len(matches) > 1 {
+		// Simple port like 'clk' or at the end of a declaration like 'input clk'
+		return matches[1]
+	}
+	return "" // Return empty if no valid name found
+}
+
+func matchInputPort(line string) []string {
+	inputRegex := regexp.MustCompile(
+		`input\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`,
+	)
+	return inputRegex.FindStringSubmatch(line)
+}
+
+func matchOutputPort(line string) []string {
+	outputRegex := regexp.MustCompile(
+		`output\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`,
+	)
+	return outputRegex.FindStringSubmatch(line)
+}
+
+func matchInoutPort(line string) []string {
+	inoutRegex := regexp.MustCompile(
+		`inout\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`,
+	)
+	return inoutRegex.FindStringSubmatch(line)
+}
+
+func matchParameter(param string) []string {
+	// Better parameter regex that handles both formats:
+	// 1. parameter [type] NAME = VALUE
+	// 2. parameter type qualifier NAME = VALUE (e.g., int unsigned NUM_REQS = 2)
+	paramRegex := regexp.MustCompile(
+		`(?:parameter)?\s*(?:(\w+(?:\s+(?:unsigned|signed))?)|(\w+))\s+(\w+)(?:\s*=\s*([^,]+))?`,
+	)
+	return paramRegex.FindStringSubmatch(param)
+}
+
+// --- End Regex Helper Functions ---
+
 // Utility functions for bit width parsing
 func parseRange(rangeStr string) (int, error) {
 	// Handle common formats: [7:0], [WIDTH-1:0], etc.
@@ -57,7 +127,10 @@ func parseRange(rangeStr string) (int, error) {
 	simpleRangeRegex := regexp.MustCompile(`\[\s*(\d+)\s*:\s*0\s*\]`)
 	if matches := simpleRangeRegex.FindStringSubmatch(rangeStr); len(matches) > 1 {
 		var width int
-		fmt.Sscanf(matches[1], "%d", &width)
+		n, err := fmt.Sscanf(matches[1], "%d", &width)
+		if err != nil || n != 1 {
+			return 0, fmt.Errorf("invalid range format: %s", rangeStr)
+		}
 		return width + 1, nil
 	}
 
@@ -73,13 +146,15 @@ func parseRange(rangeStr string) (int, error) {
 	}
 
 	// Handle more complex expressions by approximation
-	if strings.Contains(strings.ToLower(rangeStr), "addr") {
+	lowerRangeStr := strings.ToLower(rangeStr)
+	switch {
+	case strings.Contains(lowerRangeStr, "addr"):
 		return 32, nil // Address typically 32 bits
-	} else if strings.Contains(strings.ToLower(rangeStr), "data") {
+	case strings.Contains(lowerRangeStr, "data"):
 		return 32, nil // Data typically 32 bits
-	} else if strings.Contains(strings.ToLower(rangeStr), "byte") {
+	case strings.Contains(lowerRangeStr, "byte"):
 		return 8, nil // Byte is 8 bits
-	} else if strings.Contains(strings.ToLower(rangeStr), "word") {
+	case strings.Contains(lowerRangeStr, "word"):
 		return 32, nil // Word typically 32 bits
 	}
 
@@ -106,30 +181,27 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 		targetModule = strings.TrimSuffix(baseName, filepath.Ext(baseName))
 	}
 
-	// Find module declaration - now supports parameter section with #(...)
-	moduleRegex := regexp.MustCompile(fmt.Sprintf(`module\s+%s\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);`, regexp.QuoteMeta(targetModule)))
-	moduleMatches := moduleRegex.FindSubmatch(content)
+	// Use helper function to find module declaration
+	moduleMatches := matchSpecificModule(content, targetModule)
 
 	if len(moduleMatches) < 3 {
-		// Try with any module name if specific module not found
-		generalModuleRegex := regexp.MustCompile(`module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);`)
-		generalMatches := generalModuleRegex.FindSubmatch(content)
+		// Use helper function to find general module declaration
+		generalMatches := matchGeneralModule(content)
 
 		if len(generalMatches) < 4 {
-			return nil, fmt.Errorf("no module found in the file")
+			return nil, errors.New("no module found in the file")
 		}
 
 		targetModule = string(generalMatches[1])
-		// If parameters section exists, it will be in index 2, and port list in index 3
-		// If no parameters, then port list will be in index 2
-		var paramList, portList []byte
-		if len(generalMatches[2]) > 0 {
-			paramList = generalMatches[2]
-			portList = generalMatches[3]
-		} else {
-			portList = generalMatches[3]
+		// Reconstruct moduleMatches structure for consistent handling below
+		var paramListBytes, portListBytes []byte
+		if len(generalMatches[2]) > 0 { // Parameters exist
+			paramListBytes = generalMatches[2]
+			portListBytes = generalMatches[3]
+		} else { // No parameters
+			portListBytes = generalMatches[3] // Port list is the 3rd group (index 2 is empty)
 		}
-		moduleMatches = [][]byte{generalMatches[0], paramList, portList}
+		moduleMatches = [][]byte{generalMatches[0], paramListBytes, portListBytes}
 	}
 
 	// Extract parameters and port list
@@ -157,33 +229,21 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 		parseParameters(paramList, module)
 	}
 
-	// Extract module port names from the port list
+	// Extract module port names from the port list using helper function
 	portNames := make(map[string]bool)
 	for _, p := range strings.Split(portList, ",") {
-		portName := strings.TrimSpace(p)
-
-		// Extract just the identifier part without any data type or direction
-		if matches := regexp.MustCompile(`\.(\w+)\s*\(`).FindStringSubmatch(portName); len(matches) > 1 {
-			// Named port connection like .clk(clk)
-			portName = matches[1]
-		} else if matches := regexp.MustCompile(`(\w+)\s*$`).FindStringSubmatch(portName); len(matches) > 1 {
-			// Simple port like 'clk' or at the end of a declaration like 'input clk'
-			portName = matches[1]
-		}
-
+		portName := extractPortNameFromList(p)
 		if portName != "" {
 			portNames[portName] = true
 		}
 	}
 
 	// Now scan the file to find port declarations
-	file.Seek(0, 0) // Reset to beginning of file
+	_, err = file.Seek(0, 0) // Reset to beginning of file
+	if err != nil {
+		return nil, fmt.Errorf("failed to seek file: %v", err)
+	}
 	scanner := bufio.NewScanner(file)
-
-	// Regular expressions for port declarations - updated to better isolate port names
-	inputRegex := regexp.MustCompile(`input\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`)
-	outputRegex := regexp.MustCompile(`output\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`)
-	inoutRegex := regexp.MustCompile(`inout\s+(reg|wire|logic)?\s*(\[\s*[\w\-\+\:]+\s*\])?\s*(\w+)\s*`)
 
 	// Process each line
 	inComment := false
@@ -210,73 +270,51 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 		if strings.Contains(line, "module "+targetModule) {
 			inModule = true
 		} else if strings.Contains(line, "endmodule") && inModule {
-			inModule = false
-			break
+			break // Exit loop once endmodule is found
 		}
 
 		if !inModule {
 			continue
 		}
 
-		// Check for input ports
-		if matches := inputRegex.FindStringSubmatch(line); len(matches) > 3 {
+		// Use helper functions to check for port declarations
+		if matches := matchInputPort(line); len(matches) > 3 {
 			isReg := matches[1] == "reg"
 			rangeStr := matches[2]
-			portName := matches[3]
+			portName := strings.TrimSpace(matches[3]) // Clean port name
 
-			// Clean any comments or extra whitespace from portName
-			portName = strings.TrimSpace(portName)
-
-			// Only add if it's in the module port list
 			if portNames[portName] {
 				width, _ := parseRange(rangeStr)
-
 				module.Ports = append(module.Ports, Port{
 					Name:      portName,
 					Direction: INPUT,
 					Width:     width,
-					IsSigned:  false, // Assume unsigned by default
+					IsSigned:  false,
 					IsReg:     isReg,
 				})
 			}
-		}
-
-		// Check for output ports
-		if matches := outputRegex.FindStringSubmatch(line); len(matches) > 3 {
+		} else if matches := matchOutputPort(line); len(matches) > 3 {
 			isReg := matches[1] == "reg"
 			rangeStr := matches[2]
-			portName := matches[3]
+			portName := strings.TrimSpace(matches[3]) // Clean port name
 
-			// Clean any comments or extra whitespace from portName
-			portName = strings.TrimSpace(portName)
-
-			// Only add if it's in the module port list
 			if portNames[portName] {
 				width, _ := parseRange(rangeStr)
-
 				module.Ports = append(module.Ports, Port{
 					Name:      portName,
 					Direction: OUTPUT,
 					Width:     width,
-					IsSigned:  false, // Assume unsigned by default
+					IsSigned:  false,
 					IsReg:     isReg,
 				})
 			}
-		}
-
-		// Check for inout ports
-		if matches := inoutRegex.FindStringSubmatch(line); len(matches) > 3 {
+		} else if matches := matchInoutPort(line); len(matches) > 3 {
 			isReg := matches[1] == "reg"
 			rangeStr := matches[2]
-			portName := matches[3]
+			portName := strings.TrimSpace(matches[3]) // Clean port name
 
-			// Clean any comments or extra whitespace from portName
-			portName = strings.TrimSpace(portName)
-
-			// Only add if it's in the module port list
 			if portNames[portName] {
 				width, _ := parseRange(rangeStr)
-
 				module.Ports = append(module.Ports, Port{
 					Name:      portName,
 					Direction: INOUT,
@@ -289,16 +327,17 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 	}
 
 	// Fall back to simpler port list extraction if we couldn't find port declarations
-	if len(module.Ports) == 0 {
+	if len(module.Ports) == 0 && len(portNames) > 0 { // Check if portNames were extracted
 		// Basic heuristic: assume inputs end with _i, outputs with _o
 		for portName := range portNames {
 			var direction PortDirection
-			if strings.HasSuffix(portName, "_i") || strings.HasSuffix(portName, "_in") {
+			switch {
+			case strings.HasSuffix(portName, "_i") || strings.HasSuffix(portName, "_in"):
 				direction = INPUT
-			} else if strings.HasSuffix(portName, "_o") || strings.HasSuffix(portName, "_out") {
+			case strings.HasSuffix(portName, "_o") || strings.HasSuffix(portName, "_out"):
 				direction = OUTPUT
-			} else {
-				// Default to input
+			default:
+				// Default to input if no suffix matches
 				direction = INPUT
 			}
 
@@ -330,12 +369,8 @@ func parseParameters(paramList string, module *Module) {
 			continue
 		}
 
-		// Better parameter regex that handles both formats:
-		// 1. parameter [type] NAME = VALUE
-		// 2. parameter type qualifier NAME = VALUE (e.g., int unsigned NUM_REQS = 2)
-		paramRegex := regexp.MustCompile(`(?:parameter)?\s*(?:(\w+(?:\s+(?:unsigned|signed))?)|(\w+))\s+(\w+)(?:\s*=\s*([^,]+))?`)
-
-		matches := paramRegex.FindStringSubmatch(param)
+		// Use helper function to match parameter
+		matches := matchParameter(param)
 
 		if len(matches) >= 4 {
 			var paramType, paramName, paramValue string
