@@ -2,6 +2,7 @@ package verilog
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -405,17 +406,14 @@ func extractPortNamesFromListString(portListStr string) (map[string]Port, []stri
 	return headerPorts, headerPortOrder
 }
 
-// scanForPortDeclarations scans the file content to find detailed port declarations (non-ANSI style).
+// scanForPortDeclarations scans the provided reader content to find detailed port declarations (non-ANSI style).
 // It returns a map of port names to fully parsed Port structs found in the body.
 func scanForPortDeclarations(
-	file *os.File,
+	reader io.Reader, // Changed from *os.File to io.Reader
 	targetModule string,
 ) (map[string]Port, error) {
-	_, err := file.Seek(0, 0) // Reset to beginning of file
-	if err != nil {
-		return nil, fmt.Errorf("failed to seek file: %v", err)
-	}
-	scanner := bufio.NewScanner(file)
+	// No need to seek, scanner works directly with the reader from its current position
+	scanner := bufio.NewScanner(reader)
 
 	parsedPortsMap := make(map[string]Port) // Ports found in body scan
 
@@ -497,7 +495,7 @@ func scanForPortDeclarations(
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error scanning file: %v", err)
+		return nil, fmt.Errorf("error scanning content: %v", err) // Updated error message
 	}
 
 	return parsedPortsMap, nil
@@ -554,6 +552,72 @@ func applyPortDeclarationFallback(
 	module.Ports = append(module.Ports, portsToAdd...)
 }
 
+// mergePortInfo combines information from header parsing and body scanning.
+// It prioritizes details found in the body scan (non-ANSI) over header placeholders or potentially incomplete ANSI info.
+func mergePortInfo(
+	headerPorts map[string]Port,
+	parsedPortsMap map[string]Port,
+	headerPortOrder []string,
+) []Port {
+	finalPorts := []Port{}
+	processedPorts := make(map[string]bool)
+
+	for _, nameInHeader := range headerPortOrder {
+		if processedPorts[nameInHeader] {
+			continue // Already processed (e.g., duplicate name in header)
+		}
+
+		headerPort, foundInHeader := headerPorts[nameInHeader]
+		bodyPort, foundInBody := parsedPortsMap[nameInHeader]
+
+		if !foundInHeader {
+			// This shouldn't happen if headerPortOrder comes from headerPorts keys, but handle defensively
+			fmt.Printf("Warning: Port '%s' in order but not found in header map.\n", nameInHeader)
+			continue
+		}
+
+		finalPort := headerPort // Start with header info
+
+		// If found in body scan, these details are more accurate for non-ANSI or override header info
+		if foundInBody {
+			finalPort.Direction = bodyPort.Direction
+			finalPort.Type = bodyPort.Type
+			finalPort.Width = bodyPort.Width
+			finalPort.IsSigned = bodyPort.IsSigned
+		}
+
+		// Final check for width=0 (shouldn't happen with parseRange defaulting to 1 or body scan)
+		if finalPort.Width == 0 {
+			fmt.Printf(
+				"Warning: Port '%s' ended up with width 0 after merge. Setting to 1.\n",
+				finalPort.Name,
+			)
+			finalPort.Width = 1
+		}
+
+		finalPorts = append(finalPorts, finalPort)
+		processedPorts[nameInHeader] = true
+	}
+
+	// Add any ports found ONLY in the body scan (e.g., if header list was incomplete or malformed)
+	// This is less common but possible.
+	for nameInBody, bodyPort := range parsedPortsMap {
+		if !processedPorts[nameInBody] {
+			fmt.Printf(
+				"Warning: Port '%s' found in body scan but not listed in header. Adding anyway.\n",
+				nameInBody,
+			)
+			if bodyPort.Width == 0 { // Ensure width is valid
+				bodyPort.Width = 1
+			}
+			finalPorts = append(finalPorts, bodyPort)
+			processedPorts[nameInBody] = true
+		}
+	}
+
+	return finalPorts
+}
+
 // ParseVerilogFile parses a Verilog file and extracts module information
 func ParseVerilogFile(filename string, providedTargetModule string) (*Module, error) {
 	file, content, err := openAndReadFile(filename)
@@ -564,31 +628,38 @@ func ParseVerilogFile(filename string, providedTargetModule string) (*Module, er
 
 	targetModule := determineTargetModule(filename, providedTargetModule)
 
-	actualTargetModule, paramListStr, portListStr, err := findModuleDeclaration(
+	// Find module declaration first to get the actual name and port list string
+	actualTargetModule, paramListStr, portListStr, findErr := findModuleDeclaration(
 		content,
 		targetModule,
 	)
-	if err != nil {
-		// Try finding *any* module if the target wasn't found explicitly
+	if findErr != nil {
+		// Attempt fallback to find *any* module
 		generalMatches := matchGeneralModule(content)
 		if len(generalMatches) < 4 {
 			return nil, fmt.Errorf(
-				"no module found matching '%s' or any other name in the file: %w",
+				"no module found matching '%s' or any other name in file '%s': %w",
 				targetModule,
-				err,
+				filename,
+				findErr,
 			)
 		}
 		fmt.Printf(
-			"Warning: Target module '%s' not found, parsing first module '%s' instead.\n",
+			"Warning: Target module '%s' not found in file '%s', parsing first module '%s' instead.\n",
 			targetModule,
+			filename,
 			string(generalMatches[1]),
 		)
 		actualTargetModule = string(generalMatches[1])
-		if len(generalMatches[2]) > 0 { // Parameters exist
+		if len(generalMatches[2]) > 0 {
 			paramListStr = string(generalMatches[2])
+		} else {
+			paramListStr = ""
+		}
+		if len(generalMatches[3]) > 0 {
 			portListStr = string(generalMatches[3])
-		} else { // No parameters
-			portListStr = string(generalMatches[3])
+		} else {
+			portListStr = ""
 		}
 	}
 
@@ -600,68 +671,150 @@ func ParseVerilogFile(filename string, providedTargetModule string) (*Module, er
 		Content:    string(content),
 	}
 
-	// Parse parameters if they exist
+	// Parse parameters
 	if paramListStr != "" {
 		parseParameters(paramListStr, module)
 	}
 
-	// --- Enhanced Port Parsing ---
-	// 1. Parse the header list (ANSI or simple names)
+	// Parse header ports (ANSI or placeholders)
 	headerPorts, headerPortOrder := extractPortNamesFromListString(portListStr)
 
-	// 2. Scan the module body for detailed non-ANSI declarations
-	parsedPortsMap, err := scanForPortDeclarations(file, actualTargetModule)
-	if err != nil {
-		return nil, fmt.Errorf("error scanning for port declarations: %v", err)
+	// Re-scan the file from the beginning for non-ANSI port declarations
+	_, seekErr := file.Seek(0, 0)
+	if seekErr != nil {
+		return nil, fmt.Errorf("failed to seek file for non-ANSI scan: %v", seekErr)
+	}
+	parsedPortsMap, scanErr := scanForPortDeclarations(
+		file,
+		actualTargetModule,
+	) // Pass the file object (io.Reader)
+	if scanErr != nil {
+		// Log warning but proceed, header info might be sufficient
+		fmt.Printf("Warning: Error during scan for non-ANSI ports in '%s': %v\n", filename, scanErr)
+		// Ensure parsedPortsMap is not nil
+		if parsedPortsMap == nil {
+			parsedPortsMap = make(map[string]Port)
+		}
 	}
 
-	// 3. Build the final Ports slice based on header order, combining header and body info
-	processedPorts := make(
-		map[string]bool,
-	) // Track ports added to avoid duplicates if logic overlaps
-	for _, nameInHeader := range headerPortOrder {
-		if processedPorts[nameInHeader] {
-			continue // Already processed (e.g., duplicate name in header)
-		}
+	// Merge header and body scan information
+	module.Ports = mergePortInfo(headerPorts, parsedPortsMap, headerPortOrder)
 
-		headerPort := headerPorts[nameInHeader]               // Get the port info parsed from header (ANSI or placeholder)
-		bodyPort, foundInBody := parsedPortsMap[nameInHeader] // Get info found in body (non-ANSI)
+	// Apply fallback for ports that remained placeholders after merge
+	applyPortDeclarationFallback(
+		module,
+		headerPorts,
+		parsedPortsMap,
+	) // Pass original headerPorts and parsedPortsMap
 
-		finalPort := headerPort // Start with header info
-
-		// Determine if the header port was just a placeholder (simple name)
-
-		if foundInBody {
-			// If found in body, these details are more specific/correct for non-ANSI ports
-			// or override potentially incomplete ANSI header info.
-			finalPort.Direction = bodyPort.Direction
-			finalPort.Type = bodyPort.Type
-			finalPort.Width = bodyPort.Width
-			finalPort.IsSigned = bodyPort.IsSigned
-		}
-
-		// Final check for width=0 (shouldn't happen with parseRange defaulting to 1 on error)
-		if finalPort.Width == 0 {
-			fmt.Printf("Warning: Port '%s' ended up with width 0. Setting to 1.\n", finalPort.Name)
-			finalPort.Width = 1
-		}
-
-		module.Ports = append(module.Ports, finalPort)
-		processedPorts[nameInHeader] = true
-	}
-
-	// 4. Apply fallback logic for any ports found in the list but not fully defined
-	applyPortDeclarationFallback(module, headerPorts, parsedPortsMap)
-
+	// Final checks on parsed ports
 	if len(module.Ports) == 0 && portListStr != "" {
-		// If portListStr was not empty but we still have no ports, something went wrong
 		return nil, fmt.Errorf(
-			"failed to parse any ports for module %s despite port list being present",
+			"failed to parse any ports for module %s in file '%s' despite port list being present",
+			actualTargetModule,
+			filename,
+		)
+	} else if len(module.Ports) == 0 {
+		fmt.Printf("Warning: No ports found or parsed for module %s in file '%s'. Module might have no ports.\n", actualTargetModule, filename)
+	}
+
+	return module, nil
+}
+
+// ParseVerilogContent parses Verilog content provided as bytes and extracts module information.
+// It attempts to find the specified targetModule or the first module if targetModule is empty.
+// The filename is used for context (e.g., error messages, default module name).
+func ParseVerilogContent(
+	content []byte,
+	targetModule string,
+) (*Module, error) {
+	// Find module declaration first
+	actualTargetModule, paramListStr, portListStr, findErr := findModuleDeclaration(
+		content,
+		targetModule,
+	)
+	if findErr != nil {
+		// Attempt fallback to find *any* module
+		generalMatches := matchGeneralModule(content)
+		if len(generalMatches) < 4 {
+			return nil, fmt.Errorf(
+				"no module found matching '%s' or any other name in content: %w",
+				targetModule,
+				findErr,
+			)
+		}
+		fmt.Printf(
+			"Warning: Target module '%s' not found in content, parsing first module '%s' instead.\n",
+			targetModule,
+			string(generalMatches[1]),
+		)
+		actualTargetModule = string(generalMatches[1])
+		if len(generalMatches[2]) > 0 {
+			paramListStr = string(generalMatches[2])
+		} else {
+			paramListStr = ""
+		}
+		if len(generalMatches[3]) > 0 {
+			portListStr = string(generalMatches[3])
+		} else {
+			portListStr = ""
+		}
+	}
+
+	module := &Module{
+		Name:       actualTargetModule,
+		Filename:   "snippet_temp.sv", // Store original filename context
+		Ports:      []Port{},
+		Parameters: []Parameter{},
+		Content:    string(content), // Store the original content parsed
+	}
+
+	// Parse parameters
+	if paramListStr != "" {
+		parseParameters(paramListStr, module)
+	}
+
+	// Parse header ports (ANSI or placeholders)
+	headerPorts, headerPortOrder := extractPortNamesFromListString(portListStr)
+
+	// Scan the content for non-ANSI port declarations using a reader
+	contentReader := bytes.NewReader(
+		content,
+	) // Create reader from byte slice
+	parsedPortsMap, scanErr := scanForPortDeclarations(
+		contentReader,
+		actualTargetModule,
+	) // Pass the reader
+	if scanErr != nil {
+		// Log warning but proceed
+		fmt.Printf(
+			"Warning: Error during scan for non-ANSI ports in content: %v\n",
+			scanErr,
+		)
+		// Ensure parsedPortsMap is not nil
+		if parsedPortsMap == nil {
+			parsedPortsMap = make(map[string]Port)
+		}
+	}
+
+	// Merge header and body scan information
+	module.Ports = mergePortInfo(headerPorts, parsedPortsMap, headerPortOrder)
+
+	// Apply fallback for ports that remained placeholders after merge
+	applyPortDeclarationFallback(
+		module,
+		headerPorts,
+		parsedPortsMap,
+	) // Pass original headerPorts and parsedPortsMap
+
+	// Final checks on parsed ports
+	if len(module.Ports) == 0 && portListStr != "" {
+		return nil, fmt.Errorf(
+			"failed to parse any ports for module %s from content despite port list being present",
 			actualTargetModule,
 		)
 	} else if len(module.Ports) == 0 {
-		// If portListStr was empty and we found nothing, it might be a module with no ports
-		fmt.Printf("Warning: No ports found or parsed for module %s. Module might have no ports.\n", actualTargetModule)
+		fmt.Printf("Warning: No ports found or parsed for module %s from content. Module might have no ports.\n", actualTargetModule)
 	}
 
 	return module, nil
