@@ -136,7 +136,7 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 		// Attempt to list contents of obj_dir for debugging
 		objDirPath := filepath.Dir(sim.execPath)
 		files, readErr := os.ReadDir(objDirPath)
-		fileList := "unavailable"
+		var fileList string
 		if readErr == nil {
 			names := make([]string, 0, len(files))
 			for _, f := range files {
