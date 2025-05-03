@@ -112,7 +112,7 @@ func LoadSnippets() ([]string, error) {
 
 	if repoRoot == "" {
 		// Should not happen if the loop logic is correct, but handle defensively
-		return nil, fmt.Errorf("repository root could not be determined")
+		return nil, errors.New("repository root could not be determined")
 	}
 
 	// Construct the path to the snippets directory relative to the repo root

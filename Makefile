@@ -53,7 +53,7 @@ tests: test-go
 .PHONY: lint
 lint:
 	@echo "Running linters..."
-	@golangci-lint run ./... --timeout 10m --color=always --fix
+	@golangci-lint run ./... --timeout 10s --color=always --fix
 
 .PHONY: bash-tests
 bash-tests: build-fuzzer clean test-go
