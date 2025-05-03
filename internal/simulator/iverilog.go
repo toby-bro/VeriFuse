@@ -29,38 +29,12 @@ func NewIVerilogSimulator(workDir string, verbose bool) *IVerilogSimulator {
 
 // Compile compiles the verilog files with IVerilog
 func (sim *IVerilogSimulator) Compile() error {
-	return sim.CompileSpecific(nil)
+	return sim.CompileSpecific()
 }
 
 // CompileSpecific compiles only the specified files (or all .sv files if nil)
-func (sim *IVerilogSimulator) CompileSpecific(specificFiles []string) error {
+func (sim *IVerilogSimulator) CompileSpecific() error {
 	sim.debug.Printf("Starting IVerilog compile in %s", sim.workDir)
-
-	var fileNames []string
-
-	if specificFiles == nil || len(specificFiles) == 0 {
-		// Look for all Verilog files in the work directory
-		files, err := filepath.Glob(filepath.Join(sim.workDir, "*.sv"))
-		if err != nil {
-			return fmt.Errorf("failed to find Verilog files: %v", err)
-		}
-
-		if len(files) == 0 {
-			return fmt.Errorf("no Verilog files found in %s", sim.workDir)
-		}
-
-		// Get just the filenames for the command
-		fileNames = make([]string, 0, len(files))
-		for _, f := range files {
-			fileNames = append(fileNames, filepath.Base(f))
-		}
-	} else {
-		// Use the specified files
-		fileNames = make([]string, len(specificFiles))
-		for i, f := range specificFiles {
-			fileNames[i] = filepath.Base(f)
-		}
-	}
 
 	// Compile directly in the work directory
 	cmdArgs := []string{"-o", "module_sim_iv", "-g2012", "-gsupported-assertions", "testbench.sv"}
@@ -96,13 +70,17 @@ func (sim *IVerilogSimulator) CompileSpecific(specificFiles []string) error {
 				fileList = append(fileList, f.Name())
 			}
 			sim.debug.Printf("Directory contents: %v", fileList)
-			return fmt.Errorf("executable not created at: %s (directory exists: %v)", execPath, true)
+			return fmt.Errorf(
+				"executable not created at: %s (directory exists: %v)",
+				execPath,
+				true,
+			)
 		}
 		return fmt.Errorf("error checking executable: %v", err)
 	}
 
 	// Make sure the executable has the right permissions
-	if err := os.Chmod(execPath, 0755); err != nil {
+	if err := os.Chmod(execPath, 0o755); err != nil {
 		return fmt.Errorf("failed to set executable permissions: %v", err)
 	}
 

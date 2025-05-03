@@ -76,7 +76,7 @@ func copyFile(src, dst string) error {
 
 	// Ensure destination directory exists
 	dstDir := filepath.Dir(dst)
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
 		return err
 	}
 
@@ -128,7 +128,6 @@ func TestPfuzzEndToEnd(t *testing.T) {
 		}
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("Failed to walk testfiles directory: %v", err)
 	}
@@ -205,24 +204,38 @@ func TestPfuzzEndToEnd(t *testing.T) {
 				readDirContents := func(dirPath string, prefix string) {
 					if _, err := os.Stat(dirPath); !os.IsNotExist(err) {
 						extraInfo.WriteString(fmt.Sprintf("Contents of %s:\n", dirPath))
-						err := filepath.WalkDir(dirPath, func(path string, d os.DirEntry, err error) error {
-							if err != nil {
-								extraInfo.WriteString(fmt.Sprintf("  Error accessing path %s: %v\n", path, err))
-								return err // Propagate error if needed, or skip
-							}
-							if !d.IsDir() {
-								content, readErr := os.ReadFile(path)
-								relPath, _ := filepath.Rel(dirPath, path)
-								if readErr != nil {
-									extraInfo.WriteString(fmt.Sprintf("  %s%s: Error reading file: %v\n", prefix, relPath, readErr))
-								} else {
-									extraInfo.WriteString(fmt.Sprintf("  %s%s:\n%s\n", prefix, relPath, string(content)))
+						err := filepath.WalkDir(
+							dirPath,
+							func(path string, d os.DirEntry, err error) error {
+								if err != nil {
+									extraInfo.WriteString(
+										fmt.Sprintf("  Error accessing path %s: %v\n", path, err),
+									)
+									return err // Propagate error if needed, or skip
 								}
-							}
-							return nil
-						})
+								if !d.IsDir() {
+									content, readErr := os.ReadFile(path)
+									relPath, _ := filepath.Rel(dirPath, path)
+									if readErr != nil {
+										extraInfo.WriteString(
+											fmt.Sprintf(
+												"  %s%s: Error reading file: %v\n",
+												prefix,
+												relPath,
+												readErr,
+											),
+										)
+									} else {
+										extraInfo.WriteString(fmt.Sprintf("  %s%s:\n%s\n", prefix, relPath, string(content)))
+									}
+								}
+								return nil
+							},
+						)
 						if err != nil {
-							extraInfo.WriteString(fmt.Sprintf("  Error walking directory %s: %v\n", dirPath, err))
+							extraInfo.WriteString(
+								fmt.Sprintf("  Error walking directory %s: %v\n", dirPath, err),
+							)
 						}
 					} else {
 						extraInfo.WriteString(dirPath + " directory not found.\n")
@@ -234,8 +247,15 @@ func TestPfuzzEndToEnd(t *testing.T) {
 				readDirContents(debugDir, "debug_logs/")
 				extraInfo.WriteString("--- End Extra Info ---\n")
 
-				t.Errorf("pfuzz command failed for %s in %s with error: %v\nArgs: %v\nOutput:\n%s%s",
-					testFileRelPath, tempTestDir, err, args, string(output), extraInfo.String())
+				t.Errorf(
+					"pfuzz command failed for %s in %s with error: %v\nArgs: %v\nOutput:\n%s%s",
+					testFileRelPath,
+					tempTestDir,
+					err,
+					args,
+					string(output),
+					extraInfo.String(),
+				)
 
 				t.Errorf("pfuzz command failed for %s in %s with error: %v\nArgs: %v\nOutput:\n%s",
 					testFileRelPath, tempTestDir, err, args, string(output))

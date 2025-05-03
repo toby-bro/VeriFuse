@@ -26,6 +26,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y iverilog verilator
 
+      - name: Lint Go Code
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest # Using latest, as v2.1.5 is not a standard golangci-lint version format. Adjust if needed.
+
+      - name: Vet Go Code
+        run: go vet ./...
+
+      - name: Check Go Formatting
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Go code is not formatted:"
+            gofmt -s -l .
+            exit 1
+          fi
+
       - name: Build
         run: |
           make build

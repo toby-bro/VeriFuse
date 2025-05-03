@@ -50,6 +50,11 @@ test-go: build-fuzzer
 .PHONY: tests
 tests: test-go
 
+.PHONY: lint
+lint:
+	@echo "Running linters..."
+	@golangci-lint run ./... --timeout 10m --color=always --fix
+
 .PHONY: bash-tests
 bash-tests: build-fuzzer clean test-go
 	@echo "Running tests on SystemVerilog modules..."

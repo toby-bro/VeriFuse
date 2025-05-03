@@ -26,7 +26,7 @@ func EnsureDirs() error {
 	}
 
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %v", dir, err)
 		}
 	}
@@ -37,7 +37,7 @@ func EnsureDirs() error {
 // EnsureTmpDir creates the temporary directory if it doesn't exist
 func EnsureTmpDir() error {
 	if _, err := os.Stat(TMP_DIR); os.IsNotExist(err) {
-		return os.MkdirAll(TMP_DIR, 0755)
+		return os.MkdirAll(TMP_DIR, 0o755)
 	}
 	return nil
 }
@@ -61,7 +61,7 @@ func WriteBinFile(filename string, data uint8) error {
 	fileOpMutex.Lock()
 	defer fileOpMutex.Unlock()
 
-	return os.WriteFile(filename, []byte{data + '0'}, 0644)
+	return os.WriteFile(filename, []byte{data + '0'}, 0o644)
 }
 
 // Thread-safe version of ReadFileContent
@@ -83,11 +83,11 @@ func WriteFileContent(path string, content string) error {
 
 	// Ensure the directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %v", dir, err)
 	}
 
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0o644)
 }
 
 // TmpPath returns the path within the temporary directory
@@ -102,7 +102,7 @@ func CopyFile(src, dst string) error {
 
 	// Ensure the destination directory exists
 	dir := filepath.Dir(dst)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %v", dir, err)
 	}
 
@@ -113,7 +113,7 @@ func CopyFile(src, dst string) error {
 	}
 
 	// Write destination file
-	return os.WriteFile(dst, data, 0644)
+	return os.WriteFile(dst, data, 0o644)
 }
 
 // FileExists checks if a file exists and is not a directory

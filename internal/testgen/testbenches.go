@@ -8,8 +8,9 @@ package testgen
 // 4. Input count
 // 5. Input read code
 // 6. Reset toggle code
-// 7. Output count
-// 8. Output write code
+// 7. Clock toggle code
+// 8. Output count
+// 9. Output write code
 const svTestbenchTemplate = `// filepath: testbench.sv
 %s // Include the mocked module file
 
@@ -26,6 +27,9 @@ module top;
 %s
 
         // Toggle reset if a reset signal was identified
+%s
+
+        // Toggle clock signals
 %s
 
         // Allow module to process

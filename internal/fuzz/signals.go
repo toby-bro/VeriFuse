@@ -150,7 +150,10 @@ func ClassifySignals(module *verilog.Module) map[string]SignalConstraint {
 
 // EnhanceSignalConstraints adds advanced signal relationship information
 // to the existing constraint classification
-func EnhanceSignalConstraints(constraints map[string]SignalConstraint, module *verilog.Module) map[string]SignalConstraint {
+func EnhanceSignalConstraints(
+	constraints map[string]SignalConstraint,
+	module *verilog.Module,
+) map[string]SignalConstraint {
 	// Clone the constraints to avoid modifying the original
 	enhanced := make(map[string]SignalConstraint)
 	for k, v := range constraints {
@@ -223,7 +226,8 @@ func detectProtocolPairs(module *verilog.Module) map[string]string {
 
 	for _, port := range module.Ports {
 		name := strings.ToLower(port.Name)
-		if strings.Contains(name, "valid") && (port.Direction == verilog.INPUT || port.Direction == verilog.INOUT) {
+		if strings.Contains(name, "valid") &&
+			(port.Direction == verilog.INPUT || port.Direction == verilog.INOUT) {
 			validSignals = append(validSignals, port.Name)
 		}
 		if strings.Contains(name, "ready") {
@@ -281,6 +285,8 @@ func GetSignalFamily(constraint SignalConstraint) SignalFamily {
 		return FAMILY_DATA
 	case SIGNAL_CLOCK, SIGNAL_RESET:
 		return FAMILY_TIMING
+	case SIGNAL_NORMAL:
+		return FAMILY_STATE
 	default:
 		return FAMILY_STATE
 	}
