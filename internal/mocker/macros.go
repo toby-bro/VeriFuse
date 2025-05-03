@@ -163,7 +163,7 @@ func RemoveMacros(content string, macros []string) string {
 	for _, assertion := range assertionMacros {
 		// Simply comment out the entire assertion
 		replacement := generateAssertionReplacement(assertion)
-		content = strings.Replace(content, assertion.FullText, replacement, -1)
+		content = strings.ReplaceAll(content, assertion.FullText, replacement)
 	}
 
 	// Handle include statements - completely remove them

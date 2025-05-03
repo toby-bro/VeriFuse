@@ -51,7 +51,7 @@ func (g *Generator) GenerateSVTestbench() error {
 
 	// Create the module instance - use explicit port connections instead of .*
 	var moduleInst strings.Builder
-	moduleInst.WriteString(fmt.Sprintf("    %s", g.module.Name))
+	moduleInst.WriteString("    " + g.module.Name)
 	// Add parameters if present
 	if len(g.module.Parameters) > 0 {
 		moduleInst.WriteString(" #(\n")
@@ -125,9 +125,7 @@ func (g *Generator) GenerateSVTestbench() error {
 			if strings.Contains(portNameLower, "rst") || strings.Contains(portNameLower, "reset") {
 				resetPort = portName
 				// Determine if active high or low (active low has _n, _ni, or _l suffix)
-				isActiveHigh = !(strings.HasSuffix(portNameLower, "_n") ||
-					strings.HasSuffix(portNameLower, "_ni") ||
-					strings.HasSuffix(portNameLower, "_l"))
+				isActiveHigh = !strings.HasSuffix(portNameLower, "_n") && !strings.HasSuffix(portNameLower, "_ni") && !strings.HasSuffix(portNameLower, "_l")
 			}
 		}
 	}
@@ -322,9 +320,7 @@ func (g *Generator) GenerateCppTestbench() error {
 				resetName = portName
 
 				// Determine if active high or low (default to active high if unclear)
-				resetActiveHigh = !(strings.HasSuffix(portNameLower, "_n") ||
-					strings.HasSuffix(portNameLower, "_ni") ||
-					strings.HasSuffix(portNameLower, "_l"))
+				resetActiveHigh = !strings.HasSuffix(portNameLower, "_n") && !strings.HasSuffix(portNameLower, "_ni") && !strings.HasSuffix(portNameLower, "_l")
 				break
 			}
 		}

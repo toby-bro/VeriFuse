@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,7 +16,7 @@ import (
 func findProjectRoot() (string, error) {
 	_, b, _, ok := runtime.Caller(0)
 	if !ok {
-		return "", fmt.Errorf("cannot get caller information")
+		return "", errors.New("cannot get caller information")
 	}
 	basepath := filepath.Dir(b)
 	// Navigate up from internal/e2e to the root
@@ -30,7 +31,7 @@ func findProjectRoot() (string, error) {
 		}
 		basepath = parent
 	}
-	return "", fmt.Errorf("go.mod not found within 3 levels up from test file")
+	return "", errors.New("go.mod not found within 3 levels up from test file")
 }
 
 // buildPfuzz ensures the pfuzz binary exists in the project root, building it if necessary.
@@ -224,7 +225,7 @@ func TestPfuzzEndToEnd(t *testing.T) {
 							extraInfo.WriteString(fmt.Sprintf("  Error walking directory %s: %v\n", dirPath, err))
 						}
 					} else {
-						extraInfo.WriteString(fmt.Sprintf("%s directory not found.\n", dirPath))
+						extraInfo.WriteString(dirPath + " directory not found.\n")
 					}
 				}
 

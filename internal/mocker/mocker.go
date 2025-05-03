@@ -150,8 +150,8 @@ func MockVerilogFile(filepath string) (string, error) {
 				(strings.HasSuffix(undef.Name, "_e") ||
 					strings.HasSuffix(undef.Name, "_t") ||
 					strings.Contains(undef.Context, "parameter")) {
-				content = strings.Replace(content, undef.Name,
-					MockIdentifier(undef), -1)
+				content = strings.ReplaceAll(content, undef.Name,
+					MockIdentifier(undef))
 			}
 		}
 	}

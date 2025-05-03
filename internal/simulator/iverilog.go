@@ -152,10 +152,10 @@ func (sim *IVerilogSimulator) RunTest(inputDir string, outputPaths map[string]st
 		return fmt.Errorf("iverilog execution failed: %v - %s", err, stderr.String())
 	}
 
-	//sim.debug.Printf("Simulation completed successfully")
+	// sim.debug.Printf("Simulation completed successfully")
 
 	// Wait to ensure file system has completed writing
-	//time.Sleep(50 * time.Millisecond)
+	// time.Sleep(50 * time.Millisecond)
 
 	// Copy output files to their expected paths with the iv_ prefix
 	for portName, outputPath := range outputPaths {

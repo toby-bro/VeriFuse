@@ -1,6 +1,7 @@
 package simulator
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -153,5 +154,5 @@ func ReadOutputFile(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read file after retries: %v", err)
 	}
-	return "", fmt.Errorf("file exists but is empty")
+	return "", errors.New("file exists but is empty")
 }

@@ -41,7 +41,7 @@ func main() {
 	}
 
 	if *mocked {
-		module.Name = fmt.Sprintf("%s_mocked", module.Name)
+		module.Name = module.Name + "_mocked"
 	}
 
 	debug.Log("Using module: %s", module.Name)
@@ -72,7 +72,7 @@ func main() {
 					InputValues map[string]string
 					Description string
 				}{
-					Name:        fmt.Sprintf("%s_0", port.Name),
+					Name:        port.Name + "_0",
 					InputValues: map[string]string{port.Name: "0"},
 					Description: fmt.Sprintf("Test %s with value 0", port.Name),
 				})
@@ -82,7 +82,7 @@ func main() {
 					InputValues map[string]string
 					Description string
 				}{
-					Name:        fmt.Sprintf("%s_1", port.Name),
+					Name:        port.Name + "_1",
 					InputValues: map[string]string{port.Name: "1"},
 					Description: fmt.Sprintf("Test %s with value 1", port.Name),
 				})
@@ -93,7 +93,7 @@ func main() {
 					InputValues map[string]string
 					Description string
 				}{
-					Name:        fmt.Sprintf("%s_zero", port.Name),
+					Name:        port.Name + "_zero",
 					InputValues: map[string]string{port.Name: "0"},
 					Description: fmt.Sprintf("Test %s with all zeros", port.Name),
 				})
@@ -106,7 +106,7 @@ func main() {
 					InputValues map[string]string
 					Description string
 				}{
-					Name:        fmt.Sprintf("%s_max", port.Name),
+					Name:        port.Name + "_max",
 					InputValues: map[string]string{port.Name: maxVal},
 					Description: fmt.Sprintf("Test %s with all ones", port.Name),
 				})
@@ -118,7 +118,7 @@ func main() {
 					InputValues map[string]string
 					Description string
 				}{
-					Name:        fmt.Sprintf("%s_random", port.Name),
+					Name:        port.Name + "_random",
 					InputValues: map[string]string{port.Name: randValue},
 					Description: fmt.Sprintf("Test %s with random value 0x%s", port.Name, randValue),
 				})
@@ -231,7 +231,7 @@ func main() {
 
 		// Create mismatch directory if needed
 		if mismatch {
-			mismatchDir := filepath.Join(utils.MISMATCHES_DIR, fmt.Sprintf("focused_%s", tc.Name))
+			mismatchDir := filepath.Join(utils.MISMATCHES_DIR, "focused_"+tc.Name)
 			os.MkdirAll(mismatchDir, 0755)
 
 			for portName := range tc.InputValues {

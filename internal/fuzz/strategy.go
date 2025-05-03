@@ -3,6 +3,7 @@ package fuzz
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/internal/verilog"
@@ -112,7 +113,7 @@ func (s *SimpleStrategy) GenerateTestCase(iteration int) map[string]string {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			if port.Width == 1 {
 				// For single-bit ports, generate 0 or 1
-				testCase[port.Name] = fmt.Sprintf("%d", r.Intn(2))
+				testCase[port.Name] = strconv.Itoa(r.Intn(2))
 			} else {
 				// For other multi-bit ports, generate appropriate width hex value
 				testCase[port.Name] = GenerateHexValue(port.Width, r)
@@ -152,7 +153,7 @@ func (s *RandomStrategy) GenerateTestCase(iteration int) map[string]string {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			if port.Width == 1 {
 				// For single-bit ports
-				testCase[port.Name] = fmt.Sprintf("%d", r.Intn(2))
+				testCase[port.Name] = strconv.Itoa(r.Intn(2))
 			} else {
 				// For multi-bit ports, use different strategies
 				strategy := r.Intn(5)
@@ -241,7 +242,7 @@ func (s *SmartStrategy) GenerateTestCase(iteration int) map[string]string {
 					bitPos := r.Intn(port.Width)
 					valueInt ^= (uint64(1) << bitPos)
 
-					testCase[port.Name] = fmt.Sprintf("%x", valueInt)
+					testCase[port.Name] = strconv.FormatUint(valueInt, 16)
 				}
 			}
 		}
@@ -286,7 +287,7 @@ func (s *SmartStrategy) GenerateTestCase(iteration int) map[string]string {
 				// For small multi-bit control signals
 				maxValue := uint64(1<<port.Width) - 1
 				value := r.Uint64() % (maxValue + 1)
-				testCase[port.Name] = fmt.Sprintf("%x", value)
+				testCase[port.Name] = strconv.FormatUint(value, 16)
 			}
 		}
 
@@ -317,11 +318,11 @@ func (s *SmartStrategy) GenerateTestCase(iteration int) map[string]string {
 			case 5: // Powers of 2
 				power := r.Intn(port.Width)
 				value := uint64(1) << power
-				testCase[port.Name] = fmt.Sprintf("%x", value)
+				testCase[port.Name] = strconv.FormatUint(value, 16)
 			case 6: // Powers of 2 minus 1
 				power := r.Intn(port.Width) + 1
 				value := uint64((1 << power) - 1)
-				testCase[port.Name] = fmt.Sprintf("%x", value)
+				testCase[port.Name] = strconv.FormatUint(value, 16)
 			default: // Fully random value
 				testCase[port.Name] = GenerateHexValue(port.Width, r)
 			}
@@ -362,7 +363,7 @@ func (s *SmartStrategy) GenerateTestCase(iteration int) map[string]string {
 
 		// For all other signals, generate appropriate values based on width
 		if port.Width == 1 {
-			testCase[port.Name] = fmt.Sprintf("%d", r.Intn(2))
+			testCase[port.Name] = strconv.Itoa(r.Intn(2))
 		} else {
 			// Use smarter generation with proper width
 			strategy := r.Intn(8)
