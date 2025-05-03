@@ -2,6 +2,7 @@ package testgen
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -22,10 +23,23 @@ func NewGenerator(module *verilog.Module) *Generator {
 	}
 }
 
-// GenerateTestbenches creates both SystemVerilog and C++ testbenches
+// GenerateTestbenches creates both SystemVerilog and C++ testbenches in the default TMP_DIR
 func (g *Generator) GenerateTestbenches() error {
-	if err := g.GenerateSVTestbench(); err != nil {
-		return fmt.Errorf("failed to generate SystemVerilog testbench: %v", err)
+	return g.GenerateTestbenchesInDir(utils.TMP_DIR)
+}
+
+// GenerateTestbenchesInDir creates both SystemVerilog and C++ testbenches in the specified directory
+func (g *Generator) GenerateTestbenchesInDir(outputDir string) error {
+	// Ensure the output directory exists
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory %s: %w", outputDir, err)
+	}
+
+	if err := g.GenerateSVTestbench(outputDir); err != nil {
+		return fmt.Errorf("failed to generate SystemVerilog testbench in %s: %v", outputDir, err)
+	}
+	if err := g.GenerateCppTestbench(outputDir); err != nil {
+		return fmt.Errorf("failed to generate C++ testbench in %s: %v", outputDir, err)
 	}
 	return nil
 }
@@ -272,8 +286,8 @@ func (g *Generator) generateSVOutputWrites() (string, int) {
 	return outputWrites.String(), outputCount
 }
 
-// GenerateSVTestbench creates the SystemVerilog testbench
-func (g *Generator) GenerateSVTestbench() error {
+// GenerateSVTestbench creates the SystemVerilog testbench in the specified directory
+func (g *Generator) GenerateSVTestbench(outputDir string) error {
 	// Generate different parts of the testbench
 	declarations := g.generateSVPortDeclarations()
 	moduleInst := g.generateSVModuleInstantiation()
@@ -283,7 +297,9 @@ func (g *Generator) GenerateSVTestbench() error {
 	clockToggleStr := g.generateSVClockToggling(clockPorts)
 	outputWritesStr, outputCount := g.generateSVOutputWrites()
 
-	// Include the mocked module file
+	// Include the mocked module file - assumes the verilog file is in the same dir
+	// The path might need adjustment depending on where the worker copies the verilog file relative to testbench.sv
+	// Assuming they are in the same directory (outputDir) for now.
 	includeDirective := fmt.Sprintf("`include \"%s.sv\"", g.module.Name)
 
 	// Apply the generated code to the template
@@ -298,11 +314,13 @@ func (g *Generator) GenerateSVTestbench() error {
 		outputCount,
 		outputWritesStr)
 
-	return utils.WriteFileContent(filepath.Join(utils.TMP_DIR, "testbench.sv"), testbench)
+	// Write to the specified output directory
+	svTestbenchPath := filepath.Join(outputDir, "testbench.sv")
+	return utils.WriteFileContent(svTestbenchPath, testbench)
 }
 
-// GenerateCppTestbench creates the C++ testbench for Verilator
-func (g *Generator) GenerateCppTestbench() error {
+// GenerateCppTestbench creates the C++ testbench for Verilator in the specified directory
+func (g *Generator) GenerateCppTestbench(outputDir string) error {
 	// Generate input reading code
 	var inputDecls strings.Builder
 	var inputReads strings.Builder
@@ -329,7 +347,7 @@ func (g *Generator) GenerateCppTestbench() error {
         delete dut;
         return 1;
     }
-`, portName, utils.TMP_DIR, fileName, portName, fileName))
+`, portName, outputDir, fileName, portName, fileName))
 
 			// Add value parsing
 			if port.Width > 1 {
@@ -440,7 +458,7 @@ func (g *Generator) GenerateCppTestbench() error {
         delete dut;
         return 1;
     }
-`, portName, utils.TMP_DIR, fileName, portName, fileName))
+`, portName, outputDir, fileName, portName, fileName))
 
 			if port.Width > 1 {
 				outputWrites.WriteString(fmt.Sprintf("    %s_file << std::hex << dut->%s;\n",
@@ -465,7 +483,9 @@ func (g *Generator) GenerateCppTestbench() error {
 		clockHandling.String(),
 		outputWrites.String())
 
-	return utils.WriteFileContent(filepath.Join(utils.TMP_DIR, "testbench.cpp"), testbench)
+	// Write to the specified output directory
+	cppTestbenchPath := filepath.Join(outputDir, "testbench.cpp")
+	return utils.WriteFileContent(cppTestbenchPath, testbench)
 }
 
 // Helper function to find the smallest standard integer size (8, 16, 32, 64)

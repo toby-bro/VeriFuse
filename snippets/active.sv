@@ -1,10 +1,3 @@
-module top (
-    input logic GGGin,
-    output logic GGGout
-);
-    assign GGGout = GGGin;
-endmodule
-
 module GGG_always_comb (
     input logic GGGin,
     output logic GGGout

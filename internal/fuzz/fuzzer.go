@@ -114,156 +114,103 @@ func (f *Fuzzer) Setup(mock bool) error {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
 
-	// Parse the Verilog file to extract module information
-	module, err := verilog.ParseVerilogFile(f.verilogFile, f.moduleName)
+	// Parse the *original* Verilog file to extract module information for reference
+	// The actual module used by workers might be mutated.
+	originalModule, err := verilog.ParseVerilogFile(f.verilogFile, f.moduleName)
 	if err != nil {
-		return fmt.Errorf("failed to parse Verilog file: %v", err)
+		return fmt.Errorf("failed to parse original Verilog file: %v", err)
 	}
-	f.module = module
+	f.module = originalModule // Store the original module info
+
+	originalVerilogFile := f.verilogFile // Keep track of the original path
+	originalModuleName := f.moduleName
 
 	if mock {
-		f.module.Name = addMockedSuffix(module.Name)
+		// If mocking, update the expected module name and file path for the mocked version
+		f.module.Name = addMockedSuffix(originalModule.Name)
 		f.verilogFile = addMockedSuffix(f.verilogFile)
+		f.moduleName = f.module.Name // Update moduleName to the mocked one
 	}
 
-	// Update the strategy with module information
+	// Update the strategy with *original* module information
 	if moduleAwareStrategy, ok := f.strategy.(ModuleAwareStrategy); ok {
-		moduleAwareStrategy.SetModule(module)
+		moduleAwareStrategy.SetModule(f.module) // Strategy uses original module structure
 	}
 
-	f.debug.Log("Parsed module '%s' with %d ports", module.Name, len(module.Ports))
+	f.debug.Log("Parsed original module '%s' with %d ports", f.module.Name, len(f.module.Ports))
 
-	for i, port := range module.Ports {
-		dirStr := "INPUT"
-		switch port.Direction {
-		case verilog.OUTPUT:
-			dirStr = "OUTPUT"
-		case verilog.INOUT:
-			dirStr = "INOUT"
-		case verilog.INPUT:
-			dirStr = "INPUT"
-		case verilog.INTERNAL:
-			dirStr = "INTERNAL"
-		}
-		f.debug.Log("  Port %d: %s (%s) [%d bits]", i+1, port.Name, dirStr, port.Width)
+	// Prepare the Verilog file (mocked or copied) in the main tmp directory
+	// Workers will copy this file and potentially mutate it.
+	verilogFileName := filepath.Base(f.verilogFile)
+	verilogPath := filepath.Join(utils.TMP_DIR, verilogFileName)
+
+	// Use the original file path for PrepareSVFile if mocking, otherwise use the (potentially already suffixed) f.verilogFile
+	sourceFileForPrepare := originalVerilogFile
+	if !mock {
+		sourceFileForPrepare = f.verilogFile
 	}
 
-	// Prepare mocked Verilog file
-	VerilogFileName := filepath.Base(f.verilogFile)
-	VerilogPath := filepath.Join(utils.TMP_DIR, VerilogFileName)
-
-	if err := PrepareSVFile(f.verilogFile, VerilogPath, mock); err != nil {
+	if err := PrepareSVFile(sourceFileForPrepare, verilogPath, mock); err != nil {
 		return err
 	}
 
-	// Generate testbenches based on module information
-	gen := testgen.NewGenerator(module)
-	if err := gen.GenerateTestbenches(); err != nil {
-		return fmt.Errorf("failed to generate testbenches: %v", err)
+	// Testbench generation and compilation are moved to workers.
+	// Just test the availability of the simulation tools here.
+	f.debug.Log("Verilog file prepared at %s", verilogPath)
+
+	// Test IVerilog and Verilator availability/basic function
+	if err := testIVerilogTool(); err != nil {
+		return fmt.Errorf("iverilog tool check failed: %v", err)
+	}
+	if err := testVerilatorTool(); err != nil {
+		return fmt.Errorf("verilator tool check failed: %v", err)
 	}
 
-	testbenchPath := filepath.Join(utils.TMP_DIR, "testbench.sv")
-	if _, err := os.Stat(testbenchPath); os.IsNotExist(err) {
-		return fmt.Errorf("testbench file was not created at %s", testbenchPath)
-	}
-
-	f.debug.Log("Created testbenches in %s directory", utils.TMP_DIR)
-
-	// Create a setup directory for compilation
-	setupDir := filepath.Join(utils.TMP_DIR, "setup")
-	if err := os.MkdirAll(setupDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create setup directory: %v", err)
-	}
-
-	// Copy the necessary files to the setup directory
-	setupVerilogPath := filepath.Join(setupDir, VerilogFileName)
-	setupTestbenchPath := filepath.Join(setupDir, "testbench.sv")
-
-	if err := utils.CopyFile(VerilogPath, setupVerilogPath); err != nil {
-		return fmt.Errorf("failed to copy Verilog file to setup dir: %v", err)
-	}
-
-	if err := utils.CopyFile(testbenchPath, setupTestbenchPath); err != nil {
-		return fmt.Errorf("failed to copy testbench to setup dir: %v", err)
-	}
-
-	// Verify the copied files exist in the setup directory
-	if _, err := os.Stat(setupVerilogPath); os.IsNotExist(err) {
-		return fmt.Errorf("failed to verify copied verilog file in setup dir: %s", setupVerilogPath)
-	}
-
-	if _, err := os.Stat(setupTestbenchPath); os.IsNotExist(err) {
-		return fmt.Errorf("failed to verify copied testbench in setup dir: %s", setupTestbenchPath)
-	}
-
-	// Test IVerilog and Verilator compilation
-	if err := testIVerilog(setupDir); err != nil {
-		return fmt.Errorf("iverilog test failed: %v", err)
-	}
-	if err := testVerilator(setupDir, module.Name); err != nil {
-		return fmt.Errorf("verilator test failed: %v", err)
-	}
+	// Restore original module name if it was mocked, as f.moduleName is used by workers
+	// to find the module *after* mutation (assuming mutation doesn't change the top module name drastically)
+	f.moduleName = originalModuleName
 
 	return nil
 }
 
-func testIVerilog(setupDir string) error {
-	// Test basic IVerilog functionality
-	testFile := filepath.Join(setupDir, "test.sv")
-	testContent := `
-    module test;
-      initial begin
-        $display("IVerilog test");
-        $finish;
-      end
-    endmodule
-    `
-	if err := os.WriteFile(testFile, []byte(testContent), 0o644); err != nil {
-		return fmt.Errorf("failed to write IVerilog test file: %v", err)
+// testIVerilogTool checks if iverilog is installed and runnable.
+func testIVerilogTool() error {
+	cmd := exec.Command("iverilog", "-V") // Check version as a basic test
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		// Try running without -V if that fails, some versions might not support it well
+		cmd = exec.Command("iverilog")
+		stderr.Reset()
+		cmd.Stderr = &stderr
+		if errSimple := cmd.Run(); errSimple != nil &&
+			!strings.Contains(stderr.String(), "Usage:") {
+			// If running `iverilog` itself fails and doesn't show usage, it's likely not installed/path issue
+			return fmt.Errorf(
+				"iverilog basic check failed, check installation/PATH: %v - %s",
+				errSimple, // Report the error from the simpler command
+				stderr.String(),
+			)
+		}
+		// If the simple command ran or showed usage, it's likely installed, even if -V failed.
 	}
+	log.Println("IVerilog tool found.")
+	return nil
+}
 
-	// Test IVerilog with a simple compilation first
-	testExecPath := "test"
-	cmd := exec.Command("iverilog", "-o", testExecPath, "test.sv")
-	cmd.Dir = setupDir
+// testVerilatorTool checks if verilator is installed and runnable.
+func testVerilatorTool() error {
+	cmd := exec.Command("verilator", "--version") // Check version
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf(
-			"iverilog basic test failed, check your installation: %v - %s",
+			"verilator basic check failed, check installation/PATH: %v - %s",
 			err,
 			stderr.String(),
 		)
 	}
-
-	// Now compile actual module
-	log.Println("Compiling iverilog in setup directory...")
-	ivCmd := exec.Command("iverilog", "-o", "module_sim_iv",
-		"testbench.sv", "-g2012", "-gsupported-assertions")
-	ivCmd.Dir = setupDir
-	stderr.Reset()
-	ivCmd.Stderr = &stderr
-	if err := ivCmd.Run(); err != nil {
-		return fmt.Errorf("iverilog compilation failed: %v - %s", err, stderr.String())
-	}
-
-	// Verify iverilog executable was created
-	ivExecPath := filepath.Join(setupDir, "module_sim_iv")
-	if _, err := os.Stat(ivExecPath); os.IsNotExist(err) {
-		return fmt.Errorf("iverilog executable not created at %s", ivExecPath)
-	}
-
-	log.Println("Successfully compiled with iverilog")
-	return nil
-}
-
-func testVerilator(setupDir string, moduleName string) error {
-	// For verilator, use the simulator with proper error handling
-	vlsim := simulator.NewVerilatorSimulator(setupDir, moduleName)
-	if err := vlsim.Compile(); err != nil {
-		return fmt.Errorf("failed to compile with verilator: %v", err)
-	}
-	log.Println("Successfully compiled with verilator")
+	log.Println("Verilator tool found.")
 	return nil
 }
 
@@ -392,52 +339,42 @@ func (f *Fuzzer) setupWorker(workerID string) (string, func(), error) {
 
 // copyWorkerFiles copies necessary source files to the worker directory.
 func (f *Fuzzer) copyWorkerFiles(workerID, workerDir, verilogFileName string) error {
-	f.debug.Printf("[%s]: Copying source files to worker directory", workerID)
-	setupFiles := []string{
-		verilogFileName,
-		"testbench.sv",
-		"testbench.cpp", // IMPORTANT: Make sure to include testbench.cpp
+	f.debug.Printf("[%s]: Copying Verilog source file to worker directory", workerID)
+	// Only copy the main Verilog file. Testbenches are generated per worker.
+	srcPath := filepath.Join(utils.TMP_DIR, verilogFileName)
+	dstPath := filepath.Join(workerDir, verilogFileName)
+
+	// Check if source exists
+	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
+		return fmt.Errorf("[%s]: Source Verilog file %s does not exist", workerID, srcPath)
 	}
 
-	for _, filename := range setupFiles {
-		srcPath := filepath.Join(utils.TMP_DIR, filename)
-		dstPath := filepath.Join(workerDir, filename)
-
-		// Skip if source doesn't exist, but log it
-		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
-			f.debug.Printf(
-				"[%s]: Warning: Source file %s does not exist, skipping",
-				workerID,
-				srcPath,
-			)
-			continue
-		}
-
-		if err := utils.CopyFile(srcPath, dstPath); err != nil {
-			return fmt.Errorf("failed to copy %s to worker directory: %w", filename, err)
-		}
-
-		// Verify the file was copied successfully
-		if fi, err := os.Stat(dstPath); err != nil || fi.Size() == 0 {
-			fileSize := int64(0)
-			if fi != nil {
-				fileSize = fi.Size()
-			}
-			return fmt.Errorf("[%s]: File %s not copied correctly, size: %d, error: %v",
-				workerID, dstPath, fileSize, err)
-		}
-		f.debug.Printf("[%s]: Successfully copied %s", workerID, filename)
+	if err := utils.CopyFile(srcPath, dstPath); err != nil {
+		return fmt.Errorf("failed to copy %s to worker directory: %w", verilogFileName, err)
 	}
+
+	// Verify the file was copied successfully
+	if fi, err := os.Stat(dstPath); err != nil || fi.Size() == 0 {
+		fileSize := int64(0)
+		if fi != nil {
+			fileSize = fi.Size()
+		}
+		return fmt.Errorf("[%s]: Verilog file %s not copied correctly, size: %d, error: %v",
+			workerID, dstPath, fileSize, err)
+	}
+	f.debug.Printf("[%s]: Successfully copied %s", workerID, verilogFileName)
 	return nil
 }
 
 // setupSimulators creates and compiles simulators for the worker.
+// Now takes the worker-specific module name.
 func (f *Fuzzer) setupSimulators(
-	workerID, workerDir string,
+	workerID, workerDir, workerModuleName string,
 ) (simulator.Simulator, simulator.Simulator, error) {
-	f.debug.Printf("[%s]: Creating simulators", workerID)
+	f.debug.Printf("[%s]: Creating simulators for module %s", workerID, workerModuleName)
 	ivsim := simulator.NewIVerilogSimulator(workerDir, f.verbose)
-	vlsim := simulator.NewVerilatorSimulator(workerDir, f.module.Name)
+	// Use the potentially mutated module name for Verilator
+	vlsim := simulator.NewVerilatorSimulator(workerDir, workerModuleName)
 
 	// Compile simulators
 	f.debug.Printf("[%s]: Compiling IVerilog simulator", workerID)
@@ -454,27 +391,34 @@ func (f *Fuzzer) setupSimulators(
 }
 
 // processTestCases processes individual test cases received from the channel.
+// Now takes the worker-specific module.
 func (f *Fuzzer) processTestCases(
 	workerID, workerDir string,
 	ivsim, vlsim simulator.Simulator,
+	workerModule *verilog.Module, // Pass the parsed module for this worker
 	testCases <-chan int,
 ) {
 	for i := range testCases {
-		f.runSingleTest(workerID, workerDir, ivsim, vlsim, i)
+		// Pass workerModule to runSingleTest
+		f.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, i)
 	}
 }
 
 // runSingleTest executes a single fuzzing test case.
+// Now takes the worker-specific module.
 func (f *Fuzzer) runSingleTest(
 	workerID, workerDir string,
 	ivsim, vlsim simulator.Simulator,
+	workerModule *verilog.Module, // Use worker-specific module
 	testIndex int,
 ) {
+	// Generate test case based on the *original* module structure stored in f.strategy
+	// (Strategy doesn't know about mutation)
 	testCase := f.strategy.GenerateTestCase(testIndex)
 	f.stats.AddTest()
 
-	// Add validation for multi-bit signals (optional, kept for consistency)
-	f.validateMultiBitSignals(testCase)
+	// Validate against the *worker's* current module structure
+	f.validateMultiBitSignals(workerModule, testCase) // Pass workerModule
 
 	// Create test directory within worker directory
 	testDir := filepath.Join(workerDir, fmt.Sprintf("test_%d", testIndex))
@@ -497,18 +441,16 @@ func (f *Fuzzer) runSingleTest(
 		return
 	}
 
-	// Run both simulators
-	ivResult, ivSuccess := f.runSimulator("iverilog", ivsim, testDir)
+	// Run both simulators, passing the workerModule
+	ivResult, ivSuccess := f.runSimulator("iverilog", ivsim, testDir, workerModule)
 	if !ivSuccess {
 		log.Printf("[%s] IVerilog simulation failed for test %d", workerID, testIndex)
-		// No need to add sim error here, runSimulator already did
 		return
 	}
 
-	vlResult, vlSuccess := f.runSimulator("verilator", vlsim, testDir)
+	vlResult, vlSuccess := f.runSimulator("verilator", vlsim, testDir, workerModule)
 	if !vlSuccess {
 		log.Printf("[%s] Verilator simulation failed for test %d", workerID, testIndex)
-		// No need to add sim error here, runSimulator already did
 		return
 	}
 
@@ -516,20 +458,20 @@ func (f *Fuzzer) runSingleTest(
 	mismatch, mismatchDetails := f.compareSimulationResults(ivResult, vlResult)
 
 	if mismatch {
+		// Pass workerModule to handleMismatch if needed, currently uses ivResult keys
 		f.handleMismatch(testIndex, testDir, testCase, mismatchDetails, ivResult)
 	}
 }
 
 // validateMultiBitSignals checks if multi-bit input values seem reasonable.
-func (f *Fuzzer) validateMultiBitSignals(testCase map[string]string) {
-	for _, port := range f.module.Ports {
-		if port.Width > 1 {
+// Now takes the module definition to check against.
+func (f *Fuzzer) validateMultiBitSignals(module *verilog.Module, testCase map[string]string) {
+	for _, port := range module.Ports { // Use the passed module
+		if port.Width > 1 && (port.Direction == verilog.INPUT || port.Direction == verilog.INOUT) {
 			value, exists := testCase[port.Name]
 			if exists {
 				// Check if the value is likely a hex string of proper width
 				expectedLen := (port.Width + 3) / 4 // Number of expected hex digits
-				// Allow exact length or length+1 if it starts with 0x/0b? For now, just check minimum.
-				// A single hex digit represents up to 4 bits.
 				if len(value) > 0 && len(value) < expectedLen {
 					f.debug.Printf(
 						"Warning: Port %s (width %d) has value '%s' which might be shorter than expected (%d hex digits)",
@@ -562,10 +504,6 @@ func (f *Fuzzer) compareSimulationResults(
 				)
 			}
 		} else {
-			// Handle case where one simulator produced output but the other didn't
-			// This might indicate an error or a difference in how outputs are handled
-			// For now, log it as a potential issue, but might not be a 'mismatch' per se
-			// depending on requirements. Let's consider it a mismatch for now.
 			mismatch = true
 			mismatchDetails[portName] = fmt.Sprintf(
 				"IVerilog=%s, Verilator=MISSING",
@@ -575,7 +513,6 @@ func (f *Fuzzer) compareSimulationResults(
 		}
 	}
 
-	// Check for outputs present in Verilator but not IVerilog
 	for portName, vlValue := range vlResult {
 		if _, exists := ivResult[portName]; !exists {
 			mismatch = true
@@ -613,9 +550,7 @@ func (f *Fuzzer) handleMismatch(
 	mismatchDir := filepath.Join(utils.MISMATCHES_DIR, fmt.Sprintf("mismatch_%d", testIndex))
 	if err := os.MkdirAll(mismatchDir, 0o755); err != nil {
 		log.Printf("Failed to create mismatch directory %s: %v", mismatchDir, err)
-		// Continue processing stats even if saving fails
 	} else {
-		// Copy input files
 		for portName := range testCase {
 			inputFile := fmt.Sprintf("input_%s.hex", portName)
 			src := filepath.Join(testDir, inputFile)
@@ -625,14 +560,10 @@ func (f *Fuzzer) handleMismatch(
 			}
 		}
 
-		// Copy output files from both simulators
-		// Determine output ports from ivResult keys (assuming ivResult is complete if successful)
-		// or potentially from f.module.Ports if needed
 		outputPorts := make(map[string]struct{})
-		for portName := range ivResult { // Assuming ivResult contains all expected output ports
+		for portName := range ivResult {
 			outputPorts[portName] = struct{}{}
 		}
-		// Add any ports from mismatchDetails that might have been missing in one result
 		for portName := range mismatchDetails {
 			outputPorts[portName] = struct{}{}
 		}
@@ -656,7 +587,6 @@ func (f *Fuzzer) handleMismatch(
 			}
 		}
 
-		// Create a summary file
 		summaryPath := filepath.Join(mismatchDir, fmt.Sprintf("mismatch_%d_summary.txt", testIndex))
 		file, err := os.Create(summaryPath)
 		if err == nil {
@@ -683,38 +613,73 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int) {
 	defer wg.Done()
 
 	VerilogFileName := filepath.Base(f.verilogFile)
-	workerID := fmt.Sprintf("worker_%d_%d", os.Getpid(), time.Now().UnixNano()) // More unique ID
+	workerID := fmt.Sprintf("worker_%d_%d", os.Getpid(), time.Now().UnixNano())
 
-	// Setup worker directory and cleanup
 	workerDir, cleanup, err := f.setupWorker(workerID)
 	if err != nil {
 		log.Printf("Worker setup failed for %s: %v", workerID, err)
-		// Cannot proceed without worker directory
 		return
 	}
-	defer cleanup() // Ensure cleanup runs when worker exits
+	defer cleanup()
 
-	// Copy necessary files
 	if err := f.copyWorkerFiles(workerID, workerDir, VerilogFileName); err != nil {
 		log.Printf("Failed to copy files for worker %s: %v", workerID, err)
-		return // Cannot proceed without source files
-	}
-
-	// Setup simulators
-	ivsim, vlsim, err := f.setupSimulators(workerID, workerDir)
-	if err != nil {
-		log.Printf("Simulator setup failed for worker %s: %v", workerID, err)
-		// Cannot proceed without simulators
 		return
 	}
 
-	// Process test cases using a separate function
-	f.processTestCases(workerID, workerDir, ivsim, vlsim, testCases)
+	workerVerilogPath := filepath.Join(workerDir, VerilogFileName)
+	f.debug.Printf("[%s] Attempting mutation on %s", workerID, workerVerilogPath)
+	if err := MutateFile(workerVerilogPath); err != nil {
+		log.Printf("[%s] Mutation failed: %v. Skipping tests for this worker cycle.", workerID, err)
+		f.stats.AddSimError()
+		return
+	}
+	f.debug.Printf("[%s] Mutation applied. Proceeding.", workerID)
+
+	f.debug.Printf("[%s] Parsing potentially mutated Verilog file: %s", workerID, workerVerilogPath)
+	workerModule, err := verilog.ParseVerilogFile(workerVerilogPath, f.moduleName)
+	if err != nil {
+		log.Printf(
+			"[%s] Failed to parse mutated Verilog file %s: %v",
+			workerID,
+			workerVerilogPath,
+			err,
+		)
+		f.stats.AddSimError()
+		return
+	}
+	f.debug.Printf(
+		"[%s] Parsed module '%s' with %d ports from worker file.",
+		workerID,
+		workerModule.Name,
+		len(workerModule.Ports),
+	)
+
+	f.debug.Printf(
+		"[%s] Generating testbenches for module %s in %s",
+		workerID,
+		workerModule.Name,
+		workerDir,
+	)
+	gen := testgen.NewGenerator(workerModule)
+	if err := gen.GenerateTestbenchesInDir(workerDir); err != nil {
+		log.Printf("[%s] Failed to generate testbenches: %v", workerID, err)
+		f.stats.AddSimError()
+		return
+	}
+	f.debug.Printf("[%s] Testbenches generated.", workerID)
+
+	ivsim, vlsim, err := f.setupSimulators(workerID, workerDir, workerModule.Name)
+	if err != nil {
+		log.Printf("Simulator setup failed for worker %s: %v", workerID, err)
+		return
+	}
+
+	f.processTestCases(workerID, workerDir, ivsim, vlsim, workerModule, testCases)
 }
 
 // writeTestInputs writes test case input files
 func writeTestInputs(testDir string, testCase map[string]string) error {
-	// Write all input files
 	for portName, value := range testCase {
 		inputPath := filepath.Join(testDir, fmt.Sprintf("input_%s.hex", portName))
 		if err := os.WriteFile(inputPath, []byte(value), 0o644); err != nil {
@@ -725,47 +690,58 @@ func writeTestInputs(testDir string, testCase map[string]string) error {
 }
 
 // runSimulator executes a simulator and collects output results
+// Now takes the worker-specific module to determine output ports.
 func (f *Fuzzer) runSimulator(
 	simName string,
 	sim simulator.Simulator,
 	testDir string,
+	module *verilog.Module,
 ) (map[string]string, bool) {
 	outputDir := filepath.Join(testDir, simName)
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		log.Printf("Failed to create output dir %s: %v", outputDir, err)
 		f.stats.AddSimError()
 		return nil, false
 	}
 
-	// Prepare output file paths - ensure consistent naming convention
 	outputPaths := make(map[string]string)
-	for _, port := range f.module.Ports {
+	for _, port := range module.Ports {
 		if port.Direction == verilog.OUTPUT {
 			var prefix string
 			if simName == "iverilog" {
-				prefix = IV_PREFIX // "iv_"
+				prefix = IV_PREFIX
 			} else {
-				prefix = VL_PREFIX // "vl_" - was previously using simName[:2] which gave "ve_" for verilator
+				prefix = VL_PREFIX
 			}
 			outputFile := fmt.Sprintf("%s%s.hex", prefix, port.Name)
 			outputPaths[port.Name] = filepath.Join(testDir, outputFile)
 		}
 	}
 
-	// Run the simulator
+	if len(outputPaths) == 0 {
+		f.debug.Printf(
+			"Warning: No output ports found for module %s in runSimulator (%s)",
+			module.Name,
+			simName,
+		)
+	}
+
 	if err := sim.RunTest(testDir, outputPaths); err != nil {
 		f.stats.AddSimError()
 		return nil, false
 	}
 
-	// Verify all output files were created
-	if err := simulator.VerifyOutputFiles(outputPaths); err != nil {
-		f.stats.AddSimError()
-		return nil, false
+	if len(outputPaths) > 0 {
+		if err := simulator.VerifyOutputFiles(outputPaths); err != nil {
+			log.Printf("Output file verification failed for %s: %v", simName, err)
+			f.stats.AddSimError()
+			return nil, false
+		}
 	}
 
-	// Read all output values using the utility function
 	results, err := simulator.ReadOutputFiles(outputPaths)
 	if err != nil {
+		log.Printf("Failed to read output files for %s: %v", simName, err)
 		f.stats.AddSimError()
 		return nil, false
 	}
