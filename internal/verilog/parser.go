@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -87,7 +88,7 @@ func matchParameter(param string) []string {
 // --- End Regex Helper Functions ---
 
 // Utility functions for bit width parsing
-func parseRange(rangeStr string) (int, error) {
+func parseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 	// Handle common formats: [7:0], [WIDTH-1:0], etc.
 	rangeStr = strings.TrimSpace(rangeStr)
 
@@ -95,26 +96,54 @@ func parseRange(rangeStr string) (int, error) {
 		return 1, nil // No range means scalar (1-bit)
 	}
 
-	// Simple case [N:0]
-	simpleRangeRegex := regexp.MustCompile(`\[\s*(\d+)\s*:\s*0\s*\]`)
+	// --- Priority 1: Simple numeric case [N:0] ---
+	simpleRangeRegex := regexp.MustCompile(`^\[\s*(\d+)\s*:\s*0\s*\]$`)
 	if matches := simpleRangeRegex.FindStringSubmatch(rangeStr); len(matches) > 1 {
 		var width int
 		// Use Sscanf for safer parsing
 		n, err := fmt.Sscanf(matches[1], "%d", &width)
 		if err != nil || n != 1 {
-			return 0, fmt.Errorf("invalid range format: %s", rangeStr)
+			// Use default width 8 on error, but signal the error
+			return 8, fmt.Errorf("invalid numeric range format: %s, defaulting to 8", rangeStr)
 		}
 		return width + 1, nil
 	}
 
-	// Add special handling for [31:0] which might be appearing in various formats
-	if strings.Contains(rangeStr, "31:0") || strings.Contains(rangeStr, "32-1:0") {
-		return 32, nil
+	// --- Priority 2: Parameter-based range: [PARAM-1:0] or [PARAM:0] ---
+	// Regex now ensures the identifier starts with a non-digit character
+	paramRangeRegex := regexp.MustCompile(`^\[\s*([a-zA-Z_]\w*)\s*(?:-\s*1)?\s*:\s*0\s*\]$`)
+	if matches := paramRangeRegex.FindStringSubmatch(rangeStr); len(matches) > 1 {
+		paramName := matches[1]
+		if param, ok := parameters[paramName]; ok && param.DefaultValue != "" {
+			// Attempt to convert parameter value to integer
+			widthVal, err := strconv.Atoi(param.DefaultValue)
+			if err == nil {
+				if strings.Contains(matches[0], "-1") { // Matched [PARAM-1:0]
+					return widthVal, nil // Width is the parameter value
+				}
+				// Matched [PARAM:0]
+				return widthVal + 1, nil
+
+			}
+			// Parameter value is not a simple integer, fall through to other checks
+			fmt.Printf(
+				"Warning: Parameter '%s' value '%s' is not a simple integer for range '%s'.\n",
+				paramName,
+				param.DefaultValue,
+				rangeStr,
+			)
+		} else {
+			// Parameter not found or has no default value, fall through
+			fmt.Printf("Warning: Parameter '%s' not found or has no value for range '%s'.\n", paramName, rangeStr)
+		}
+		// If parameter lookup failed (not found, no value, not int), fall through to heuristics/default
 	}
 
-	// Check for explicit width indicators in the port name or range
-	if strings.Contains(strings.ToLower(rangeStr), "32") ||
-		strings.Contains(strings.ToLower(rangeStr), "word") {
+	// --- Priority 3: Heuristics and Fallbacks ---
+
+	// Add special handling for [31:0] which might be appearing in various formats
+	// (This might be redundant now with the numeric check above, but keep as fallback)
+	if strings.Contains(rangeStr, "31:0") || strings.Contains(rangeStr, "32-1:0") {
 		return 32, nil
 	}
 
@@ -214,7 +243,7 @@ var (
 
 // parsePortDeclaration attempts to parse a line as a non-ANSI port declaration.
 // It returns the parsed Port and true if successful, otherwise nil and false.
-func parsePortDeclaration(line string) (*Port, bool) {
+func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, bool) {
 	var matches []string
 	var direction PortDirection
 
@@ -242,7 +271,7 @@ func parsePortDeclaration(line string) (*Port, bool) {
 		portType = "logic" // Default type if not specified (SystemVerilog) or wire (Verilog)
 	}
 	isSigned := (signedStr == "signed")
-	width, err := parseRange(rangeStr)
+	width, err := parseRange(rangeStr, parameters)
 	if err != nil {
 		// If parseRange returns an error, use the returned default width (e.g., 8)
 		// but still log the original error message.
@@ -287,7 +316,10 @@ func parsePortDeclaration(line string) (*Port, bool) {
 // extractPortNamesFromListString parses the raw port list string from the module header.
 // It handles ANSI style declarations within the header and creates placeholders for non-ANSI.
 // Returns a map of port name to the parsed Port struct (or placeholder) and a slice maintaining the original order.
-func extractPortNamesFromListString(portListStr string) (map[string]Port, []string) {
+func extractPortNamesFromListString(
+	portListStr string,
+	parameters map[string]Parameter,
+) (map[string]Port, []string) {
 	headerPorts := make(map[string]Port)
 	headerPortOrder := []string{}
 
@@ -325,7 +357,7 @@ func extractPortNamesFromListString(portListStr string) (map[string]Port, []stri
 				portType = "logic" // Default type
 			}
 			isSigned := (signedStr == "signed")
-			width, err := parseRange(rangeStr)
+			width, err := parseRange(rangeStr, parameters)
 			if err != nil {
 				// Use the default width returned by parseRange on error
 				fmt.Printf(
@@ -412,6 +444,7 @@ func extractPortNamesFromListString(portListStr string) (map[string]Port, []stri
 func scanForPortDeclarations(
 	reader io.Reader, // Changed from *os.File to io.Reader
 	targetModule string,
+	parameters map[string]Parameter,
 ) (map[string]Port, error) {
 	// No need to seek, scanner works directly with the reader from its current position
 	scanner := bufio.NewScanner(reader)
@@ -471,7 +504,7 @@ func scanForPortDeclarations(
 			inModuleHeader = false // Header finished, now in body
 			// Process the part of the line *before* ');' if any declaration is there
 			lineBeforeHeaderEnd := headerEndRegex.Split(line, 2)[0]
-			if port, ok := parsePortDeclaration(strings.TrimSpace(lineBeforeHeaderEnd)); ok {
+			if port, ok := parsePortDeclaration(strings.TrimSpace(lineBeforeHeaderEnd), parameters); ok {
 				if _, exists := parsedPortsMap[port.Name]; !exists {
 					parsedPortsMap[port.Name] = *port
 				}
@@ -486,7 +519,7 @@ func scanForPortDeclarations(
 		// If we are inside the module body (after header, before endmodule)
 		if !inModuleHeader && inTargetModule {
 			// Attempt to parse the line as a non-ANSI port declaration
-			if port, ok := parsePortDeclaration(trimmedLine); ok {
+			if port, ok := parsePortDeclaration(trimmedLine, parameters); ok {
 				// Store the details found in the body, avoid overwriting if already found (first declaration wins)
 				if _, exists := parsedPortsMap[port.Name]; !exists {
 					parsedPortsMap[port.Name] = *port
@@ -619,6 +652,15 @@ func mergePortInfo(
 	return finalPorts
 }
 
+// Helper function to convert slice of Parameters to a map for easy lookup
+func parametersToMap(params []Parameter) map[string]Parameter {
+	paramMap := make(map[string]Parameter)
+	for _, p := range params {
+		paramMap[p.Name] = p
+	}
+	return paramMap
+}
+
 // ParseVerilogFile parses a Verilog file and extracts module information
 func ParseVerilogFile(filename string, providedTargetModule string) (*Module, error) {
 	file, content, err := openAndReadFile(filename)
@@ -676,9 +718,10 @@ func ParseVerilogFile(filename string, providedTargetModule string) (*Module, er
 	if paramListStr != "" {
 		parseParameters(paramListStr, module)
 	}
+	paramMap := parametersToMap(module.Parameters)
 
 	// Parse header ports (ANSI or placeholders)
-	headerPorts, headerPortOrder := extractPortNamesFromListString(portListStr)
+	headerPorts, headerPortOrder := extractPortNamesFromListString(portListStr, paramMap)
 
 	// Re-scan the file from the beginning for non-ANSI port declarations
 	_, seekErr := file.Seek(0, 0)
@@ -688,6 +731,7 @@ func ParseVerilogFile(filename string, providedTargetModule string) (*Module, er
 	parsedPortsMap, scanErr := scanForPortDeclarations(
 		file,
 		actualTargetModule,
+		paramMap,
 	) // Pass the file object (io.Reader)
 	if scanErr != nil {
 		// Log warning but proceed, header info might be sufficient
@@ -774,9 +818,10 @@ func ParseVerilogContent(
 	if paramListStr != "" {
 		parseParameters(paramListStr, module)
 	}
+	paramMap := parametersToMap(module.Parameters)
 
 	// Parse header ports (ANSI or placeholders)
-	headerPorts, headerPortOrder := extractPortNamesFromListString(portListStr)
+	headerPorts, headerPortOrder := extractPortNamesFromListString(portListStr, paramMap)
 
 	// Scan the content for non-ANSI port declarations using a reader
 	contentReader := bytes.NewReader(
@@ -785,6 +830,7 @@ func ParseVerilogContent(
 	parsedPortsMap, scanErr := scanForPortDeclarations(
 		contentReader,
 		actualTargetModule,
+		paramMap,
 	) // Pass the reader
 	if scanErr != nil {
 		// Log warning but proceed

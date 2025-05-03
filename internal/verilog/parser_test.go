@@ -191,9 +191,13 @@ func TestParsePortDeclaration(t *testing.T) {
 		},
 	}
 
+	// Create an empty parameters map for testing standard declarations
+	emptyParams := make(map[string]Parameter)
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			port, ok := parsePortDeclaration(tc.line)
+			// Pass emptyParams to the function
+			port, ok := parsePortDeclaration(tc.line, emptyParams)
 
 			if ok != tc.expectedOK {
 				t.Errorf("parsePortDeclaration(%q) ok = %v; want %v", tc.line, ok, tc.expectedOK)
@@ -213,31 +217,55 @@ func TestParsePortDeclaration(t *testing.T) {
 
 // Optional: Add tests specifically for parseRange if needed, though it's indirectly tested above.
 func TestParseRange(t *testing.T) {
+	// Add a test case for parameter resolution
+	paramMap := map[string]Parameter{
+		"WIDTH": {Name: "WIDTH", DefaultValue: "16"},
+		"ADDR":  {Name: "ADDR", DefaultValue: "32"},
+	}
+
 	testCases := []struct {
 		name          string
 		rangeStr      string
+		params        map[string]Parameter // Add params to test cases
 		expectedWidth int
 		expectError   bool
 	}{
-		{"Empty", "", 1, false},
-		{"Scalar Implicit", " ", 1, false},
-		{"Simple [7:0]", "[7:0]", 8, false},
-		{"Simple [31:0]", "[31:0]", 32, false},
-		{"Simple [0:0]", "[0:0]", 1, false},
-		{"Whitespace [ 15 : 0 ]", "[ 15 : 0 ]", 16, false},
-		{"Special 32-bit", "[32-1:0]", 32, false},
-		{"Keyword '32'", "[width_32-1:0]", 32, false},
-		{"Keyword 'word'", "[word_size-1:0]", 32, false},
-		{"Keyword 'addr'", "[addr_width-1:0]", 32, false},
-		{"Keyword 'data'", "[data_width-1:0]", 32, false},
-		{"Keyword 'byte'", "[byte_width-1:0]", 8, false},
-		{"Default Guess", "[complex_expr]", 8, true}, // Default fallback
-		// Add more complex or edge cases if necessary
+		{"Empty", "", nil, 1, false},
+		{"Scalar Implicit", " ", nil, 1, false},
+		{"Simple [7:0]", "[7:0]", nil, 8, false},
+		{"Simple [31:0]", "[31:0]", nil, 32, false},
+		{"Simple [0:0]", "[0:0]", nil, 1, false},
+		{"Whitespace [ 15 : 0 ]", "[ 15 : 0 ]", nil, 16, false},
+		{"Special 32-bit", "[32-1:0]", nil, 32, false},
+		{"Keyword '32'", "[width_32-1:0]", nil, 32, false},
+		{"Keyword 'word'", "[word_size-1:0]", nil, 32, false},
+		{"Keyword 'addr'", "[addr_width-1:0]", nil, 32, false},
+		{"Keyword 'data'", "[data_width-1:0]", nil, 32, false},
+		{"Keyword 'byte'", "[byte_width-1:0]", nil, 8, false},
+		{"Default Guess", "[complex_expr]", nil, 8, true}, // Default fallback
+		// Parameterized cases
+		{"Param [WIDTH-1:0]", "[WIDTH-1:0]", paramMap, 16, false},
+		{"Param [ADDR-1:0]", "[ADDR-1:0]", paramMap, 32, false},
+		{
+			"Param Missing [SIZE-1:0]",
+			"[SIZE-1:0]",
+			paramMap,
+			8,
+			true,
+		}, // Param not found, fallback
+		{
+			"Param Non-numeric [NAME-1:0]",
+			"[NAME-1:0]",
+			map[string]Parameter{"NAME": {DefaultValue: "\"abc\""}},
+			8,
+			true,
+		}, // Non-numeric, fallback
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			width, err := parseRange(tc.rangeStr)
+			// Pass the specific params map for the test case
+			width, err := parseRange(tc.rangeStr, tc.params)
 			hasError := (err != nil)
 
 			if hasError != tc.expectError {
@@ -309,16 +337,16 @@ endmodule
 				Name:     "parameterized_module",
 				Filename: "parameterized_module.sv", // Will be replaced by temp path
 				Ports: []Port{
-					// Width should default to 8 due to parseRange fallback
+					// Width should now be correctly resolved to 8
 					{Name: "in", Direction: INPUT, Type: "logic", Width: 8, IsSigned: false},
 					{Name: "out", Direction: OUTPUT, Type: "logic", Width: 8, IsSigned: false},
 				},
 				Parameters: []Parameter{
 					{
 						Name:         "WIDTH",
-						Type:         "",
+						Type:         "", // Type parsing might still be basic
 						DefaultValue: "8",
-					}, // Parameter parsing might need refinement
+					},
 				},
 				// Content will be filled by parser
 			},
@@ -381,6 +409,10 @@ assign x = 1'b1;
 					tc.expectedModule,
 				)
 				// Optionally print specific diffs
+				if module == nil || tc.expectedModule == nil {
+					t.Errorf("One of the modules is nil, cannot compare details.")
+					return // Avoid panic on nil pointers
+				}
 				if len(module.Ports) != len(tc.expectedModule.Ports) {
 					t.Errorf(
 						"Port count mismatch: got %d, want %d",
