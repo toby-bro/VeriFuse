@@ -30,11 +30,9 @@ func (g *Generator) GenerateTestbenches() error {
 	return nil
 }
 
-// GenerateSVTestbench creates the SystemVerilog testbench
-func (g *Generator) GenerateSVTestbench() error {
-	// Generate port declarations with proper widths
+// generateSVPortDeclarations generates the logic declarations for testbench ports
+func (g *Generator) generateSVPortDeclarations() string {
 	var declarations strings.Builder
-
 	for _, port := range g.module.Ports {
 		var typeDecl string
 		// Ensure we're declaring the right bit width for each port
@@ -48,8 +46,11 @@ func (g *Generator) GenerateSVTestbench() error {
 		portName := strings.TrimSpace(port.Name)
 		declarations.WriteString(fmt.Sprintf("    %s%s;\n", typeDecl, portName))
 	}
+	return declarations.String()
+}
 
-	// Create the module instance - use explicit port connections instead of .*
+// generateSVModuleInstantiation generates the DUT instantiation string
+func (g *Generator) generateSVModuleInstantiation() string {
 	var moduleInst strings.Builder
 	moduleInst.WriteString("    " + g.module.Name)
 	// Add parameters if present
@@ -73,13 +74,29 @@ func (g *Generator) GenerateSVTestbench() error {
 
 			defaultVal := param.DefaultValue
 			if defaultVal == "" {
-				// If no default value is provided in the source, use a reasonable default
-				if strings.HasPrefix(strings.ToLower(param.Type), "int") {
+				switch {
+				case strings.HasPrefix(strings.ToLower(param.Type), "int"):
 					defaultVal = "1"
-				} else if strings.HasPrefix(strings.ToLower(param.Type), "bit") {
+				case strings.HasPrefix(strings.ToLower(param.Type), "bit"):
 					defaultVal = "1'b0"
-				} else {
-					defaultVal = "1"
+				case strings.HasPrefix(strings.ToLower(param.Type), "logic"):
+					defaultVal = "1'b0"
+				case strings.HasPrefix(strings.ToLower(param.Type), "real"):
+					defaultVal = "0.0"
+				case strings.HasPrefix(strings.ToLower(param.Type), "string"):
+					defaultVal = "\"\""
+				case strings.HasPrefix(strings.ToLower(param.Type), "time"):
+					defaultVal = "0"
+				case strings.HasPrefix(strings.ToLower(param.Type), "integer"):
+					defaultVal = "0"
+				case strings.HasPrefix(strings.ToLower(param.Type), "parameter"):
+					defaultVal = "0"
+				case strings.HasPrefix(strings.ToLower(param.Type), "localparam"):
+					defaultVal = "0"
+				case strings.HasPrefix(strings.ToLower(param.Type), "enum"):
+					defaultVal = "0"
+				default:
+					defaultVal = "0"
 				}
 			}
 
@@ -101,41 +118,46 @@ func (g *Generator) GenerateSVTestbench() error {
 	}
 
 	moduleInst.WriteString("\n    );\n")
+	return moduleInst.String()
+}
 
-	// Generate input file reading code
-	var inputReads strings.Builder
-	var inputCount int
-	var clockPorts []string
-	var resetPort string
-	var isActiveHigh bool
-
-	// First pass to identify clock and reset ports
+// identifyClockAndResetPorts scans ports to find clock and reset signals
+func (g *Generator) identifyClockAndResetPorts() (clockPorts []string, resetPort string, isActiveHigh bool) {
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-			// Identify clock ports by name convention
 			portName := strings.TrimSpace(port.Name)
-			if strings.Contains(strings.ToLower(portName), "clk") ||
-				strings.Contains(strings.ToLower(portName), "clock") {
+			portNameLower := strings.ToLower(portName)
+
+			// Identify clock ports by name convention
+			if strings.Contains(portNameLower, "clk") || strings.Contains(portNameLower, "clock") {
 				clockPorts = append(clockPorts, portName)
-				continue
+				continue // A port can't be both clock and reset for this logic
 			}
 
 			// Identify reset ports by name convention
-			portNameLower := strings.ToLower(portName)
-			if strings.Contains(portNameLower, "rst") || strings.Contains(portNameLower, "reset") {
+			if resetPort == "" &&
+				(strings.Contains(portNameLower, "rst") || strings.Contains(portNameLower, "reset")) {
 				resetPort = portName
 				// Determine if active high or low (active low has _n, _ni, or _l suffix)
-				isActiveHigh = !strings.HasSuffix(portNameLower, "_n") && !strings.HasSuffix(portNameLower, "_ni") && !strings.HasSuffix(portNameLower, "_l")
+				isActiveHigh = !strings.HasSuffix(portNameLower, "_n") &&
+					!strings.HasSuffix(portNameLower, "_ni") &&
+					!strings.HasSuffix(portNameLower, "_l")
 			}
 		}
 	}
+	return clockPorts, resetPort, isActiveHigh
+}
 
-	// Generate input reading for non-clock ports
+// generateSVInputReads generates code to read input values from files
+func (g *Generator) generateSVInputReads(clockPorts []string, resetPort string) (string, int) {
+	var inputReads strings.Builder
+	var inputCount int
+
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
 
-			// Skip clock ports, we'll handle them separately
+			// Skip clock and reset ports, handled separately
 			isClockPort := false
 			for _, clockPort := range clockPorts {
 				if portName == clockPort {
@@ -143,15 +165,13 @@ func (g *Generator) GenerateSVTestbench() error {
 					break
 				}
 			}
-
-			if isClockPort {
-				// Initialize clocks to 0
+			if isClockPort || portName == resetPort {
+				// Initialize clocks and reset to 0 (or appropriate initial state if needed later)
 				inputReads.WriteString(fmt.Sprintf("        %s = 0;\n", portName))
 				continue
 			}
 
 			inputCount++
-			// Make sure we're using just the clean port name with no extra info
 			fileName := fmt.Sprintf("input_%s.hex", portName)
 
 			inputReads.WriteString(fmt.Sprintf(`
@@ -164,7 +184,9 @@ func (g *Generator) GenerateSVTestbench() error {
         `, fileName, fileName))
 
 			if port.Width > 1 {
-				inputReads.WriteString(fmt.Sprintf("status = $sscanf(line, \"%%h\", %s);\n", portName))
+				inputReads.WriteString(
+					fmt.Sprintf("status = $sscanf(line, \"%%h\", %s);\n", portName),
+				)
 			} else {
 				inputReads.WriteString(fmt.Sprintf("status = $sscanf(line, \"%%b\", %s);\n", portName))
 			}
@@ -172,53 +194,65 @@ func (g *Generator) GenerateSVTestbench() error {
 			inputReads.WriteString("        $fclose(fd);\n")
 		}
 	}
+	return inputReads.String(), inputCount
+}
 
-	// Generate clock toggling code if we have clock ports
-	if len(clockPorts) > 0 {
-		inputReads.WriteString("\n        // Toggle clocks for several cycles\n")
-		inputReads.WriteString("        repeat (10) begin\n")
-
-		for _, clockPort := range clockPorts {
-			inputReads.WriteString(fmt.Sprintf("            %s = 0;\n", clockPort))
-		}
-		inputReads.WriteString("            #5;\n")
-
-		for _, clockPort := range clockPorts {
-			inputReads.WriteString(fmt.Sprintf("            %s = 1;\n", clockPort))
-		}
-		inputReads.WriteString("            #5;\n")
-
-		inputReads.WriteString("        end\n")
-	} else {
-		// If no clock ports, just add a delay
-		inputReads.WriteString("\n        // Allow module to process\n")
-		inputReads.WriteString("        #10;\n")
+// generateSVResetToggling generates code to toggle the reset signal
+func (g *Generator) generateSVResetToggling(resetPort string, isActiveHigh bool) string {
+	if resetPort == "" {
+		return "" // No reset port found
 	}
 
-	// Generate reset toggle code if a reset signal was found
 	var resetToggle strings.Builder
-	if resetPort != "" {
-		resetToggle.WriteString(fmt.Sprintf("        // Toggle reset signal %s\n", resetPort))
-		if isActiveHigh {
-			resetToggle.WriteString(fmt.Sprintf("        %s = 1; // Assert reset (active high)\n", resetPort))
-			resetToggle.WriteString("        #10;\n")
-			resetToggle.WriteString(fmt.Sprintf("        %s = 0; // De-assert reset\n", resetPort))
-		} else {
-			resetToggle.WriteString(fmt.Sprintf("        %s = 0; // Assert reset (active low)\n", resetPort))
-			resetToggle.WriteString("        #10;\n")
-			resetToggle.WriteString(fmt.Sprintf("        %s = 1; // De-assert reset\n", resetPort))
-		}
+	resetToggle.WriteString(fmt.Sprintf("\n        // Toggle reset signal %s\n", resetPort))
+	if isActiveHigh {
+		resetToggle.WriteString(
+			fmt.Sprintf("        %s = 1; // Assert reset (active high)\n", resetPort),
+		)
 		resetToggle.WriteString("        #10;\n")
+		resetToggle.WriteString(fmt.Sprintf("        %s = 0; // De-assert reset\n", resetPort))
+	} else {
+		resetToggle.WriteString(fmt.Sprintf("        %s = 0; // Assert reset (active low)\n", resetPort))
+		resetToggle.WriteString("        #10;\n")
+		resetToggle.WriteString(fmt.Sprintf("        %s = 1; // De-assert reset\n", resetPort))
+	}
+	resetToggle.WriteString("        #10; // Wait after de-asserting reset\n")
+	return resetToggle.String()
+}
+
+// generateSVClockToggling generates code to toggle clock signals
+func (g *Generator) generateSVClockToggling(clockPorts []string) string {
+	if len(clockPorts) == 0 {
+		// If no clock ports, just add a delay
+		return "\n        // Allow module to process\n        #10;\n"
 	}
 
-	// Generate output file writing code
+	var clockToggle strings.Builder
+	clockToggle.WriteString("\n        // Toggle clocks for several cycles\n")
+	clockToggle.WriteString("        repeat (10) begin\n")
+
+	for _, clockPort := range clockPorts {
+		clockToggle.WriteString(fmt.Sprintf("            %s = 0;\n", clockPort))
+	}
+	clockToggle.WriteString("            #5;\n")
+
+	for _, clockPort := range clockPorts {
+		clockToggle.WriteString(fmt.Sprintf("            %s = 1;\n", clockPort))
+	}
+	clockToggle.WriteString("            #5;\n")
+
+	clockToggle.WriteString("        end\n")
+	return clockToggle.String()
+}
+
+// generateSVOutputWrites generates code to write output values to files
+func (g *Generator) generateSVOutputWrites() (string, int) {
 	var outputWrites strings.Builder
 	var outputCount int
 
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.OUTPUT {
 			outputCount++
-			// Make sure we're using just the clean port name with no extra info
 			portName := strings.TrimSpace(port.Name)
 			fileName := fmt.Sprintf("output_%s.hex", portName)
 
@@ -235,22 +269,34 @@ func (g *Generator) GenerateSVTestbench() error {
 			outputWrites.WriteString("        $fclose(fd);\n")
 		}
 	}
+	return outputWrites.String(), outputCount
+}
+
+// GenerateSVTestbench creates the SystemVerilog testbench
+func (g *Generator) GenerateSVTestbench() error {
+	// Generate different parts of the testbench
+	declarations := g.generateSVPortDeclarations()
+	moduleInst := g.generateSVModuleInstantiation()
+	clockPorts, resetPort, isActiveHigh := g.identifyClockAndResetPorts()
+	inputReadsStr, inputCount := g.generateSVInputReads(clockPorts, resetPort)
+	resetToggleStr := g.generateSVResetToggling(resetPort, isActiveHigh)
+	clockToggleStr := g.generateSVClockToggling(clockPorts)
+	outputWritesStr, outputCount := g.generateSVOutputWrites()
 
 	// Include the mocked module file
 	includeDirective := fmt.Sprintf("`include \"%s.sv\"", g.module.Name)
 
 	// Apply the generated code to the template
 	testbench := fmt.Sprintf(svTestbenchTemplate,
-		includeDirective, // Add include directive here
-		declarations.String(),
-		moduleInst.String(),
+		includeDirective,
+		declarations,
+		moduleInst,
 		inputCount,
-		inputReads.String(),
-		resetToggle.String(),
+		inputReadsStr,
+		resetToggleStr, // Apply reset before clock toggling
+		clockToggleStr, // Apply clock toggling after reset
 		outputCount,
-		outputWrites.String())
-
-	// No need to include the mock_enums.sv file since the definitions are now in the mocked file
+		outputWritesStr)
 
 	return utils.WriteFileContent(filepath.Join(utils.TMP_DIR, "testbench.sv"), testbench)
 }
@@ -320,7 +366,9 @@ func (g *Generator) GenerateCppTestbench() error {
 				resetName = portName
 
 				// Determine if active high or low (default to active high if unclear)
-				resetActiveHigh = !strings.HasSuffix(portNameLower, "_n") && !strings.HasSuffix(portNameLower, "_ni") && !strings.HasSuffix(portNameLower, "_l")
+				resetActiveHigh = !strings.HasSuffix(portNameLower, "_n") &&
+					!strings.HasSuffix(portNameLower, "_ni") &&
+					!strings.HasSuffix(portNameLower, "_l")
 				break
 			}
 		}
@@ -330,7 +378,9 @@ func (g *Generator) GenerateCppTestbench() error {
 	if hasReset {
 		clockHandling.WriteString("\n    // Toggle reset after inputs are applied\n")
 		if resetActiveHigh {
-			clockHandling.WriteString(fmt.Sprintf("    dut->%s = 1; // Assert reset (active high)\n", resetName))
+			clockHandling.WriteString(
+				fmt.Sprintf("    dut->%s = 1; // Assert reset (active high)\n", resetName),
+			)
 		} else {
 			clockHandling.WriteString(fmt.Sprintf("    dut->%s = 0; // Assert reset (active low)\n", resetName))
 		}
@@ -338,7 +388,9 @@ func (g *Generator) GenerateCppTestbench() error {
 		clockHandling.WriteString("    contextp->timeInc(10);\n")
 
 		if resetActiveHigh {
-			clockHandling.WriteString(fmt.Sprintf("    dut->%s = 0; // De-assert reset\n", resetName))
+			clockHandling.WriteString(
+				fmt.Sprintf("    dut->%s = 0; // De-assert reset\n", resetName),
+			)
 		} else {
 			clockHandling.WriteString(fmt.Sprintf("    dut->%s = 1; // De-assert reset\n", resetName))
 		}
@@ -416,16 +468,25 @@ func (g *Generator) GenerateCppTestbench() error {
 	return utils.WriteFileContent(filepath.Join(utils.TMP_DIR, "testbench.cpp"), testbench)
 }
 
-// Helper function to find the next power of two
+// Helper function to find the smallest standard integer size (8, 16, 32, 64)
+// that can accommodate n bits.
 func nextPowerOfTwo(n int) int {
-	if n <= 8 {
+	if n <= 0 {
+		// Default to 8 for non-positive or zero widths
 		return 8
-	} else if n <= 16 {
-		return 16
-	} else if n <= 32 {
-		return 32
-	} else if n <= 64 {
-		return 64
 	}
-	return 128 // Cap at 128-bit for extremely wide signals
+	size := 8
+	// Use a loop to find the smallest standard size (8, 16, 32, 64)
+	// that is greater than or equal to n.
+	// Keep doubling the size as long as it's smaller than n
+	// and the size itself hasn't reached the maximum standard size (64).
+	for size < n && size < 64 {
+		size *= 2 // Double the size
+	}
+
+	// At this point, either size >= n, or size has reached 64.
+	// If n was greater than 64, the loop stopped because size hit 64.
+	// In either case, 'size' holds the appropriate standard C++ integer bit width (up to 64).
+	// We return 64 for any n > 32.
+	return size
 }
