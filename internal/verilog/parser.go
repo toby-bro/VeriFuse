@@ -19,6 +19,7 @@ const (
 	INPUT PortDirection = iota
 	OUTPUT
 	INOUT
+	INTERNAL
 )
 
 // Parameter represents a module parameter

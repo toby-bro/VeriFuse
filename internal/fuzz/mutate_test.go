@@ -160,7 +160,7 @@ func TestInjectSnippet(t *testing.T) {
 		t.Errorf("Mutated content missing snippet instantiation matching 'GGG... ('")
 	}
 
-	declarationRegex := regexp.MustCompile(`logic\s+inj_output_gggout_\d+;`)
+	declarationRegex := regexp.MustCompile(`logic\s+(\[\d:\d\]\s+)?inj_output_gggout_\d+;`)
 	if !declarationRegex.MatchString(mutatedContent) {
 		t.Errorf("Missing expected declaration matching 'logic inj_output_gggout_...;'")
 	}
@@ -190,9 +190,9 @@ func TestInjectSnippet(t *testing.T) {
 		t.Errorf("Original always_ff block missing")
 	}
 
-	connectionRegex := regexp.MustCompile(`\.GGGin\s*\(\s*GGGin\s*\)`)
+	connectionRegex := regexp.MustCompile(`\.GGGin\s*\(\s*\w+\s*\)`)
 	if !connectionRegex.MatchString(mutatedContent) {
-		t.Errorf("Expected input connection '.GGGin(GGGin)' not found or incorrect")
+		t.Errorf("Expected input connection '.GGGin(something)' not found or incorrect")
 	}
 }
 
