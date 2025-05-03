@@ -23,7 +23,6 @@ func ExtractModules(filePath string) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %v", filePath, err)
 	}
-	fileName := filepath.Base(filePath)
 	moduleName := ""
 
 	lines := strings.Split(fileContent, "\n")
@@ -31,19 +30,39 @@ func ExtractModules(filePath string) (map[string]string, error) {
 	moduleContent := []string{}
 
 	for _, line := range lines {
-		if strings.HasPrefix(line, "module") {
-			moduleName = fileName + strings.TrimSpace(strings.Split(line, " ")[1])
-			moduleContent = append(moduleContent, line)
-		} else if strings.HasPrefix(line, "endmodule") {
-			moduleContent = append(moduleContent, line)
-
-			if moduleName != "" {
-				allModules[moduleName] = strings.Join(moduleContent, "\n")
-				moduleContent = []string{}
+		trimmedLine := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmedLine, "module"):
+			// Extract module name, handle potential parameters/ports in declaration
+			parts := strings.Fields(trimmedLine)
+			if len(parts) >= 2 {
+				namePart := parts[1]
+				// Remove parameter list #(...) and port list (...) if present
+				if idx := strings.IndexAny(namePart, "(#"); idx != -1 {
+					namePart = namePart[:idx]
+				}
+				// Use base filename and extracted name for a unique key
+				moduleName = filepath.Base(filePath) + "_" + namePart
+				moduleContent = []string{line} // Start collecting with the module line itself
+			} else {
+				// Malformed module line, reset state just in case
 				moduleName = ""
+				moduleContent = []string{}
 			}
-		} else if moduleName != "" {
-			moduleContent = append(moduleContent, line)
+		case strings.HasPrefix(trimmedLine, "endmodule"):
+			if moduleName != "" { // Only process if we were inside a module
+				moduleContent = append(moduleContent, line) // Add the endmodule line
+				allModules[moduleName] = strings.Join(moduleContent, "\n")
+				// Reset for the next potential module
+				moduleName = ""
+				moduleContent = []string{}
+			}
+			// If moduleName was already "", this endmodule is ignored (e.g., nested or mismatched)
+		default:
+			if moduleName != "" { // Only append lines if we are inside a module definition
+				moduleContent = append(moduleContent, line)
+			}
+			// Otherwise, ignore lines outside module definitions
 		}
 	}
 
@@ -167,12 +186,14 @@ func parseVerilogString(content string) (*verilog.Module, error) {
 				if strings.Contains(rangeStr, ":") {
 					// Attempt to parse simple [N:0]
 					simpleRangeRegex := regexp.MustCompile(`\[\s*(\d+)\s*:\s*0\s*\]`)
-					if wMatches := simpleRangeRegex.FindStringSubmatch(rangeStr); len(
-						wMatches,
-					) > 1 {
-						fmt.Sscanf(wMatches[1], "%d", &width)
+					switch wMatches := simpleRangeRegex.FindStringSubmatch(rangeStr); {
+					case len(wMatches) > 1:
+						n, err := fmt.Sscanf(wMatches[1], "%d", &width)
+						if err != nil || n != 1 {
+							return nil, fmt.Errorf("failed to parse width from range: %s", rangeStr)
+						}
 						width++ // width = N+1
-					} else {
+					default:
 						width = 8 // Default guess for multi-bit
 					}
 				}
