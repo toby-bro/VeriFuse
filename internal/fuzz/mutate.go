@@ -124,7 +124,7 @@ func GetRandomSnippet() (string, error) {
 
 // InjectSnippet attempts to inject a snippet module instantiation into the original content.
 // It analyzes the original module to find a suitable insertion point and connect snippet ports.
-func InjectSnippet(originalContent string, snippet string) (string, error) {
+func InjectSnippet(originalContent string, snippet string) (string, error) { // nolint:gocyclo
 	// 1. Parse Original Content
 	originalModule, err := verilog.ParseVerilogContent([]byte(originalContent), "")
 	if err != nil {
@@ -231,7 +231,7 @@ func InjectSnippet(originalContent string, snippet string) (string, error) {
 		}
 	}
 
-	insertionLineIndex := -1
+	var insertionLineIndex int
 	if lastDeclarationLine != -1 {
 		insertionLineIndex = lastDeclarationLine + 1 // Insert on the line after the last declaration found
 	} else {
@@ -405,7 +405,6 @@ func InjectSnippet(originalContent string, snippet string) (string, error) {
 				// Consider declaring this placeholder? For now, leave unconnected.
 			}
 			connections = append(connections, fmt.Sprintf(".%s(%s)", snipPort.Name, signalName))
-
 		} else { // OUTPUT or INOUT
 			// Try to connect to an existing, compatible, unused signal declared *before* insertion point
 			possibleMatches := []string{}
@@ -454,10 +453,6 @@ func InjectSnippet(originalContent string, snippet string) (string, error) {
 				if snipPort.Width > 1 {
 					widthStr = fmt.Sprintf("[%d:0] ", snipPort.Width-1)
 				}
-				portType := snipPort.Type
-				if portType == "" {
-					portType = "logic"
-				} // Default type
 				signedStr := ""
 				if snipPort.IsSigned {
 					signedStr = "signed "
@@ -695,14 +690,13 @@ func MutateFile(fileName string) error { // Removed snippets []string param
 			// Return error instead of writing original content back
 			return fmt.Errorf("AddCodeToSnippet failed: %w", err)
 			// mutatedContent = originalContent // Keep original on error
-		} else {
-			// --- Placeholder behavior for draft ---
-			// This mutation type still needs refinement to integrate properly.
-			// For now, it replaces the whole file which is usually not desired.
-			fmt.Println("AddCodeToSnippet succeeded. Replacing content with modified snippet (Draft Behavior).")
-			mutatedContent = modifiedSnippet
-			// --- End Placeholder behavior ---
 		}
+		// --- Placeholder behavior for draft ---
+		// This mutation type still needs refinement to integrate properly.
+		// For now, it replaces the whole file which is usually not desired.
+		fmt.Println("AddCodeToSnippet succeeded. Replacing content with modified snippet (Draft Behavior).")
+		mutatedContent = modifiedSnippet
+		// --- End Placeholder behavior ---
 	}
 
 	// Write the mutated content back to the file only if mutation succeeded
