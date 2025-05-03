@@ -79,6 +79,17 @@ func (sim *VerilatorSimulator) Compile() error {
 	verilatorArgs := []string{
 		"--binary", "--exe", "--build", "-Mdir", "obj_dir",
 		"--timing", // Add timing option to handle delays
+		"-Wno-CMPCONST",
+		"-Wno-DECLFILENAME",
+		"-Wno-MULTIDRIVEN",
+		"-Wno-NOLATCH",
+		"-Wno-UNDRIVEN",
+		"-Wno-UNOPTFLAT",
+		"-Wno-UNUSED",
+		"-Wno-UNSIGNED",
+		"-Wno-WIDTHEXPAND",
+		"-Wno-WIDTHTRUNC",
+		"-Wno-MULTITOP",
 		"testbench.sv",
 	}
 

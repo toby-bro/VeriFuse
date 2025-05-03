@@ -17,3 +17,4 @@ ibex_*.sv
 backups
 
 *.tmp
+*.bak
