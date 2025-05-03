@@ -3,7 +3,9 @@ package fuzz
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -75,8 +77,56 @@ func ExtractModules(filePath string) (map[string]string, error) {
 }
 
 func LoadSnippets() ([]string, error) {
-	snippetsDir := filepath.Join("..", "..", "snippets")
+	// Find the repository root by searching upwards for a .git directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current working directory: %w", err)
+	}
+
+	repoRoot := ""
+	dir := cwd
+	for {
+		// Check if .git exists in the current directory
+		gitPath := filepath.Join(dir, ".git")
+		stat, err := os.Stat(gitPath)
+		if err == nil && stat.IsDir() {
+			repoRoot = dir // Found the repository root
+			break
+		}
+		// Handle errors other than "not found"
+		if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("error checking for .git directory at %s: %w", gitPath, err)
+		}
+
+		// Move to the parent directory
+		parentDir := filepath.Dir(dir)
+		if parentDir == dir {
+			// Reached the filesystem root without finding .git
+			return nil, fmt.Errorf(
+				"failed to find repository root (.git directory) starting from %s",
+				cwd,
+			)
+		}
+		dir = parentDir
+	}
+
+	if repoRoot == "" {
+		// Should not happen if the loop logic is correct, but handle defensively
+		return nil, fmt.Errorf("repository root could not be determined")
+	}
+
+	// Construct the path to the snippets directory relative to the repo root
+	snippetsDir := filepath.Join(repoRoot, "snippets")
+
+	// Check if the snippets directory exists
+	if _, err := os.Stat(snippetsDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("snippets directory '%s' does not exist", snippetsDir)
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to access snippets directory '%s': %w", snippetsDir, err)
+	}
+
 	sourceFiles, err := filepath.Glob(filepath.Join(snippetsDir, "*.sv"))
+	log.Printf("Loading snippets from directory: %s", snippetsDir)
 	if err != nil {
 		return nil, err
 	}
