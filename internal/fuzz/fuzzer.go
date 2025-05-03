@@ -233,6 +233,12 @@ func (f *Fuzzer) Run(numTests int) error {
 	}
 	f.debug.Log("Module has %d inputs and %d outputs", inputCount, outputCount)
 
+	// Store original ports for comparison in worker
+	originalPorts := make(map[string]verilog.Port)
+	for _, p := range f.module.Ports {
+		originalPorts[p.Name] = p
+	}
+
 	// Create a worker pool for parallel fuzzing
 	var wg sync.WaitGroup
 	testCases := make(chan int, f.workers)
@@ -245,7 +251,7 @@ func (f *Fuzzer) Run(numTests int) error {
 	// Start worker goroutines
 	for w := 0; w < f.workers; w++ {
 		wg.Add(1)
-		go f.worker(&wg, testCases)
+		go f.worker(&wg, testCases, originalPorts)
 	}
 
 	// Feed test cases to workers
@@ -396,11 +402,12 @@ func (f *Fuzzer) processTestCases(
 	workerID, workerDir string,
 	ivsim, vlsim simulator.Simulator,
 	workerModule *verilog.Module, // Pass the parsed module for this worker
+	originalPorts map[string]verilog.Port, // Pass original ports map
 	testCases <-chan int,
 ) {
 	for i := range testCases {
-		// Pass workerModule to runSingleTest
-		f.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, i)
+		// Pass workerModule and originalPorts to runSingleTest
+		f.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, originalPorts, i)
 	}
 }
 
@@ -410,12 +417,29 @@ func (f *Fuzzer) runSingleTest(
 	workerID, workerDir string,
 	ivsim, vlsim simulator.Simulator,
 	workerModule *verilog.Module, // Use worker-specific module
+	originalPorts map[string]verilog.Port, // Original ports for comparison
 	testIndex int,
 ) {
 	// Generate test case based on the *original* module structure stored in f.strategy
-	// (Strategy doesn't know about mutation)
 	testCase := f.strategy.GenerateTestCase(testIndex)
 	f.stats.AddTest()
+
+	// --- Add default values for new input ports ---
+	for _, port := range workerModule.Ports {
+		// Check if it's an input/inout port added by mutation
+		_, isOriginal := originalPorts[port.Name]
+		if (port.Direction == verilog.INPUT || port.Direction == verilog.INOUT) && !isOriginal {
+			// Check if strategy already provided a value (unlikely but possible)
+			if _, exists := testCase[port.Name]; !exists {
+				// Generate default value '0' padded to the port's width
+				defaultValue := strings.Repeat("0", port.Width)
+				testCase[port.Name] = defaultValue
+				f.debug.Printf("[%s] Test %d: Added default value '%s' for new input port '%s'",
+					workerID, testIndex, defaultValue, port.Name)
+			}
+		}
+	}
+	// --- End add default values ---
 
 	// Validate against the *worker's* current module structure
 	f.validateMultiBitSignals(workerModule, testCase) // Pass workerModule
@@ -428,13 +452,12 @@ func (f *Fuzzer) runSingleTest(
 		return
 	}
 	defer func() {
-		// Explicitly clean up test files after each test unless verbose
 		if !f.verbose {
 			os.RemoveAll(testDir)
 		}
 	}()
 
-	// Write input files
+	// Write input files (now includes defaults for new ports)
 	if err := writeTestInputs(testDir, testCase); err != nil {
 		log.Printf("[%s] Failed to write inputs for test %d: %v", workerID, testIndex, err)
 		f.stats.AddSimError()
@@ -458,8 +481,14 @@ func (f *Fuzzer) runSingleTest(
 	mismatch, mismatchDetails := f.compareSimulationResults(ivResult, vlResult)
 
 	if mismatch {
-		// Pass workerModule to handleMismatch if needed, currently uses ivResult keys
-		f.handleMismatch(testIndex, testDir, testCase, mismatchDetails, ivResult)
+		f.handleMismatch(
+			testIndex,
+			testDir,
+			testCase,
+			mismatchDetails,
+			ivResult,
+			workerModule,
+		) // Pass workerModule
 	}
 }
 
@@ -525,12 +554,14 @@ func (f *Fuzzer) compareSimulationResults(
 }
 
 // handleMismatch logs the mismatch details and saves the relevant files.
+// Pass workerModule to accurately determine output ports.
 func (f *Fuzzer) handleMismatch(
 	testIndex int,
 	testDir string,
 	testCase map[string]string,
 	mismatchDetails map[string]string,
-	ivResult map[string]string,
+	ivResult map[string]string, // Keep ivResult for actual values
+	workerModule *verilog.Module, // Use worker module to know expected outputs
 ) {
 	log.Printf("Mismatch found in test %d:\n", testIndex)
 
@@ -560,12 +591,13 @@ func (f *Fuzzer) handleMismatch(
 			}
 		}
 
+		// Copy output files from both simulators
 		outputPorts := make(map[string]struct{})
-		for portName := range ivResult {
-			outputPorts[portName] = struct{}{}
-		}
-		for portName := range mismatchDetails {
-			outputPorts[portName] = struct{}{}
+		// Determine output ports from the workerModule definition
+		for _, port := range workerModule.Ports {
+			if port.Direction == verilog.OUTPUT {
+				outputPorts[port.Name] = struct{}{}
+			}
 		}
 
 		for portName := range outputPorts {
@@ -609,7 +641,12 @@ func (f *Fuzzer) handleMismatch(
 }
 
 // worker is a goroutine that processes test cases
-func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int) {
+// Accept originalPorts map
+func (f *Fuzzer) worker(
+	wg *sync.WaitGroup,
+	testCases <-chan int,
+	originalPorts map[string]verilog.Port,
+) {
 	defer wg.Done()
 
 	VerilogFileName := filepath.Base(f.verilogFile)
@@ -675,7 +712,7 @@ func (f *Fuzzer) worker(wg *sync.WaitGroup, testCases <-chan int) {
 		return
 	}
 
-	f.processTestCases(workerID, workerDir, ivsim, vlsim, workerModule, testCases)
+	f.processTestCases(workerID, workerDir, ivsim, vlsim, workerModule, originalPorts, testCases)
 }
 
 // writeTestInputs writes test case input files

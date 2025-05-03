@@ -152,6 +152,11 @@ func (s *RandomStrategy) GenerateTestCase(iteration int) map[string]string {
 	// Generate values for all input ports
 	for _, port := range s.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
+			hexDigits := (port.Width + 3) / 4 // Calculate hex digits needed
+			if hexDigits == 0 {
+				hexDigits = 1 // Ensure at least one digit
+			}
+
 			if port.Width == 1 {
 				// For single-bit ports
 				testCase[port.Name] = strconv.Itoa(r.Intn(2))
@@ -160,24 +165,21 @@ func (s *RandomStrategy) GenerateTestCase(iteration int) map[string]string {
 				strategy := r.Intn(5)
 				switch strategy {
 				case 0: // All zeros
-					testCase[port.Name] = "0"
+					testCase[port.Name] = strings.Repeat("0", hexDigits) // Use padded zeros
 				case 1: // All ones - with proper width
-					hexDigits := (port.Width + 3) / 4
 					testCase[port.Name] = strings.Repeat("f", hexDigits)
 				case 2: // Single bit set
 					bitPos := r.Intn(port.Width)
 					value := uint64(1) << bitPos
-					hexDigits := (port.Width + 3) / 4
 					testCase[port.Name] = fmt.Sprintf("%0*x", hexDigits, value)
 				case 3: // Alternating bits
 					pattern := uint64(0)
 					for i := 0; i < port.Width && i < 64; i += 2 {
 						pattern |= (uint64(1) << i)
 					}
-					hexDigits := (port.Width + 3) / 4
 					testCase[port.Name] = fmt.Sprintf("%0*x", hexDigits, pattern)
 				default: // Random value with proper width
-					testCase[port.Name] = GenerateHexValue(port.Width, r)
+					testCase[port.Name] = GenerateHexValue(port.Width, r) // This function already handles padding
 				}
 			}
 		}
@@ -288,15 +290,18 @@ func (s *SmartStrategy) generateControlPortValue(port verilog.Port, r *rand.Rand
 func (s *SmartStrategy) generateDataPortValue(port verilog.Port, r *rand.Rand) string {
 	strategy := r.Intn(8) // Choose one of the 8 strategies
 	hexDigits := (port.Width + 3) / 4
+	if hexDigits == 0 {
+		hexDigits = 1 // Ensure at least one digit
+	}
 
 	switch strategy {
 	case 0: // All zeros
-		return "0"
+		return strings.Repeat("0", hexDigits) // Use padded zeros
 	case 1: // All ones
 		return strings.Repeat("f", hexDigits)
 	case 2: // Single bit set
 		if port.Width == 0 {
-			return "0"
+			return strings.Repeat("0", hexDigits) // Padded zero if width is 0
 		}
 		bitPos := r.Intn(port.Width)
 		value := uint64(1) << bitPos
@@ -310,23 +315,23 @@ func (s *SmartStrategy) generateDataPortValue(port verilog.Port, r *rand.Rand) s
 		return fmt.Sprintf("%0*x", hexDigits, pattern)
 	case 4: // Small integer (0-9)
 		value := r.Intn(10)
-		return fmt.Sprintf("%x", value) // No zero padding needed for small numbers usually
+		return fmt.Sprintf("%0*x", hexDigits, value) // Apply padding
 	case 5: // Powers of 2
 		if port.Width == 0 {
-			return "0"
+			return strings.Repeat("0", hexDigits) // Padded zero if width is 0
 		}
 		power := r.Intn(port.Width)
 		value := uint64(1) << power
 		return fmt.Sprintf("%0*x", hexDigits, value)
 	case 6: // Powers of 2 minus 1 (all ones up to a point)
 		if port.Width == 0 {
-			return "0"
+			return strings.Repeat("0", hexDigits) // Padded zero if width is 0
 		}
 		power := r.Intn(port.Width) + 1
 		value := uint64((uint64(1) << power) - 1)
 		return fmt.Sprintf("%0*x", hexDigits, value)
 	default: // Fully random value using the existing helper
-		return GenerateHexValue(port.Width, r)
+		return GenerateHexValue(port.Width, r) // This function already handles padding
 	}
 }
 
