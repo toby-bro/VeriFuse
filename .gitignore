@@ -15,3 +15,5 @@ patterns
 !cmd/patterns
 ibex_*.sv
 backups
+
+*.tmp
