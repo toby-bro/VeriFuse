@@ -31,9 +31,9 @@ type Parameter struct {
 type Port struct {
 	Name      string
 	Direction PortDirection
-	Width     int  // Width in bits (1 for scalar)
-	IsSigned  bool // Whether the port is signed
-	IsReg     bool // Whether the port is reg type
+	Type      string // e.g., logic, reg, wire, int, bit
+	Width     int    // Width in bits (1 for scalar)
+	IsSigned  bool   // Whether the port is signed
 }
 
 // Module represents a parsed Verilog module
@@ -276,40 +276,65 @@ func scanForPortDeclarations(
 			continue
 		}
 
-		// Use helper functions to check for port declarations
+		// Check for input ports
 		if matches := matchInputPort(line); len(matches) > 3 {
-			isReg := matches[1] == "reg"
-			rangeStr := matches[2]
-			portName := strings.TrimSpace(matches[3])
-
-			if portNames[portName] {
-				width, _ := parseRange(rangeStr)
-				module.Ports = append(module.Ports, Port{
-					Name: portName, Direction: INPUT, Width: width, IsSigned: false, IsReg: isReg,
-				})
-				delete(portNames, portName) // Remove found port to avoid fallback duplication
+			portType := strings.TrimSpace(matches[1])
+			if portType == "" {
+				portType = "logic" // Default type if not specified
 			}
-		} else if matches := matchOutputPort(line); len(matches) > 3 {
-			isReg := matches[1] == "reg"
 			rangeStr := matches[2]
 			portName := strings.TrimSpace(matches[3])
 
 			if portNames[portName] {
 				width, _ := parseRange(rangeStr)
 				module.Ports = append(module.Ports, Port{
-					Name: portName, Direction: OUTPUT, Width: width, IsSigned: false, IsReg: isReg,
+					Name:      portName,
+					Direction: INPUT,
+					Type:      portType,
+					Width:     width,
+					IsSigned:  false, // Assume unsigned by default
 				})
-				delete(portNames, portName) // Remove found port
 			}
-		} else if matches := matchInoutPort(line); len(matches) > 3 {
-			isReg := matches[1] == "reg"
+		}
+
+		// Check for output ports
+		if matches := matchOutputPort(line); len(matches) > 3 {
+			portType := strings.TrimSpace(matches[1])
+			if portType == "" {
+				portType = "logic" // Default type if not specified
+			}
 			rangeStr := matches[2]
 			portName := strings.TrimSpace(matches[3])
 
 			if portNames[portName] {
 				width, _ := parseRange(rangeStr)
 				module.Ports = append(module.Ports, Port{
-					Name: portName, Direction: INOUT, Width: width, IsSigned: false, IsReg: isReg,
+					Name:      portName,
+					Direction: OUTPUT,
+					Type:      portType,
+					Width:     width,
+					IsSigned:  false, // Assume unsigned by default
+				})
+			}
+		}
+
+		// Check for inout ports
+		if matches := matchInoutPort(line); len(matches) > 3 {
+			portType := strings.TrimSpace(matches[1])
+			if portType == "" {
+				portType = "logic" // Default type if not specified
+			}
+			rangeStr := matches[2]
+			portName := strings.TrimSpace(matches[3])
+
+			if portNames[portName] {
+				width, _ := parseRange(rangeStr)
+				module.Ports = append(module.Ports, Port{
+					Name:      portName,
+					Direction: INOUT,
+					Type:      portType,
+					Width:     width,
+					IsSigned:  false,
 				})
 				delete(portNames, portName) // Remove found port
 			}
@@ -332,7 +357,11 @@ func applyPortDeclarationFallback(remainingPortNames map[string]bool, module *Mo
 				direction = INPUT // Default to input
 			}
 			module.Ports = append(module.Ports, Port{
-				Name: portName, Direction: direction, Width: 1, IsSigned: false, IsReg: false,
+				Name:      portName,
+				Direction: direction,
+				Type:      "logic", // Default type
+				Width:     1,       // Default to scalar
+				IsSigned:  false,
 			})
 		}
 	}
