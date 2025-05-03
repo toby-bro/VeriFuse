@@ -179,7 +179,7 @@ func TestInjectSnippet(t *testing.T) {
 		t.Fatalf("Could not find declaration in output")
 	}
 
-	if !(declarationMatch[0] < endModuleIndex && instantiationMatch[0] < endModuleIndex) {
+	if declarationMatch[0] >= endModuleIndex || instantiationMatch[0] >= endModuleIndex {
 		t.Errorf("Instantiation or declaration is not placed correctly before the final endmodule")
 	}
 

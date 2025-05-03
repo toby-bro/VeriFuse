@@ -142,6 +142,8 @@ func (f *Fuzzer) Setup(mock bool) error {
 			dirStr = "INOUT"
 		case verilog.INPUT:
 			dirStr = "INPUT"
+		case verilog.INTERNAL:
+			dirStr = "INTERNAL"
 		}
 		f.debug.Log("  Port %d: %s (%s) [%d bits]", i+1, port.Name, dirStr, port.Width)
 	}
