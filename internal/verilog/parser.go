@@ -162,90 +162,89 @@ func parseRange(rangeStr string) (int, error) {
 	return 8, nil
 }
 
-// ParseVerilogFile parses a Verilog file and extracts module information
-func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
+// openAndReadFile opens and reads the entire content of the specified file.
+func openAndReadFile(filename string) (*os.File, []byte, error) {
 	file, err := os.Open(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %v", err)
+		return nil, nil, fmt.Errorf("failed to open file: %v", err)
 	}
-	defer file.Close()
+	// Note: The caller is responsible for closing the file.
 
 	content, err := io.ReadAll(file)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %v", err)
+		file.Close() // Close file on read error
+		return nil, nil, fmt.Errorf("failed to read file: %v", err)
 	}
+	return file, content, nil
+}
 
-	// If no specific module name is provided, derive it from the filename
-	if targetModule == "" {
+// determineTargetModule derives the target module name from the filename if not provided.
+func determineTargetModule(filename string, providedTargetModule string) string {
+	if providedTargetModule == "" {
 		baseName := filepath.Base(filename)
-		targetModule = strings.TrimSuffix(baseName, filepath.Ext(baseName))
+		return strings.TrimSuffix(baseName, filepath.Ext(baseName))
 	}
+	return providedTargetModule
+}
 
-	// Use helper function to find module declaration
+// findModuleDeclaration searches the content for the module definition and extracts parameter/port lists.
+func findModuleDeclaration(content []byte, targetModule string) (string, string, string, error) {
 	moduleMatches := matchSpecificModule(content, targetModule)
+	actualTargetModule := targetModule
 
 	if len(moduleMatches) < 3 {
-		// Use helper function to find general module declaration
 		generalMatches := matchGeneralModule(content)
-
 		if len(generalMatches) < 4 {
-			return nil, errors.New("no module found in the file")
+			return "", "", "", errors.New("no module found in the file")
 		}
 
-		targetModule = string(generalMatches[1])
-		// Reconstruct moduleMatches structure for consistent handling below
+		actualTargetModule = string(generalMatches[1])
 		var paramListBytes, portListBytes []byte
 		if len(generalMatches[2]) > 0 { // Parameters exist
 			paramListBytes = generalMatches[2]
 			portListBytes = generalMatches[3]
 		} else { // No parameters
-			portListBytes = generalMatches[3] // Port list is the 3rd group (index 2 is empty)
+			portListBytes = generalMatches[3]
 		}
 		moduleMatches = [][]byte{generalMatches[0], paramListBytes, portListBytes}
 	}
 
-	// Extract parameters and port list
-	var paramList string
-	var portList string
-
+	var paramListStr, portListStr string
 	if len(moduleMatches) >= 3 {
 		if len(moduleMatches[1]) > 0 {
-			paramList = string(moduleMatches[1])
+			paramListStr = string(moduleMatches[1])
 		}
-		portList = string(moduleMatches[2])
+		portListStr = string(moduleMatches[2])
 	}
 
-	// Create a new module structure
-	module := &Module{
-		Name:       targetModule,
-		Filename:   filename,
-		Ports:      []Port{},
-		Parameters: []Parameter{},
-		Content:    string(content),
-	}
+	return actualTargetModule, paramListStr, portListStr, nil
+}
 
-	// Parse parameters if they exist
-	if paramList != "" {
-		parseParameters(paramList, module)
-	}
-
-	// Extract module port names from the port list using helper function
+// extractPortNamesFromListString parses the raw port list string and returns a map of port names.
+func extractPortNamesFromListString(portListStr string) map[string]bool {
 	portNames := make(map[string]bool)
-	for _, p := range strings.Split(portList, ",") {
-		portName := extractPortNameFromList(p)
+	for _, p := range strings.Split(portListStr, ",") {
+		portName := extractPortNameFromList(p) // Uses existing regex helper
 		if portName != "" {
 			portNames[portName] = true
 		}
 	}
+	return portNames
+}
 
-	// Now scan the file to find port declarations
-	_, err = file.Seek(0, 0) // Reset to beginning of file
+// scanForPortDeclarations scans the file content to find detailed port declarations.
+func scanForPortDeclarations(
+	file *os.File,
+	targetModule string,
+	portNames map[string]bool,
+	module *Module,
+) error {
+	_, err := file.Seek(0, 0) // Reset to beginning of file
 	if err != nil {
-		return nil, fmt.Errorf("failed to seek file: %v", err)
+		return fmt.Errorf("failed to seek file: %v", err)
 	}
 	scanner := bufio.NewScanner(file)
 
-	// Process each line
 	inComment := false
 	inModule := false
 
@@ -281,55 +280,48 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 		if matches := matchInputPort(line); len(matches) > 3 {
 			isReg := matches[1] == "reg"
 			rangeStr := matches[2]
-			portName := strings.TrimSpace(matches[3]) // Clean port name
+			portName := strings.TrimSpace(matches[3])
 
 			if portNames[portName] {
 				width, _ := parseRange(rangeStr)
 				module.Ports = append(module.Ports, Port{
-					Name:      portName,
-					Direction: INPUT,
-					Width:     width,
-					IsSigned:  false,
-					IsReg:     isReg,
+					Name: portName, Direction: INPUT, Width: width, IsSigned: false, IsReg: isReg,
 				})
+				delete(portNames, portName) // Remove found port to avoid fallback duplication
 			}
 		} else if matches := matchOutputPort(line); len(matches) > 3 {
 			isReg := matches[1] == "reg"
 			rangeStr := matches[2]
-			portName := strings.TrimSpace(matches[3]) // Clean port name
+			portName := strings.TrimSpace(matches[3])
 
 			if portNames[portName] {
 				width, _ := parseRange(rangeStr)
 				module.Ports = append(module.Ports, Port{
-					Name:      portName,
-					Direction: OUTPUT,
-					Width:     width,
-					IsSigned:  false,
-					IsReg:     isReg,
+					Name: portName, Direction: OUTPUT, Width: width, IsSigned: false, IsReg: isReg,
 				})
+				delete(portNames, portName) // Remove found port
 			}
 		} else if matches := matchInoutPort(line); len(matches) > 3 {
 			isReg := matches[1] == "reg"
 			rangeStr := matches[2]
-			portName := strings.TrimSpace(matches[3]) // Clean port name
+			portName := strings.TrimSpace(matches[3])
 
 			if portNames[portName] {
 				width, _ := parseRange(rangeStr)
 				module.Ports = append(module.Ports, Port{
-					Name:      portName,
-					Direction: INOUT,
-					Width:     width,
-					IsSigned:  false,
-					IsReg:     isReg,
+					Name: portName, Direction: INOUT, Width: width, IsSigned: false, IsReg: isReg,
 				})
+				delete(portNames, portName) // Remove found port
 			}
 		}
 	}
+	return scanner.Err()
+}
 
-	// Fall back to simpler port list extraction if we couldn't find port declarations
-	if len(module.Ports) == 0 && len(portNames) > 0 { // Check if portNames were extracted
-		// Basic heuristic: assume inputs end with _i, outputs with _o
-		for portName := range portNames {
+// applyPortDeclarationFallback adds ports based on naming conventions if detailed declarations were missing.
+func applyPortDeclarationFallback(remainingPortNames map[string]bool, module *Module) {
+	if len(module.Ports) == 0 && len(remainingPortNames) > 0 {
+		for portName := range remainingPortNames {
 			var direction PortDirection
 			switch {
 			case strings.HasSuffix(portName, "_i") || strings.HasSuffix(portName, "_in"):
@@ -337,22 +329,59 @@ func ParseVerilogFile(filename string, targetModule string) (*Module, error) {
 			case strings.HasSuffix(portName, "_o") || strings.HasSuffix(portName, "_out"):
 				direction = OUTPUT
 			default:
-				// Default to input if no suffix matches
-				direction = INPUT
+				direction = INPUT // Default to input
 			}
-
 			module.Ports = append(module.Ports, Port{
-				Name:      portName,
-				Direction: direction,
-				Width:     1, // Default to scalar
-				IsSigned:  false,
-				IsReg:     false,
+				Name: portName, Direction: direction, Width: 1, IsSigned: false, IsReg: false,
 			})
 		}
 	}
+}
+
+// ParseVerilogFile parses a Verilog file and extracts module information
+func ParseVerilogFile(filename string, providedTargetModule string) (*Module, error) {
+	file, content, err := openAndReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	targetModule := determineTargetModule(filename, providedTargetModule)
+
+	actualTargetModule, paramListStr, portListStr, err := findModuleDeclaration(
+		content,
+		targetModule,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	module := &Module{
+		Name:       actualTargetModule,
+		Filename:   filename,
+		Ports:      []Port{},
+		Parameters: []Parameter{},
+		Content:    string(content),
+	}
+
+	// Parse parameters if they exist
+	if paramListStr != "" {
+		parseParameters(paramListStr, module) // Assumes parseParameters is okay as is
+	}
+
+	// Extract port names from the list in the module definition
+	portNamesMap := extractPortNamesFromListString(portListStr)
+
+	// Scan the file content for detailed port declarations (input/output/inout)
+	if err := scanForPortDeclarations(file, actualTargetModule, portNamesMap, module); err != nil {
+		return nil, fmt.Errorf("error scanning for port declarations: %v", err)
+	}
+
+	// Apply fallback logic for any ports found in the list but not in declarations
+	applyPortDeclarationFallback(portNamesMap, module)
 
 	if len(module.Ports) == 0 {
-		return nil, fmt.Errorf("no ports found for module %s", targetModule)
+		return nil, fmt.Errorf("no ports found for module %s", actualTargetModule)
 	}
 
 	return module, nil
