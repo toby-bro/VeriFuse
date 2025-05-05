@@ -17,25 +17,35 @@ import (
 )
 
 var (
-	snippets   = []string{}
+	modules    = []string{}
 	seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+	classes    = map[string]string{}
 )
 
-func ExtractModules(filePath string) (map[string]string, error) {
+type Snippet struct {
+	Name      string
+	Content   string
+	DependsOn []string
+}
+
+func ExtractDefinitions(filePath string) (map[string]string, map[string]string, error) {
 	fileContent, err := utils.ReadFileContent(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file %s: %v", filePath, err)
+		return nil, nil, fmt.Errorf("failed to read file %s: %v", filePath, err)
 	}
-	moduleName := ""
+	thingName := ""
+	var isModule bool
+	var isClass bool
 
 	lines := strings.Split(fileContent, "\n")
 	allModules := make(map[string]string)
-	moduleContent := []string{}
+	allClasses := make(map[string]string)
+	thingContent := []string{}
 
 	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
 		switch {
-		case strings.HasPrefix(trimmedLine, "module"):
+		case strings.HasPrefix(trimmedLine, "module") || strings.HasPrefix(trimmedLine, "class"):
 			// Extract module name, handle potential parameters/ports in declaration
 			parts := strings.Fields(trimmedLine)
 			if len(parts) >= 2 {
@@ -45,42 +55,65 @@ func ExtractModules(filePath string) (map[string]string, error) {
 					namePart = namePart[:idx]
 				}
 				// Use base filename and extracted name for a unique key
-				moduleName = filepath.Base(filePath) + "_" + namePart
-				moduleContent = []string{line} // Start collecting with the module line itself
+				thingName = filepath.Base(filePath) + "_" + namePart
+				thingContent = []string{line} // Start collecting with the module line itself
+				switch {
+				case strings.HasPrefix(trimmedLine, "module"):
+					isModule = true
+					isClass = false
+				case strings.HasPrefix(trimmedLine, "class"):
+					isModule = false
+					isClass = true
+				default:
+					// Malformed line, reset state just in case
+					return nil, nil, fmt.Errorf("Statement should never have been reached")
+					// thingName = ""
+					// thingContent = []string{}
+					// isModule = false
+					// isClass = false
+				}
 			} else {
 				// Malformed module line, reset state just in case
-				moduleName = ""
-				moduleContent = []string{}
+				thingName = ""
+				thingContent = []string{}
+				isModule = false
+				isClass = false
 			}
-		case strings.HasPrefix(trimmedLine, "endmodule"):
-			if moduleName != "" { // Only process if we were inside a module
-				moduleContent = append(moduleContent, line) // Add the endmodule line
-				allModules[moduleName] = strings.Join(moduleContent, "\n")
+		case strings.HasPrefix(trimmedLine, "endmodule") || strings.HasPrefix(trimmedLine, "endclass"):
+			if thingName != "" { // Only process if we were inside a module
+				thingContent = append(thingContent, line) // Add the endmodule line
+				switch {
+				case isModule && strings.HasPrefix(trimmedLine, "endmodule"):
+					allModules[thingName] = strings.Join(thingContent, "\n")
+				case isClass && strings.HasPrefix(trimmedLine, "endclass"):
+					allClasses[thingName] = strings.Join(thingContent, "\n")
+				default:
+					return nil, nil, fmt.Errorf("Invalid end statement for %s", thingName)
+				}
 				// Reset for the next potential module
-				moduleName = ""
-				moduleContent = []string{}
+				thingName = ""
+				thingContent = []string{}
 			}
-			// If moduleName was already "", this endmodule is ignored (e.g., nested or mismatched)
 		default:
-			if moduleName != "" { // Only append lines if we are inside a module definition
-				moduleContent = append(moduleContent, line)
+			if thingName != "" { // Only append lines if we are inside a module or a class definition
+				thingContent = append(thingContent, line)
 			}
 			// Otherwise, ignore lines outside module definitions
 		}
 	}
 
 	if len(allModules) == 0 {
-		return nil, fmt.Errorf("no modules found in file %s", filePath)
+		return nil, nil, fmt.Errorf("no modules or classes found in file %s", filePath)
 	}
 
-	return allModules, nil
+	return allModules, allClasses, nil
 }
 
-func LoadSnippets() ([]string, error) {
+func LoadSnippetModules() ([]string, map[string]string, error) {
 	// Find the repository root by searching upwards for a .git directory
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get current working directory: %w", err)
+		return nil, nil, fmt.Errorf("failed to get current working directory: %w", err)
 	}
 
 	repoRoot := ""
@@ -95,14 +128,14 @@ func LoadSnippets() ([]string, error) {
 		}
 		// Handle errors other than "not found"
 		if err != nil && !os.IsNotExist(err) {
-			return nil, fmt.Errorf("error checking for .git directory at %s: %w", gitPath, err)
+			return nil, nil, fmt.Errorf("error checking for .git directory at %s: %w", gitPath, err)
 		}
 
 		// Move to the parent directory
 		parentDir := filepath.Dir(dir)
 		if parentDir == dir {
 			// Reached the filesystem root without finding .git
-			return nil, fmt.Errorf(
+			return nil, nil, fmt.Errorf(
 				"failed to find repository root (.git directory) starting from %s",
 				cwd,
 			)
@@ -112,7 +145,7 @@ func LoadSnippets() ([]string, error) {
 
 	if repoRoot == "" {
 		// Should not happen if the loop logic is correct, but handle defensively
-		return nil, errors.New("repository root could not be determined")
+		return nil, nil, errors.New("repository root could not be determined")
 	}
 
 	// Construct the path to the snippets directory relative to the repo root
@@ -120,25 +153,29 @@ func LoadSnippets() ([]string, error) {
 
 	// Check if the snippets directory exists
 	if _, err := os.Stat(snippetsDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("snippets directory '%s' does not exist", snippetsDir)
+		return nil, nil, fmt.Errorf("snippets directory '%s' does not exist", snippetsDir)
 	} else if err != nil {
-		return nil, fmt.Errorf("failed to access snippets directory '%s': %w", snippetsDir, err)
+		return nil, nil, fmt.Errorf("failed to access snippets directory '%s': %w", snippetsDir, err)
 	}
 
 	sourceFiles, err := filepath.Glob(filepath.Join(snippetsDir, "*.sv"))
 	log.Printf("Loading snippets from directory: %s", snippetsDir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	allModules := make(map[string]string)
+	allClasses := make(map[string]string)
 	for _, snippetFile := range sourceFiles {
-		modules, err := ExtractModules(snippetFile)
+		modules, classes, err := ExtractDefinitions(snippetFile)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for name, content := range modules {
 			allModules[name] = content
+		}
+		for name, content := range classes {
+			allClasses[name] = content
 		}
 	}
 	// Convert map to slice
@@ -146,22 +183,24 @@ func LoadSnippets() ([]string, error) {
 	for _, content := range allModules {
 		snippetList = append(snippetList, content)
 	}
-	return snippetList, nil
+	return snippetList, allClasses, nil
 }
 
-func GetSnippets() ([]string, error) {
-	if len(snippets) == 0 {
+// returns the list of modules and the map of classes defined in the snippets directory
+func GetSnippets() ([]string, map[string]string, error) {
+	if len(modules) == 0 {
 		var err error
-		snippets, err = LoadSnippets()
+		modules, classes, err = LoadSnippetModules()
 		if err != nil {
-			return nil, fmt.Errorf("failed to load snippets: %v", err)
+			return nil, nil, fmt.Errorf("failed to load snippets: %v", err)
 		}
 	}
-	return snippets, nil
+	return modules, classes, nil
 }
 
+// GetRandomSnippet returns a random snippet from the loaded module snippets.
 func GetRandomSnippet() (string, error) {
-	snippets, err := GetSnippets()
+	snippets, _, err := GetSnippets()
 	if err != nil {
 		return "", fmt.Errorf("failed to get snippets: %v", err)
 	}
@@ -654,6 +693,8 @@ func AddCodeToSnippet(originalContent, snippet string) (string, error) {
 
 	return result.String(), nil
 }
+
+func GetClassesSnippetNeeds(snippet string)
 
 // MutateFile applies a random mutation strategy (InjectSnippet or AddCodeToSnippet)
 func MutateFile(fileName string) error {
