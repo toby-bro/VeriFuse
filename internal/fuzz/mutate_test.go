@@ -108,7 +108,7 @@ func TestExtractModules(t *testing.T) {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 
-	modules, err := ExtractModules(tempFile)
+	modules, _, err := ExtractDefinitions(tempFile)
 	if err != nil {
 		t.Fatalf("ExtractModules failed: %v", err)
 	}
@@ -261,12 +261,12 @@ endmodule
 }
 
 func TestGetSnippetsAndRandom(t *testing.T) {
-	originalSnippets := snippets
+	originalSnippets := modules
 	testSnippets := []string{"module snip1(); endmodule", "module snip2(input a); endmodule"}
-	snippets = testSnippets
-	defer func() { snippets = originalSnippets }()
+	modules = testSnippets
+	defer func() { modules = originalSnippets }()
 
-	retrievedSnippets, err := GetSnippets()
+	retrievedSnippets, _, err := GetSnippets()
 	if err != nil {
 		t.Fatalf("GetSnippets failed: %v", err)
 	}
