@@ -75,13 +75,18 @@ type Module struct {
 }
 
 type Variable struct {
-	Name string
-	Type string
+	Name         string
+	Type         PortType
+	Width        int
+	Unsigned     bool
+	Array        []int
+	ParentStruct *Struct
+	ParentClass  *Class
 }
 
 type Struct struct {
 	Name      string
-	Variables []Variable
+	Variables []*Variable
 }
 
 // We do NOT support virtual classes and static functions yet
@@ -105,7 +110,7 @@ type Class struct {
 	Tasks      []Task
 	Functions  []Function
 	isVirtual  bool
-	extends    *Class
+	extends    string
 }
 
 type ModPort struct {
@@ -120,6 +125,14 @@ type Interface struct {
 	ModPorts   []ModPort
 	Parameters []Parameter
 	Body       string
+}
+
+type VerilogFile struct {
+	Name       string
+	Modules    map[string]*Module
+	Interfaces map[string]*Interface
+	Classes    map[string]*Class
+	Structs    map[string]*Struct
 }
 
 // TODO: #5 Improve the type for structs, enums, userdefined types...
@@ -160,7 +173,7 @@ func GetPortType(portTypeString string) PortType {
 	case "enum":
 		return ENUM
 	default:
-		return USERDEFINED
+		return UNKNOWN
 	}
 }
 
@@ -199,7 +212,16 @@ var generalModuleRegex = regexp.MustCompile(
 )
 
 var generalClassRegex = regexp.MustCompile(
-	`(virtual\s+)?class\s+(\w+)\s*(extends\s+\w+)?(?:\s+#\s*\(([\s\S]*?)\))?;\s((\s+.*)+)\sendclass`,
+	`(?:(virtual)\s+)?class\s+(\w+)\s*(?:extends\s+(\w+))?(?:\s+#\s*\(([\s\S]*?)\))?;\s((?:\s+.*)+)\sendclass`,
+)
+
+var generalStructRegex = regexp.MustCompile(
+	`typedef\s+struct\s+(?:packed\s+)\{((?:\s+.*)+)\}\s+(\w+);`,
+)
+
+// TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not
+var generalVariableRegex = regexp.MustCompile(
+	`^\s*(?:\w+\s+)?(reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum)\s+(?:((\[[\w\-]+:[\w\-]+\])+|unsigned)\s+)?(\w+)(?:\s+(\[.*\]))?;`,
 )
 
 func matchSpecificModule(content []byte, targetModule string) [][]byte {
@@ -221,8 +243,16 @@ func matchModuleFromString(content string) []string {
 	return generalModuleRegex.FindStringSubmatch(content)
 }
 
-func matchClassFromString(content string) []string {
-	return generalClassRegex.FindStringSubmatch(content)
+func matchAllClassesFromString(content string) [][]string {
+	return generalClassRegex.FindAllStringSubmatch(content, 0)
+}
+
+func matchAllStructsFromString(content string) [][]string {
+	return generalStructRegex.FindAllStringSubmatch(content, 0)
+}
+
+func matchAllVariablesFromString(content string) [][]string {
+	return generalVariableRegex.FindAllStringSubmatch(content, 0)
 }
 
 // TODO make the regex matching depend on thetypes we defined above
@@ -250,7 +280,7 @@ func parseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 	rangeStr = strings.TrimSpace(rangeStr)
 
 	if rangeStr == "" {
-		return 1, nil // No range means scalar (1-bit)
+		return 0, nil // No range means scalar (1-bit)
 	}
 
 	// --- Priority 1: Simple numeric case [N:0] ---
@@ -960,29 +990,31 @@ func ParseModule(moduleText string) (*Module, error) {
 	return module, nil
 }
 
-func parseClass(classText string) (*Class, error) {
-	matchedClass := matchClassFromString(classText)
-	if len(matchedClass) < 5 {
-		return nil, errors.New("no class found in the provided text")
+func (v *VerilogFile) ParseClass(classText string) error {
+	allMatchedClasses := matchAllClassesFromString(classText)
+	for _, matchedClass := range allMatchedClasses {
+		if len(matchedClass) < 5 {
+			return errors.New("no class found in the provided text")
+		}
+		isVirtual := matchedClass[1] == "virtual"
+		className := matchedClass[2]
+		extends := matchedClass[3]
+		paramListStr := matchedClass[4]
+		content := matchedClass[5]
+		parameters, err := parseParameters(paramListStr)
+		if err != nil {
+			return fmt.Errorf("failed to parse parameters: %v", err)
+		}
+		class := &Class{
+			Name:       className,
+			Parameters: parameters,
+			Body:       content,
+			isVirtual:  isVirtual,
+			extends:    extends,
+		}
+		v.Classes[className] = class
 	}
-	isVirtual := matchedClass[1] == "virtual"
-	className := matchedClass[2]
-	paramListStr := matchedClass[3]
-	content := matchedClass[4]
-	parameters, err := parseParameters(paramListStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse parameters: %v", err)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse ports: %v", err)
-	}
-	class := &Class{
-		Name:       className,
-		Parameters: parameters,
-		Body:       content,
-		isVirtual:  isVirtual,
-	}
-	return class, nil
+	return nil
 }
 
 // TODO #9 : either merge this with the ExtractDefinitions or remove it
@@ -1282,4 +1314,95 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 		fmt.Printf("Warning: No ports found or parsed for module %s. Module might have no ports.\n", module.Name)
 	}
 	return nil
+}
+
+// Be carefull must be parsed third after ParseClass and ParseStruct as the types of the variables might not be defined yet
+func (v *VerilogFile) ParseVariables(
+	content string,
+) ([]*Variable, error) {
+	allMatchedVariables := matchAllVariablesFromString(content)
+	variables := make([]*Variable, 0, len(allMatchedVariables))
+	for _, matchedVariable := range allMatchedVariables {
+		if len(matchedVariable) < 4 {
+			return nil, errors.New("no variable found in the provided text")
+		}
+		varType := GetPortType(matchedVariable[1])
+		widthStr := matchedVariable[3]
+		width, err := parseRange(widthStr, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse width: %v", err)
+		}
+		if width == 0 {
+			width = GetWidthForType(varType)
+		}
+		var parentStruct *Struct = nil
+		var parentClass *Class = nil
+		if varType == UNKNOWN {
+			// Check if it's a struct or class that we have already defined
+			if _, exists := v.Structs[matchedVariable[1]]; exists {
+				varType = USERDEFINED
+				parentStruct = v.Structs[matchedVariable[1]]
+			} else if _, exists := v.Classes[matchedVariable[1]]; exists {
+				varType = USERDEFINED
+				parentClass = v.Classes[matchedVariable[1]]
+			} else {
+				return nil, fmt.Errorf("unknown type '%s' for variable '%s'", matchedVariable[1], matchedVariable[3])
+			}
+		}
+		unsigned := matchedVariable[2] == "unsigned"
+		variableName := matchedVariable[3]
+		variable := &Variable{
+			Name:         variableName,
+			Type:         varType,
+			Width:        width,
+			Unsigned:     unsigned,
+			ParentStruct: parentStruct,
+			ParentClass:  parentClass,
+		}
+		variables = append(variables, variable)
+	}
+	return variables, nil
+}
+
+func (v *VerilogFile) ParseStructs(
+	content string,
+	firstPass bool,
+) error {
+	if firstPass {
+		v.Structs = make(map[string]*Struct)
+	}
+	allMatchedStructs := matchAllStructsFromString(content)
+	for _, matchedStruct := range allMatchedStructs {
+		if len(matchedStruct) < 2 {
+			return errors.New("no struct found in the provided text")
+		}
+		structName := matchedStruct[2]
+		varList := matchedStruct[1]
+		if firstPass {
+			s := &Struct{
+				Name: structName,
+			}
+			v.Structs[structName] = s
+		} else {
+			variables, err := v.ParseVariables(varList)
+			if err != nil {
+				return fmt.Errorf("failed to parse variables in struct '%s': %v", structName, err)
+			}
+			v.Structs[structName].Variables = variables
+		}
+	}
+	return nil
+}
+
+func (c Class) parseClassContent(content string, verilogFile *VerilogFile) error {
+	return errors.New("parseClassContent not implemented yet")
+}
+
+func ParseVerilog(content string) (*VerilogFile, error) {
+	verilogFile := &VerilogFile{}
+	verilogFile.ParseStructs(content, true)
+	verilogFile.ParseClass(content)
+	verilogFile.ParseStructs(content, false)
+
+	return nil, errors.New("ParseVerilog not implemented yet")
 }
