@@ -887,7 +887,7 @@ func ExtractDefinitions(filePath string) (map[string]string, map[string]string, 
 					isClass = true
 				default:
 					// Malformed line, reset state just in case
-					return nil, nil, fmt.Errorf("Statement should never have been reached")
+					return nil, nil, errors.New("Statement should never have been reached")
 					// thingName = ""
 					// thingContent = []string{}
 					// isModule = false
@@ -931,13 +931,13 @@ func ExtractDefinitions(filePath string) (map[string]string, map[string]string, 
 }
 
 func GetDependenciesSnippetNeeds(snippet string) error {
-	return fmt.Errorf("GetDependenciesSnippetNeeds not implemented yet")
+	return errors.New("GetDependenciesSnippetNeeds not implemented yet")
 }
 
 func ParseModule(moduleText string) (*Module, error) {
 	matchedModule := matchModuleFromString(moduleText)
 	if len(matchedModule) < 5 {
-		return nil, fmt.Errorf("no module found in the provided text")
+		return nil, errors.New("no module found in the provided text")
 	}
 	moduleName := matchedModule[1]
 	paramListStr := matchedModule[2]
@@ -953,14 +953,17 @@ func ParseModule(moduleText string) (*Module, error) {
 		return nil, fmt.Errorf("failed to parse parameters: %v", err)
 	}
 	module.Parameters = parameters
-	parsePortsAndUpdateModule(portListStr, module)
+	err = parsePortsAndUpdateModule(portListStr, module)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ports: %v", err)
+	}
 	return module, nil
 }
 
 func parseClass(classText string) (*Class, error) {
 	matchedClass := matchClassFromString(classText)
 	if len(matchedClass) < 5 {
-		return nil, fmt.Errorf("no class found in the provided text")
+		return nil, errors.New("no class found in the provided text")
 	}
 	isVirtual := matchedClass[1] == "virtual"
 	className := matchedClass[2]
@@ -1239,7 +1242,7 @@ func parseParameters(paramList string) ([]Parameter, error) {
 				DefaultValue: paramValue,
 			})
 		} else {
-			return nil, fmt.Errorf("Warning: Could not parse parameter fragment: '%s'\n", param)
+			return nil, fmt.Errorf("Could not parse parameter fragment: '%s'", param)
 		}
 	}
 	return parametersList, nil
