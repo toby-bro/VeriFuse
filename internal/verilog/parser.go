@@ -11,16 +11,43 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 // PortDirection represents the direction of a module port
-type PortDirection int
+type (
+	PortDirection int
+	PortType      int
+)
 
 const (
 	INPUT PortDirection = iota
 	OUTPUT
 	INOUT
 	INTERNAL
+)
+
+const (
+	REG PortType = iota
+	WIRE
+	INTEGER
+	REAL
+	TIME
+	REALTIME
+	LOGIC // SystemVerilog from now
+	BIT
+	BYTE
+	SHORTINT
+	INT
+	LONGINT
+	SHORTREAL
+	STRING // sort of reg but you know...
+	STRUCT
+	VOID
+	ENUM
+	USERDEFINED
+	UNKNOWN
 )
 
 // Parameter represents a module parameter
@@ -34,21 +61,146 @@ type Parameter struct {
 type Port struct {
 	Name      string
 	Direction PortDirection
-	Type      string // e.g., logic, reg, wire, int, bit
-	Width     int    // Width in bits (1 for scalar)
-	IsSigned  bool   // Whether the port is signed
+	Type      PortType // e.g., logic, reg, wire, int, bit
+	Width     int      // Width in bits (1 for scalar)
+	IsSigned  bool     // Whether the port is signed
 }
 
 // Module represents a parsed Verilog module
 type Module struct {
 	Name       string
-	Filename   string
 	Ports      []Port
 	Parameters []Parameter
-	Content    string
+	Body       string
 }
 
-// --- Regex Helper Functions ---
+type Variable struct {
+	Name string
+	Type string
+}
+
+type Struct struct {
+	Name      string
+	Variables []Variable
+}
+
+// We do NOT support virtual classes and static functions yet
+// TODO: #4 Add support for virtual classes and static functionsto get parametrized tasks https://stackoverflow.com/questions/57755991/passing-parameters-to-a-verilog-function
+type Function struct {
+	Name  string
+	Ports []Port
+	Body  string
+}
+
+type Task struct {
+	Name  string
+	Ports []Port
+	Body  string
+}
+
+type Class struct {
+	Name       string
+	Parameters []Parameter
+	Body       string
+	Tasks      []Task
+	Functions  []Function
+	isVirtual  bool
+	extends    *Class
+}
+
+type ModPort struct {
+	Name    string
+	Inputs  []string
+	Outputs []string
+}
+
+type Interface struct {
+	Name       string
+	Variables  []Variable
+	ModPorts   []ModPort
+	Parameters []Parameter
+	Body       string
+}
+
+// TODO: #5 Improve the type for structs, enums, userdefined types...
+func GetPortType(portTypeString string) PortType {
+	switch strings.ToLower(portTypeString) {
+	case "reg":
+		return REG
+	case "wire":
+		return WIRE
+	case "integer":
+		return INTEGER
+	case "real":
+		return REAL
+	case "time":
+		return TIME
+	case "realtime":
+		return REALTIME
+	case "logic":
+		return LOGIC
+	case "bit":
+		return BIT
+	case "byte":
+		return BYTE
+	case "shortint":
+		return SHORTINT
+	case "int":
+		return INT
+	case "longint":
+		return LONGINT
+	case "shortreal":
+		return SHORTREAL
+	case "string":
+		return STRING
+	case "struct":
+		return STRUCT
+	case "void":
+		return VOID
+	case "enum":
+		return ENUM
+	default:
+		return USERDEFINED
+	}
+}
+
+func GetWidthForType(portType PortType) int {
+	switch portType {
+	case REG, WIRE, LOGIC, BIT:
+		return 1
+	case INTEGER, INT, LONGINT, TIME:
+		return 32
+	case SHORTINT:
+		return 16
+	case BYTE:
+		return 8
+	case REAL, REALTIME:
+		return 64
+	default:
+		return 0 // Unknown type
+	}
+}
+
+func GetPortDirection(direction string) PortDirection {
+	switch strings.ToLower(direction) {
+	case "input":
+		return INPUT
+	case "output":
+		return OUTPUT
+	case "inout":
+		return INOUT
+	default:
+		return INTERNAL // Default to internal if not specified
+	}
+}
+
+var generalModuleRegex = regexp.MustCompile(
+	`module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);\s((\s+.*)+)\sendmodule`,
+)
+
+var generalClassRegex = regexp.MustCompile(
+	`(virtual\s+)?class\s+(\w+)\s*(extends\s+\w+)?(?:\s+#\s*\(([\s\S]*?)\))?;\s((\s+.*)+)\sendclass`,
+)
 
 func matchSpecificModule(content []byte, targetModule string) [][]byte {
 	// Find module declaration - supports parameter section with #(...)
@@ -61,14 +213,19 @@ func matchSpecificModule(content []byte, targetModule string) [][]byte {
 	return moduleRegex.FindSubmatch(content)
 }
 
-func matchGeneralModule(content []byte) [][]byte {
-	// Try with any module name if specific module not found
-	generalModuleRegex := regexp.MustCompile(
-		`module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);`,
-	)
+func matchModulesFromBytes(content []byte) [][]byte {
 	return generalModuleRegex.FindSubmatch(content)
 }
 
+func matchModuleFromString(content string) []string {
+	return generalModuleRegex.FindStringSubmatch(content)
+}
+
+func matchClassFromString(content string) []string {
+	return generalClassRegex.FindStringSubmatch(content)
+}
+
+// TODO make the regex matching depend on thetypes we defined above
 func matchParameter(param string) []string {
 	// Regex to capture optional type, mandatory name, and optional value.
 	// Group 1: Optional type (including qualifiers like 'unsigned')
@@ -167,6 +324,7 @@ func parseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 	)
 }
 
+// TODO: #8 Use the thread safe version in utils/files.go and remove this file return
 // openAndReadFile opens and reads the entire content of the specified file.
 func openAndReadFile(filename string) (*os.File, []byte, error) {
 	file, err := os.Open(filename)
@@ -198,7 +356,7 @@ func findModuleDeclaration(content []byte, targetModule string) (string, string,
 	actualTargetModule := targetModule
 
 	if len(moduleMatches) < 3 {
-		generalMatches := matchGeneralModule(content)
+		generalMatches := matchModulesFromBytes(content)
 		if len(generalMatches) < 4 {
 			return "", "", "", errors.New("no module found in the file")
 		}
@@ -261,13 +419,13 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 		return nil, false // Not a matching port declaration line
 	}
 
-	portType := strings.TrimSpace(matches[1])
+	portType := GetPortType(strings.TrimSpace(matches[1]))
 	signedStr := strings.TrimSpace(matches[2])
 	rangeStr := strings.TrimSpace(matches[3])
 	portName := strings.TrimSpace(matches[4])
 
-	if portType == "" {
-		portType = "logic" // Default type if not specified (SystemVerilog) or wire (Verilog)
+	if portType == UNKNOWN {
+		portType = LOGIC // Default type if not specified (SystemVerilog) or wire (Verilog)
 	}
 	isSigned := (signedStr == "signed")
 	width, err := parseRange(rangeStr, parameters)
@@ -285,16 +443,7 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 
 	// Handle default widths for types if no range specified AND parseRange didn't error
 	if width == 1 && rangeStr == "" && err == nil {
-		switch portType {
-		case "integer", "int", "longint", "time":
-			width = 32
-		case "shortint":
-			width = 16
-		case "byte":
-			width = 8
-		case "real", "realtime":
-			width = 64
-		}
+		width = GetWidthForType(portType)
 	}
 
 	if width == 0 { // Ensure width is at least 1 (should not happen if parseRange guarantees >= 1)
@@ -312,13 +461,14 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 	return port, true
 }
 
-// extractPortNamesFromListString parses the raw port list string from the module header.
+// extractANSIPortDeclarations parses the raw port list string from the module header.
 // It handles ANSI style declarations within the header and creates placeholders for non-ANSI.
 // Returns a map of port name to the parsed Port struct (or placeholder) and a slice maintaining the original order.
-func extractPortNamesFromListString(
+func extractANSIPortDeclarations(
 	portListStr string,
 	parameters map[string]Parameter,
 ) (map[string]Port, []string) {
+	// TODO determine if the headerPortOrder is really usefull if not delete it
 	headerPorts := make(map[string]Port)
 	headerPortOrder := []string{}
 
@@ -347,14 +497,11 @@ func extractPortNamesFromListString(
 		if matches := ansiPortRegex.FindStringSubmatch(portDecl); len(matches) > 5 {
 			// Full ANSI declaration found
 			directionStr := strings.TrimSpace(matches[1])
-			portType := strings.TrimSpace(matches[2])
+			portType := GetPortType(strings.TrimSpace(matches[2]))
 			signedStr := strings.TrimSpace(matches[3])
 			rangeStr := strings.TrimSpace(matches[4])
 			portName = strings.TrimSpace(matches[5])
 
-			if portType == "" {
-				portType = "logic" // Default type
-			}
 			isSigned := (signedStr == "signed")
 			width, err := parseRange(rangeStr, parameters)
 			if err != nil {
@@ -369,34 +516,11 @@ func extractPortNamesFromListString(
 			}
 
 			// Determine direction
-			var direction PortDirection
-			switch directionStr {
-			case "input":
-				direction = INPUT
-			case "output":
-				direction = OUTPUT
-			case "inout":
-				direction = INOUT
-			default:
-				direction = INPUT
-				fmt.Printf(
-					"Warning: ANSI port '%s' in header missing direction. Assuming INPUT temporarily.\n",
-					portName,
-				)
-			}
+			direction := GetPortDirection(directionStr)
 
 			// Handle default widths for types if no range specified AND parseRange didn't error
 			if width == 1 && rangeStr == "" && err == nil {
-				switch portType {
-				case "integer", "int", "longint", "time":
-					width = 32
-				case "shortint":
-					width = 16
-				case "byte":
-					width = 8
-				case "real", "realtime":
-					width = 64
-				}
+				width = GetWidthForType(portType)
 			}
 			if width == 0 {
 				width = 1
@@ -417,7 +541,7 @@ func extractPortNamesFromListString(
 				portName = matches[2]
 			}
 			// Create a placeholder, details expected in body scan
-			port = Port{Name: portName, Width: 1, Type: "logic", Direction: INPUT, IsSigned: false} // Sensible defaults
+			port = Port{Name: portName, Width: 0, Type: UNKNOWN, Direction: INTERNAL, IsSigned: false} // Sensible defaults
 		} else {
 			fmt.Printf("Warning: Could not parse port declaration fragment in header: '%s'\n", portDecl)
 			continue // Skip if we can't extract a name
@@ -438,9 +562,9 @@ func extractPortNamesFromListString(
 	return headerPorts, headerPortOrder
 }
 
-// scanForPortDeclarations scans the provided reader content to find detailed port declarations (non-ANSI style).
+// scanForPortDeclarationsFromReader scans the provided reader content to find detailed port declarations (non-ANSI style).
 // It returns a map of port names to fully parsed Port structs found in the body.
-func scanForPortDeclarations(
+func scanForPortDeclarationsFromReader(
 	reader io.Reader, // Changed from *os.File to io.Reader
 	targetModule string,
 	parameters map[string]Parameter,
@@ -457,8 +581,8 @@ func scanForPortDeclarations(
 	moduleStartRegex := regexp.MustCompile(
 		"^\\s*module\\s+" + regexp.QuoteMeta(targetModule),
 	)
-	moduleEndRegex := regexp.MustCompile(`^\s*endmodule`)
 	headerEndRegex := regexp.MustCompile(`\)\s*;`) // Matches the end of the port list ' );'
+	moduleEndRegex := regexp.MustCompile(`^\s*endmodule`)
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -534,6 +658,68 @@ func scanForPortDeclarations(
 	return parsedPortsMap, nil
 }
 
+func _extractNonANSIPortDeclaration(
+	content string, // Changed from io.Reader to string
+	targetModule string,
+	parameters map[string]Parameter,
+) (map[string]Port, error) {
+	// Create a reader from the input string
+	reader := strings.NewReader(content)
+	return scanForPortDeclarationsFromReader(reader, targetModule, parameters)
+}
+
+// extractNonANSIPortDeclarations scans the provided content for non-ANSI port declarations in the module content
+func extractNonANSIPortDeclarations(
+	content string,
+	parameters map[string]Parameter,
+) (map[string]Port, error) {
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	parsedPortsMap := make(map[string]Port)
+
+	inCommentBlock := false
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Handle multi-line comments
+		if strings.Contains(line, "/*") {
+			if !strings.Contains(line, "*/") {
+				inCommentBlock = true
+			}
+			line = regexp.MustCompile(`/\*.*?\*/`).ReplaceAllString(line, "")
+			line = regexp.MustCompile(`/\*.*`).ReplaceAllString(line, "")
+		}
+		if inCommentBlock {
+			if strings.Contains(line, "*/") {
+				inCommentBlock = false
+				line = regexp.MustCompile(`.*\*/`).ReplaceAllString(line, "")
+			} else {
+				continue
+			}
+		}
+		// Handle single-line comments
+		line = regexp.MustCompile(`//.*`).ReplaceAllString(line, "")
+		trimmedLine := strings.TrimSpace(line)
+
+		if trimmedLine == "" {
+			continue
+		}
+
+		// Attempt to parse the line as a port declaration
+		if port, ok := parsePortDeclaration(trimmedLine, parameters); ok {
+			if _, exists := parsedPortsMap[port.Name]; !exists {
+				parsedPortsMap[port.Name] = *port
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error scanning content: %v", err)
+	}
+
+	return parsedPortsMap, nil
+}
+
 // applyPortDeclarationFallback adds ports based on naming conventions if detailed declarations were missing.
 // This now acts on ports that were in the header list but had no corresponding body declaration (if they were placeholders).
 func applyPortDeclarationFallback(
@@ -552,8 +738,8 @@ func applyPortDeclarationFallback(
 		_, alreadyAdded := existingPorts[name]
 
 		// Check if it was a placeholder (minimal info) and wasn't defined in body or already added
-		isPlaceholder := headerPort.Width == 1 && headerPort.Type == "logic" &&
-			headerPort.Direction == INPUT &&
+		isPlaceholder := headerPort.Width == 0 && headerPort.Type == UNKNOWN &&
+			headerPort.Direction == INTERNAL &&
 			!headerPort.IsSigned
 
 		if isPlaceholder && !definedInBody && !alreadyAdded {
@@ -571,11 +757,12 @@ func applyPortDeclarationFallback(
 			default:
 				direction = INPUT // Default to input
 			}
+			// TODO: #6 remove these fallback ports, all should be defined
 			fallbackPort := Port{
 				Name:      name,
 				Direction: direction,
-				Type:      "logic", // Default type
-				Width:     1,       // Default to scalar
+				Type:      UNKNOWN, // Default type
+				Width:     0,       // Default to scalar
 				IsSigned:  false,
 			}
 			portsToAdd = append(portsToAdd, fallbackPort)
@@ -660,6 +847,142 @@ func parametersToMap(params []Parameter) map[string]Parameter {
 	return paramMap
 }
 
+// Extract classes and modules from a SystemVerilog file
+// TODO: delete this function and replace it with regex
+func ExtractDefinitions(filePath string) (map[string]string, map[string]string, error) {
+	fileContent, err := utils.ReadFileContent(filePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read file %s: %v", filePath, err)
+	}
+	thingName := ""
+	var isModule bool
+	var isClass bool
+
+	lines := strings.Split(fileContent, "\n")
+	allModules := make(map[string]string)
+	allClasses := make(map[string]string)
+	thingContent := []string{}
+
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmedLine, "module") || strings.HasPrefix(trimmedLine, "class"):
+			// Extract module name, handle potential parameters/ports in declaration
+			parts := strings.Fields(trimmedLine)
+			if len(parts) >= 2 {
+				namePart := parts[1]
+				// Remove parameter list #(...) and port list (...) if present
+				if idx := strings.IndexAny(namePart, "(#"); idx != -1 {
+					namePart = namePart[:idx]
+				}
+				// Use base filename and extracted name for a unique key
+				thingName = filepath.Base(filePath) + "_" + namePart
+				thingContent = []string{line} // Start collecting with the module line itself
+				switch {
+				case strings.HasPrefix(trimmedLine, "module"):
+					isModule = true
+					isClass = false
+				case strings.HasPrefix(trimmedLine, "class"):
+					isModule = false
+					isClass = true
+				default:
+					// Malformed line, reset state just in case
+					return nil, nil, fmt.Errorf("Statement should never have been reached")
+					// thingName = ""
+					// thingContent = []string{}
+					// isModule = false
+					// isClass = false
+				}
+			} else {
+				// Malformed module line, reset state just in case
+				thingName = ""
+				thingContent = []string{}
+				isModule = false
+				isClass = false
+			}
+		case strings.HasPrefix(trimmedLine, "endmodule") || strings.HasPrefix(trimmedLine, "endclass"):
+			if thingName != "" { // Only process if we were inside a module
+				thingContent = append(thingContent, line) // Add the endmodule line
+				switch {
+				case isModule && strings.HasPrefix(trimmedLine, "endmodule"):
+					allModules[thingName] = strings.Join(thingContent, "\n")
+				case isClass && strings.HasPrefix(trimmedLine, "endclass"):
+					allClasses[thingName] = strings.Join(thingContent, "\n")
+				default:
+					return nil, nil, fmt.Errorf("Invalid end statement for %s", thingName)
+				}
+				// Reset for the next potential module
+				thingName = ""
+				thingContent = []string{}
+			}
+		default:
+			if thingName != "" { // Only append lines if we are inside a module or a class definition
+				thingContent = append(thingContent, line)
+			}
+			// Otherwise, ignore lines outside module definitions
+		}
+	}
+
+	if len(allModules) == 0 {
+		return nil, nil, fmt.Errorf("no modules or classes found in file %s", filePath)
+	}
+
+	return allModules, allClasses, nil
+}
+
+func GetDependenciesSnippetNeeds(snippet string) error {
+	return fmt.Errorf("GetDependenciesSnippetNeeds not implemented yet")
+}
+
+func ParseModule(moduleText string) (*Module, error) {
+	matchedModule := matchModuleFromString(moduleText)
+	if len(matchedModule) < 5 {
+		return nil, fmt.Errorf("no module found in the provided text")
+	}
+	moduleName := matchedModule[1]
+	paramListStr := matchedModule[2]
+	portListStr := matchedModule[3]
+	module := &Module{
+		Name:       moduleName,
+		Ports:      []Port{},
+		Parameters: []Parameter{},
+		Body:       matchedModule[4],
+	}
+	parameters, err := parseParameters(paramListStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse parameters: %v", err)
+	}
+	module.Parameters = parameters
+	parsePortsAndUpdateModule(portListStr, module)
+	return module, nil
+}
+
+func parseClass(classText string) (*Class, error) {
+	matchedClass := matchClassFromString(classText)
+	if len(matchedClass) < 5 {
+		return nil, fmt.Errorf("no class found in the provided text")
+	}
+	isVirtual := matchedClass[1] == "virtual"
+	className := matchedClass[2]
+	paramListStr := matchedClass[3]
+	content := matchedClass[4]
+	parameters, err := parseParameters(paramListStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse parameters: %v", err)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ports: %v", err)
+	}
+	class := &Class{
+		Name:       className,
+		Parameters: parameters,
+		Body:       content,
+		isVirtual:  isVirtual,
+	}
+	return class, nil
+}
+
+// TODO #9 : either merge this with the ExtractDefinitions or remove it
 // ParseVerilogFile parses a Verilog file and extracts module information
 func ParseVerilogFile(filename string, providedTargetModule string) (*Module, error) {
 	file, content, err := openAndReadFile(filename)
@@ -677,7 +1000,7 @@ func ParseVerilogFile(filename string, providedTargetModule string) (*Module, er
 	)
 	if findErr != nil {
 		// Attempt fallback to find *any* module
-		generalMatches := matchGeneralModule(content)
+		generalMatches := matchModulesFromBytes(content)
 		if len(generalMatches) < 4 {
 			return nil, fmt.Errorf(
 				"no module found matching '%s' or any other name in file '%s': %w",
@@ -707,27 +1030,30 @@ func ParseVerilogFile(filename string, providedTargetModule string) (*Module, er
 
 	module := &Module{
 		Name:       actualTargetModule,
-		Filename:   filename,
 		Ports:      []Port{},
 		Parameters: []Parameter{},
-		Content:    string(content),
+		Body:       string(content),
 	}
 
 	// Parse parameters
 	if paramListStr != "" {
-		parseParameters(paramListStr, module)
+		params, err := parseParameters(paramListStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse parameters: %v", err)
+		}
+		module.Parameters = params
 	}
 	paramMap := parametersToMap(module.Parameters)
 
 	// Parse header ports (ANSI or placeholders)
-	headerPorts, headerPortOrder := extractPortNamesFromListString(portListStr, paramMap)
+	headerPorts, headerPortOrder := extractANSIPortDeclarations(portListStr, paramMap)
 
 	// Re-scan the file from the beginning for non-ANSI port declarations
 	_, seekErr := file.Seek(0, 0)
 	if seekErr != nil {
 		return nil, fmt.Errorf("failed to seek file for non-ANSI scan: %v", seekErr)
 	}
-	parsedPortsMap, scanErr := scanForPortDeclarations(
+	parsedPortsMap, scanErr := scanForPortDeclarationsFromReader(
 		file,
 		actualTargetModule,
 		paramMap,
@@ -768,6 +1094,7 @@ func ParseVerilogFile(filename string, providedTargetModule string) (*Module, er
 // ParseVerilogContent parses Verilog content provided as bytes and extracts module information.
 // It attempts to find the specified targetModule or the first module if targetModule is empty.
 // The filename is used for context (e.g., error messages, default module name).
+// TODO: merge it with the ParseVerilogFile function
 func ParseVerilogContent(
 	content []byte,
 	targetModule string,
@@ -779,7 +1106,7 @@ func ParseVerilogContent(
 	)
 	if findErr != nil {
 		// Attempt fallback to find *any* module
-		generalMatches := matchGeneralModule(content)
+		generalMatches := matchModulesFromBytes(content)
 		if len(generalMatches) < 4 {
 			return nil, fmt.Errorf(
 				"no module found matching '%s' or any other name in content: %w",
@@ -807,26 +1134,29 @@ func ParseVerilogContent(
 
 	module := &Module{
 		Name:       actualTargetModule,
-		Filename:   "snippet_temp.sv", // Store original filename context
 		Ports:      []Port{},
 		Parameters: []Parameter{},
-		Content:    string(content), // Store the original content parsed
+		Body:       string(content), // Store the original content parsed
 	}
 
 	// Parse parameters
 	if paramListStr != "" {
-		parseParameters(paramListStr, module)
+		parameters, err := parseParameters(paramListStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse parameters: %v", err)
+		}
+		module.Parameters = parameters
 	}
 	paramMap := parametersToMap(module.Parameters)
 
 	// Parse header ports (ANSI or placeholders)
-	headerPorts, headerPortOrder := extractPortNamesFromListString(portListStr, paramMap)
+	headerPorts, headerPortOrder := extractANSIPortDeclarations(portListStr, paramMap)
 
 	// Scan the content for non-ANSI port declarations using a reader
 	contentReader := bytes.NewReader(
 		content,
 	) // Create reader from byte slice
-	parsedPortsMap, scanErr := scanForPortDeclarations(
+	parsedPortsMap, scanErr := scanForPortDeclarationsFromReader(
 		contentReader,
 		actualTargetModule,
 		paramMap,
@@ -867,12 +1197,14 @@ func ParseVerilogContent(
 }
 
 // parseParameters extracts parameters from the module parameter list
-func parseParameters(paramList string, module *Module) {
+func parseParameters(paramList string) ([]Parameter, error) {
 	// Split by commas, but handle multi-line parameters carefully
 	// A simple split might break if a value contains a comma (e.g., in string literal)
 	// For now, assume simple comma separation works for typical parameter lists.
 	// TODO: Improve splitting logic if needed for complex parameter values.
 	params := strings.Split(paramList, ",")
+
+	var parametersList []Parameter
 
 	for _, param := range params {
 		param = strings.TrimSpace(param)
@@ -901,13 +1233,50 @@ func parseParameters(paramList string, module *Module) {
 			// Ensure paramType is not accidentally set to "parameter" if keyword was matched but no type specified
 			// The regex structure prevents this now, but double-check. Group 1 should be empty if no type keyword found.
 
-			module.Parameters = append(module.Parameters, Parameter{
+			parametersList = append(parametersList, Parameter{
 				Name:         paramName,
 				Type:         paramType, // Will be "" if no type keyword was found
 				DefaultValue: paramValue,
 			})
 		} else {
-			fmt.Printf("Warning: Could not parse parameter fragment: '%s'\n", param)
+			return nil, fmt.Errorf("Warning: Could not parse parameter fragment: '%s'\n", param)
 		}
 	}
+	return parametersList, nil
+}
+
+func parsePortsAndUpdateModule(portList string, module *Module) error {
+	paramMap := parametersToMap(module.Parameters)
+
+	headerPorts, headerPortOrder := extractANSIPortDeclarations(portList, paramMap)
+	parsedPortsMap, scanErr := extractNonANSIPortDeclarations(
+		module.Body,
+		paramMap,
+	)
+	if scanErr != nil {
+		fmt.Printf("Warning: Error during scan for non-ANSI ports: %v\n", scanErr)
+		if parsedPortsMap == nil {
+			parsedPortsMap = make(map[string]Port)
+		}
+	}
+
+	// Merge header and body scan information
+	module.Ports = mergePortInfo(headerPorts, parsedPortsMap, headerPortOrder)
+
+	// Apply fallback for ports that remained placeholders after merge
+	applyPortDeclarationFallback(
+		module,
+		headerPorts,
+		parsedPortsMap,
+	)
+
+	if len(module.Ports) == 0 && portList != "" {
+		return fmt.Errorf(
+			"failed to parse any ports for module %s despite port list being present",
+			module.Name,
+		)
+	} else if len(module.Ports) == 0 {
+		fmt.Printf("Warning: No ports found or parsed for module %s. Module might have no ports.\n", module.Name)
+	}
+	return nil
 }
