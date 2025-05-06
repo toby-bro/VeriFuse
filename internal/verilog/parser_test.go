@@ -308,8 +308,7 @@ endmodule
 `,
 			filename: "simple_adder.sv",
 			expectedModule: &Module{
-				Name:     "simple_adder",
-				Filename: "simple_adder.sv", // Will be replaced by temp path
+				Name: "simple_adder",
 				Ports: []Port{
 					{Name: "a", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
 					{Name: "b", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
@@ -334,8 +333,7 @@ endmodule
 `,
 			filename: "parameterized_module.sv",
 			expectedModule: &Module{
-				Name:     "parameterized_module",
-				Filename: "parameterized_module.sv", // Will be replaced by temp path
+				Name: "parameterized_module",
 				Ports: []Port{
 					// Width should now be correctly resolved to 8
 					{Name: "in", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
@@ -377,7 +375,6 @@ assign x = 1'b1;
 			filePath := createTempVerilogFile(t, tc.content, tc.filename)
 			// Ensure expected module has correct filename and content for comparison
 			if tc.expectedModule != nil {
-				tc.expectedModule.Filename = filePath
 				tc.expectedModule.Body = tc.content
 			}
 
