@@ -160,9 +160,9 @@ func InjectSnippet(originalContent string, snippet string) (string, error) { // 
 		)
 		// Create a minimal module structure for the fallback
 		snippetModule = &verilog.Module{
-			Name:    fallbackName,
-			Ports:   []verilog.Port{}, // Assume no ports if parsing failed
-			Body: snippet,          // Keep original content for potential later use
+			Name:  fallbackName,
+			Ports: []verilog.Port{}, // Assume no ports if parsing failed
+			Body:  snippet,          // Keep original content for potential later use
 		}
 		// Note: Without parsed ports, instantiation will be empty `module_name instance_name ();`
 	}

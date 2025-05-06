@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/toby-bro/pfuzz/internal/verilog"
 )
 
 const (
@@ -108,7 +110,7 @@ func TestExtractModules(t *testing.T) {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
 
-	modules, _, err := ExtractDefinitions(tempFile)
+	modules, _, err := verilog.ExtractDefinitions(tempFile)
 	if err != nil {
 		t.Fatalf("ExtractModules failed: %v", err)
 	}
