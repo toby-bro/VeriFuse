@@ -33,7 +33,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "clk",
 				Direction: INPUT,
-				Type:      "logic",
+				Type:      LOGIC,
 				Width:     1,
 				IsSigned:  false,
 			},
@@ -45,7 +45,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "data_out",
 				Direction: OUTPUT,
-				Type:      "logic",
+				Type:      LOGIC,
 				Width:     8,
 				IsSigned:  false,
 			},
@@ -57,7 +57,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "data_in",
 				Direction: INPUT,
-				Type:      "wire",
+				Type:      WIRE,
 				Width:     32,
 				IsSigned:  false,
 			},
@@ -69,7 +69,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "addr",
 				Direction: INPUT,
-				Type:      "reg",
+				Type:      REG,
 				Width:     16,
 				IsSigned:  true,
 			},
@@ -81,7 +81,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "enable",
 				Direction: INPUT,
-				Type:      "logic",
+				Type:      LOGIC,
 				Width:     1,
 				IsSigned:  false,
 			},
@@ -93,7 +93,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "io_bus",
 				Direction: INOUT,
-				Type:      "logic",
+				Type:      LOGIC,
 				Width:     8,
 				IsSigned:  false,
 			},
@@ -105,7 +105,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "status",
 				Direction: OUTPUT,
-				Type:      "bit",
+				Type:      BIT,
 				Width:     1,
 				IsSigned:  false,
 			},
@@ -117,7 +117,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "reset_n",
 				Direction: INPUT,
-				Type:      "logic",
+				Type:      LOGIC,
 				Width:     1,
 				IsSigned:  false,
 			},
@@ -129,7 +129,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "not_a_port",
 				Direction: INPUT,
-				Type:      "logic",
+				Type:      LOGIC,
 				Width:     1,
 				IsSigned:  false,
 			},
@@ -147,7 +147,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "clk",
 				Direction: INPUT,
-				Type:      "logic",
+				Type:      LOGIC,
 				Width:     1,
 				IsSigned:  false,
 			},
@@ -159,7 +159,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "data_out",
 				Direction: OUTPUT,
-				Type:      "logic",
+				Type:      LOGIC,
 				Width:     8,
 				IsSigned:  false,
 			},
@@ -171,7 +171,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "count",
 				Direction: INPUT,
-				Type:      "integer",
+				Type:      INTEGER,
 				Width:     32,
 				IsSigned:  false,
 			},
@@ -183,7 +183,7 @@ func TestParsePortDeclaration(t *testing.T) {
 			expectedPort: &Port{
 				Name:      "flags",
 				Direction: OUTPUT,
-				Type:      "logic",
+				Type:      LOGIC,
 				Width:     4,
 				IsSigned:  false,
 			},
@@ -311,9 +311,9 @@ endmodule
 				Name:     "simple_adder",
 				Filename: "simple_adder.sv", // Will be replaced by temp path
 				Ports: []Port{
-					{Name: "a", Direction: INPUT, Type: "logic", Width: 8, IsSigned: false},
-					{Name: "b", Direction: INPUT, Type: "logic", Width: 8, IsSigned: false},
-					{Name: "sum", Direction: OUTPUT, Type: "logic", Width: 9, IsSigned: false},
+					{Name: "a", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
+					{Name: "b", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
+					{Name: "sum", Direction: OUTPUT, Type: LOGIC, Width: 9, IsSigned: false},
 				},
 				Parameters: []Parameter{},
 				// Content will be filled by parser
@@ -338,8 +338,8 @@ endmodule
 				Filename: "parameterized_module.sv", // Will be replaced by temp path
 				Ports: []Port{
 					// Width should now be correctly resolved to 8
-					{Name: "in", Direction: INPUT, Type: "logic", Width: 8, IsSigned: false},
-					{Name: "out", Direction: OUTPUT, Type: "logic", Width: 8, IsSigned: false},
+					{Name: "in", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
+					{Name: "out", Direction: OUTPUT, Type: LOGIC, Width: 8, IsSigned: false},
 				},
 				Parameters: []Parameter{
 					{
@@ -378,7 +378,7 @@ assign x = 1'b1;
 			// Ensure expected module has correct filename and content for comparison
 			if tc.expectedModule != nil {
 				tc.expectedModule.Filename = filePath
-				tc.expectedModule.Content = tc.content
+				tc.expectedModule.Body = tc.content
 			}
 
 			module, err := ParseVerilogFile(filePath, tc.targetModule)
