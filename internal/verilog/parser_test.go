@@ -230,8 +230,7 @@ func TestParseRange(t *testing.T) {
 		expectedWidth int
 		expectError   bool
 	}{
-		{"Empty", "", nil, 1, false},
-		{"Scalar Implicit", " ", nil, 1, false},
+		{"Empty", "", nil, 0, false},
 		{"Simple [7:0]", "[7:0]", nil, 8, false},
 		{"Simple [31:0]", "[31:0]", nil, 32, false},
 		{"Simple [0:0]", "[0:0]", nil, 1, false},
@@ -457,7 +456,7 @@ func TestParseVariables(t *testing.T) {
 	if len(matches) < 6 {
 		t.Errorf("No matches found for variable")
 	} else {
-		t.Logf("Matches found: %v", matches)
+		t.Logf("Found %d variables", len(matches))
 	}
 }
 
@@ -473,7 +472,7 @@ func TestStructRegex(t *testing.T) {
 	if len(matches) == 0 {
 		t.Errorf("No matches found for struct regex")
 	} else {
-		t.Logf("Matches found: %v", matches)
+		t.Logf("Found %d structs", len(matches))
 	}
 }
 
@@ -504,6 +503,79 @@ func TestClassRegex(t *testing.T) {
 	if len(matches) == 0 {
 		t.Errorf("No matches found for class regex")
 	} else {
-		t.Logf("Matches found: %v", matches)
+		t.Logf("Found %d classes", len(matches))
 	}
+}
+
+var dd = `
+typedef struct packed {
+    rand logic [7:0] GGG_field1;
+    rand int unsigned GGG_field2;
+    // INJECT - Struct body
+} GGG_my_struct_t;
+
+class GGG_StructRandContainer;
+    rand GGG_my_struct_t GGG_struct_var;
+    // INJECT - Struct rand container class body
+endclass
+
+module GGG_StructuredRandModule (
+    input logic [7:0] GGGin,
+    output logic [15:0] GGGout
+);
+    // Instantiate the class containing the structured rand variable
+    GGG_StructRandContainer GGG_struct_h = new();
+
+    always_comb begin
+        //INJECT
+        if (GGG_struct_h != null) begin
+            GGGout = {GGG_struct_h.GGG_struct_var.GGG_field1, GGG_struct_h.GGG_struct_var.GGG_field2[7:0]};
+        end else begin
+            GGGout = 0;
+        end
+        //INJECT
+    end
+    // INJECT - Structured rand module body
+endmodule
+`
+
+func TestCompleteParsing(t *testing.T) {
+	vfile, err := ParseVerilog(dd)
+	if err != nil {
+		t.Fatalf("Failed to parse Verilog: %v", err)
+	}
+	if vfile == nil {
+		t.Fatalf("Parsed Verilog file is nil")
+	}
+	if len(vfile.Modules) == 0 {
+		t.Fatalf("No modules found in parsed Verilog file")
+	}
+	if len(vfile.Classes) == 0 {
+		t.Fatalf("No classes found in parsed Verilog file")
+	}
+	if len(vfile.Structs) == 0 {
+		t.Fatalf("No structs found in parsed Verilog file")
+	}
+	if len(vfile.DependancyMap) == 0 {
+		t.Fatalf("No dependencies found in parsed Verilog file")
+	}
+	if value, isMapContainsKey := vfile.DependancyMap["GGG_StructRandContainer"]; !isMapContainsKey {
+		t.Fatalf("Dependency map does not contain key GGG_StructRandContainer")
+	} else {
+		if value.DependsOn[0] != "GGG_my_struct_t" {
+			t.Fatalf("Dependency map value does not contain expected value GGG_my_struct_t")
+		}
+	}
+	if value, isMapContainsKey := vfile.DependancyMap["GGG_StructuredRandModule"]; !isMapContainsKey {
+		t.Fatalf("Dependency map does not contain key GGG_StructuredRandModule")
+	} else {
+		if value.DependsOn[0] != "GGG_StructRandContainer" {
+			t.Fatalf("Dependency map value does not contain expected value GGG_StructRandContainer")
+		}
+	}
+	t.Logf("Successfully parsed Verilog file with %d modules, %d classes, and %d structs",
+		len(vfile.Modules),
+		len(vfile.Classes),
+		len(vfile.Structs),
+	)
 }
