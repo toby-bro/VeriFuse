@@ -127,12 +127,18 @@ type Interface struct {
 	Body       string
 }
 
-type VerilogFile struct {
-	Name       string
-	Modules    map[string]*Module
-	Interfaces map[string]*Interface
-	Classes    map[string]*Class
-	Structs    map[string]*Struct
+type VerilogFile struct { // nolint:revive
+	Name          string
+	Modules       map[string]*Module
+	Interfaces    map[string]*Interface
+	Classes       map[string]*Class
+	Structs       map[string]*Struct
+	DependancyMap map[string]*DependancyNode
+}
+
+type DependancyNode struct {
+	Name      string
+	DependsOn []string
 }
 
 // TODO: #5 Improve the type for structs, enums, userdefined types...
@@ -178,7 +184,7 @@ func GetPortType(portTypeString string) PortType {
 }
 
 func GetWidthForType(portType PortType) int {
-	switch portType {
+	switch portType { //nolint:exhaustive
 	case REG, WIRE, LOGIC, BIT:
 		return 1
 	case INTEGER, INT, LONGINT, TIME:
@@ -208,20 +214,20 @@ func GetPortDirection(direction string) PortDirection {
 }
 
 var generalModuleRegex = regexp.MustCompile(
-	`module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);\s((\s+.*)+)\sendmodule`,
+	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);\s((\s+.*)+)\sendmodule`,
 )
 
 var generalClassRegex = regexp.MustCompile(
-	`(?:(virtual)\s+)?class\s+(\w+)\s*(?:extends\s+(\w+))?(?:\s+#\s*\(([\s\S]*?)\))?;\s((?:\s+.*)+)\sendclass`,
+	`(?m)(?:(virtual)\s+)?class\s+(\w+)\s*(?:extends\s+(\w+))?(?:\s+#\s*\(([\s\S]*?)\))?;\s((?:\s+.*)+)\sendclass`,
 )
 
 var generalStructRegex = regexp.MustCompile(
-	`typedef\s+struct\s+(?:packed\s+)\{((?:\s+.*)+)\}\s+(\w+);`,
+	`(?m)typedef\s+struct\s+(?:packed\s+)\{((?:\s+.*)+)\}\s+(\w+);`,
 )
 
-// TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not
+// TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not Also add the support for declarations with , for many decls
 var generalVariableRegex = regexp.MustCompile(
-	`^\s*(?:\w+\s+)?(reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum)\s+(?:((\[[\w\-]+:[\w\-]+\])+|unsigned)\s+)?(\w+)(?:\s+(\[.*\]))?;`,
+	`(?m)^\s*(?:\w+\s+)?(reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum|GGG_ConstraintModeContainer)\s+(?:((\[[\w\-]+:[\w\-]+\])+|unsigned)\s+)?(?:(?:(\w+),\s+)*(\w+))(?:\s+(\[.*\]))?(?:\s+=\s+new\(.*\))?;`,
 )
 
 func matchSpecificModule(content []byte, targetModule string) [][]byte {
@@ -239,20 +245,43 @@ func matchModulesFromBytes(content []byte) [][]byte {
 	return generalModuleRegex.FindSubmatch(content)
 }
 
-func matchModuleFromString(content string) []string {
-	return generalModuleRegex.FindStringSubmatch(content)
+func MatchAllModulesFromString(content string) [][]string {
+	return generalModuleRegex.FindAllStringSubmatch(content, -1)
 }
 
-func matchAllClassesFromString(content string) [][]string {
-	return generalClassRegex.FindAllStringSubmatch(content, 0)
+func MatchAllClassesFromString(content string) [][]string {
+	return generalClassRegex.FindAllStringSubmatch(content, -1)
 }
 
-func matchAllStructsFromString(content string) [][]string {
-	return generalStructRegex.FindAllStringSubmatch(content, 0)
+func MatchAllStructsFromString(content string) [][]string {
+	return generalStructRegex.FindAllStringSubmatch(content, -1)
 }
 
-func matchAllVariablesFromString(content string) [][]string {
-	return generalVariableRegex.FindAllStringSubmatch(content, 0)
+func MatchAllVariablesFromString(content string) [][]string {
+	return generalVariableRegex.FindAllStringSubmatch(content, -1)
+}
+
+func userDedinedVariablesRegex(verilogFile *VerilogFile) *regexp.Regexp {
+	newTypes := []string{}
+	for _, class := range verilogFile.Classes {
+		newTypes = append(newTypes, class.Name)
+	}
+	for _, iface := range verilogFile.Interfaces {
+		newTypes = append(newTypes, iface.Name)
+	}
+	for _, strct := range verilogFile.Structs {
+		newTypes = append(newTypes, strct.Name)
+	}
+	newTypesConcat := strings.Join(newTypes, "|")
+	regexpString := fmt.Sprintf(
+		`(?m)^\s*(?:\w+\s+)?(%s)\s+(?:((\[[\w\-]+:[\w\-]+\])+|unsigned)\s+)?(\w+)(?:\s+(\[.*\]))?;`,
+		newTypesConcat,
+	)
+	return regexp.MustCompile(regexpString)
+}
+
+func matchUserDefinedVariablesFromString(vf *VerilogFile, content string) [][]string {
+	return userDedinedVariablesRegex(vf).FindAllStringSubmatch(content, -1)
 }
 
 // TODO make the regex matching depend on thetypes we defined above
@@ -688,16 +717,6 @@ func scanForPortDeclarationsFromReader(
 	return parsedPortsMap, nil
 }
 
-func _extractNonANSIPortDeclaration(
-	content string, // Changed from io.Reader to string
-	targetModule string,
-	parameters map[string]Parameter,
-) (map[string]Port, error) {
-	// Create a reader from the input string
-	reader := strings.NewReader(content)
-	return scanForPortDeclarationsFromReader(reader, targetModule, parameters)
-}
-
 // extractNonANSIPortDeclarations scans the provided content for non-ANSI port declarations in the module content
 func extractNonANSIPortDeclarations(
 	content string,
@@ -960,38 +979,41 @@ func ExtractDefinitions(filePath string) (map[string]string, map[string]string, 
 	return allModules, allClasses, nil
 }
 
-func GetDependenciesSnippetNeeds(snippet string) error {
+func GetDependenciesSnippetNeeds(snippet string) error { //nolint:revive
 	return errors.New("GetDependenciesSnippetNeeds not implemented yet")
 }
 
-func ParseModule(moduleText string) (*Module, error) {
-	matchedModule := matchModuleFromString(moduleText)
-	if len(matchedModule) < 5 {
-		return nil, errors.New("no module found in the provided text")
+func (v *VerilogFile) ParseModules(moduleText string) error {
+	allMatchedModule := MatchAllModulesFromString(moduleText)
+	for _, matchedModule := range allMatchedModule {
+		if len(matchedModule) < 5 {
+			return errors.New("no module found in the provided text")
+		}
+		moduleName := matchedModule[1]
+		paramListStr := matchedModule[2]
+		portListStr := matchedModule[3]
+		module := &Module{
+			Name:       moduleName,
+			Ports:      []Port{},
+			Parameters: []Parameter{},
+			Body:       matchedModule[4],
+		}
+		parameters, err := parseParameters(paramListStr)
+		if err != nil {
+			return fmt.Errorf("failed to parse parameters: %v", err)
+		}
+		module.Parameters = parameters
+		err = parsePortsAndUpdateModule(portListStr, module)
+		if err != nil {
+			return fmt.Errorf("failed to parse ports: %v", err)
+		}
+		v.Modules[moduleName] = module
 	}
-	moduleName := matchedModule[1]
-	paramListStr := matchedModule[2]
-	portListStr := matchedModule[3]
-	module := &Module{
-		Name:       moduleName,
-		Ports:      []Port{},
-		Parameters: []Parameter{},
-		Body:       matchedModule[4],
-	}
-	parameters, err := parseParameters(paramListStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse parameters: %v", err)
-	}
-	module.Parameters = parameters
-	err = parsePortsAndUpdateModule(portListStr, module)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse ports: %v", err)
-	}
-	return module, nil
+	return nil
 }
 
-func (v *VerilogFile) ParseClass(classText string) error {
-	allMatchedClasses := matchAllClassesFromString(classText)
+func (v *VerilogFile) ParseClasses(classText string) error {
+	allMatchedClasses := MatchAllClassesFromString(classText)
 	for _, matchedClass := range allMatchedClasses {
 		if len(matchedClass) < 5 {
 			return errors.New("no class found in the provided text")
@@ -1320,7 +1342,7 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 func (v *VerilogFile) ParseVariables(
 	content string,
 ) ([]*Variable, error) {
-	allMatchedVariables := matchAllVariablesFromString(content)
+	allMatchedVariables := MatchAllVariablesFromString(content)
 	variables := make([]*Variable, 0, len(allMatchedVariables))
 	for _, matchedVariable := range allMatchedVariables {
 		if len(matchedVariable) < 4 {
@@ -1335,8 +1357,8 @@ func (v *VerilogFile) ParseVariables(
 		if width == 0 {
 			width = GetWidthForType(varType)
 		}
-		var parentStruct *Struct = nil
-		var parentClass *Class = nil
+		var parentStruct *Struct
+		var parentClass *Class
 		if varType == UNKNOWN {
 			// Check if it's a struct or class that we have already defined
 			if _, exists := v.Structs[matchedVariable[1]]; exists {
@@ -1371,7 +1393,7 @@ func (v *VerilogFile) ParseStructs(
 	if firstPass {
 		v.Structs = make(map[string]*Struct)
 	}
-	allMatchedStructs := matchAllStructsFromString(content)
+	allMatchedStructs := MatchAllStructsFromString(content)
 	for _, matchedStruct := range allMatchedStructs {
 		if len(matchedStruct) < 2 {
 			return errors.New("no struct found in the provided text")
@@ -1389,20 +1411,80 @@ func (v *VerilogFile) ParseStructs(
 				return fmt.Errorf("failed to parse variables in struct '%s': %v", structName, err)
 			}
 			v.Structs[structName].Variables = variables
+			for _, variable := range variables {
+				if variable.Type == USERDEFINED {
+					if variable.ParentStruct != nil {
+						v.DependancyMap[structName].DependsOn = append(v.DependancyMap[structName].DependsOn, variable.ParentStruct.Name)
+					}
+					if variable.ParentClass != nil {
+						v.DependancyMap[structName].DependsOn = append(v.DependancyMap[structName].DependsOn, variable.ParentClass.Name)
+					}
+				}
+			}
 		}
 	}
 	return nil
 }
 
-func (c Class) parseClassContent(content string, verilogFile *VerilogFile) error {
-	return errors.New("parseClassContent not implemented yet")
+// Only parses the dependencies of the classes
+// Probably overengineered and should only see if the name of a class or a struct just happens to be there but too late I already wrote it
+func (v *VerilogFile) typeDependenciesParser() error {
+	for _, class := range v.Classes {
+		if class.isVirtual {
+			v.DependancyMap[class.Name].DependsOn = append(
+				v.DependancyMap[class.Name].DependsOn,
+				class.extends,
+			)
+		}
+		vars := matchUserDefinedVariablesFromString(v, class.Body)
+		for _, matchedVariable := range vars {
+			if len(matchedVariable) < 4 {
+				return errors.New("no variable found in the provided text")
+			}
+			userTypeStr := matchedVariable[1]
+			v.DependancyMap[class.Name].DependsOn = append(
+				v.DependancyMap[class.Name].DependsOn,
+				userTypeStr,
+			)
+		}
+	}
+	for _, module := range v.Modules {
+		vars := matchUserDefinedVariablesFromString(v, module.Body)
+		for _, matchedVariable := range vars {
+			if len(matchedVariable) < 4 {
+				return errors.New("no variable found in the provided text")
+			}
+			userTypeStr := matchedVariable[1]
+			v.DependancyMap[module.Name].DependsOn = append(
+				v.DependancyMap[module.Name].DependsOn,
+				userTypeStr,
+			)
+		}
+	}
+	return nil
 }
 
 func ParseVerilog(content string) (*VerilogFile, error) {
 	verilogFile := &VerilogFile{}
-	verilogFile.ParseStructs(content, true)
-	verilogFile.ParseClass(content)
-	verilogFile.ParseStructs(content, false)
-
-	return nil, errors.New("ParseVerilog not implemented yet")
+	err := verilogFile.ParseStructs(content, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse structs: %v", err)
+	}
+	err = verilogFile.ParseClasses(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse classes: %v", err)
+	}
+	err = verilogFile.ParseStructs(content, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse structs: %v", err)
+	}
+	err = verilogFile.ParseModules(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse modules: %v", err)
+	}
+	err = verilogFile.typeDependenciesParser()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse dependencies: %v", err)
+	}
+	return verilogFile, nil
 }
