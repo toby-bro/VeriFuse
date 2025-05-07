@@ -440,3 +440,70 @@ assign x = 1'b1;
 		})
 	}
 }
+
+var aa = `rand logic [7:0] GGG_field1;
+    rand int unsigned GGG_field2;
+bit GGG_condition_var;
+rand logic [7:0] GGG_array_var [GGG_CONTAINER_SIZE];
+    int GGG_index_limit; // Member to use in constraint expression
+int 	m_queue [$]; 
+    rand logic [GGG_CLASS_WIDTH-1:0] GGG_class_rand_var;
+		myPacket pkt0, pkt1;
+	`
+
+func TestParseVariables(t *testing.T) {
+	// Test the regex for variables
+	matches := MatchAllVariablesFromString(aa)
+	if len(matches) < 6 {
+		t.Errorf("No matches found for variable")
+	} else {
+		t.Logf("Matches found: %v", matches)
+	}
+}
+
+var bb = `typedef struct packed {
+    rand logic [7:0] GGG_field1;
+    rand int unsigned GGG_field2;
+    // INJECT - Struct body
+} GGG_my_struct_t;`
+
+func TestStructRegex(t *testing.T) {
+	// Test the regex for struct
+	matches := MatchAllStructsFromString(bb)
+	if len(matches) == 0 {
+		t.Errorf("No matches found for struct regex")
+	} else {
+		t.Logf("Matches found: %v", matches)
+	}
+}
+
+var cc = `// Class to contain rand variables and constraint with 'if'
+class GGG_ConstraintIfContainer;
+    rand int GGG_rand_var1;
+    rand int GGG_rand_var2;
+    bit GGG_condition_var; // Member to control constraint branch
+
+    // Constraint with if
+    constraint GGG_if_constr {
+        if (GGG_condition_var) {
+            GGG_rand_var1 < GGG_rand_var2;
+            //INJECT - Constraint if body
+        } else {
+            GGG_rand_var1 == GGG_rand_var2;
+        }
+        GGG_rand_var1 inside {[-100:100]};
+        GGG_rand_var2 inside {[-100:100]};
+         //INJECT - Constraint if end body
+    }
+    // INJECT - Constraint if container class body
+endclass`
+
+func TestClassRegex(t *testing.T) {
+	// Test the regex for class
+	matches := MatchAllClassesFromString(cc)
+	if len(matches) == 0 {
+		t.Errorf("No matches found for class regex")
+	} else {
+		t.Logf("Matches found: %v", matches)
+	}
+}
