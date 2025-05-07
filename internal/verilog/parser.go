@@ -11,8 +11,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 // PortDirection represents the direction of a module port
@@ -902,89 +900,6 @@ func parametersToMap(params []Parameter) map[string]Parameter {
 		paramMap[p.Name] = p
 	}
 	return paramMap
-}
-
-// Extract classes and modules from a SystemVerilog file
-// TODO: delete this function and replace it with regex
-func ExtractDefinitions(filePath string) (map[string]string, map[string]string, error) {
-	fileContent, err := utils.ReadFileContent(filePath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read file %s: %v", filePath, err)
-	}
-	thingName := ""
-	var isModule bool
-	var isClass bool
-
-	lines := strings.Split(fileContent, "\n")
-	allModules := make(map[string]string)
-	allClasses := make(map[string]string)
-	thingContent := []string{}
-
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-		switch {
-		case strings.HasPrefix(trimmedLine, "module") || strings.HasPrefix(trimmedLine, "class"):
-			// Extract module name, handle potential parameters/ports in declaration
-			parts := strings.Fields(trimmedLine)
-			if len(parts) >= 2 {
-				namePart := parts[1]
-				// Remove parameter list #(...) and port list (...) if present
-				if idx := strings.IndexAny(namePart, "(#"); idx != -1 {
-					namePart = namePart[:idx]
-				}
-				// Use base filename and extracted name for a unique key
-				thingName = filepath.Base(filePath) + "_" + namePart
-				thingContent = []string{line} // Start collecting with the module line itself
-				switch {
-				case strings.HasPrefix(trimmedLine, "module"):
-					isModule = true
-					isClass = false
-				case strings.HasPrefix(trimmedLine, "class"):
-					isModule = false
-					isClass = true
-				default:
-					// Malformed line, reset state just in case
-					return nil, nil, errors.New("Statement should never have been reached")
-					// thingName = ""
-					// thingContent = []string{}
-					// isModule = false
-					// isClass = false
-				}
-			} else {
-				// Malformed module line, reset state just in case
-				thingName = ""
-				thingContent = []string{}
-				isModule = false
-				isClass = false
-			}
-		case strings.HasPrefix(trimmedLine, "endmodule") || strings.HasPrefix(trimmedLine, "endclass"):
-			if thingName != "" { // Only process if we were inside a module
-				thingContent = append(thingContent, line) // Add the endmodule line
-				switch {
-				case isModule && strings.HasPrefix(trimmedLine, "endmodule"):
-					allModules[thingName] = strings.Join(thingContent, "\n")
-				case isClass && strings.HasPrefix(trimmedLine, "endclass"):
-					allClasses[thingName] = strings.Join(thingContent, "\n")
-				default:
-					return nil, nil, fmt.Errorf("Invalid end statement for %s", thingName)
-				}
-				// Reset for the next potential module
-				thingName = ""
-				thingContent = []string{}
-			}
-		default:
-			if thingName != "" { // Only append lines if we are inside a module or a class definition
-				thingContent = append(thingContent, line)
-			}
-			// Otherwise, ignore lines outside module definitions
-		}
-	}
-
-	if len(allModules) == 0 {
-		return nil, nil, fmt.Errorf("no modules or classes found in file %s", filePath)
-	}
-
-	return allModules, allClasses, nil
 }
 
 func GetDependenciesSnippetNeeds(snippet string) error { //nolint:revive
