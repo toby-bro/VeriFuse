@@ -133,10 +133,10 @@ type VerilogFile struct { // nolint:revive
 	Interfaces    map[string]*Interface
 	Classes       map[string]*Class
 	Structs       map[string]*Struct
-	DependancyMap map[string]*DependancyNode
+	DependancyMap map[string]*DependencyNode
 }
 
-type DependancyNode struct {
+type DependencyNode struct {
 	Name      string
 	DependsOn []string
 }
@@ -225,9 +225,14 @@ var generalStructRegex = regexp.MustCompile(
 	`(?m)typedef\s+struct\s+(?:packed\s+)\{((?:\s+.*)+)\}\s+(\w+);`,
 )
 
+var variableRegexTemplate = `(?m)^\s*(?:\w+\s+)?(%s)\s+(?:((\[[\w\-]+:[\w\-]+\])+|unsigned)\s+)?(?:(?:(\w+),\s+)*(\w+))(?:\s+(\[.*\]))?(?:\s+=\s+new\(.*\))?;`
+
 // TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not Also add the support for declarations with , for many decls
 var generalVariableRegex = regexp.MustCompile(
-	`(?m)^\s*(?:\w+\s+)?(reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum|GGG_ConstraintModeContainer)\s+(?:((\[[\w\-]+:[\w\-]+\])+|unsigned)\s+)?(?:(?:(\w+),\s+)*(\w+))(?:\s+(\[.*\]))?(?:\s+=\s+new\(.*\))?;`,
+	fmt.Sprintf(
+		variableRegexTemplate,
+		`reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum`,
+	),
 )
 
 func matchSpecificModule(content []byte, targetModule string) [][]byte {
@@ -274,7 +279,7 @@ func userDedinedVariablesRegex(verilogFile *VerilogFile) *regexp.Regexp {
 	}
 	newTypesConcat := strings.Join(newTypes, "|")
 	regexpString := fmt.Sprintf(
-		`(?m)^\s*(?:\w+\s+)?(%s)\s+(?:((\[[\w\-]+:[\w\-]+\])+|unsigned)\s+)?(\w+)(?:\s+(\[.*\]))?;`,
+		variableRegexTemplate,
 		newTypesConcat,
 	)
 	return regexp.MustCompile(regexpString)
@@ -501,12 +506,15 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 	}
 
 	// Handle default widths for types if no range specified AND parseRange didn't error
-	if width == 1 && rangeStr == "" && err == nil {
+	if width == 0 && rangeStr == "" && err == nil {
 		width = GetWidthForType(portType)
 	}
 
 	if width == 0 { // Ensure width is at least 1 (should not happen if parseRange guarantees >= 1)
-		width = 1
+		fmt.Printf(
+			"Warning: Port '%s' ended up with width 0 after parsing.\n",
+			portName,
+		)
 	}
 
 	port := &Port{
@@ -985,6 +993,7 @@ func GetDependenciesSnippetNeeds(snippet string) error { //nolint:revive
 
 func (v *VerilogFile) ParseModules(moduleText string) error {
 	allMatchedModule := MatchAllModulesFromString(moduleText)
+	v.Modules = make(map[string]*Module)
 	for _, matchedModule := range allMatchedModule {
 		if len(matchedModule) < 5 {
 			return errors.New("no module found in the provided text")
@@ -1014,6 +1023,7 @@ func (v *VerilogFile) ParseModules(moduleText string) error {
 
 func (v *VerilogFile) ParseClasses(classText string) error {
 	allMatchedClasses := MatchAllClassesFromString(classText)
+	v.Classes = make(map[string]*Class)
 	for _, matchedClass := range allMatchedClasses {
 		if len(matchedClass) < 5 {
 			return errors.New("no class found in the provided text")
@@ -1464,6 +1474,28 @@ func (v *VerilogFile) typeDependenciesParser() error {
 	return nil
 }
 
+func (v *VerilogFile) createDependancyMap() {
+	v.DependancyMap = make(map[string]*DependencyNode)
+	for _, module := range v.Modules {
+		v.DependancyMap[module.Name] = &DependencyNode{
+			Name:      module.Name,
+			DependsOn: []string{},
+		}
+	}
+	for _, structName := range v.Structs {
+		v.DependancyMap[structName.Name] = &DependencyNode{
+			Name:      structName.Name,
+			DependsOn: []string{},
+		}
+	}
+	for _, className := range v.Classes {
+		v.DependancyMap[className.Name] = &DependencyNode{
+			Name:      className.Name,
+			DependsOn: []string{},
+		}
+	}
+}
+
 func ParseVerilog(content string) (*VerilogFile, error) {
 	verilogFile := &VerilogFile{}
 	err := verilogFile.ParseStructs(content, true)
@@ -1482,6 +1514,7 @@ func ParseVerilog(content string) (*VerilogFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse modules: %v", err)
 	}
+	verilogFile.createDependancyMap()
 	err = verilogFile.typeDependenciesParser()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse dependencies: %v", err)
