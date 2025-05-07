@@ -139,3 +139,34 @@ func TrimWhitespace(s string) string {
 	}
 	return result
 }
+
+func LocateRepoRoot() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current working directory: %w", err)
+	}
+	dir := cwd
+	for {
+		// Check if .git exists in the current directory
+		gitPath := filepath.Join(dir, ".git")
+		stat, err := os.Stat(gitPath)
+		if err == nil && stat.IsDir() {
+			return dir, nil // Found the repository root
+		}
+		// Handle errors other than "not found"
+		if err != nil && !os.IsNotExist(err) {
+			return "", fmt.Errorf("error checking for .git directory at %s: %w", gitPath, err)
+		}
+
+		// Move to the parent directory
+		parentDir := filepath.Dir(dir)
+		if parentDir == dir {
+			// Reached the filesystem root without finding .git
+			return "", fmt.Errorf(
+				"failed to find repository root (.git directory) starting from %s",
+				cwd,
+			)
+		}
+		dir = parentDir
+	}
+}
