@@ -45,7 +45,7 @@ focused:
 .PHONY: test-go
 test-go: build-fuzzer
 	@echo "Running Go tests..."
-	@go test -v -parallel 1 -timeout 10m ./...
+	@go test -v -parallel 1 -timeout 10s ./...
 
 .PHONY: tests
 tests: test-go
