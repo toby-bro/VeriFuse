@@ -368,7 +368,7 @@ func (f *Fuzzer) setupSimulators(
 	vlsim3 := simulator.NewVerilatorSimulator(workerDir, workerModuleName, true, f.verbose)
 	vlsim0 := simulator.NewVerilatorSimulator(workerDir, workerModuleName, false, f.verbose)
 	f.debug.Debug("[%s]: Compiling IVerilog simulator", workerID)
-	//if err := ivsim.Compile(); err != nil {
+	// if err := ivsim.Compile(); err != nil {
 	//	return nil, nil, fmt.Errorf("failed to compile IVerilog in worker %s: %w", workerID, err)
 	//}
 	f.debug.Debug("[%s]: Compiling Verilator simulator", workerID)
@@ -585,7 +585,7 @@ func (f *Fuzzer) performWorkerAttempt(
 		return false, fmt.Errorf("worker setup failed for %s: %w", workerID, setupErr)
 	}
 
-	var attemptCompletelySuccessful bool = false
+	attemptCompletelySuccessful := false
 	defer func() {
 		if cleanupFunc != nil {
 			if (f.verbose > 2 && !attemptCompletelySuccessful) || f.verbose > 3 {
