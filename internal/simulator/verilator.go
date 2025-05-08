@@ -20,10 +20,11 @@ type VerilatorSimulator struct {
 	workDir    string
 	moduleName string
 	module     *verilog.Module
+	optimized  bool
 }
 
 // NewVerilatorSimulator creates a new Verilator simulator instance
-func NewVerilatorSimulator(workDir string, moduleName string) *VerilatorSimulator {
+func NewVerilatorSimulator(workDir string, moduleName string, optimized bool) *VerilatorSimulator {
 	// Parse the module to get port and parameter information
 	moduleFile := filepath.Join(workDir, moduleName+".sv")
 	module, err := verilog.ParseVerilogFile(moduleFile, moduleName)
@@ -37,6 +38,7 @@ func NewVerilatorSimulator(workDir string, moduleName string) *VerilatorSimulato
 		workDir:    workDir,
 		moduleName: moduleName,
 		module:     module,
+		optimized:  optimized,
 	}
 }
 
@@ -77,8 +79,9 @@ func (sim *VerilatorSimulator) Compile() error {
 
 	// Build verilator command with all SV files and parameters
 	verilatorArgs := []string{
-		"--binary", "--exe", "--build", "-Mdir", "obj_dir",
+		"--binary", "--exe", "--build", "-Mdir", "obj_dir", "-sv",
 		"--timing", // Add timing option to handle delays
+		"--assert",
 		"-Wno-CMPCONST",
 		"-Wno-DECLFILENAME",
 		"-Wno-MULTIDRIVEN",
@@ -91,6 +94,12 @@ func (sim *VerilatorSimulator) Compile() error {
 		"-Wno-WIDTHTRUNC",
 		"-Wno-MULTITOP",
 		"testbench.sv",
+	}
+
+	if sim.optimized {
+		verilatorArgs = append(verilatorArgs, "-O3")
+	} else {
+		verilatorArgs = append(verilatorArgs, "-O0")
 	}
 
 	// Run Verilator in the worker directory

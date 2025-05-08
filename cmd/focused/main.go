@@ -146,7 +146,7 @@ func compileSimulators(
 	debug *utils.DebugLogger,
 ) (simulator.Simulator, simulator.Simulator, error) {
 	ivSim := simulator.NewIVerilogSimulator(baseDir, verbose)
-	vlSim := simulator.NewVerilatorSimulator(baseDir, moduleName)
+	vlSim := simulator.NewVerilatorSimulator(baseDir, moduleName, true)
 
 	if err := ivSim.Compile(); err != nil {
 		return nil, nil, fmt.Errorf("failed to compile IVerilog: %w", err)
