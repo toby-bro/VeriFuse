@@ -19,7 +19,7 @@ type IVerilogSimulator struct {
 }
 
 // NewIVerilogSimulator creates a new IVerilog simulator instance
-func NewIVerilogSimulator(workDir string, verbose bool) *IVerilogSimulator {
+func NewIVerilogSimulator(workDir string, verbose int) *IVerilogSimulator {
 	return &IVerilogSimulator{
 		execPath: filepath.Join(workDir, "module_sim_iv"),
 		workDir:  workDir,
@@ -34,11 +34,11 @@ func (sim *IVerilogSimulator) Compile() error {
 
 // CompileSpecific compiles only the specified files (or all .sv files if nil)
 func (sim *IVerilogSimulator) CompileSpecific() error {
-	sim.debug.Printf("Starting IVerilog compile in %s", sim.workDir)
+	sim.debug.Debug("Starting IVerilog compile in %s", sim.workDir)
 
 	// Compile directly in the work directory
 	cmdArgs := []string{"-o", "module_sim_iv", "-g2012", "-gsupported-assertions", "testbench.sv"}
-	sim.debug.Printf("Running iverilog command: iverilog %s in directory %s",
+	sim.debug.Debug("Running iverilog command: iverilog %s in directory %s",
 		strings.Join(cmdArgs, " "), sim.workDir)
 
 	cmd := exec.Command("iverilog", cmdArgs...)
@@ -49,17 +49,17 @@ func (sim *IVerilogSimulator) CompileSpecific() error {
 	cmd.Stdout = &stdout
 
 	if err := cmd.Run(); err != nil {
-		sim.debug.Printf("iverilog command failed: %v", err)
-		sim.debug.Printf("stderr: %s", stderr.String())
+		sim.debug.Debug("iverilog command failed: %v", err)
+		sim.debug.Debug("stderr: %s", stderr.String())
 		return fmt.Errorf("iverilog compilation failed: %v - %s", err, stderr.String())
 	}
 	if stdout.Len() > 0 {
-		sim.debug.Printf("iverilog stdout: %s", stdout.String())
+		sim.debug.Debug("iverilog stdout: %s", stdout.String())
 	}
 
 	// Check if executable was created
 	execPath := filepath.Join(sim.workDir, "module_sim_iv")
-	sim.debug.Printf("Checking for compiled executable at %s", execPath)
+	sim.debug.Debug("Checking for compiled executable at %s", execPath)
 	_, err := os.Stat(execPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -69,7 +69,7 @@ func (sim *IVerilogSimulator) CompileSpecific() error {
 			for _, f := range files {
 				fileList = append(fileList, f.Name())
 			}
-			sim.debug.Printf("Directory contents: %v", fileList)
+			sim.debug.Debug("Directory contents: %v", fileList)
 			return fmt.Errorf(
 				"executable not created at: %s (directory exists: %v)",
 				execPath,
@@ -124,9 +124,9 @@ func (sim *IVerilogSimulator) RunTest(inputDir string, outputPaths map[string]st
 	cmd.Stdout = &stdout
 
 	if err := cmd.Run(); err != nil {
-		sim.debug.Printf("vvp execution failed with error: %v", err)
-		sim.debug.Printf("stderr: %s", stderr.String())
-		sim.debug.Printf("stdout: %s", stdout.String())
+		sim.debug.Debug("vvp execution failed with error: %v", err)
+		sim.debug.Debug("stderr: %s", stderr.String())
+		sim.debug.Debug("stdout: %s", stdout.String())
 		return fmt.Errorf("iverilog execution failed: %v - %s", err, stderr.String())
 	}
 

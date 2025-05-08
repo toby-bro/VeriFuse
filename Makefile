@@ -70,7 +70,7 @@ test-module: clean
 	@if [ -z "$(FILE)" ]; then \
 		echo "Usage: make test-module FILE=path/to/module.sv"; \
 	else \
-		./pfuzz -n 100 -strategy smart -workers 10 -v -file $(FILE); \
+		./pfuzz -n 100 -strategy smart -workers 10 -vvv -file $(FILE); \
 	fi
 
 .PHONY: clean
@@ -97,7 +97,7 @@ help:
 	@echo ""
 	@echo "Example usage:"
 	@echo "  make              - Run default fuzzer"
-	@echo "  make run OPTS=\"-n 100 -strategy simple -v\" - Run with custom options"
+	@echo "  make run OPTS=\"-n 100 -strategy simple -vvv\" - Run with custom options"
 	@echo "  make tests        - Run all test cases"
 	@echo "  make analyze-mismatch MISMATCH=mismatches/mismatch_0 - Analyze first mismatch"
 	@echo "  make test-module FILE=testfiles/sv/simple_adder.sv - Test a specific module"

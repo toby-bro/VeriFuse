@@ -594,7 +594,7 @@ endmodule
 `
 
 func TestCompleteParsing(t *testing.T) {
-	vfile, err := ParseVerilog(dd)
+	vfile, err := ParseVerilog(dd, 5)
 	if err != nil {
 		t.Fatalf("Failed to parse Verilog: %v", err)
 	}
@@ -743,7 +743,7 @@ func TestDependancyGraph(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read file content from %s", filename)
 	}
-	svFile, err := ParseVerilog(fileContent)
+	svFile, err := ParseVerilog(fileContent, 5)
 	if err != nil {
 		t.Fatalf("Failed to parse file content from %s", filename)
 	}
