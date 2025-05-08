@@ -354,17 +354,21 @@ func (f *Fuzzer) setupSimulators(
 	workerID, workerDir, workerModuleName string,
 ) (simulator.Simulator, simulator.Simulator, error) {
 	f.debug.Printf("[%s]: Creating simulators for module %s", workerID, workerModuleName)
-	ivsim := simulator.NewIVerilogSimulator(workerDir, f.verbose)
-	vlsim := simulator.NewVerilatorSimulator(workerDir, workerModuleName)
+	// ivsim := simulator.NewIVerilogSimulator(workerDir, f.verbose)
+	vlsim3 := simulator.NewVerilatorSimulator(workerDir, workerModuleName, true)
+	vlsim0 := simulator.NewVerilatorSimulator(workerDir, workerModuleName, false)
 	f.debug.Printf("[%s]: Compiling IVerilog simulator", workerID)
-	if err := ivsim.Compile(); err != nil {
-		return nil, nil, fmt.Errorf("failed to compile IVerilog in worker %s: %w", workerID, err)
-	}
+	//if err := ivsim.Compile(); err != nil {
+	//	return nil, nil, fmt.Errorf("failed to compile IVerilog in worker %s: %w", workerID, err)
+	//}
 	f.debug.Printf("[%s]: Compiling Verilator simulator", workerID)
-	if err := vlsim.Compile(); err != nil {
+	if err := vlsim0.Compile(); err != nil {
 		return nil, nil, fmt.Errorf("failed to compile Verilator in worker %s: %w", workerID, err)
 	}
-	return ivsim, vlsim, nil
+	if err := vlsim3.Compile(); err != nil {
+		return nil, nil, fmt.Errorf("failed to compile Verilator in worker %s: %w", workerID, err)
+	}
+	return vlsim0, vlsim3, nil
 }
 
 func (f *Fuzzer) processTestCases(
