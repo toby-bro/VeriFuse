@@ -27,7 +27,8 @@ const (
 )
 
 const (
-	REG PortType = iota
+	UNKNOWN PortType = iota
+	REG
 	WIRE
 	INTEGER
 	REAL
@@ -45,7 +46,6 @@ const (
 	VOID
 	ENUM
 	USERDEFINED
-	UNKNOWN
 )
 
 // Parameter represents a module parameter
@@ -70,6 +70,33 @@ type Module struct {
 	Ports      []Port
 	Parameters []Parameter
 	Body       string
+}
+
+// DeepCopy creates a deep copy of the Module.
+func (m *Module) DeepCopy() *Module {
+	if m == nil {
+		return nil
+	}
+	copiedModule := &Module{
+		Name: m.Name, // Strings are immutable
+		Body: m.Body, // Strings are immutable
+	}
+
+	if m.Ports != nil {
+		copiedModule.Ports = make([]Port, len(m.Ports))
+		copy(copiedModule.Ports, m.Ports)
+	} else {
+		copiedModule.Ports = []Port{} // Initialize to empty slice if nil, to be safe
+	}
+
+	if m.Parameters != nil {
+		copiedModule.Parameters = make([]Parameter, len(m.Parameters))
+		copy(copiedModule.Parameters, m.Parameters)
+	} else {
+		copiedModule.Parameters = []Parameter{} // Initialize to empty slice if nil
+	}
+
+	return copiedModule
 }
 
 type Variable struct {
@@ -212,7 +239,7 @@ func GetPortDirection(direction string) PortDirection {
 }
 
 var generalModuleRegex = regexp.MustCompile(
-	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);\s((?:\s\s+.*)+)\sendmodule`,
+	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);\s((?:(?:\s\s|\t)+.*)+)\sendmodule`,
 )
 
 var generalClassRegex = regexp.MustCompile(
@@ -502,11 +529,6 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 			width, // Use the width returned by parseRange (the default)
 			err,
 		)
-	}
-
-	// Handle default widths for types if no range specified AND parseRange didn't error
-	if width == 0 && rangeStr == "" && err == nil {
-		width = GetWidthForType(portType)
 	}
 
 	if width == 0 { // Ensure width is at least 1 (should not happen if parseRange guarantees >= 1)
