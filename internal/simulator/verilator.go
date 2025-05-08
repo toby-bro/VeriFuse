@@ -209,7 +209,7 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 		sim.logger.Error("Work directory contents after failed run: %v", fileList)
 		return fmt.Errorf("verilator execution failed: %v\nstderr: %s", err, stderr.String())
 	}
-	sim.logger.Info("Verilator execution successful.")
+	sim.logger.Debug("Verilator execution successful.")
 	sim.logger.Debug(
 		"Verilator execution stdout:\n%s",
 		stdout.String(),
@@ -264,6 +264,6 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 		sim.logger.Debug("Verilator RunTest: Successfully copied %s to %s", srcPath, outputPath)
 	}
 
-	sim.logger.Info("Verilator RunTest completed successfully.")
+	sim.logger.Debug("Verilator RunTest completed successfully.")
 	return nil
 }
