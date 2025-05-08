@@ -24,13 +24,13 @@ func (d *DebugLogger) Debug(format string, v ...interface{}) {
 
 func (d *DebugLogger) Info(format string, v ...interface{}) {
 	if d.verbose > 2 {
-		log.Printf("INFO: "+format, v...)
+		log.Printf("INFO : "+format, v...)
 	}
 }
 
 func (d *DebugLogger) Warn(format string, v ...interface{}) {
 	if d.verbose > 1 {
-		log.Printf("WARN: "+format, v...)
+		log.Printf("WARN : "+format, v...)
 	}
 }
 
