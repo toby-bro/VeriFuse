@@ -93,6 +93,7 @@ func (sim *VerilatorSimulator) Compile() error {
 		"-Wno-WIDTHEXPAND",
 		"-Wno-WIDTHTRUNC",
 		"-Wno-MULTITOP",
+		"-Wno-ALWCOMBORDER",
 		"testbench.sv",
 	}
 
