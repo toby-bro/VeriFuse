@@ -11,7 +11,11 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
+
+var logger *utils.DebugLogger
 
 // PortDirection represents the direction of a module port
 type (
@@ -384,15 +388,15 @@ func ParseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 				return widthVal + 1, nil
 			}
 			// Parameter value is not a simple integer, fall through to other checks
-			fmt.Printf(
-				"Warning: Parameter '%s' value '%s' is not a simple integer for range '%s'.\n",
+			logger.Warn(
+				"Parameter '%s' value '%s' is not a simple integer for range '%s'.\n",
 				paramName,
 				param.DefaultValue,
 				rangeStr,
 			)
 		} else {
 			// Parameter not found or has no default value, fall through
-			fmt.Printf("Warning: Parameter '%s' not found or has no value for range '%s'.\n", paramName, rangeStr)
+			logger.Warn("Parameter '%s' not found or has no value for range '%s'.\n", paramName, rangeStr)
 		}
 		// If parameter lookup failed (not found, no value, not int), fall through to heuristics/default
 	}
@@ -534,8 +538,8 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 	if err != nil {
 		// If parseRange returns an error, use the returned default width (e.g., 8)
 		// but still log the original error message.
-		fmt.Printf(
-			"Warning: Could not parse range '%s' for port '%s'. Using default width %d. Error: %v\n",
+		logger.Warn(
+			"Could not parse range '%s' for port '%s'. Using default width %d. Error: %v\n",
 			rangeStr,
 			portName,
 			width, // Use the width returned by parseRange (the default)
@@ -544,8 +548,8 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 	}
 
 	if width == 0 { // Ensure width is at least 1 (should not happen if parseRange guarantees >= 1)
-		fmt.Printf(
-			"Warning: Port '%s' ended up with width 0 after parsing.\n",
+		logger.Warn(
+			"Port '%s' ended up with width 0 after parsing.\n",
 			portName,
 		)
 	}
@@ -606,8 +610,8 @@ func extractANSIPortDeclarations(
 			width, err := ParseRange(rangeStr, parameters)
 			if err != nil {
 				// Use the default width returned by parseRange on error
-				fmt.Printf(
-					"Warning: Header parseRange failed for '%s' (%s): Using default width %d. Error: %v.\n",
+				logger.Warn(
+					"Header parseRange failed for '%s' (%s): Using default width %d. Error: %v.\n",
 					portName,
 					rangeStr,
 					width, // Use the width returned by parseRange (the default)
@@ -643,14 +647,14 @@ func extractANSIPortDeclarations(
 			// Create a placeholder, details expected in body scan
 			port = Port{Name: portName, Width: 0, Type: UNKNOWN, Direction: INTERNAL, IsSigned: false} // Sensible defaults
 		} else {
-			fmt.Printf("Warning: Could not parse port declaration fragment in header: '%s'\n", portDecl)
+			logger.Warn("Could not parse port declaration fragment in header: '%s'\n", portDecl)
 			continue // Skip if we can't extract a name
 		}
 
 		if portName != "" {
 			if _, exists := headerPorts[portName]; exists {
-				fmt.Printf(
-					"Warning: Duplicate port name '%s' detected in module header.\n",
+				logger.Warn(
+					"Duplicate port name '%s' detected in module header.\n",
 					portName,
 				)
 			}
@@ -833,8 +837,8 @@ func applyPortDeclarationFallback(
 			!headerPort.IsSigned
 
 		if isPlaceholder && !definedInBody && !alreadyAdded {
-			fmt.Printf(
-				"Warning: Port '%s' listed in header but not defined in body. Applying fallback naming convention.\n",
+			logger.Warn(
+				" Port '%s' listed in header but not defined in body. Applying fallback naming convention.\n",
 				name,
 			)
 			// Apply naming convention fallback
@@ -882,7 +886,7 @@ func mergePortInfo(
 
 		if !foundInHeader {
 			// This shouldn't happen if headerPortOrder comes from headerPorts keys, but handle defensively
-			fmt.Printf("Warning: Port '%s' in order but not found in header map.\n", nameInHeader)
+			logger.Warn("Port '%s' in order but not found in header map.\n", nameInHeader)
 			continue
 		}
 
@@ -898,8 +902,8 @@ func mergePortInfo(
 
 		// Final check for width=0 (shouldn't happen with parseRange defaulting to 1 or body scan)
 		if finalPort.Width == 0 {
-			fmt.Printf(
-				"Warning: Port '%s' ended up with width 0 after merge. Setting to 1.\n",
+			logger.Warn(
+				"Port '%s' ended up with width 0 after merge. Setting to 1.\n",
 				finalPort.Name,
 			)
 			finalPort.Width = 1
@@ -913,8 +917,8 @@ func mergePortInfo(
 	// This is less common but possible.
 	for nameInBody, bodyPort := range parsedPortsMap {
 		if !processedPorts[nameInBody] {
-			fmt.Printf(
-				"Warning: Port '%s' found in body scan but not listed in header. Adding anyway.\n",
+			logger.Warn(
+				"Port '%s' found in body scan but not listed in header. Adding anyway.\n",
 				nameInBody,
 			)
 			if bodyPort.Width == 0 { // Ensure width is valid
@@ -964,7 +968,7 @@ func (v *VerilogFile) ParseModules(moduleText string) error {
 		module.Parameters = parameters
 		err = parsePortsAndUpdateModule(portListStr, module)
 		if err != nil {
-			fmt.Printf("Warning: Skipping %s as failed to parse ports: %v\n", moduleName, err)
+			logger.Warn("Skipping %s as failed to parse ports: %v\n", moduleName, err)
 			continue // Skip this module if port parsing fails
 		}
 		v.Modules[moduleName] = module
@@ -1027,8 +1031,8 @@ func ParseVerilogFile(filename string, providedTargetModule string) (*Module, er
 				findErr,
 			)
 		}
-		fmt.Printf(
-			"Warning: Target module '%s' not found in file '%s', parsing first module '%s' instead.\n",
+		logger.Warn(
+			"Target module '%s' not found in file '%s', parsing first module '%s' instead.\n",
 			targetModule,
 			filename,
 			string(generalMatches[1]),
@@ -1078,7 +1082,7 @@ func ParseVerilogFile(filename string, providedTargetModule string) (*Module, er
 	) // Pass the file object (io.Reader)
 	if scanErr != nil {
 		// Log warning but proceed, header info might be sufficient
-		fmt.Printf("Warning: Error during scan for non-ANSI ports in '%s': %v\n", filename, scanErr)
+		logger.Warn("Error during scan for non-ANSI ports in '%s': %v\n", filename, scanErr)
 		// Ensure parsedPortsMap is not nil
 		if parsedPortsMap == nil {
 			parsedPortsMap = make(map[string]Port)
@@ -1103,7 +1107,7 @@ func ParseVerilogFile(filename string, providedTargetModule string) (*Module, er
 			filename,
 		)
 	} else if len(module.Ports) == 0 {
-		fmt.Printf("Warning: No ports found or parsed for module %s in file '%s'. Module might have no ports.\n", actualTargetModule, filename)
+		logger.Warn("No ports found or parsed for module %s in file '%s'. Module might have no ports.\n", actualTargetModule, filename)
 	}
 
 	return module, nil
@@ -1132,8 +1136,8 @@ func ParseVerilogContent(
 				findErr,
 			)
 		}
-		fmt.Printf(
-			"Warning: Target module '%s' not found in content, parsing first module '%s' instead.\n",
+		logger.Warn(
+			"Target module '%s' not found in content, parsing first module '%s' instead.\n",
 			targetModule,
 			string(generalMatches[1]),
 		)
@@ -1181,8 +1185,8 @@ func ParseVerilogContent(
 	) // Pass the reader
 	if scanErr != nil {
 		// Log warning but proceed
-		fmt.Printf(
-			"Warning: Error during scan for non-ANSI ports in content: %v\n",
+		logger.Warn(
+			"Error during scan for non-ANSI ports in content: %v\n",
 			scanErr,
 		)
 		// Ensure parsedPortsMap is not nil
@@ -1208,7 +1212,7 @@ func ParseVerilogContent(
 			actualTargetModule,
 		)
 	} else if len(module.Ports) == 0 {
-		fmt.Printf("Warning: No ports found or parsed for module %s from content. Module might have no ports.\n", actualTargetModule)
+		logger.Warn("No ports found or parsed for module %s from content. Module might have no ports.\n", actualTargetModule)
 	}
 
 	return module, nil
@@ -1272,7 +1276,7 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 		paramMap,
 	)
 	if scanErr != nil {
-		fmt.Printf("Warning: Error during scan for non-ANSI ports: %v\n", scanErr)
+		logger.Warn("Error during scan for non-ANSI ports: %v\n", scanErr)
 		if parsedPortsMap == nil {
 			parsedPortsMap = make(map[string]Port)
 		}
@@ -1294,7 +1298,7 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 			module.Name,
 		)
 	} else if len(module.Ports) == 0 {
-		fmt.Printf("Warning: No ports found or parsed for module %s. Module might have no ports.\n", module.Name)
+		logger.Warn("No ports found or parsed for module %s. Module might have no ports.\n", module.Name)
 	}
 	return nil
 }
@@ -1315,8 +1319,8 @@ func ParseVariables(v *VerilogFile,
 		width, err := ParseRange(widthStr, nil)
 		if err != nil {
 			if width != 0 {
-				fmt.Printf(
-					"Warning: Could not parse range '%s' for variable '%s'. Using default width %d. Error: %v\n",
+				logger.Warn(
+					"Could not parse range '%s' for variable '%s'. Using default width %d. Error: %v\n",
 					widthStr,
 					matchedVariable[3],
 					width,
@@ -1479,7 +1483,8 @@ func removeComments(content string) string {
 	return content
 }
 
-func ParseVerilog(content string) (*VerilogFile, error) {
+func ParseVerilog(content string, verbose int) (*VerilogFile, error) {
+	logger = utils.NewDebugLogger(verbose)
 	content = removeComments(content)
 	content = removeEmptyLines(content)
 	verilogFile := &VerilogFile{}

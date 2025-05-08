@@ -183,7 +183,7 @@ module SnippetModule (
 	assign output1 = input1 ^ input2;
 endmodule
 `
-	verilogFile, err := verilog.ParseVerilog(moduleContent)
+	verilogFile, err := verilog.ParseVerilog(moduleContent, 5)
 	if err != nil {
 		t.Fatalf("ParseVerilog failed for module: %v", err)
 	}
@@ -192,7 +192,7 @@ endmodule
 		t.Fatalf("Module 'TestModule' not found in parsed file")
 	}
 
-	snippetFile, err := verilog.ParseVerilog(snippetContent)
+	snippetFile, err := verilog.ParseVerilog(snippetContent, 5)
 	if err != nil {
 		t.Fatalf("ParseVerilog failed for snippet: %v", err)
 	}
@@ -268,13 +268,13 @@ module SnippetModule (
 	assign output1 = input1 ^ 8'hFF;
 endmodule
 `
-	verilogFile, err := verilog.ParseVerilog(moduleContent)
+	verilogFile, err := verilog.ParseVerilog(moduleContent, 5)
 	if err != nil {
 		t.Fatalf("ParseVerilog failed for module: %v", err)
 	}
 	module := verilogFile.Modules["DUT"]
 
-	snippetFile, err := verilog.ParseVerilog(snippetContent)
+	snippetFile, err := verilog.ParseVerilog(snippetContent, 5)
 	if err != nil {
 		t.Fatalf("ParseVerilog failed for snippet: %v", err)
 	}
@@ -341,7 +341,7 @@ module TestModule (
     assign internal_var2_short = module_in2[3:0];
 endmodule
 `
-	verilogFile, err := verilog.ParseVerilog(moduleContent)
+	verilogFile, err := verilog.ParseVerilog(moduleContent, 5)
 	if err != nil {
 		t.Fatalf("ParseVerilog failed for module: %v", err)
 	}

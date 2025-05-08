@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,10 +20,16 @@ type VerilatorSimulator struct {
 	moduleName string
 	module     *verilog.Module
 	optimized  bool
+	logger     *utils.DebugLogger
 }
 
 // NewVerilatorSimulator creates a new Verilator simulator instance
-func NewVerilatorSimulator(workDir string, moduleName string, optimized bool) *VerilatorSimulator {
+func NewVerilatorSimulator(
+	workDir string,
+	moduleName string,
+	optimized bool,
+	verbose int,
+) *VerilatorSimulator {
 	// Parse the module to get port and parameter information
 	moduleFile := filepath.Join(workDir, moduleName+".sv")
 	module, err := verilog.ParseVerilogFile(moduleFile, moduleName)
@@ -39,6 +44,7 @@ func NewVerilatorSimulator(workDir string, moduleName string, optimized bool) *V
 		moduleName: moduleName,
 		module:     module,
 		optimized:  optimized,
+		logger:     utils.NewDebugLogger(verbose),
 	}
 }
 
@@ -127,7 +133,7 @@ func (sim *VerilatorSimulator) Compile() error {
 // RunTest runs the simulator with provided input directory and output paths
 func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]string) error {
 	// 1. Check input directory and files
-	log.Printf("Verilator RunTest: Input directory: %s", inputDir)
+	sim.logger.Debug("Verilator RunTest: Input directory: %s", inputDir)
 	if _, err := os.Stat(inputDir); os.IsNotExist(err) {
 		return fmt.Errorf("input directory does not exist: %s", inputDir)
 	}
@@ -136,17 +142,17 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 		return fmt.Errorf("error finding input files in %s: %v", inputDir, err)
 	}
 	if len(inputFiles) == 0 {
-		log.Printf("Warning: No input files (input_*.hex) found in: %s", inputDir)
+		sim.logger.Warn("No input files (input_*.hex) found in: %s", inputDir)
 		// Depending on the design, this might not be an error, continue for now.
 	} else {
-		log.Printf("Verilator RunTest: Found input files: %v", inputFiles)
+		sim.logger.Debug("Verilator RunTest: Found input files: %v", inputFiles)
 	}
 
 	// 2. Copy input files to work directory
 	for _, inputFile := range inputFiles {
 		filename := filepath.Base(inputFile)
 		destPath := filepath.Join(sim.workDir, filename)
-		log.Printf("Verilator RunTest: Copying input %s to %s", inputFile, destPath)
+		sim.logger.Debug("Verilator RunTest: Copying input %s to %s", inputFile, destPath)
 		if err := utils.CopyFile(inputFile, destPath); err != nil {
 			return fmt.Errorf("failed to copy input file %s to %s: %v", filename, sim.workDir, err)
 		}
@@ -167,15 +173,15 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 		} else {
 			fileList = fmt.Sprintf("error reading dir %s: %v", objDirPath, readErr)
 		}
-		log.Printf("Verilator RunTest: Contents of %s: %s", objDirPath, fileList)
+		sim.logger.Debug("Verilator RunTest: Contents of %s: %s", objDirPath, fileList)
 		return fmt.Errorf("verilator executable not found at: %s", sim.execPath)
 	}
-	log.Printf("Verilator RunTest: Verified executable exists: %s", sim.execPath)
+	sim.logger.Debug("Verilator RunTest: Verified executable exists: %s", sim.execPath)
 
 	// 4. Run the simulation executable
 	// Execute the binary relative to the working directory.
 	relExecPath := filepath.Join(".", "obj_dir", "Vtestbench") // Use relative path
-	log.Printf("Running Verilator command: %s in %s", relExecPath, sim.workDir)
+	sim.logger.Debug("Running Verilator command: %s in %s", relExecPath, sim.workDir)
 	cmd := exec.Command(relExecPath)
 	cmd.Dir = sim.workDir // Set the working directory for the command
 	var stderr bytes.Buffer
@@ -183,35 +189,43 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
 
-	log.Printf("Verilator command details: Path=%s, Dir=%s, Args=%v", cmd.Path, cmd.Dir, cmd.Args)
+	sim.logger.Debug(
+		"Verilator command details: Path=%s, Dir=%s, Args=%v",
+		cmd.Path,
+		cmd.Dir,
+		cmd.Args,
+	)
 
 	if err := cmd.Run(); err != nil {
-		log.Printf("Verilator execution failed. Error: %v", err)
-		log.Printf("Verilator execution stdout:\n%s", stdout.String())
-		log.Printf("Verilator execution stderr:\n%s", stderr.String())
+		sim.logger.Error("Verilator execution failed. Error: %v", err)
+		sim.logger.Error("Verilator execution stdout:\n%s", stdout.String())
+		sim.logger.Error("Verilator execution stderr:\n%s", stderr.String())
 		// List directory contents after failed run for debugging
 		files, _ := os.ReadDir(sim.workDir)
 		fileList := make([]string, 0, len(files))
 		for _, f := range files {
 			fileList = append(fileList, f.Name())
 		}
-		log.Printf("Work directory contents after failed run: %v", fileList)
+		sim.logger.Error("Work directory contents after failed run: %v", fileList)
 		return fmt.Errorf("verilator execution failed: %v\nstderr: %s", err, stderr.String())
 	}
-	log.Printf("Verilator execution successful.")
-	log.Printf("Verilator execution stdout:\n%s", stdout.String()) // Log stdout on success too
+	sim.logger.Info("Verilator execution successful.")
+	sim.logger.Debug(
+		"Verilator execution stdout:\n%s",
+		stdout.String(),
+	) // Log stdout on success too
 	if stderr.Len() > 0 {
-		log.Printf(
+		sim.logger.Error(
 			"Verilator execution stderr (non-fatal):\n%s",
 			stderr.String(),
 		) // Log stderr even on success if not empty
 	}
 
 	// 5. Copy output files from work directory to expected paths
-	log.Printf("Verilator RunTest: Copying output files. Expected outputs: %v", outputPaths)
+	sim.logger.Debug("Verilator RunTest: Copying output files. Expected outputs: %v", outputPaths)
 	for portName, outputPath := range outputPaths {
 		srcPath := filepath.Join(sim.workDir, fmt.Sprintf("output_%s.hex", portName))
-		log.Printf("Verilator RunTest: Checking for output file %s", srcPath)
+		sim.logger.Debug("Verilator RunTest: Checking for output file %s", srcPath)
 		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
 			// List directory contents for debugging if output file is missing
 			files, _ := os.ReadDir(sim.workDir)
@@ -219,14 +233,18 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 			for _, f := range files {
 				fileList = append(fileList, f.Name())
 			}
-			log.Printf("Work directory contents after run: %v", fileList)
+			sim.logger.Debug("Work directory contents after run: %v", fileList)
 			return fmt.Errorf(
 				"output file not created by simulation for port %s at %s",
 				portName,
 				srcPath,
 			)
 		}
-		log.Printf("Verilator RunTest: Found output file %s. Copying to %s", srcPath, outputPath)
+		sim.logger.Debug(
+			"Verilator RunTest: Found output file %s. Copying to %s",
+			srcPath,
+			outputPath,
+		)
 
 		// Ensure the destination directory exists
 		outputDir := filepath.Dir(outputPath)
@@ -243,9 +261,9 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 				err,
 			)
 		}
-		log.Printf("Verilator RunTest: Successfully copied %s to %s", srcPath, outputPath)
+		sim.logger.Debug("Verilator RunTest: Successfully copied %s to %s", srcPath, outputPath)
 	}
 
-	log.Printf("Verilator RunTest completed successfully.")
+	sim.logger.Info("Verilator RunTest completed successfully.")
 	return nil
 }
