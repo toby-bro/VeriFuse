@@ -9,14 +9,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 var (
-	seededRand   = rand.New(rand.NewSource(time.Now().UnixNano()))
 	snippets     = []*Snippet{}
 	verilogFiles = []*verilog.VerilogFile{}
 )
@@ -115,7 +113,7 @@ func injectSnippetInModule(module *verilog.Module, snippet *Snippet) (string, er
 		return "", fmt.Errorf("failed to match variables to snippet ports: %v", err)
 	}
 
-	err = ensureOutputPortForSnippet(module, snippet, portConnections, newSignalDeclarations)
+	err = ensureOutputPortForSnippet(module, snippet, portConnections)
 	if err != nil {
 		return "", fmt.Errorf("failed to ensure output port for snippet: %v", err)
 	}
@@ -242,13 +240,12 @@ func ensureOutputPortForSnippet(
 	module *verilog.Module,
 	snippet *Snippet,
 	portConnections map[string]string,
-	newDeclarations []verilog.Port,
 ) error {
 	for _, port := range snippet.Module.Ports {
 		if port.Direction == verilog.OUTPUT {
 			if _, exists := portConnections[port.Name]; !exists {
 				newPort := verilog.Port{
-					Name:      fmt.Sprintf("inj_output_%s", strings.ToLower(port.Name)),
+					Name:      "inj_output_" + strings.ToLower(port.Name),
 					Direction: verilog.OUTPUT,
 					Type:      port.Type,
 					Width:     port.Width,
@@ -417,7 +414,6 @@ func MutateFile(fileName string) error {
 	}
 
 	for _, module := range vsFile.Modules {
-
 		snippet, err := getRandomSnippet()
 		if err != nil {
 			return fmt.Errorf("failed to get snippet for mutation: %v", err)

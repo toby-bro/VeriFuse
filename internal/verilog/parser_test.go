@@ -613,18 +613,16 @@ func TestCompleteParsing(t *testing.T) {
 	}
 	if value, isMapContainsKey := vfile.DependancyMap["GGG_StructRandContainer"]; !isMapContainsKey {
 		t.Fatalf("Dependency map does not contain key GGG_StructRandContainer")
-	} else {
-		if value.DependsOn[0] != "GGG_my_struct_t" {
-			t.Fatalf("Dependency map value does not contain expected value GGG_my_struct_t")
-		}
+	} else if value.DependsOn[0] != "GGG_my_struct_t" {
+		t.Fatalf("Dependency map value does not contain expected value GGG_my_struct_t")
 	}
+
 	if value, isMapContainsKey := vfile.DependancyMap["GGG_StructuredRandModule"]; !isMapContainsKey {
 		t.Fatalf("Dependency map does not contain key GGG_StructuredRandModule")
-	} else {
-		if value.DependsOn[0] != "GGG_StructRandContainer" {
-			t.Fatalf("Dependency map value does not contain expected value GGG_StructRandContainer")
-		}
+	} else if value.DependsOn[0] != "GGG_StructRandContainer" {
+		t.Fatalf("Dependency map value does not contain expected value GGG_StructRandContainer")
 	}
+
 	t.Logf("Successfully parsed Verilog file with %d modules, %d classes, and %d structs",
 		len(vfile.Modules),
 		len(vfile.Classes),
