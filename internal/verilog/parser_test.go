@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 // Helper function to create a temporary Verilog file
@@ -657,6 +659,21 @@ module simple_sub(
     assign sum = a - b;
 endmodule
 
+// top module
+module top #(parameter GGGp = 8) (
+    input logic [GGGp-1:0] GGGin,
+    output logic [GGGp-1:0] GGGout
+);
+
+    logic [GGGp-1:0] GGGtemp_var = GGGin;
+
+    always_comb begin
+        //INJECT
+        GGGout = GGGtemp_var;
+    end
+
+endmodule
+
 `
 
 func TestParseModules(t *testing.T) {
@@ -670,7 +687,67 @@ func TestParseModules(t *testing.T) {
 		t.Fatalf("Failed to parse modules: %v", err)
 	}
 	modules := vf.Modules
-	if len(modules) != 3 {
+	if len(modules) != 4 {
 		t.Errorf("Ouin ouin not enough modules found, got %d, want 3", len(modules))
+	}
+}
+
+var classss = `
+class GGG_TopRandContainer #(parameter GGG_CONTAINER_WIDTH = 8);
+    rand logic [GGG_CONTAINER_WIDTH-1:0] GGG_rand_var;
+    // INJECT - Top container class body
+endclass
+
+class GGG_RandcContainer #(parameter GGG_CONTAINER_WIDTH = 4);
+    randc logic [GGG_CONTAINER_WIDTH-1:0] GGG_randc_var;
+    // INJECT - Randc container class body
+endclass
+
+class GGG_StructRandContainer;
+    rand GGG_my_struct_t GGG_struct_var;
+    // INJECT - Struct rand container class body
+endclass
+
+class GGG_ArrayRandContainer #(parameter GGG_CONTAINER_SIZE = 4);
+    rand logic [7:0] GGG_array_var [GGG_CONTAINER_SIZE];
+    // INJECT - Array rand container class body
+endclass
+
+`
+
+func TestParseClasses(t *testing.T) {
+	// Test the regex for class
+	vf := VerilogFile{
+		Classes: make(map[string]*Class),
+		Structs: make(map[string]*Struct),
+	}
+	err := vf.ParseClasses(classss)
+	if err != nil {
+		t.Fatalf("Failed to parse classes: %v", err)
+	}
+	classes := vf.Classes
+	if len(classes) != 4 {
+		t.Errorf("Ouin ouin not enough classes found, got %d, want 4", len(classes))
+	}
+}
+
+func TestDependancyGraph(t *testing.T) {
+	rootDir, err := utils.GetRootDir()
+	if err != nil {
+		t.Fatalf("Failed to get root directory: %v", err)
+	}
+	snippetsDir := filepath.Join(rootDir, "snippets")
+	filename := "randomize.sv"
+	filename = filepath.Join(snippetsDir, filename)
+	fileContent, err := utils.ReadFileContent(filename)
+	if err != nil {
+		t.Fatalf("Failed to read file content from %s", filename)
+	}
+	svFile, err := ParseVerilog(fileContent)
+	if err != nil {
+		t.Fatalf("Failed to parse file content from %s", filename)
+	}
+	if svFile.DependancyMap == nil {
+		t.Fatalf("Failed to parse dependancy map from %s", filename)
 	}
 }
