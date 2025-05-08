@@ -151,7 +151,7 @@ func setupAndCompileSimulators(
 	debug *utils.DebugLogger,
 ) (simulator.Simulator, simulator.Simulator, error) {
 	ivSim := simulator.NewIVerilogSimulator(analysisDir, verbose)
-	vlSim := simulator.NewVerilatorSimulator(analysisDir, moduleName)
+	vlSim := simulator.NewVerilatorSimulator(analysisDir, moduleName, true)
 
 	debug.Log("Compiling IVerilog simulator...")
 	if err := ivSim.Compile(); err != nil {
