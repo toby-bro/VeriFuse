@@ -45,13 +45,14 @@ func parseFlags() (*config, error) {
 	flag.BoolVar(&cfg.mocked, "mocked", false, "Use mocked Verilog file")
 	flag.Parse()
 	var verboseLevel int
-	if *vvvFlag {
+	switch {
+	case *vvvFlag:
 		verboseLevel = 4
-	} else if *vvFlag {
+	case *vvFlag:
 		verboseLevel = 3
-	} else if *vFlag {
+	case *vFlag:
 		verboseLevel = 2
-	} else {
+	default:
 		verboseLevel = 1
 	}
 
