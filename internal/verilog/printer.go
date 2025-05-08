@@ -447,8 +447,8 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) {
 	definedNodeCount := len(vf.Structs) + len(vf.Classes) + len(vf.Modules) // + len(vf.Interfaces)
 	if len(sortedList) != definedNodeCount {
 		// This indicates a cycle among the defined elements, or an issue with dependency tracking.
-		fmt.Printf(
-			"Warning: Topological sort incomplete. Sorted: %d, Defined: %d. Possible cycle or missing internal dependency link.\n",
+		logger.Warn(
+			"Topological sort incomplete. Sorted: %d, Defined: %d. Possible cycle or missing internal dependency link.\n",
 			len(sortedList),
 			definedNodeCount,
 		)
@@ -489,8 +489,8 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) {
 	if err != nil {
 		// This error from getPrintOrder might indicate cycles, so printing order could be problematic.
 		// However, getPrintOrder now tries to return a list even with issues.
-		fmt.Printf(
-			"Warning: Problem obtaining print order: %v. Proceeding with potentially incomplete/incorrect order.\n",
+		logger.Warn(
+			"Problem obtaining print order: %v. Proceeding with potentially incomplete/incorrect order.\n",
 			err,
 		)
 	}
@@ -498,8 +498,8 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) {
 		(len(vf.Structs) > 0 || len(vf.Classes) > 0 || len(vf.Modules) > 0) {
 		// If sortedNames is empty but there are items, it means getPrintOrder had a major issue or no deps were found.
 		// Fallback to a default order.
-		fmt.Println(
-			"Warning: Print order is empty, falling back to default printing order (Structs, Classes, Modules).",
+		logger.Warn(
+			"Print order is empty, falling back to default printing order (Structs, Classes, Modules).",
 		)
 		for _, s := range vf.Structs {
 			sortedNames = append(sortedNames, s.Name)
@@ -547,7 +547,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) {
 					sb.WriteString(PrintStruct(s))
 					sb.WriteString("\n")
 					printed[name] = true
-					fmt.Printf("Printed remaining struct: %s\n", name)
+					logger.Debug("Printed remaining struct: %s\n", name)
 				}
 			}
 		case "class":
@@ -556,7 +556,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) {
 					sb.WriteString(PrintClass(c))
 					sb.WriteString("\n")
 					printed[name] = true
-					fmt.Printf("Printed remaining class: %s\n", name)
+					logger.Debug("Printed remaining class: %s\n", name)
 				}
 			}
 		// case "interface":
@@ -567,7 +567,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) {
 					sb.WriteString(PrintModule(m))
 					sb.WriteString("\n")
 					printed[name] = true
-					fmt.Printf("Printed remaining module: %s\n", name)
+					logger.Debug("Printed remaining module: %s\n", name)
 				}
 			}
 		}

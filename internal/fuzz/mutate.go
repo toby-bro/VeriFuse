@@ -3,7 +3,6 @@ package fuzz
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -17,6 +16,8 @@ import (
 var (
 	snippets     = []*Snippet{}
 	verilogFiles = []*verilog.VerilogFile{}
+	logger       *utils.DebugLogger
+	verbose      int
 )
 
 type Snippet struct {
@@ -40,7 +41,7 @@ func findSnippetFiles() ([]string, error) {
 	}
 
 	sourceFiles, err := filepath.Glob(filepath.Join(snippetsDir, "*.sv"))
-	log.Printf("Loading snippets from directory: %s", snippetsDir)
+	logger.Debug("Loading snippets from directory: %s", snippetsDir)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func loadSnippets() error {
 		if err != nil {
 			return fmt.Errorf("failed to read snippet file %s: %v", snippetFile, err)
 		}
-		verilogFile, err := verilog.ParseVerilog(fileContent)
+		verilogFile, err := verilog.ParseVerilog(fileContent, verbose)
 		if err != nil || verilogFile == nil {
 			return err
 		}
@@ -73,7 +74,7 @@ func loadSnippets() error {
 			verilogFiles = append(verilogFiles, verilogFile)
 		}
 	}
-	fmt.Printf("Loaded %d snippets from %d files\n", len(snippets), len(sourceFiles))
+	logger.Debug("Loaded %d snippets from %d files\n", len(snippets), len(sourceFiles))
 	return nil
 }
 
@@ -384,7 +385,7 @@ func AddCodeToSnippet(originalContent, snippet string) (string, error) {
 	}
 
 	if len(injectedLines) == 0 {
-		fmt.Println("    No suitable lines found to inject. Removing //INJECT marker.")
+		logger.Debug("    No suitable lines found to inject. Removing //INJECT marker.")
 		return strings.Join(
 			append(snippetLines[:injectIndex], snippetLines[injectIndex+1:]...),
 			"\n",
@@ -397,7 +398,7 @@ func AddCodeToSnippet(originalContent, snippet string) (string, error) {
 		result.WriteString("\n")
 	}
 
-	fmt.Printf("    Injecting %d lines into snippet...\n", len(injectedLines))
+	logger.Debug("    Injecting %d lines into snippet...\n", len(injectedLines))
 	for _, line := range injectedLines {
 		result.WriteString(markerIndent + strings.TrimSpace(line) + "\n")
 	}
@@ -473,13 +474,14 @@ func addDependancies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
 	return nil
 }
 
-func MutateFile(fileName string) error {
+func MutateFile(fileName string, verbose int) error {
+	logger = utils.NewDebugLogger(verbose)
 	originalContent, err := utils.ReadFileContent(fileName)
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %v", fileName, err)
 	}
 
-	vsFile, err := verilog.ParseVerilog(originalContent)
+	vsFile, err := verilog.ParseVerilog(originalContent, verbose)
 	if err != nil || vsFile == nil {
 		return fmt.Errorf("failed to parse Verilog file %s: %v", fileName, err)
 	}
@@ -493,13 +495,13 @@ func MutateFile(fileName string) error {
 	for moduleName, currentModule := range vsFile.Modules {
 		moduleToMutate := currentModule.DeepCopy()
 		if moduleToMutate == nil {
-			log.Printf("Failed to copy module %s for mutation, skipping.", moduleName)
+			logger.Warn("Failed to copy module %s for mutation, skipping.", moduleName)
 			continue
 		}
 
 		snippet, err := getRandomSnippet()
 		if err != nil {
-			log.Printf(
+			logger.Warn(
 				"Failed to get snippet for module %s: %v. Skipping mutation for this module.",
 				moduleName,
 				err,
@@ -507,15 +509,15 @@ func MutateFile(fileName string) error {
 			continue
 		}
 		if snippet == nil || snippet.Module == nil || snippet.ParentFile == nil {
-			log.Printf(
+			logger.Warn(
 				"Selected snippet, its module, or its parent file is nil for module %s. Skipping.",
 				moduleName,
 			)
 			continue
 		}
 		if snippet.ParentFile.Name == "" {
-			log.Printf(
-				"Warning: Snippet ParentFile name is empty for snippet '%s'. Dependency merging might be affected.",
+			logger.Warn(
+				"Snippet ParentFile name is empty for snippet '%s'. Dependency merging might be affected.",
 				snippet.Name,
 			)
 		}
@@ -523,14 +525,14 @@ func MutateFile(fileName string) error {
 		mutationType := 0
 
 		if mutationType == 0 {
-			fmt.Printf(
+			logger.Debug(
 				"Attempting InjectSnippet mutation for module %s in file %s...\n",
 				moduleToMutate.Name,
 				fileName,
 			)
 			err = injectSnippetInModule(moduleToMutate, snippet)
 			if err != nil {
-				fmt.Printf(
+				logger.Info(
 					"InjectSnippet failed for module %s: %v. Skipping mutation for this module.\n",
 					moduleToMutate.Name,
 					err,
@@ -548,7 +550,7 @@ func MutateFile(fileName string) error {
 				)
 			}
 			mutatedOverall = true
-			fmt.Printf(
+			logger.Debug(
 				"Mutation applied to module %s in %s (Type: %d)\n",
 				moduleToMutate.Name,
 				fileName,
@@ -558,10 +560,6 @@ func MutateFile(fileName string) error {
 			// Key by snippet.Module.Name so we know exactly which module to DFS
 			injectedSnippetParentFiles[snippet.Name] = snippet.ParentFile
 		}
-	}
-
-	if !mutatedOverall {
-		fmt.Printf("No mutations were successfully applied to %s.\n", fileName)
 	}
 
 	finalMutatedContent, err := verilog.PrintVerilogFile(vsFile)
@@ -574,9 +572,9 @@ func MutateFile(fileName string) error {
 		return fmt.Errorf("failed to write mutated content to %s: %v", fileName, err)
 	}
 	if mutatedOverall {
-		fmt.Printf("Successfully mutated and rewrote file %s\n", fileName)
+		logger.Info("Successfully mutated and rewrote file %s\n", fileName)
 	} else {
-		fmt.Printf("File %s rewritten (no mutations applied or all failed).\n", fileName)
+		logger.Warn("File %s rewritten (no mutations applied or all failed).\n", fileName)
 	}
 
 	return nil

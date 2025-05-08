@@ -15,7 +15,7 @@ import (
 )
 
 type config struct {
-	verbose     bool
+	verbose     int
 	verilogFile string
 	moduleName  string
 	mocked      bool
@@ -29,11 +29,33 @@ type testCase struct {
 
 func parseFlags() (*config, error) {
 	cfg := &config{}
-	flag.BoolVar(&cfg.verbose, "v", false, "Verbose output")
+	vFlag := flag.Bool(
+		"v",
+		false,
+		"Verbose output (level 1). Higher levels (-vv, -vvv) take precedence.",
+	)
+	vvFlag := flag.Bool(
+		"vv",
+		false,
+		"Verbose output (level 2). Higher level (-vvv) takes precedence.",
+	)
+	vvvFlag := flag.Bool("vvv", false, "Verbose output (level 3).")
 	flag.StringVar(&cfg.verilogFile, "file", "", "Path to Verilog file (required)")
 	flag.StringVar(&cfg.moduleName, "module", "", "Module name (if different from filename)")
 	flag.BoolVar(&cfg.mocked, "mocked", false, "Use mocked Verilog file")
 	flag.Parse()
+	var verboseLevel int
+	if *vvvFlag {
+		verboseLevel = 4
+	} else if *vvFlag {
+		verboseLevel = 3
+	} else if *vFlag {
+		verboseLevel = 2
+	} else {
+		verboseLevel = 1
+	}
+
+	cfg.verbose = verboseLevel
 
 	if cfg.verilogFile == "" {
 		return nil, errors.New("no Verilog file specified. Use -file option")
@@ -55,7 +77,7 @@ func setupEnvironment(cfg *config, debug *utils.DebugLogger) (*verilog.Module, s
 	if cfg.mocked {
 		module.Name += "_mocked"
 	}
-	debug.Log("Using module: %s", module.Name)
+	debug.Info("Using module: %s", module.Name)
 
 	// Create a dedicated directory for focused tests
 	focusedDir := filepath.Join(utils.TMP_DIR, "focused")
@@ -142,21 +164,21 @@ func generateTestCases(module *verilog.Module) ([]testCase, error) {
 
 func compileSimulators(
 	baseDir, moduleName string,
-	verbose bool,
+	verbose int,
 	debug *utils.DebugLogger,
 ) (simulator.Simulator, simulator.Simulator, error) {
 	ivSim := simulator.NewIVerilogSimulator(baseDir, verbose)
-	vlSim := simulator.NewVerilatorSimulator(baseDir, moduleName, true)
+	vlSim := simulator.NewVerilatorSimulator(baseDir, moduleName, true, verbose)
 
 	if err := ivSim.Compile(); err != nil {
 		return nil, nil, fmt.Errorf("failed to compile IVerilog: %w", err)
 	}
-	debug.Log("IVerilog compiled successfully.")
+	debug.Info("IVerilog compiled successfully.")
 
 	if err := vlSim.Compile(); err != nil {
 		return nil, nil, fmt.Errorf("failed to compile Verilator: %w", err)
 	}
-	debug.Log("Verilator compiled successfully.")
+	debug.Info("Verilator compiled successfully.")
 
 	return ivSim, vlSim, nil
 }
@@ -169,8 +191,8 @@ func runAndCompareTestCase(
 	debug *utils.DebugLogger,
 	caseIndex int,
 ) error {
-	debug.Log("\n=== Test case: %s ===", tc.Name)
-	debug.Log("Description: %s", tc.Description)
+	debug.Info("\n=== Test case: %s ===", tc.Name)
+	debug.Info("Description: %s", tc.Description)
 
 	// Create test-specific directory
 	testCaseDir := filepath.Join(baseDir, fmt.Sprintf("case_%d_%s", caseIndex, tc.Name))
@@ -222,13 +244,13 @@ func runAndCompareTestCase(
 
 		ivContent, err := os.ReadFile(ivPath)
 		if err != nil {
-			debug.Log("Warning: Failed to read IVerilog output for %s: %v", portName, err)
+			debug.Info("Warning: Failed to read IVerilog output for %s: %v", portName, err)
 			// Continue comparison with empty string or handle error differently?
 			ivContent = []byte{}
 		}
 		vlContent, err := os.ReadFile(vlPath)
 		if err != nil {
-			debug.Log("Warning: Failed to read Verilator output for %s: %v", portName, err)
+			debug.Info("Warning: Failed to read Verilator output for %s: %v", portName, err)
 			vlContent = []byte{}
 		}
 
@@ -236,20 +258,20 @@ func runAndCompareTestCase(
 		vlValue := strings.TrimSpace(string(vlContent))
 		results[portName] = [2]string{ivValue, vlValue}
 
-		debug.Log("Port %s: IVerilog=%s, Verilator=%s", portName, ivValue, vlValue)
+		debug.Info("Port %s: IVerilog=%s, Verilator=%s", portName, ivValue, vlValue)
 
 		if ivValue != vlValue {
-			debug.Log("MISMATCH DETECTED IN PORT %s", portName)
+			debug.Info("MISMATCH DETECTED IN PORT %s", portName)
 			mismatch = true
 		}
 	}
 
 	if mismatch {
 		if err := handleMismatch(tc, inputPaths, ivOutputPaths, vlOutputPaths, results, debug); err != nil {
-			debug.Log("Error handling mismatch: %v", err) // Log error but continue
+			debug.Info("Error handling mismatch: %v", err) // Log error but continue
 		}
 	} else {
-		debug.Log("Results match")
+		debug.Info("Results match")
 	}
 
 	return nil // Indicate successful run and comparison for this test case
@@ -272,7 +294,7 @@ func handleMismatch(
 	for portName, srcPath := range inputPaths {
 		destPath := filepath.Join(mismatchDir, fmt.Sprintf("input_%s.hex", portName))
 		if err := utils.CopyFile(srcPath, destPath); err != nil {
-			debug.Log("Warning: Failed to copy input file %s: %v", srcPath, err)
+			debug.Info("Warning: Failed to copy input file %s: %v", srcPath, err)
 			// Continue copying other files
 		}
 	}
@@ -284,10 +306,10 @@ func handleMismatch(
 		vlDest := filepath.Join(mismatchDir, fmt.Sprintf("vl_%s.hex", portName))
 
 		if err := utils.CopyFile(ivPath, ivDest); err != nil {
-			debug.Log("Warning: Failed to copy IVerilog output for %s: %v", portName, err)
+			debug.Info("Warning: Failed to copy IVerilog output for %s: %v", portName, err)
 		}
 		if err := utils.CopyFile(vlPath, vlDest); err != nil {
-			debug.Log("Warning: Failed to copy Verilator output for %s: %v", portName, err)
+			debug.Info("Warning: Failed to copy Verilator output for %s: %v", portName, err)
 		}
 	}
 
@@ -322,7 +344,7 @@ func handleMismatch(
 		fmt.Fprintf(file, "    Verilator: %s\n", vlVal)
 		fmt.Fprintf(file, "    Status:    %s\n", status)
 	}
-	debug.Log("Mismatch details saved to %s and directory %s", summaryPath, mismatchDir)
+	debug.Info("Mismatch details saved to %s and directory %s", summaryPath, mismatchDir)
 	return nil
 }
 
@@ -337,33 +359,33 @@ func main() {
 
 	module, focusedDir, err := setupEnvironment(cfg, debug)
 	if err != nil {
-		debug.Log("Environment setup failed: %v", err)
+		debug.Info("Environment setup failed: %v", err)
 		os.Exit(1)
 	}
 
 	testCases, err := generateTestCases(module)
 	if err != nil {
-		debug.Log("Test case generation failed: %v", err)
+		debug.Info("Test case generation failed: %v", err)
 		os.Exit(1)
 	}
 	if len(testCases) == 0 {
-		debug.Log("No test cases generated. Check module inputs.")
+		debug.Info("No test cases generated. Check module inputs.")
 		os.Exit(0) // Not necessarily an error, maybe no inputs?
 	}
-	debug.Log("Generated %d test cases.", len(testCases))
+	debug.Info("Generated %d test cases.", len(testCases))
 
 	ivSim, vlSim, err := compileSimulators(focusedDir, module.Name, cfg.verbose, debug)
 	if err != nil {
-		debug.Log("Simulator compilation failed: %v", err)
+		debug.Info("Simulator compilation failed: %v", err)
 		os.Exit(1)
 	}
 
-	debug.Log("Running focused test cases...")
+	debug.Info("Running focused test cases...")
 	var runErrors []error
 	for i, tc := range testCases {
 		err := runAndCompareTestCase(tc, module, ivSim, vlSim, focusedDir, debug, i)
 		if err != nil {
-			debug.Log("Error running test case %s: %v", tc.Name, err)
+			debug.Info("Error running test case %s: %v", tc.Name, err)
 			runErrors = append(runErrors, fmt.Errorf("case %s: %w", tc.Name, err))
 			// Decide whether to continue or stop on first error
 			// For now, continue to run all tests
@@ -371,12 +393,12 @@ func main() {
 	}
 
 	if len(runErrors) > 0 {
-		debug.Log("\n--- Summary of Errors ---")
+		debug.Info("\n--- Summary of Errors ---")
 		for _, runErr := range runErrors {
-			debug.Log("- %v", runErr)
+			debug.Info("- %v", runErr)
 		}
 		os.Exit(1) // Indicate that some tests failed
 	}
 
-	debug.Log("\nAll focused test cases completed.")
+	debug.Info("\nAll focused test cases completed.")
 }
