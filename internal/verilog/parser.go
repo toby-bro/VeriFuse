@@ -99,6 +99,18 @@ func (m *Module) DeepCopy() *Module {
 	return copiedModule
 }
 
+func (d *DependencyNode) DeepCopy() *DependencyNode {
+	if d == nil {
+		return nil
+	}
+	copiedNode := &DependencyNode{
+		Name:      d.Name,
+		DependsOn: make([]string, len(d.DependsOn)),
+	}
+	copy(copiedNode.DependsOn, d.DependsOn)
+	return copiedNode
+}
+
 type Variable struct {
 	Name         string
 	Type         PortType
