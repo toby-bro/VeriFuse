@@ -264,7 +264,7 @@ func TestParseRange(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Pass the specific params map for the test case
-			width, err := parseRange(tc.rangeStr, tc.params)
+			width, err := ParseRange(tc.rangeStr, tc.params)
 			hasError := (err != nil)
 
 			if hasError != tc.expectError {
@@ -448,15 +448,67 @@ rand logic [7:0] GGG_array_var [GGG_CONTAINER_SIZE];
 int 	m_queue [$]; 
     rand logic [GGG_CLASS_WIDTH-1:0] GGG_class_rand_var;
 		myPacket pkt0, pkt1;
+logic [7:0] internal_wire;
+
 	`
 
 func TestParseVariables(t *testing.T) {
-	// Test the regex for variables
-	matches := MatchAllVariablesFromString(aa)
-	if len(matches) < 6 {
-		t.Errorf("No matches found for variable")
-	} else {
-		t.Logf("Found %d variables", len(matches))
+	expectedVars := []*Variable{
+		{Name: "GGG_field1", Type: LOGIC, Width: 8, Unsigned: false},
+		{Name: "GGG_field2", Type: INT, Width: 32, Unsigned: true},
+		{Name: "GGG_condition_var", Type: BIT, Width: 1, Unsigned: false},
+		{
+			Name:     "GGG_array_var",
+			Type:     LOGIC,
+			Width:    8,
+			Unsigned: false,
+		}, // Array attribute not checked here
+		{Name: "GGG_index_limit", Type: INT, Width: 32, Unsigned: false},
+		{
+			Name:     "m_queue",
+			Type:     INT,
+			Width:    32,
+			Unsigned: false,
+		}, // Array attribute not checked here
+		// For GGG_class_rand_var, ParseRange with nil parameters will default to width 8 for "[GGG_CLASS_WIDTH-1:0]"
+		{Name: "GGG_class_rand_var", Type: LOGIC, Width: 8, Unsigned: false},
+		{Name: "internal_wire", Type: LOGIC, Width: 8, Unsigned: false},
+	}
+
+	// Pass nil for VerilogFile as 'aa' contains only basic types for this test's scope,
+	// and we are not testing user-defined type resolution here.
+	// The `myPacket pkt0, pkt1;` line in `aa` will be skipped by MatchAllVariablesFromString
+	// because `myPacket` is not a built-in type in the generalVariableRegex.
+	parsedVars, err := ParseVariables(nil, aa)
+	if err != nil {
+		t.Fatalf("ParseVariables failed: %v", err)
+	}
+
+	if len(parsedVars) != len(expectedVars) {
+		t.Fatalf("Expected %d variables, got %d variables.", len(expectedVars), len(parsedVars))
+	}
+
+	for i, expected := range expectedVars {
+		actual := parsedVars[i]
+		// Compare relevant fields. ParentStruct, ParentClass, Array are not set by this parsing path or are nil/empty.
+		if actual.Name != expected.Name ||
+			actual.Type != expected.Type ||
+			actual.Width != expected.Width ||
+			actual.Unsigned != expected.Unsigned {
+			t.Errorf(
+				"Variable %d ('%s') mismatch:\nExpected: Name=%s, Type=%d, Width=%d, Unsigned=%t\nActual:   Name=%s, Type=%d, Width=%d, Unsigned=%t",
+				i,
+				expected.Name,
+				expected.Name,
+				expected.Type,
+				expected.Width,
+				expected.Unsigned,
+				actual.Name,
+				actual.Type,
+				actual.Width,
+				actual.Unsigned,
+			)
+		}
 	}
 }
 
@@ -578,4 +630,49 @@ func TestCompleteParsing(t *testing.T) {
 		len(vfile.Classes),
 		len(vfile.Structs),
 	)
+}
+
+var ee = `
+// Comment line
+module module1 (input clk, output reg out1);
+  assign out1 = clk;
+endmodule
+
+module module2 #(parameter WIDTH=8) (input logic [WIDTH-1:0] data_in, output logic valid_out);
+  // Another comment
+  assign valid_out = |data_in;
+
+  /* Multi
+     line
+     comment */
+endmodule
+
+module module3 (); // No ports
+endmodule
+
+module simple_sub(
+    input  logic [7:0] a,
+    input  logic [7:0] b,
+    output logic [8:0] sum
+);
+    // Simple adder logic
+    assign sum = a - b;
+endmodule
+
+`
+
+func TestParseModules(t *testing.T) {
+	// Test the regex for module
+	vf := VerilogFile{
+		Classes: make(map[string]*Class),
+		Structs: make(map[string]*Struct),
+	}
+	err := vf.ParseModules(ee)
+	if err != nil {
+		t.Fatalf("Failed to parse modules: %v", err)
+	}
+	modules := vf.Modules
+	if len(modules) != 3 {
+		t.Errorf("Ouin ouin not enough modules found, got %d, want 3", len(modules))
+	}
 }

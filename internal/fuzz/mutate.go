@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -17,503 +16,298 @@ import (
 )
 
 var (
-	modules    = []string{}
-	seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
-	classes    = map[string]string{}
+	seededRand   = rand.New(rand.NewSource(time.Now().UnixNano()))
+	snippets     = []*Snippet{}
+	verilogFiles = []*verilog.VerilogFile{}
 )
 
 type Snippet struct {
-	Name      string
-	Content   string
-	Module    verilog.Module
-	Depending []verilog.Class
+	Name       string
+	Module     *verilog.Module
+	ParentFile *verilog.VerilogFile
 }
 
-func LoadSnippetModules() ([]string, map[string]string, error) {
-	// Find the repository root by searching upwards for a .git directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get current working directory: %w", err)
+func findSnippetFiles() ([]string, error) {
+	repoRoot, err := utils.LocateRepoRoot()
+	if err != nil || repoRoot == "" {
+		return nil, fmt.Errorf("failed to find repository root: %w", err)
 	}
 
-	repoRoot := ""
-	dir := cwd
-	for {
-		// Check if .git exists in the current directory
-		gitPath := filepath.Join(dir, ".git")
-		stat, err := os.Stat(gitPath)
-		if err == nil && stat.IsDir() {
-			repoRoot = dir // Found the repository root
-			break
-		}
-		// Handle errors other than "not found"
-		if err != nil && !os.IsNotExist(err) {
-			return nil, nil, fmt.Errorf("error checking for .git directory at %s: %w", gitPath, err)
-		}
-
-		// Move to the parent directory
-		parentDir := filepath.Dir(dir)
-		if parentDir == dir {
-			// Reached the filesystem root without finding .git
-			return nil, nil, fmt.Errorf(
-				"failed to find repository root (.git directory) starting from %s",
-				cwd,
-			)
-		}
-		dir = parentDir
-	}
-
-	if repoRoot == "" {
-		// Should not happen if the loop logic is correct, but handle defensively
-		return nil, nil, errors.New("repository root could not be determined")
-	}
-
-	// Construct the path to the snippets directory relative to the repo root
 	snippetsDir := filepath.Join(repoRoot, "snippets")
 
-	// Check if the snippets directory exists
 	if _, err := os.Stat(snippetsDir); os.IsNotExist(err) {
-		return nil, nil, fmt.Errorf("snippets directory '%s' does not exist", snippetsDir)
+		return nil, fmt.Errorf("snippets directory '%s' does not exist", snippetsDir)
 	} else if err != nil {
-		return nil, nil, fmt.Errorf("failed to access snippets directory '%s': %w", snippetsDir, err)
+		return nil, fmt.Errorf("failed to access snippets directory '%s': %w", snippetsDir, err)
 	}
 
 	sourceFiles, err := filepath.Glob(filepath.Join(snippetsDir, "*.sv"))
 	log.Printf("Loading snippets from directory: %s", snippetsDir)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	allModules := make(map[string]string)
-	allClasses := make(map[string]string)
-	for _, snippetFile := range sourceFiles {
-		modules, classes, err := verilog.ExtractDefinitions(snippetFile)
-		if err != nil {
-			return nil, nil, err
-		}
-		for name, content := range modules {
-			allModules[name] = content
-		}
-		for name, content := range classes {
-			allClasses[name] = content
-		}
-	}
-	// Convert map to slice
-	snippetList := make([]string, 0, len(allModules))
-	for _, content := range allModules {
-		snippetList = append(snippetList, content)
-	}
-	return snippetList, allClasses, nil
+	return sourceFiles, nil
 }
 
-// returns the list of modules and the map of classes defined in the snippets directory
-func GetSnippets() ([]string, map[string]string, error) {
-	if len(modules) == 0 {
-		var err error
-		modules, classes, err = LoadSnippetModules()
+func loadSnippets() error {
+	sourceFiles, err := findSnippetFiles()
+	if err != nil {
+		return fmt.Errorf("failed to find snippets: %v", err)
+	}
+	for _, snippetFile := range sourceFiles {
+		fileContent, err := utils.ReadFileContent(snippetFile)
+		if err != nil {
+			return fmt.Errorf("failed to read snippet file %s: %v", snippetFile, err)
+		}
+		verilogFile, err := verilog.ParseVerilog(fileContent)
+		if err != nil || verilogFile == nil {
+			return err
+		}
+		for _, module := range verilogFile.Modules {
+			if module.Name == "" {
+				return fmt.Errorf("module name is empty in file %s", snippetFile)
+			}
+			snippets = append(snippets, &Snippet{
+				Name:       module.Name,
+				Module:     module,
+				ParentFile: verilogFile,
+			})
+			verilogFiles = append(verilogFiles, verilogFile)
+		}
+	}
+	return nil
+}
+
+func getSnippets() ([]*Snippet, []*verilog.VerilogFile, error) {
+	if len(snippets) == 0 {
+		err := loadSnippets()
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to load snippets: %v", err)
 		}
 	}
-	return modules, classes, nil
+	return snippets, verilogFiles, nil
 }
 
-// GetRandomSnippet returns a random snippet from the loaded module snippets.
-func GetRandomSnippet() (string, error) {
-	snippets, _, err := GetSnippets()
+func getRandomSnippet() (*Snippet, error) {
+	snippets, _, err := getSnippets()
 	if err != nil {
-		return "", fmt.Errorf("failed to get snippets: %v", err)
+		return nil, fmt.Errorf("failed to get snippets: %v", err)
 	}
 	if len(snippets) == 0 {
-		return "", errors.New("no snippets available")
+		return nil, errors.New("no snippets available")
 	}
 	randomIndex := utils.RandomInt(0, len(snippets)-1)
 	return snippets[randomIndex], nil
 }
 
-// InjectSnippet attempts to inject a snippet module instantiation into the original content.
-// It analyzes the original module to find a suitable insertion point and connect snippet ports.
-func InjectSnippet(originalContent string, snippet string) (string, error) { // nolint:gocyclo
-	// 1. Parse Original Content
-	originalModule, err := verilog.ParseVerilogContent([]byte(originalContent), "")
+func injectSnippetInModule(module *verilog.Module, snippet *Snippet) (string, error) {
+	variables, err := verilog.ParseVariables(snippet.ParentFile, module.Body)
 	if err != nil {
-		return originalContent, fmt.Errorf("failed to parse original content: %v", err)
-	}
-	if originalModule == nil || originalModule.Name == "" {
-		return originalContent, errors.New("could not identify module in original content")
+		return "", fmt.Errorf("failed to extract variables from module: %v", err)
 	}
 
-	// 2. Parse Snippet Content
-	snippetModule, err := verilog.ParseVerilogContent([]byte(snippet), "")
+	portConnections, newSignalDeclarations, err := matchVariablesToSnippetPorts(
+		module,
+		snippet,
+		variables,
+	)
 	if err != nil {
-		// Fallback parsing for snippet name if full parse fails
-		generalModuleRegex := regexp.MustCompile(`(?m)^\s*module\s+(\w+)`) // Added (?m)^
-		matches := generalModuleRegex.FindStringSubmatch(snippet)
-		fallbackName := "unknown_snippet"
-		if len(matches) > 1 {
-			fallbackName = matches[1]
-		}
-		fmt.Printf(
-			"Warning: Failed to fully parse snippet: %v. Proceeding with fallback name '%s' and assuming no ports.\n",
-			err,
-			fallbackName,
-		)
-		// Create a minimal module structure for the fallback
-		snippetModule = &verilog.Module{
-			Name:  fallbackName,
-			Ports: []verilog.Port{}, // Assume no ports if parsing failed
-			Body:  snippet,          // Keep original content for potential later use
-		}
-		// Note: Without parsed ports, instantiation will be empty `module_name instance_name ();`
-	}
-	if snippetModule == nil || snippetModule.Name == "" {
-		return originalContent, errors.New("failed to identify module name in snippet")
+		return "", fmt.Errorf("failed to match variables to snippet ports: %v", err)
 	}
 
-	originalLines := strings.Split(originalContent, "\n")
-	instanceName := fmt.Sprintf("%s_inst_%d", snippetModule.Name, seededRand.Intn(10000))
-	newDeclarations := []string{} // For adding internal logic declarations
-	connections := []string{}
-	usedOrigVars := make(map[string]bool)
-
-	// 3. Find Insertion Point (logic remains the same)
-	lastDeclarationLine := -1
-	declarationRegex := regexp.MustCompile(
-		`(?i)^\s*(input|output|inout|wire|reg|logic|parameter|localparam|integer|genvar)\b`,
-	)
-	moduleHeaderEndRegex := regexp.MustCompile(`\)\s*;`) // Matches the end of port list
-
-	moduleHeaderEndLine := -1
-	for i, line := range originalLines {
-		// Look for module definition line to start search for header end
-		if strings.HasPrefix(strings.TrimSpace(line), "module ") {
-			for j := i + 1; j < len(originalLines); j++ {
-				if moduleHeaderEndRegex.MatchString(originalLines[j]) {
-					moduleHeaderEndLine = j
-					break
-				}
-				// Stop searching for header end if we hit procedural blocks or endmodule early
-				trimmedJLine := strings.TrimSpace(originalLines[j])
-				if strings.HasPrefix(trimmedJLine, "always") ||
-					strings.HasPrefix(trimmedJLine, "assign") ||
-					strings.HasPrefix(trimmedJLine, "initial") ||
-					strings.HasPrefix(trimmedJLine, "generate") ||
-					strings.HasPrefix(trimmedJLine, "endmodule") {
-					break
-				}
-			}
-			break // Stop after finding the first module line
-		}
+	err = ensureOutputPortForSnippet(module, snippet, portConnections, newSignalDeclarations)
+	if err != nil {
+		return "", fmt.Errorf("failed to ensure output port for snippet: %v", err)
 	}
 
-	if moduleHeaderEndLine == -1 {
-		// Fallback: Assume first few lines might be header if regex fails
-		moduleHeaderEndLine = utils.Min(5, len(originalLines)/4) // Avoid going too far
-		fmt.Println(
-			"Warning: Could not reliably detect module header end ';'. Using fallback line number:",
-			moduleHeaderEndLine,
-		)
+	instantiation := generateSnippetInstantiation(snippet, portConnections)
+
+	mutatedContent, err := insertSnippetIntoModule(module, instantiation, newSignalDeclarations)
+	if err != nil {
+		return "", fmt.Errorf("failed to insert snippet into module: %v", err)
 	}
 
-	// Search for declarations *after* the estimated header end
-	searchStartLine := moduleHeaderEndLine + 1
-	if searchStartLine >= len(originalLines) {
-		searchStartLine = len(originalLines) - 1 // Ensure start is within bounds
-	}
-	for i := searchStartLine; i < len(originalLines); i++ {
-		trimmedLine := strings.TrimSpace(originalLines[i])
-		// Check if it's a declaration
-		if declarationRegex.MatchString(trimmedLine) {
-			lastDeclarationLine = i
-		}
-		// Stop searching if we hit procedural blocks, assignments, generate, or endmodule
-		if strings.HasPrefix(trimmedLine, "always") ||
-			strings.HasPrefix(trimmedLine, "assign") ||
-			strings.HasPrefix(trimmedLine, "initial") ||
-			strings.HasPrefix(trimmedLine, "generate") ||
-			strings.HasPrefix(trimmedLine, "endmodule") ||
-			strings.Contains(trimmedLine, "=") { // Also stop on assignments
-			break
-		}
-	}
-
-	var insertionLineIndex int
-	if lastDeclarationLine != -1 {
-		insertionLineIndex = lastDeclarationLine + 1 // Insert on the line after the last declaration found
-	} else {
-		// Fallback: Insert after the module header end line if no declarations found
-		insertionLineIndex = moduleHeaderEndLine + 1
-		fmt.Println("Warning: Could not find declarations after module header. Inserting after header.")
-	}
-
-	// Ensure insertion index is within bounds and before endmodule if possible
-	endModuleLine := -1
-	for i := len(originalLines) - 1; i >= 0; i-- {
-		if strings.Contains(originalLines[i], "endmodule") {
-			endModuleLine = i
-			break
-		}
-	}
-	if endModuleLine != -1 && insertionLineIndex >= endModuleLine {
-		insertionLineIndex = endModuleLine // Insert before endmodule if calculated index is too late
-	}
-	if insertionLineIndex >= len(originalLines) {
-		insertionLineIndex = len(originalLines) // Absolute fallback: append (should be rare)
-	}
-	if insertionLineIndex < 0 {
-		return "", errors.New("invalid insertion line index calculated")
-	}
-
-	// Determine indentation from the line *before* the insertion point
-	indent := "    " // Default indent
-	if insertionLineIndex > 0 && insertionLineIndex <= len(originalLines) {
-		// Find the previous non-empty, non-comment line to determine indent
-		searchIndentLine := insertionLineIndex - 1
-		for searchIndentLine > 0 {
-			prevLineTrimmed := strings.TrimSpace(originalLines[searchIndentLine])
-			if prevLineTrimmed != "" && !strings.HasPrefix(prevLineTrimmed, "//") &&
-				!strings.HasPrefix(prevLineTrimmed, "/*") {
-				break
-			}
-			searchIndentLine--
-		}
-		if searchIndentLine >= 0 {
-			lineBefore := originalLines[searchIndentLine]
-			indentRegex := regexp.MustCompile(`^(\s*)`)
-			if matches := indentRegex.FindStringSubmatch(lineBefore); len(matches) > 1 {
-				indent = matches[1] // Use existing indent
-			}
-		}
-	}
-
-	// 4. Identify Candidate Signals (logic remains the same)
-	candidateSignals := make(map[string]verilog.Port) // Use Port struct for convenience
-	// Add Ports
-	for _, p := range originalModule.Ports {
-		candidateSignals[p.Name] = p
-	}
-	// Add Internal Signals found before insertion point using Regex
-	internalSignalRegex := regexp.MustCompile(
-		`(?i)^\s*(wire|reg|logic)\s*(signed|unsigned)?\s*(\[[^\]]+\])?\s*([a-zA-Z_][\w,\s]*)\s*;`,
-	)
-	for i := 0; i < insertionLineIndex; i++ {
-		line := strings.TrimSpace(originalLines[i])
-		matches := internalSignalRegex.FindStringSubmatch(line)
-		if len(matches) > 4 {
-			sigType := verilog.GetPortType(strings.ToLower(matches[1]))
-			isSigned := strings.ToLower(matches[2]) == "signed"
-			widthStr := matches[3]
-			width := 1
-			if widthStr != "" {
-				var high, low int
-				if _, err := fmt.Sscanf(widthStr, "[%d:%d]", &high, &low); err == nil {
-					width = high - low + 1
-				} else if _, err := fmt.Sscanf(widthStr, "[%d]", &high); err == nil {
-					width = high
-				}
-				if width <= 0 {
-					width = 1
-				}
-			}
-
-			names := strings.Split(matches[4], ",")
-			for _, name := range names {
-				trimmedName := strings.TrimSpace(name)
-				if trimmedName != "" &&
-					candidateSignals[trimmedName].Name == "" {
-					candidateSignals[trimmedName] = verilog.Port{
-						Name:      trimmedName,
-						Direction: verilog.INTERNAL,
-						Type:      sigType,
-						Width:     width,
-						IsSigned:  isSigned,
-					}
-				}
-			}
-		}
-	}
-
-	// 5. Determine Connections for Snippet Ports
-	for _, snipPort := range snippetModule.Ports {
-		signalName := ""
-		foundMatch := false
-
-		if snipPort.Direction == verilog.INPUT {
-			possibleMatches := []string{}
-			for name, origSig := range candidateSignals {
-				isClockReset := strings.Contains(strings.ToLower(name), "clk") ||
-					strings.Contains(strings.ToLower(name), "clock") ||
-					strings.Contains(strings.ToLower(name), "rst") ||
-					strings.Contains(strings.ToLower(name), "reset")
-
-				compatible := true
-				if snipPort.Width > 0 && origSig.Width > 0 && snipPort.Width != origSig.Width {
-					compatible = false
-				}
-				if snipPort.IsSigned != origSig.IsSigned {
-					compatible = false
-				}
-
-				if compatible {
-					if isClockReset {
-						if seededRand.Intn(10) < 2 {
-							possibleMatches = append(possibleMatches, name)
-						}
-					} else {
-						possibleMatches = append(possibleMatches, name)
-					}
-				}
-			}
-
-			if len(possibleMatches) > 0 {
-				signalName = possibleMatches[seededRand.Intn(len(possibleMatches))]
-				fmt.Printf(
-					"    Matching snippet input '%s' to original signal '%s'\n",
-					snipPort.Name,
-					signalName,
-				)
-				foundMatch = true
-			}
-
-			if !foundMatch {
-				signalName = fmt.Sprintf(
-					"inj_unconnected_%s_%d",
-					strings.ToLower(snipPort.Name),
-					seededRand.Intn(100),
-				)
-				fmt.Printf(
-					"    No compatible signal found for snippet input '%s'. Declaring placeholder internal signal '%s'.\n",
-					snipPort.Name,
-					signalName,
-				)
-				widthStr := ""
-				if snipPort.Width > 1 {
-					widthStr = fmt.Sprintf("[%d:0] ", snipPort.Width-1)
-				}
-				signedStr := ""
-				if snipPort.IsSigned {
-					signedStr = "signed "
-				}
-				newDeclarations = append(
-					newDeclarations,
-					fmt.Sprintf("logic %s%s%s;", signedStr, widthStr, signalName),
-				)
-			}
-			connections = append(connections, fmt.Sprintf(".%s(%s)", snipPort.Name, signalName))
-		} else {
-			possibleMatches := []string{}
-			for name, origSig := range candidateSignals {
-				compatible := true
-				if snipPort.Width > 0 && origSig.Width > 0 && snipPort.Width != origSig.Width {
-					compatible = false
-				}
-				if snipPort.IsSigned != origSig.IsSigned {
-					compatible = false
-				}
-				isConnectableType := origSig.Direction == verilog.INTERNAL || origSig.Direction == verilog.OUTPUT
-				if compatible && isConnectableType && !usedOrigVars[name] {
-					possibleMatches = append(possibleMatches, name)
-				}
-			}
-
-			if len(possibleMatches) > 0 {
-				sort.SliceStable(possibleMatches, func(i, j int) bool {
-					return candidateSignals[possibleMatches[i]].Direction == verilog.INTERNAL &&
-						candidateSignals[possibleMatches[j]].Direction != verilog.INTERNAL
-				})
-				signalName = possibleMatches[0]
-				usedOrigVars[signalName] = true
-				fmt.Printf("    Connecting snippet output '%s' to existing signal '%s'\n", snipPort.Name, signalName)
-				foundMatch = true
-			}
-
-			if !foundMatch {
-				directionPrefix := "output"
-				if snipPort.Direction == verilog.INOUT {
-					directionPrefix = "inout"
-					fmt.Printf("    Warning: Declaring new internal wire for INOUT port '%s'. May require manual connection logic.\n", snipPort.Name)
-				}
-				signalName = fmt.Sprintf("inj_%s_%s_%d", directionPrefix, strings.ToLower(snipPort.Name), seededRand.Intn(1000))
-
-				fmt.Printf(
-					"    No compatible internal signal found for snippet %s '%s'. Declaring internal signal '%s'.\n",
-					directionPrefix,
-					snipPort.Name,
-					signalName,
-				)
-
-				widthStr := ""
-				if snipPort.Width > 1 {
-					widthStr = fmt.Sprintf("[%d:0] ", snipPort.Width-1)
-				}
-				signedStr := ""
-				if snipPort.IsSigned {
-					signedStr = "signed "
-				}
-				newDeclarations = append(newDeclarations, fmt.Sprintf("logic %s%s%s;", signedStr, widthStr, signalName))
-			}
-			connections = append(connections, fmt.Sprintf(".%s(%s)", snipPort.Name, signalName))
-		}
-	}
-
-	// 6. Construct Instantiation String
-	instantiation := ""
-	if len(connections) > 0 {
-		instantiation = fmt.Sprintf("%s %s (", snippetModule.Name, instanceName)
-		instantiation += "\n"
-		sort.SliceStable(connections, func(i, j int) bool {
-			portNameI := connections[i][1:strings.Index(connections[i], "(")]
-			portNameJ := connections[j][1:strings.Index(connections[j], "(")]
-			return portNameI < portNameJ
-		})
-		for i, conn := range connections {
-			instantiation += indent + "    " + conn
-			if i < len(connections)-1 {
-				instantiation += ","
-			}
-			instantiation += "\n"
-		}
-		instantiation += indent + ");"
-	} else {
-		instantiation = fmt.Sprintf("%s %s ();", snippetModule.Name, instanceName)
-	}
-
-	// 7. Assemble Final Code
-	var result strings.Builder
-
-	result.WriteString(snippet)
-	result.WriteString("\n\n")
-
-	for i := 0; i < insertionLineIndex; i++ {
-		result.WriteString(originalLines[i])
-		result.WriteString("\n")
-	}
-
-	if len(newDeclarations) > 0 {
-		result.WriteString(indent + "// Declarations for injected module instance\n")
-		sort.Strings(newDeclarations)
-		for _, decl := range newDeclarations {
-			result.WriteString(indent + decl + "\n")
-		}
-		result.WriteString("\n")
-	}
-
-	result.WriteString(indent + "// Instantiation of injected module\n")
-	result.WriteString(indent + instantiation + "\n\n")
-
-	for i := insertionLineIndex; i < len(originalLines); i++ {
-		result.WriteString(originalLines[i])
-		if i < len(originalLines)-1 || len(strings.TrimSpace(originalLines[i])) > 0 {
-			result.WriteString("\n")
-		}
-	}
-
-	return result.String(), nil
+	return mutatedContent, nil
 }
 
-// AddCodeToSnippet attempts to replace the //INJECT marker in a snippet
-// with random lines from the original content. Basic draft implementation.
-// Returns the modified snippet string.
+func matchVariablesToSnippetPorts(
+	module *verilog.Module,
+	snippet *Snippet,
+	variables []*verilog.Variable,
+) (map[string]string, []verilog.Port, error) {
+	portConnections := make(map[string]string)
+	newDeclarations := []verilog.Port{}
+
+	usedInternalVars := make(map[string]bool)      // For variables from module.Body
+	usedModuleInputPorts := make(map[string]bool)  // For module.Ports with direction INPUT
+	usedModuleOutputPorts := make(map[string]bool) // For module.Ports with direction OUTPUT
+
+	for _, port := range snippet.Module.Ports {
+		foundMatch := false
+
+		if port.Direction == verilog.INPUT {
+			// 1. Try to match with an unused internal variable from the module body
+			matchedVar := findMatchingVariable(port, variables, usedInternalVars)
+			if matchedVar != nil {
+				portConnections[port.Name] = matchedVar.Name
+				usedInternalVars[matchedVar.Name] = true
+				foundMatch = true
+			}
+
+			// 2. If no internal variable, try to match with an unused module input port
+			if !foundMatch {
+				for _, modulePort := range module.Ports {
+					if modulePort.Direction == verilog.INPUT &&
+						modulePort.Type == port.Type &&
+						modulePort.Width == port.Width &&
+						!usedModuleInputPorts[modulePort.Name] {
+						portConnections[port.Name] = modulePort.Name
+						usedModuleInputPorts[modulePort.Name] = true
+						foundMatch = true
+						break
+					}
+				}
+			}
+		} else if port.Direction == verilog.OUTPUT {
+			// 1. Try to match with an unused internal variable (if it can be driven)
+			//    or an existing module output port that ParseVariables might have picked up.
+			//    For simplicity, we assume any compatible internal var can be connected.
+			matchedVar := findMatchingVariable(port, variables, usedInternalVars)
+			if matchedVar != nil {
+				portConnections[port.Name] = matchedVar.Name
+				usedInternalVars[matchedVar.Name] = true
+				foundMatch = true
+			}
+
+			// 2. If no internal variable, try to match with an unused module output port
+			if !foundMatch {
+				for _, modulePort := range module.Ports {
+					if modulePort.Direction == verilog.OUTPUT &&
+						modulePort.Type == port.Type &&
+						modulePort.Width == port.Width &&
+						!usedModuleOutputPorts[modulePort.Name] {
+						portConnections[port.Name] = modulePort.Name
+						usedModuleOutputPorts[modulePort.Name] = true
+						foundMatch = true
+						break
+					}
+				}
+			}
+		}
+
+		// 3. If no match found by any means, create a new internal signal
+		if !foundMatch {
+			newSignalName := fmt.Sprintf("inj_%s_%d", strings.ToLower(port.Name), rand.Intn(1000))
+			newSignalObj := verilog.Port{
+				Name:      newSignalName,
+				Type:      port.Type,
+				Width:     port.Width,
+				IsSigned:  port.IsSigned,
+				Direction: verilog.INTERNAL,
+			}
+			newDeclarations = append(newDeclarations, newSignalObj)
+			portConnections[port.Name] = newSignalName
+		}
+	}
+
+	return portConnections, newDeclarations, nil
+}
+
+func findMatchingVariable(
+	port verilog.Port,
+	variables []*verilog.Variable,
+	usedVars map[string]bool,
+) *verilog.Variable {
+	for _, variable := range variables {
+		if !usedVars[variable.Name] && variable.Type == port.Type && variable.Width == port.Width {
+			return variable
+		}
+	}
+	return nil
+}
+
+func generateSignalDeclaration(port verilog.Port, signalName string) string {
+	widthStr := ""
+	if port.Width > 1 {
+		widthStr = fmt.Sprintf("[%d:0] ", port.Width-1)
+	}
+	signedStr := ""
+	if port.IsSigned {
+		signedStr = "signed "
+	}
+	return fmt.Sprintf("logic %s%s%s;", signedStr, widthStr, signalName)
+}
+
+func ensureOutputPortForSnippet(
+	module *verilog.Module,
+	snippet *Snippet,
+	portConnections map[string]string,
+	newDeclarations []verilog.Port,
+) error {
+	for _, port := range snippet.Module.Ports {
+		if port.Direction == verilog.OUTPUT {
+			if _, exists := portConnections[port.Name]; !exists {
+				newPort := verilog.Port{
+					Name:      fmt.Sprintf("inj_output_%s", strings.ToLower(port.Name)),
+					Direction: verilog.OUTPUT,
+					Type:      port.Type,
+					Width:     port.Width,
+					IsSigned:  port.IsSigned,
+				}
+				module.Ports = append(module.Ports, newPort)
+				portConnections[port.Name] = newPort.Name
+			}
+		}
+	}
+	return nil
+}
+
+func generateSnippetInstantiation(snippet *Snippet, portConnections map[string]string) string {
+	instanceName := fmt.Sprintf("%s_inst_%d", snippet.Name, rand.Intn(10000))
+	instantiation := fmt.Sprintf("%s %s (\n", snippet.Module.Name, instanceName)
+
+	connectionLines := []string{}
+	for portName, signalName := range portConnections {
+		connectionLines = append(connectionLines, fmt.Sprintf("    .%s(%s)", portName, signalName))
+	}
+	instantiation += strings.Join(connectionLines, ",\n")
+	instantiation += "\n);"
+
+	return instantiation
+}
+
+func insertSnippetIntoModule(
+	module *verilog.Module,
+	instantiation string,
+	newDeclarations []verilog.Port,
+) (string, error) {
+	lines := strings.Split(module.Body, "\n")
+	insertionIndex := findInsertionPoint(lines)
+
+	for _, portToDeclare := range newDeclarations {
+		declarationString := generateSignalDeclaration(portToDeclare, portToDeclare.Name)
+		lines = append(
+			lines[:insertionIndex],
+			append([]string{declarationString}, lines[insertionIndex:]...)...)
+		insertionIndex++
+	}
+
+	lines = append(
+		lines[:insertionIndex],
+		append([]string{instantiation}, lines[insertionIndex:]...)...)
+
+	return strings.Join(lines, "\n"), nil
+}
+
+func findInsertionPoint(lines []string) int {
+	for i, line := range lines {
+		if strings.Contains(line, "endmodule") {
+			return i
+		}
+	}
+	return len(lines)
+}
+
 func AddCodeToSnippet(originalContent, snippet string) (string, error) {
 	originalLines := strings.Split(originalContent, "\n")
 	snippetLines := strings.Split(snippet, "\n")
@@ -611,36 +405,43 @@ func AddCodeToSnippet(originalContent, snippet string) (string, error) {
 	return result.String(), nil
 }
 
-// MutateFile applies a random mutation strategy (InjectSnippet or AddCodeToSnippet)
 func MutateFile(fileName string) error {
 	originalContent, err := utils.ReadFileContent(fileName)
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %v", fileName, err)
 	}
 
-	snippet, err := GetRandomSnippet()
+	vsFile, err := verilog.ParseVerilog(originalContent)
 	if err != nil {
-		return fmt.Errorf("failed to get snippet for mutation: %v", err)
+		return fmt.Errorf("failed to parse file %s: %v", fileName, err)
 	}
 
-	var mutatedContent string
-	mutationType := 0
+	for _, module := range vsFile.Modules {
 
-	if mutationType == 0 {
-		fmt.Println("Attempting InjectSnippet mutation...")
-		mutatedContent, err = InjectSnippet(originalContent, snippet)
+		snippet, err := getRandomSnippet()
 		if err != nil {
-			fmt.Printf("InjectSnippet failed: %v. Skipping mutation.\n", err)
-			return fmt.Errorf("InjectSnippet failed: %w", err)
+			return fmt.Errorf("failed to get snippet for mutation: %v", err)
 		}
-	} else {
-		mutatedContent = originalContent
-	}
 
-	err = utils.WriteFileContent(fileName, mutatedContent)
-	if err != nil {
-		return fmt.Errorf("failed to write mutated content to %s: %v", fileName, err)
+		var mutatedContent string
+		mutationType := 0
+
+		if mutationType == 0 {
+			fmt.Println("Attempting InjectSnippet mutation...")
+			mutatedContent, err = injectSnippetInModule(module, snippet)
+			if err != nil {
+				fmt.Printf("InjectSnippet failed: %v. Skipping mutation.\n", err)
+				return fmt.Errorf("InjectSnippet failed: %w", err)
+			}
+		} else {
+			mutatedContent = originalContent
+		}
+
+		err = utils.WriteFileContent(fileName, mutatedContent)
+		if err != nil {
+			return fmt.Errorf("failed to write mutated content to %s: %v", fileName, err)
+		}
+		fmt.Printf("Mutation applied to %s (Type: %d)\n", fileName, mutationType)
 	}
-	fmt.Printf("Mutation applied to %s (Type: %d)\n", fileName, mutationType)
 	return nil
 }
