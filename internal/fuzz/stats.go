@@ -49,13 +49,6 @@ func (fs *Stats) AddMismatch(tc map[string]string) {
 	}
 }
 
-// AddSimError records a simulation error
-func (fs *Stats) AddSimError() {
-	fs.mutex.Lock()
-	defer fs.mutex.Unlock()
-	fs.SimErrors++
-}
-
 // AddTest records a test execution
 func (fs *Stats) AddTest() {
 	fs.mutex.Lock()
@@ -67,7 +60,6 @@ func (fs *Stats) AddTest() {
 func (fs *Stats) PrintSummary() {
 	fmt.Printf("\n=== Fuzzing Summary ===\n")
 	fmt.Printf("Total test cases: %d\n", fs.TotalTests)
-	fmt.Printf("Simulator errors: %d\n", fs.SimErrors)
 	fmt.Printf("Mismatches found: %d\n", fs.Mismatches)
 	fmt.Printf("Unique mismatch types: %d\n", len(fs.FoundMutants))
 
@@ -89,29 +81,52 @@ type ProgressTracker struct {
 	stats    *Stats
 	done     chan struct{}
 	ticker   *time.Ticker
+	wg       *sync.WaitGroup // Add WaitGroup to monitor worker completion
 }
 
 // NewProgressTracker creates a new progress tracker
-func NewProgressTracker(numTests int, stats *Stats) *ProgressTracker {
+func NewProgressTracker(numTests int, stats *Stats, wg *sync.WaitGroup) *ProgressTracker {
 	return &ProgressTracker{
 		numTests: numTests,
 		stats:    stats,
 		done:     make(chan struct{}),
 		ticker:   time.NewTicker(5 * time.Second),
+		wg:       wg, // Store wg
 	}
 }
 
 // Start begins tracking progress
 func (pt *ProgressTracker) Start() {
+	allWorkersDone := make(chan struct{})
+
+	// Goroutine to wait for all workers to finish and then signal
+	if pt.wg != nil {
+		go func() {
+			pt.wg.Wait()
+			close(allWorkersDone)
+		}()
+	}
+
 	go func() {
+		defer pt.ticker.Stop() // Ensure ticker is stopped when this goroutine exits
+
 		for {
 			select {
 			case <-pt.ticker.C:
+				// Progress message updated to not include SimErrors
 				log.Printf("Progress: %d/%d tests run, %d mismatches found\n",
 					pt.stats.TotalTests, pt.numTests, pt.stats.Mismatches)
-			case <-pt.done:
-				pt.ticker.Stop()
-				return
+			case <-allWorkersDone:
+				// All workers have completed. Print a final status from the tracker's perspective.
+				log.Printf(
+					"All workers have completed. Final progress update from tracker: %d/%d tests run, %d mismatches found\n",
+					pt.stats.TotalTests,
+					pt.numTests,
+					pt.stats.Mismatches,
+				)
+				return // Exit this goroutine; Fuzzer.Run will handle full Stop() via defer.
+			case <-pt.done: // Closed by pt.Stop() from Fuzzer.Run's defer
+				return // Exit this goroutine
 			}
 		}
 	}()
@@ -119,5 +134,11 @@ func (pt *ProgressTracker) Start() {
 
 // Stop ends progress tracking
 func (pt *ProgressTracker) Stop() {
-	close(pt.done)
+	// Prevent double closing pt.done
+	select {
+	case <-pt.done:
+		// Already closed or being closed
+	default:
+		close(pt.done)
+	}
 }
