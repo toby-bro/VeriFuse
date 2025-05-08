@@ -212,7 +212,7 @@ func GetPortDirection(direction string) PortDirection {
 }
 
 var generalModuleRegex = regexp.MustCompile(
-	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);\s((\s+.*)+)\sendmodule`,
+	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);\s((?:\s\s+.*)+)\sendmodule`,
 )
 
 var generalClassRegex = regexp.MustCompile(
@@ -223,7 +223,8 @@ var generalStructRegex = regexp.MustCompile(
 	`(?m)typedef\s+struct\s+(?:packed\s+)\{((?:\s+.*)+)\}\s+(\w+);`,
 )
 
-var variableRegexTemplate = `(?m)^\s*(?:\w+\s+)?(%s)\s+(?:((\[[\w\-]+:[\w\-]+\])+|unsigned)\s+)?(?:(?:(\w+),\s+)*(\w+))(?:\s+(\[.*\]))?(?:\s+=\s+new\(.*\))?;`
+// TODO: #17 improve the multiple declarations with , and the array declarations
+var variableRegexTemplate = `(?m)^\s*(?:\w+\s+)?(%s)\s+(?:(?:(\[[\w\-]+:[\w\-]+\])+|(unsigned))\s+)?(?:(?:(\w+),\s+)*(\w+))(?:\s+(\[.*\]))?(?:\s+=\s+new\(.*\))?;`
 
 // TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not Also add the support for declarations with , for many decls
 var generalVariableRegex = regexp.MustCompile(
@@ -307,7 +308,7 @@ func matchParameter(param string) []string {
 // --- End Regex Helper Functions ---
 
 // Utility functions for bit width parsing
-func parseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
+func ParseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 	// Handle common formats: [7:0], [WIDTH-1:0], etc.
 	rangeStr = strings.TrimSpace(rangeStr)
 
@@ -490,7 +491,7 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 		portType = LOGIC // Default type if not specified (SystemVerilog) or wire (Verilog)
 	}
 	isSigned := (signedStr == "signed")
-	width, err := parseRange(rangeStr, parameters)
+	width, err := ParseRange(rangeStr, parameters)
 	if err != nil {
 		// If parseRange returns an error, use the returned default width (e.g., 8)
 		// but still log the original error message.
@@ -568,7 +569,7 @@ func extractANSIPortDeclarations(
 			portName = strings.TrimSpace(matches[5])
 
 			isSigned := (signedStr == "signed")
-			width, err := parseRange(rangeStr, parameters)
+			width, err := ParseRange(rangeStr, parameters)
 			if err != nil {
 				// Use the default width returned by parseRange on error
 				fmt.Printf(
@@ -1264,7 +1265,8 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 }
 
 // Be carefull must be parsed third after ParseClass and ParseStruct as the types of the variables might not be defined yet
-func (v *VerilogFile) ParseVariables(
+// TODO: #16 support arrays which will break the current width checking
+func ParseVariables(v *VerilogFile,
 	content string,
 ) ([]*Variable, error) {
 	allMatchedVariables := MatchAllVariablesFromString(content)
@@ -1274,10 +1276,20 @@ func (v *VerilogFile) ParseVariables(
 			return nil, errors.New("no variable found in the provided text")
 		}
 		varType := GetPortType(matchedVariable[1])
-		widthStr := matchedVariable[3]
-		width, err := parseRange(widthStr, nil)
+		widthStr := matchedVariable[2]
+		width, err := ParseRange(widthStr, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse width: %v", err)
+			if width != 0 {
+				fmt.Printf(
+					"Warning: Could not parse range '%s' for variable '%s'. Using default width %d. Error: %v\n",
+					widthStr,
+					matchedVariable[3],
+					width,
+					err,
+				)
+			} else {
+				return nil, fmt.Errorf("failed to parse width: %v", err)
+			}
 		}
 		if width == 0 {
 			width = GetWidthForType(varType)
@@ -1293,11 +1305,11 @@ func (v *VerilogFile) ParseVariables(
 				varType = USERDEFINED
 				parentClass = v.Classes[matchedVariable[1]]
 			} else {
-				return nil, fmt.Errorf("unknown type '%s' for variable '%s'", matchedVariable[1], matchedVariable[3])
+				return nil, fmt.Errorf("unknown type '%s' for variable '%s'", matchedVariable[1], matchedVariable[5])
 			}
 		}
-		unsigned := matchedVariable[2] == "unsigned"
-		variableName := matchedVariable[3]
+		unsigned := matchedVariable[3] == "unsigned"
+		variableName := matchedVariable[5]
 		variable := &Variable{
 			Name:         variableName,
 			Type:         varType,
@@ -1331,7 +1343,7 @@ func (v *VerilogFile) ParseStructs(
 			}
 			v.Structs[structName] = s
 		} else {
-			variables, err := v.ParseVariables(varList)
+			variables, err := ParseVariables(v, varList)
 			if err != nil {
 				return fmt.Errorf("failed to parse variables in struct '%s': %v", structName, err)
 			}
