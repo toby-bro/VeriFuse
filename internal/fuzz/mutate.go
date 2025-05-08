@@ -98,34 +98,36 @@ func getRandomSnippet() (*Snippet, error) {
 	return snippets[randomIndex], nil
 }
 
-func injectSnippetInModule(module *verilog.Module, snippet *Snippet) (string, error) {
-	variables, err := verilog.ParseVariables(snippet.ParentFile, module.Body)
+func injectSnippetInModule(targetModule *verilog.Module, snippet *Snippet) error {
+	variables, err := verilog.ParseVariables(snippet.ParentFile, targetModule.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to extract variables from module: %v", err)
+		return fmt.Errorf("failed to extract variables from module: %v", err)
 	}
 
 	portConnections, newSignalDeclarations, err := matchVariablesToSnippetPorts(
-		module,
+		targetModule,
 		snippet,
 		variables,
 	)
 	if err != nil {
-		return "", fmt.Errorf("failed to match variables to snippet ports: %v", err)
+		return fmt.Errorf("failed to match variables to snippet ports: %v", err)
 	}
 
-	err = ensureOutputPortForSnippet(module, snippet, portConnections)
+	// ensureOutputPortForSnippet modifies targetModule.Ports directly
+	err = ensureOutputPortForSnippet(targetModule, snippet, portConnections)
 	if err != nil {
-		return "", fmt.Errorf("failed to ensure output port for snippet: %v", err)
+		return fmt.Errorf("failed to ensure output port for snippet: %v", err)
 	}
 
 	instantiation := generateSnippetInstantiation(snippet, portConnections)
 
-	mutatedContent, err := insertSnippetIntoModule(module, instantiation, newSignalDeclarations)
+	// insertSnippetIntoModule modifies targetModule.Body directly
+	err = insertSnippetIntoModule(targetModule, instantiation, newSignalDeclarations)
 	if err != nil {
-		return "", fmt.Errorf("failed to insert snippet into module: %v", err)
+		return fmt.Errorf("failed to insert snippet into module: %v", err)
 	}
 
-	return mutatedContent, nil
+	return nil
 }
 
 func matchVariablesToSnippetPorts(
@@ -277,23 +279,27 @@ func insertSnippetIntoModule(
 	module *verilog.Module,
 	instantiation string,
 	newDeclarations []verilog.Port,
-) (string, error) {
+) error {
 	lines := strings.Split(module.Body, "\n")
 	insertionIndex := findInsertionPoint(lines)
 
-	for _, portToDeclare := range newDeclarations {
+	// Insert new signal declarations
+	for i := len(newDeclarations) - 1; i >= 0; i-- { // Insert in reverse to maintain order at insertion point
+		portToDeclare := newDeclarations[i]
 		declarationString := generateSignalDeclaration(portToDeclare, portToDeclare.Name)
 		lines = append(
 			lines[:insertionIndex],
 			append([]string{declarationString}, lines[insertionIndex:]...)...)
-		insertionIndex++
 	}
 
+	// Insert snippet instantiation
+	instantiationInsertionIndex := insertionIndex + len(newDeclarations)
 	lines = append(
-		lines[:insertionIndex],
-		append([]string{instantiation}, lines[insertionIndex:]...)...)
+		lines[:instantiationInsertionIndex],
+		append([]string{instantiation}, lines[instantiationInsertionIndex:]...)...)
 
-	return strings.Join(lines, "\n"), nil
+	module.Body = strings.Join(lines, "\n")
+	return nil
 }
 
 func findInsertionPoint(lines []string) int {
@@ -409,35 +415,155 @@ func MutateFile(fileName string) error {
 	}
 
 	vsFile, err := verilog.ParseVerilog(originalContent)
-	if err != nil {
-		return fmt.Errorf("failed to parse file %s: %v", fileName, err)
+	if err != nil || vsFile == nil {
+		return fmt.Errorf("failed to parse Verilog file %s: %v", fileName, err)
+	}
+	if vsFile.Name == "" {
+		vsFile.Name = fileName
 	}
 
-	for _, module := range vsFile.Modules {
-		snippet, err := getRandomSnippet()
-		if err != nil {
-			return fmt.Errorf("failed to get snippet for mutation: %v", err)
+	mutatedOverall := false
+	injectedSnippetParentFiles := make(map[string]*verilog.VerilogFile)
+
+	for moduleName, currentModule := range vsFile.Modules {
+		moduleToMutate := currentModule.DeepCopy()
+		if moduleToMutate == nil {
+			log.Printf("Failed to copy module %s for mutation, skipping.", moduleName)
+			continue
 		}
 
-		var mutatedContent string
+		snippet, err := getRandomSnippet()
+		if err != nil {
+			log.Printf("Failed to get snippet for module %s: %v. Skipping mutation for this module.", moduleName, err)
+			continue
+		}
+		if snippet == nil || snippet.Module == nil || snippet.ParentFile == nil {
+			log.Printf("Selected snippet, its module, or its parent file is nil for module %s. Skipping.", moduleName)
+			continue
+		}
+		if snippet.ParentFile.Name == "" {
+			log.Printf("Warning: Snippet ParentFile name is empty for snippet '%s'. Dependency merging might be affected.", snippet.Name)
+		}
+
 		mutationType := 0
 
 		if mutationType == 0 {
-			fmt.Println("Attempting InjectSnippet mutation...")
-			mutatedContent, err = injectSnippetInModule(module, snippet)
+			fmt.Printf("Attempting InjectSnippet mutation for module %s in file %s...\n", moduleToMutate.Name, fileName)
+			err = injectSnippetInModule(moduleToMutate, snippet)
 			if err != nil {
-				fmt.Printf("InjectSnippet failed: %v. Skipping mutation.\n", err)
-				return fmt.Errorf("InjectSnippet failed: %w", err)
+				fmt.Printf("InjectSnippet failed for module %s: %v. Skipping mutation for this module.\n", moduleToMutate.Name, err)
+				continue
 			}
-		} else {
-			mutatedContent = originalContent
-		}
 
-		err = utils.WriteFileContent(fileName, mutatedContent)
-		if err != nil {
-			return fmt.Errorf("failed to write mutated content to %s: %v", fileName, err)
+			vsFile.Modules[moduleName] = moduleToMutate
+			mutatedOverall = true
+			fmt.Printf("Mutation applied to module %s in %s (Type: %d)\n", moduleToMutate.Name, fileName, mutationType)
+
+			parentFileNameKey := snippet.ParentFile.Name
+			if parentFileNameKey == "" {
+				parentFileNameKey = fmt.Sprintf("unnamed_parent_for_snippet_%s", snippet.Name)
+			}
+			injectedSnippetParentFiles[parentFileNameKey] = snippet.ParentFile
 		}
-		fmt.Printf("Mutation applied to %s (Type: %d)\n", fileName, mutationType)
 	}
+
+	if mutatedOverall && len(injectedSnippetParentFiles) > 0 {
+		log.Printf("Merging dependencies from %d injected snippets' parent file(s)...", len(injectedSnippetParentFiles))
+		for spfName, snippetParentFile := range injectedSnippetParentFiles {
+			log.Printf("Processing dependencies from snippet source: %s", spfName)
+			if len(snippetParentFile.Structs) > 0 {
+				if vsFile.Structs == nil {
+					vsFile.Structs = make(map[string]*verilog.Struct)
+				}
+				for name, def := range snippetParentFile.Structs {
+					if _, exists := vsFile.Structs[name]; !exists {
+						vsFile.Structs[name] = def
+						log.Printf("  Added struct dependency '%s'", name)
+					}
+				}
+			}
+
+			if len(snippetParentFile.Classes) > 0 {
+				if vsFile.Classes == nil {
+					vsFile.Classes = make(map[string]*verilog.Class)
+				}
+				for name, def := range snippetParentFile.Classes {
+					if _, exists := vsFile.Classes[name]; !exists {
+						vsFile.Classes[name] = def
+						log.Printf("  Added class dependency '%s'", name)
+					}
+				}
+			}
+
+			if len(snippetParentFile.DependancyMap) > 0 {
+				if vsFile.DependancyMap == nil {
+					vsFile.DependancyMap = make(map[string]*verilog.DependencyNode)
+				}
+				for nodeName, snipNode := range snippetParentFile.DependancyMap {
+					isNodeRelevantToVsFile := false
+					if _, ok := vsFile.Modules[nodeName]; ok {
+						isNodeRelevantToVsFile = true
+					} else if _, ok := vsFile.Structs[nodeName]; ok {
+						isNodeRelevantToVsFile = true
+					} else if _, ok := vsFile.Classes[nodeName]; ok {
+						isNodeRelevantToVsFile = true
+					}
+
+					if isNodeRelevantToVsFile {
+						targetNode, existsInVsFileMap := vsFile.DependancyMap[nodeName]
+						if !existsInVsFileMap {
+							vsFile.DependancyMap[nodeName] = snipNode.DeepCopy()
+							log.Printf("  Added new dependency graph node '%s' and its dependencies.", nodeName)
+						} else {
+							currentDeps := make(map[string]bool)
+							for _, dep := range targetNode.DependsOn {
+								currentDeps[dep] = true
+							}
+							merged := false
+							for _, newDep := range snipNode.DependsOn {
+								isDepRelevant := false
+								if _, ok := vsFile.Modules[newDep]; ok {
+									isDepRelevant = true
+								} else if _, ok := vsFile.Structs[newDep]; ok {
+									isDepRelevant = true
+								} else if _, ok := vsFile.Classes[newDep]; ok {
+									isDepRelevant = true
+								}
+
+								if isDepRelevant && !currentDeps[newDep] {
+									targetNode.DependsOn = append(targetNode.DependsOn, newDep)
+									currentDeps[newDep] = true
+									merged = true
+								}
+							}
+							if merged {
+								log.Printf("  Merged additional dependencies for existing graph node '%s'.", nodeName)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if !mutatedOverall {
+		fmt.Printf("No mutations were successfully applied to %s.\n", fileName)
+	}
+
+	finalMutatedContent, err := verilog.PrintVerilogFile(vsFile)
+	if err != nil {
+		return fmt.Errorf("failed to print Verilog file %s after mutation: %v", fileName, err)
+	}
+
+	err = utils.WriteFileContent(fileName, finalMutatedContent)
+	if err != nil {
+		return fmt.Errorf("failed to write mutated content to %s: %v", fileName, err)
+	}
+	if mutatedOverall {
+		fmt.Printf("Successfully mutated and rewrote file %s\n", fileName)
+	} else {
+		fmt.Printf("File %s rewritten (no mutations applied or all failed).\n", fileName)
+	}
+
 	return nil
 }

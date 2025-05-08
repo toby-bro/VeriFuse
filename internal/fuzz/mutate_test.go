@@ -284,10 +284,11 @@ endmodule
 		ParentFile: snippetFile,
 	}
 
-	mutatedContent, err := injectSnippetInModule(module, snippet)
+	err = injectSnippetInModule(module, snippet)
 	if err != nil {
 		t.Fatalf("injectSnippetInModule failed: %v", err)
 	}
+	mutatedContent := module.Body
 
 	if !strings.Contains(mutatedContent, "SnippetModule SnippetModule_inst_") {
 		t.Errorf("Expected snippet instantiation not found in mutated content")
