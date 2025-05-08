@@ -140,7 +140,7 @@ func TrimWhitespace(s string) string {
 	return result
 }
 
-func LocateRepoRoot() (string, error) {
+func GetRootDir() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("failed to get current working directory: %w", err)

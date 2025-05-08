@@ -251,11 +251,11 @@ func GetPortDirection(direction string) PortDirection {
 }
 
 var generalModuleRegex = regexp.MustCompile(
-	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);\s((?:(?:\s\s|\t)+.*)+)\sendmodule`,
+	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);\s((?:(?:\s\s|\t\s*)+.*)+)\sendmodule`,
 )
 
 var generalClassRegex = regexp.MustCompile(
-	`(?m)(?:(virtual)\s+)?class\s+(\w+)\s*(?:extends\s+(\w+))?(?:\s+#\s*\(([\s\S]*?)\))?;\s((?:\s+.*)+)\sendclass`,
+	`(?m)(?:(virtual)\s+)?class\s+(\w+)\s*(?:extends\s+(\w+))?(?:\s+#\s*\(([\s\S]*?)\))?;\s((?:(?:\t\s*|\s\s+).*)+)\sendclass`,
 )
 
 var generalStructRegex = regexp.MustCompile(
@@ -263,7 +263,7 @@ var generalStructRegex = regexp.MustCompile(
 )
 
 // TODO: #17 improve the multiple declarations with , and the array declarations
-var variableRegexTemplate = `(?m)^\s*(?:\w+\s+)?(%s)\s+(?:(?:(\[[\w\-]+:[\w\-]+\])+|(unsigned))\s+)?(?:(?:(\w+),\s+)*(\w+))(?:\s+(\[.*\]))?(?:\s+=\s+new\(.*\))?;`
+var variableRegexTemplate = `(?m)^\s*(?:\w+\s+)?(%s)\s+(?:(?:(\[[\w\-]+:[\w\-]+\])+|(unsigned))\s+)?(?:#\(\w+\)\s+)?(?:(?:(\w+),\s+)*(\w+))(?:\s+(\[.*\]))?(?:\s+=\s+new\(.*\))?;`
 
 // TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not Also add the support for declarations with , for many decls
 var generalVariableRegex = regexp.MustCompile(
@@ -964,7 +964,8 @@ func (v *VerilogFile) ParseModules(moduleText string) error {
 		module.Parameters = parameters
 		err = parsePortsAndUpdateModule(portListStr, module)
 		if err != nil {
-			return fmt.Errorf("failed to parse ports: %v", err)
+			fmt.Printf("Warning: Skipping %s as failed to parse ports: %v\n", moduleName, err)
+			continue // Skip this module if port parsing fails
 		}
 		v.Modules[moduleName] = module
 	}
@@ -1457,7 +1458,30 @@ func (v *VerilogFile) createDependancyMap() {
 	}
 }
 
+func removeEmptyLines(content string) string {
+	lines := strings.Split(content, "\n")
+	var nonEmptyLines []string
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			nonEmptyLines = append(nonEmptyLines, line)
+		}
+	}
+	return strings.Join(nonEmptyLines, "\n")
+}
+
+func removeComments(content string) string {
+	// replace all the // INJECT by  //INJECT
+	content = regexp.MustCompile(`//\s*INJECT`).ReplaceAllString(content, "//INJECT")
+	// Remove single-line comments
+	content = regexp.MustCompile(`//\s.*$`).ReplaceAllString(content, "")
+	// Remove multi-line comments
+	content = regexp.MustCompile(`/\*.*?\*/`).ReplaceAllString(content, "")
+	return content
+}
+
 func ParseVerilog(content string) (*VerilogFile, error) {
+	content = removeComments(content)
+	content = removeEmptyLines(content)
 	verilogFile := &VerilogFile{}
 	err := verilogFile.ParseStructs(content, true)
 	if err != nil {
