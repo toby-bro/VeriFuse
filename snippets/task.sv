@@ -1,5 +1,5 @@
 // top module
-module top #(parameter GGGp = 8) (
+module topoi #(parameter GGGp = 8) (
     input logic [GGGp-1:0] GGGin,
     output logic [GGGp-1:0] GGGout
 );
@@ -115,81 +115,6 @@ module GGGtask_ref_args (
 
 endmodule
 
-// Module targeting DPI import declarations
-module GGGdpi_import_module (
-    input logic [31:0] GGGin,
-    output logic [31:0] GGGout
-);
-
-    import "DPI-C" function int GGGimported_func(input int GGGdpi_arg);
-    import "DPI-C" context function int GGGimported_context_func(input int GGGdpi_arg_ctx);
-
-    always_comb begin
-        int GGGfunc_result;
-        int GGGcontext_result;
-        //INJECT
-        GGGfunc_result = GGGimported_func(GGGin);
-        GGGcontext_result = GGGimported_context_func(GGGin + 1);
-        GGGout = GGGfunc_result + GGGcontext_result;
-        //INJECT
-    end
-
-endmodule
-
-// Module targeting DPI export declarations and definitions
-module GGGdpi_export_module (
-    input logic [63:0] GGGin,
-    output logic [63:0] GGGout
-);
-
-    // DPI Export Declarations (visible to C)
-    export "DPI-C" task GGGexported_task;
-    // Corrected syntax based on lint error: context keyword after routine type for export
-    export "DPI-C" task GGGexported_context_task;
-    export "DPI-C" function GGGexported_func;
-
-    // SystemVerilog definition of exported routines
-    task GGGexported_task;
-        input logic [63:0] GGGtask_arg;
-        //INJECT
-        // Logic for exported task (avoiding simulation tasks or direct output modification)
-    endtask
-
-    task GGGexported_context_task;
-        input logic [63:0] GGGtask_arg_ctx;
-        //INJECT
-        // Logic for exported context task (avoiding simulation tasks or direct output modification)
-    endtask
-
-    function automatic longint GGGexported_func; // Return type must match export, argument type should match export/usage
-        input longint GGGfunc_arg;
-        //INJECT
-        // Logic for exported function (avoiding simulation tasks)
-        return GGGfunc_arg + 1;
-    endfunction
-
-    // Add a simple assignment to the output port to satisfy linting,
-    // as exported tasks/functions don't typically drive module outputs directly.
-    assign GGGout = GGGin;
-    //INJECT
-
-endmodule
-
-// Module targeting DPI with unpacked arrays
-module GGGdpi_unpacked_array_module (
-    input logic [1:0] GGGin [3], // Unpacked array input
-    output logic [1:0] GGGout [3] // Unpacked array output
-);
-
-    import "DPI-C" function void GGGdpi_array_task(input logic [1:0] GGGarray_in [3], output logic [1:0] GGGarray_out [3]);
-
-    always_comb begin
-        //INJECT
-        GGGdpi_array_task(GGGin, GGGout);
-        //INJECT
-    end
-
-endmodule
 
 // Module demonstrating pragma handling by V3Task
 module GGGtask_pragma_no_inline (
