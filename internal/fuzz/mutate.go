@@ -26,7 +26,7 @@ type Snippet struct {
 }
 
 func findSnippetFiles() ([]string, error) {
-	repoRoot, err := utils.LocateRepoRoot()
+	repoRoot, err := utils.GetRootDir()
 	if err != nil || repoRoot == "" {
 		return nil, fmt.Errorf("failed to find repository root: %w", err)
 	}
@@ -50,7 +50,7 @@ func findSnippetFiles() ([]string, error) {
 func loadSnippets() error {
 	sourceFiles, err := findSnippetFiles()
 	if err != nil {
-		return fmt.Errorf("failed to find snippets: %v", err)
+		return fmt.Errorf("failed to find snippet files: %v", err)
 	}
 	for _, snippetFile := range sourceFiles {
 		fileContent, err := utils.ReadFileContent(snippetFile)
@@ -73,6 +73,7 @@ func loadSnippets() error {
 			verilogFiles = append(verilogFiles, verilogFile)
 		}
 	}
+	fmt.Printf("Loaded %d snippets from %d files\n", len(snippets), len(sourceFiles))
 	return nil
 }
 
@@ -408,6 +409,70 @@ func AddCodeToSnippet(originalContent, snippet string) (string, error) {
 	return result.String(), nil
 }
 
+// dfsDependencies recursively adds child structs/classes of nodeName from parentVF into targetFile
+// and records them under targetFile.DependancyMap[snippetName].DependsOn.
+func dfsDependencies(
+	nodeName string,
+	parentVF *verilog.VerilogFile,
+	targetFile *verilog.VerilogFile,
+) {
+	parentNode, ok := parentVF.DependancyMap[nodeName]
+	if !ok {
+		return
+	}
+
+	for _, dep := range parentNode.DependsOn {
+		if _, found := targetFile.DependancyMap[dep]; found {
+			// already in targetFile, skip
+			continue
+		}
+		targetFile.DependancyMap[dep] = parentVF.DependancyMap[dep]
+		// copy struct if needed
+		if s, found := parentVF.Structs[dep]; found {
+			if _, exists := targetFile.Structs[dep]; !exists {
+				targetFile.Structs[dep] = s
+			}
+		}
+		// copy class if needed
+		if c, found := parentVF.Classes[dep]; found {
+			if _, exists := targetFile.Classes[dep]; !exists {
+				targetFile.Classes[dep] = c
+			}
+		}
+		// copy module if needed
+		if m, found := parentVF.Modules[dep]; found {
+			if _, exists := targetFile.Modules[dep]; !exists {
+				targetFile.Modules[dep] = m
+			}
+		}
+		// recurse
+		dfsDependencies(dep, parentVF, targetFile)
+	}
+}
+
+func addDependancies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
+	parentVF := snippet.ParentFile
+	if parentVF == nil {
+		return errors.New("snippet parent file is nil")
+	}
+	// ensure targetFile.DependancyMap exists
+	if targetFile.DependancyMap == nil {
+		targetFile.DependancyMap = make(map[string]*verilog.DependencyNode)
+	}
+	// Ensure snippet entry exists, but with no parents
+	if _, ok := targetFile.DependancyMap[snippet.Name]; !ok {
+		targetFile.DependancyMap[snippet.Name] = &verilog.DependencyNode{
+			Name:      snippet.Module.Name,
+			DependsOn: []string{},
+		}
+	}
+	targetFile.Modules[snippet.Module.Name] = snippet.Module
+
+	dfsDependencies(snippet.Name, parentVF, targetFile)
+
+	return nil
+}
+
 func MutateFile(fileName string) error {
 	originalContent, err := utils.ReadFileContent(fileName)
 	if err != nil {
@@ -434,115 +499,64 @@ func MutateFile(fileName string) error {
 
 		snippet, err := getRandomSnippet()
 		if err != nil {
-			log.Printf("Failed to get snippet for module %s: %v. Skipping mutation for this module.", moduleName, err)
+			log.Printf(
+				"Failed to get snippet for module %s: %v. Skipping mutation for this module.",
+				moduleName,
+				err,
+			)
 			continue
 		}
 		if snippet == nil || snippet.Module == nil || snippet.ParentFile == nil {
-			log.Printf("Selected snippet, its module, or its parent file is nil for module %s. Skipping.", moduleName)
+			log.Printf(
+				"Selected snippet, its module, or its parent file is nil for module %s. Skipping.",
+				moduleName,
+			)
 			continue
 		}
 		if snippet.ParentFile.Name == "" {
-			log.Printf("Warning: Snippet ParentFile name is empty for snippet '%s'. Dependency merging might be affected.", snippet.Name)
+			log.Printf(
+				"Warning: Snippet ParentFile name is empty for snippet '%s'. Dependency merging might be affected.",
+				snippet.Name,
+			)
 		}
 
 		mutationType := 0
 
 		if mutationType == 0 {
-			fmt.Printf("Attempting InjectSnippet mutation for module %s in file %s...\n", moduleToMutate.Name, fileName)
+			fmt.Printf(
+				"Attempting InjectSnippet mutation for module %s in file %s...\n",
+				moduleToMutate.Name,
+				fileName,
+			)
 			err = injectSnippetInModule(moduleToMutate, snippet)
 			if err != nil {
-				fmt.Printf("InjectSnippet failed for module %s: %v. Skipping mutation for this module.\n", moduleToMutate.Name, err)
+				fmt.Printf(
+					"InjectSnippet failed for module %s: %v. Skipping mutation for this module.\n",
+					moduleToMutate.Name,
+					err,
+				)
 				continue
 			}
 
 			vsFile.Modules[moduleName] = moduleToMutate
+			err := addDependancies(vsFile, snippet)
+			if err != nil {
+				return fmt.Errorf(
+					"failed to add dependencies for snippet %s: %v",
+					snippet.Name,
+					err,
+				)
+			}
 			mutatedOverall = true
-			fmt.Printf("Mutation applied to module %s in %s (Type: %d)\n", moduleToMutate.Name, fileName, mutationType)
+			fmt.Printf(
+				"Mutation applied to module %s in %s (Type: %d)\n",
+				moduleToMutate.Name,
+				fileName,
+				mutationType,
+			)
 
-			parentFileNameKey := snippet.ParentFile.Name
-			if parentFileNameKey == "" {
-				parentFileNameKey = fmt.Sprintf("unnamed_parent_for_snippet_%s", snippet.Name)
-			}
-			injectedSnippetParentFiles[parentFileNameKey] = snippet.ParentFile
-		}
-	}
-
-	if mutatedOverall && len(injectedSnippetParentFiles) > 0 {
-		log.Printf("Merging dependencies from %d injected snippets' parent file(s)...", len(injectedSnippetParentFiles))
-		for spfName, snippetParentFile := range injectedSnippetParentFiles {
-			log.Printf("Processing dependencies from snippet source: %s", spfName)
-			if len(snippetParentFile.Structs) > 0 {
-				if vsFile.Structs == nil {
-					vsFile.Structs = make(map[string]*verilog.Struct)
-				}
-				for name, def := range snippetParentFile.Structs {
-					if _, exists := vsFile.Structs[name]; !exists {
-						vsFile.Structs[name] = def
-						log.Printf("  Added struct dependency '%s'", name)
-					}
-				}
-			}
-
-			if len(snippetParentFile.Classes) > 0 {
-				if vsFile.Classes == nil {
-					vsFile.Classes = make(map[string]*verilog.Class)
-				}
-				for name, def := range snippetParentFile.Classes {
-					if _, exists := vsFile.Classes[name]; !exists {
-						vsFile.Classes[name] = def
-						log.Printf("  Added class dependency '%s'", name)
-					}
-				}
-			}
-
-			if len(snippetParentFile.DependancyMap) > 0 {
-				if vsFile.DependancyMap == nil {
-					vsFile.DependancyMap = make(map[string]*verilog.DependencyNode)
-				}
-				for nodeName, snipNode := range snippetParentFile.DependancyMap {
-					isNodeRelevantToVsFile := false
-					if _, ok := vsFile.Modules[nodeName]; ok {
-						isNodeRelevantToVsFile = true
-					} else if _, ok := vsFile.Structs[nodeName]; ok {
-						isNodeRelevantToVsFile = true
-					} else if _, ok := vsFile.Classes[nodeName]; ok {
-						isNodeRelevantToVsFile = true
-					}
-
-					if isNodeRelevantToVsFile {
-						targetNode, existsInVsFileMap := vsFile.DependancyMap[nodeName]
-						if !existsInVsFileMap {
-							vsFile.DependancyMap[nodeName] = snipNode.DeepCopy()
-							log.Printf("  Added new dependency graph node '%s' and its dependencies.", nodeName)
-						} else {
-							currentDeps := make(map[string]bool)
-							for _, dep := range targetNode.DependsOn {
-								currentDeps[dep] = true
-							}
-							merged := false
-							for _, newDep := range snipNode.DependsOn {
-								isDepRelevant := false
-								if _, ok := vsFile.Modules[newDep]; ok {
-									isDepRelevant = true
-								} else if _, ok := vsFile.Structs[newDep]; ok {
-									isDepRelevant = true
-								} else if _, ok := vsFile.Classes[newDep]; ok {
-									isDepRelevant = true
-								}
-
-								if isDepRelevant && !currentDeps[newDep] {
-									targetNode.DependsOn = append(targetNode.DependsOn, newDep)
-									currentDeps[newDep] = true
-									merged = true
-								}
-							}
-							if merged {
-								log.Printf("  Merged additional dependencies for existing graph node '%s'.", nodeName)
-							}
-						}
-					}
-				}
-			}
+			// Key by snippet.Module.Name so we know exactly which module to DFS
+			injectedSnippetParentFiles[snippet.Name] = snippet.ParentFile
 		}
 	}
 

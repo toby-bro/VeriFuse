@@ -470,3 +470,13 @@ func TestGenerateSnippetInstantiation(t *testing.T) {
 		t.Errorf("Expected instantiation to end with ');', got '%s'", instantiation)
 	}
 }
+
+func TestGetSnippets(t *testing.T) {
+	snippets, _, err := getSnippets()
+	if err != nil {
+		t.Fatalf("getSnippets failed: %v", err)
+	}
+	if len(snippets) == 0 {
+		t.Fatalf("getSnippets returned no snippets")
+	}
+}
