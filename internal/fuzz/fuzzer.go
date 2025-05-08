@@ -35,6 +35,8 @@ type Fuzzer struct {
 	verilogFile string
 	moduleName  string
 	module      *verilog.Module
+	mutate      bool
+	maxAttempts int
 }
 
 // NewFuzzer creates a new fuzzer instance
@@ -45,6 +47,8 @@ func NewFuzzer(
 	seed int64,
 	verilogFile string,
 	moduleName string,
+	mutate bool,
+	maxAttempts int,
 ) *Fuzzer {
 	var s Strategy
 
@@ -56,6 +60,8 @@ func NewFuzzer(
 		debug:       utils.NewDebugLogger(verbose),
 		verilogFile: verilogFile,
 		moduleName:  moduleName,
+		mutate:      mutate,
+		maxAttempts: maxAttempts,
 	}
 
 	switch strategy {
@@ -417,9 +423,7 @@ func (f *Fuzzer) runSingleTest(
 		return
 	}
 	defer func() {
-		if f.verbose > 3 {
-			os.RemoveAll(testDir)
-		}
+		os.RemoveAll(testDir)
 	}()
 
 	if err := writeTestInputs(testDir, testCase); err != nil {
@@ -566,51 +570,61 @@ func (f *Fuzzer) handleMismatch(
 	f.stats.AddMismatch(testCase)
 }
 
-func (f *Fuzzer) worker(
-	wg *sync.WaitGroup,
+// performWorkerAttempt tries to set up and run tests for one worker attempt.
+// It returns true if the setup was successful and test processing started, along with any error from setup.
+// If setup was successful, the error returned is nil.
+// If setup failed, it returns false and the setup error.
+func (f *Fuzzer) performWorkerAttempt(
+	workerID string,
 	testCases <-chan int,
 	originalPorts map[string]verilog.Port,
-) {
-	defer wg.Done()
-
+) (setupSuccessful bool, err error) {
 	VerilogFileName := filepath.Base(f.verilogFile)
-	workerID := fmt.Sprintf("worker_%d_%d", os.Getpid(), time.Now().UnixNano())
+	workerDir, cleanupFunc, setupErr := f.setupWorker(workerID)
+	if setupErr != nil {
+		return false, fmt.Errorf("worker setup failed for %s: %w", workerID, setupErr)
+	}
 
-	workerDir, cleanup, err := f.setupWorker(workerID)
-	if err != nil {
-		f.debug.Fatal("Worker setup failed for %s: %v", workerID, err)
-		return
-	}
-	if f.verbose > 3 {
-		defer cleanup()
-	}
+	var attemptCompletelySuccessful bool = false
+	defer func() {
+		if cleanupFunc != nil {
+			if (f.verbose > 2 && !attemptCompletelySuccessful) || f.verbose > 3 {
+				// Preserve directory if verbose > 3
+				f.debug.Debug(
+					"[%s] Preserving worker directory %s (verbose = %d). Attempt success: %t",
+					workerID,
+					workerDir,
+					f.verbose,
+					attemptCompletelySuccessful,
+				)
+			} else {
+				// Cleanup directory if verbose <= 3
+				f.debug.Debug("[%s] Cleaning up worker directory %s. Attempt success: %t", workerID, workerDir, attemptCompletelySuccessful)
+				cleanupFunc()
+			}
+		}
+	}()
+
 	if err := f.copyWorkerFiles(workerID, workerDir, VerilogFileName); err != nil {
-		f.debug.Error("Failed to copy files for worker %s: %v", workerID, err)
-		return
+		return false, fmt.Errorf("failed to copy files for worker %s: %w", workerID, err)
 	}
 
 	workerVerilogPath := filepath.Join(workerDir, VerilogFileName)
-	f.debug.Debug("[%s] Attempting mutation on %s", workerID, workerVerilogPath)
-	if err := MutateFile(workerVerilogPath, f.verbose); err != nil {
-		f.debug.Warn(
-			"[%s] Mutation failed: %v. Skipping tests for this worker cycle.",
-			workerID,
-			err,
-		)
-		return
+
+	if f.mutate {
+		f.debug.Debug("[%s] Attempting mutation on %s", workerID, workerVerilogPath)
+		if err := MutateFile(workerVerilogPath, f.verbose); err != nil {
+			return false, fmt.Errorf("[%s] mutation failed: %w", workerID, err)
+		}
+		f.debug.Debug("[%s] Mutation applied. Proceeding.", workerID)
+	} else {
+		f.debug.Debug("[%s] Mutation not requested. Proceeding with original file.", workerID)
 	}
-	f.debug.Debug("[%s] Mutation applied. Proceeding.", workerID)
 
 	f.debug.Debug("[%s] Parsing potentially mutated Verilog file: %s", workerID, workerVerilogPath)
 	workerModule, err := verilog.ParseVerilogFile(workerVerilogPath, f.moduleName)
 	if err != nil {
-		f.debug.Fatal(
-			"[%s] Failed to parse mutated Verilog file %s: %v",
-			workerID,
-			workerVerilogPath,
-			err,
-		)
-		return
+		return false, fmt.Errorf("[%s] failed to parse mutated Verilog: %w", workerID, err)
 	}
 	f.debug.Debug(
 		"[%s] Parsed module '%s' with %d ports from worker file.",
@@ -627,18 +641,69 @@ func (f *Fuzzer) worker(
 	)
 	gen := testgen.NewGenerator(workerModule)
 	if err := gen.GenerateTestbenchesInDir(workerDir); err != nil {
-		f.debug.Fatal("[%s] Failed to generate testbenches: %v", workerID, err)
-		return
+		return false, fmt.Errorf("[%s] failed to generate testbenches: %w", workerID, err)
 	}
 	f.debug.Info("[%s] Testbenches generated.", workerID)
 
 	ivsim, vlsim, err := f.setupSimulators(workerID, workerDir, workerModule.Name)
 	if err != nil {
-		f.debug.Fatal("Simulator setup failed for worker %s: %v", workerID, err)
-		return
+		return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
 	}
 
 	f.processTestCases(workerID, workerDir, ivsim, vlsim, workerModule, originalPorts, testCases)
+	attemptCompletelySuccessful = true // Mark as successful for cleanup logic
+	return true, nil                   // Setup successful, processTestCases completed.
+}
+
+func (f *Fuzzer) worker(
+	wg *sync.WaitGroup,
+	testCases <-chan int,
+	originalPorts map[string]verilog.Port,
+) {
+	defer wg.Done()
+
+	var lastSetupError error
+	workerID := fmt.Sprintf("worker_%d", time.Now().UnixNano())
+
+	for attempt := 0; attempt < f.maxAttempts; attempt++ {
+		// workerCompleteID must be unique per attempt. Using PID, time, and attempt number.
+		workerCompleteID := fmt.Sprintf(
+			"%s_%d",
+			workerID,
+			attempt,
+		)
+
+		setupOk, err := f.performWorkerAttempt(workerCompleteID, testCases, originalPorts)
+
+		if setupOk {
+			f.debug.Info("[%s] Worker completed its tasks.", workerID)
+			return // Worker's job is done for this goroutine.
+		}
+
+		// Setup failed for this attempt
+		lastSetupError = err
+		f.debug.Warn(
+			"[%s] Worker attempt %d/%d failed setup",
+			workerCompleteID,
+			attempt+1,
+			f.maxAttempts,
+		)
+
+		if attempt < f.maxAttempts-1 {
+			f.debug.Info(
+				"[%s] Retrying worker initialization after a short delay...",
+				workerCompleteID,
+			)
+			time.Sleep(time.Duration(attempt+1) * time.Second) // Optional backoff
+		}
+	}
+
+	f.debug.Error(
+		"Worker failed to initialize permanently after %d attempts. Last error: %v.",
+		f.maxAttempts,
+		lastSetupError,
+	)
+	f.debug.Error("[%s] Slot will be lost", workerID)
 }
 
 func writeTestInputs(testDir string, testCase map[string]string) error {
