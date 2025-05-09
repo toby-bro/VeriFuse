@@ -1,6 +1,7 @@
 package verilog
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -8,6 +9,12 @@ import (
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
+
+func TestMain(m *testing.M) {
+	logger = utils.NewDebugLogger(5)
+	exitCode := m.Run()
+	os.Exit(exitCode)
+}
 
 func TestParsePortDeclaration(t *testing.T) {
 	testCases := []struct {
