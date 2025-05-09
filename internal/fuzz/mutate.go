@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/internal/verilog"
@@ -314,100 +313,11 @@ func findInsertionPoint(lines []string) int {
 }
 
 func AddCodeToSnippet(originalContent, snippet string) (string, error) {
-	originalLines := strings.Split(originalContent, "\n")
-	snippetLines := strings.Split(snippet, "\n")
-
-	if len(originalLines) < 3 {
-		return snippet, errors.New(
-			"original content too short to extract code from",
-		)
-	}
-
-	injectIndex := -1
-	markerIndent := ""
-	indentRegex := regexp.MustCompile(`^(\s*)`)
-	for i, line := range snippetLines {
-		if strings.Contains(line, "//INJECT") {
-			injectIndex = i
-			if matches := indentRegex.FindStringSubmatch(line); len(matches) > 1 {
-				markerIndent = matches[1]
-			}
-			break
-		}
-	}
-
-	if injectIndex == -1 {
-		return snippet, errors.New(
-			"snippet does not contain //INJECT marker",
-		)
-	}
-
-	numLinesToInject := utils.RandomInt(1, 3)
-	injectedLines := []string{}
-	maxAttempts := 30
-	attempts := 0
-	skipLineRegex := regexp.MustCompile(
-		`^\s*(?:\/\/|\/\*|\*\/|module|endmodule|input|output|inout|wire|reg|logic|parameter|localparam)\b`,
+	return "", fmt.Errorf(
+		"AddCodeToSnippet not implemented yet. Original content: %s, Snippet: %s",
+		originalContent,
+		snippet,
 	)
-
-	originalModule, origErr := verilog.ParseVerilogContent(
-		[]byte(originalContent),
-		"",
-	)
-	startLine, endLine := 0, len(originalLines)-1
-	if origErr == nil && originalModule != nil {
-		moduleHeaderEndApprox := strings.Index(originalContent, ");")
-		moduleEndApprox := strings.LastIndex(originalContent, "endmodule")
-		if moduleHeaderEndApprox != -1 {
-			startLine = strings.Count(originalContent[:moduleHeaderEndApprox], "\n") + 1
-		}
-		if moduleEndApprox != -1 {
-			endLine = strings.Count(originalContent[:moduleEndApprox], "\n")
-		}
-	}
-
-	for len(injectedLines) < numLinesToInject && attempts < maxAttempts {
-		attempts++
-		idx := utils.RandomInt(startLine, endLine)
-		if idx >= len(originalLines) {
-			continue
-		}
-
-		line := originalLines[idx]
-		trimmedLine := strings.TrimSpace(line)
-
-		if trimmedLine != "" && !skipLineRegex.MatchString(line) {
-			if trimmedLine != "end" && trimmedLine != "begin" &&
-				!strings.HasPrefix(trimmedLine, "end ") {
-				injectedLines = append(injectedLines, line)
-			}
-		}
-	}
-
-	if len(injectedLines) == 0 {
-		logger.Debug("    No suitable lines found to inject. Removing //INJECT marker.")
-		return strings.Join(
-			append(snippetLines[:injectIndex], snippetLines[injectIndex+1:]...),
-			"\n",
-		), nil
-	}
-
-	var result strings.Builder
-	result.WriteString(strings.Join(snippetLines[:injectIndex], "\n"))
-	if injectIndex > 0 {
-		result.WriteString("\n")
-	}
-
-	logger.Debug("    Injecting %d lines into snippet...\n", len(injectedLines))
-	for _, line := range injectedLines {
-		result.WriteString(markerIndent + strings.TrimSpace(line) + "\n")
-	}
-
-	if injectIndex+1 < len(snippetLines) {
-		result.WriteString(strings.Join(snippetLines[injectIndex+1:], "\n"))
-	}
-
-	return result.String(), nil
 }
 
 // dfsDependencies recursively adds child structs/classes of nodeName from parentVF into targetFile
@@ -482,11 +392,9 @@ func MutateFile(fileName string, verbose int) (*verilog.VerilogFile, error) {
 	}
 
 	svFile, err := verilog.ParseVerilog(originalContent, verbose)
+	svFile.Name = fileName
 	if err != nil || svFile == nil {
 		return nil, fmt.Errorf("failed to parse Verilog file %s: %v", fileName, err)
-	}
-	if svFile.Name == "" {
-		svFile.Name = fileName
 	}
 
 	mutatedOverall := false

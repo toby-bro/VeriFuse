@@ -15,36 +15,29 @@ import (
 
 // VerilatorSimulator represents the Verilator simulator
 type VerilatorSimulator struct {
-	execPath   string
-	workDir    string
-	moduleName string
-	module     *verilog.Module
-	optimized  bool
-	logger     *utils.DebugLogger
+	execPath  string
+	workDir   string
+	svFile    *verilog.VerilogFile
+	module    *verilog.Module
+	optimized bool
+	logger    *utils.DebugLogger
 }
 
 // NewVerilatorSimulator creates a new Verilator simulator instance
 func NewVerilatorSimulator(
 	workDir string,
+	svFile *verilog.VerilogFile,
 	moduleName string,
 	optimized bool,
 	verbose int,
 ) *VerilatorSimulator {
-	// Parse the module to get port and parameter information
-	moduleFile := filepath.Join(workDir, moduleName+".sv")
-	module, err := verilog.ParseVerilogFile(moduleFile, moduleName)
-	if err != nil {
-		// If we can't parse, just continue with nil module - will use generic template
-		module = nil
-	}
-
 	return &VerilatorSimulator{
-		execPath:   filepath.Join(workDir, "obj_dir", "Vtestbench"),
-		workDir:    workDir,
-		moduleName: moduleName,
-		module:     module,
-		optimized:  optimized,
-		logger:     utils.NewDebugLogger(verbose),
+		execPath:  filepath.Join(workDir, "obj_dir", "Vtestbench"),
+		workDir:   workDir,
+		svFile:    svFile,
+		module:    svFile.Modules[moduleName],
+		optimized: optimized,
+		logger:    utils.NewDebugLogger(verbose),
 	}
 }
 
@@ -63,7 +56,7 @@ func (sim *VerilatorSimulator) Compile() error {
 		if _, err := os.Stat(srcTestbench); os.IsNotExist(err) {
 			// If it doesn't exist in tmp_gen either, generate it if we have module info
 			if sim.module != nil {
-				gen := testgen.NewGenerator(sim.module)
+				gen := testgen.NewGenerator(sim.module, sim.svFile.Name)
 				if err := gen.GenerateTestbenches(); err != nil {
 					return fmt.Errorf("failed to generate testbenches: %v", err)
 				}
