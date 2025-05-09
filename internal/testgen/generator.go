@@ -87,7 +87,7 @@ func (g *Generator) generateSVModuleInstantiation() string {
 
 			defaultVal := param.DefaultValue
 			if defaultVal == "" {
-				switch param.Type {
+				switch param.Type { //nolint:exhaustive
 				case verilog.INT:
 					defaultVal = "1"
 				case verilog.BIT:
