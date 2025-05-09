@@ -1,11 +1,19 @@
 package fuzz
 
 import (
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/toby-bro/pfuzz/internal/verilog"
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
+
+func TestMain(m *testing.M) {
+	logger = utils.NewDebugLogger(5)
+	exitCode := m.Run()
+	os.Exit(exitCode)
+}
 
 const (
 	sampleVerilogContent = `
