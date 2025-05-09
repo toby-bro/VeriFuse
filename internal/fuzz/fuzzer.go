@@ -3,6 +3,7 @@ package fuzz
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -151,7 +152,7 @@ func (f *Fuzzer) Run(numTests int) error {
 	f.debug.Info("Target file: %s with %d modules", f.svFile.Name, len(f.svFile.Modules))
 
 	if len(f.svFile.Modules) == 0 {
-		return fmt.Errorf("no modules found in the provided Verilog file")
+		return errors.New("no modules found in the provided Verilog file")
 	}
 
 	var wg sync.WaitGroup

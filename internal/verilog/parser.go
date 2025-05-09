@@ -160,7 +160,7 @@ type Interface struct {
 	Body       string
 }
 
-type VerilogFile struct {
+type VerilogFile struct { //nolint:revive
 	Name          string
 	Modules       map[string]*Module
 	Interfaces    map[string]*Interface
@@ -498,16 +498,15 @@ func extractANSIPortDeclarations(
 				if len(headerPortOrder) == 0 {
 					logger.Warn("Header port declaration '%s' is empty.\n", portDecl)
 					continue
-				} else {
-					// Port is the same as the last port
-					precedingPort := headerPorts[headerPortOrder[len(headerPortOrder)-1]]
-					port = Port{
-						Name:      portName,
-						Direction: precedingPort.Direction,
-						Type:      precedingPort.Type,
-						Width:     precedingPort.Width,
-						IsSigned:  precedingPort.IsSigned,
-					}
+				}
+				// Port is the same as the last port
+				precedingPort := headerPorts[headerPortOrder[len(headerPortOrder)-1]]
+				port = Port{
+					Name:      portName,
+					Direction: precedingPort.Direction,
+					Type:      precedingPort.Type,
+					Width:     precedingPort.Width,
+					IsSigned:  precedingPort.IsSigned,
 				}
 			} else {
 				isSigned := (signedStr == "signed")
