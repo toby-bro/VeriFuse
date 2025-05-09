@@ -4,9 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -394,7 +391,6 @@ func ParseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 				rangeStr,
 			)
 		} else {
-			// Parameter not found or has no default value, fall through
 			logger.Warn("Parameter '%s' not found or has no value for range '%s'.\n", paramName, rangeStr)
 		}
 		// If parameter lookup failed (not found, no value, not int), fall through to heuristics/default
@@ -427,65 +423,6 @@ func ParseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 		"could not determine width from range: %s, defaulting to 8",
 		rangeStr,
 	)
-}
-
-// TODO: #8 Use the thread safe version in utils/files.go and remove this file return
-// openAndReadFile opens and reads the entire content of the specified file.
-func openAndReadFile(filename string) (*os.File, []byte, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open file: %v", err)
-	}
-	// Note: The caller is responsible for closing the file.
-
-	content, err := io.ReadAll(file)
-	if err != nil {
-		file.Close() // Close file on read error
-		return nil, nil, fmt.Errorf("failed to read file: %v", err)
-	}
-	return file, content, nil
-}
-
-// determineTargetModule derives the target module name from the filename if not provided.
-func determineTargetModule(filename string, providedTargetModule string) string {
-	if providedTargetModule == "" {
-		baseName := filepath.Base(filename)
-		return strings.TrimSuffix(baseName, filepath.Ext(baseName))
-	}
-	return providedTargetModule
-}
-
-// findModuleDeclaration searches the content for the module definition and extracts parameter/port lists.
-func findModuleDeclaration(content []byte, targetModule string) (string, string, string, error) {
-	moduleMatches := matchSpecificModule(content, targetModule)
-	actualTargetModule := targetModule
-
-	if len(moduleMatches) < 3 {
-		generalMatches := matchModulesFromBytes(content)
-		if len(generalMatches) < 4 {
-			return "", "", "", errors.New("no module found in the file")
-		}
-
-		actualTargetModule = string(generalMatches[1])
-		var paramListBytes, portListBytes []byte
-		if len(generalMatches[2]) > 0 { // Parameters exist
-			paramListBytes = generalMatches[2]
-			portListBytes = generalMatches[3]
-		} else { // No parameters
-			portListBytes = generalMatches[3]
-		}
-		moduleMatches = [][]byte{generalMatches[0], paramListBytes, portListBytes}
-	}
-
-	var paramListStr, portListStr string
-	if len(moduleMatches) >= 3 {
-		if len(moduleMatches[1]) > 0 {
-			paramListStr = string(moduleMatches[1])
-		}
-		portListStr = string(moduleMatches[2])
-	}
-
-	return actualTargetModule, paramListStr, portListStr, nil
 }
 
 // Regular expressions for port declarations within the module body (non-ANSI style)
@@ -663,102 +600,6 @@ func extractANSIPortDeclarations(
 	}
 
 	return headerPorts, headerPortOrder
-}
-
-// scanForPortDeclarationsFromReader scans the provided reader content to find detailed port declarations (non-ANSI style).
-// It returns a map of port names to fully parsed Port structs found in the body.
-func scanForPortDeclarationsFromReader(
-	reader io.Reader, // Changed from *os.File to io.Reader
-	targetModule string,
-	parameters map[string]Parameter,
-) (map[string]Port, error) {
-	// No need to seek, scanner works directly with the reader from its current position
-	scanner := bufio.NewScanner(reader)
-
-	parsedPortsMap := make(map[string]Port) // Ports found in body scan
-
-	inCommentBlock := false
-	inModuleHeader := false // Track if we are between 'module ... (' and ');'
-	inTargetModule := false // Track if we are inside the target module definition
-
-	moduleStartRegex := regexp.MustCompile(
-		"^\\s*module\\s+" + regexp.QuoteMeta(targetModule),
-	)
-	headerEndRegex := regexp.MustCompile(`\)\s*;`) // Matches the end of the port list ' );'
-	moduleEndRegex := regexp.MustCompile(`^\s*endmodule`)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Handle multi-line comments
-		if strings.Contains(line, "/*") {
-			if !strings.Contains(line, "*/") { // Starts but doesn't end on this line
-				inCommentBlock = true
-			}
-			// Remove comment part if it starts and ends on the same line or just starts
-			line = regexp.MustCompile(`/\*.*?\*/`).ReplaceAllString(line, "")
-			line = regexp.MustCompile(`/\*.*`).ReplaceAllString(line, "")
-		}
-		if inCommentBlock {
-			if strings.Contains(line, "*/") {
-				inCommentBlock = false
-				// Remove comment part if it ends on this line
-				line = regexp.MustCompile(`.*\*/`).ReplaceAllString(line, "")
-			} else {
-				continue // Whole line is inside comment block
-			}
-		}
-		// Handle single-line comments
-		line = regexp.MustCompile(`//.*`).ReplaceAllString(line, "")
-		trimmedLine := strings.TrimSpace(line) // Update trimmed line after comment removal
-
-		if trimmedLine == "" {
-			continue // Skip empty lines or lines that became empty
-		}
-
-		// Track module scope
-		if !inTargetModule && moduleStartRegex.MatchString(line) {
-			inTargetModule = true
-			inModuleHeader = true // We are now in the header part
-		}
-
-		if !inTargetModule {
-			continue // Skip lines outside the target module
-		}
-
-		if inModuleHeader && headerEndRegex.MatchString(line) {
-			inModuleHeader = false // Header finished, now in body
-			// Process the part of the line *before* ');' if any declaration is there
-			lineBeforeHeaderEnd := headerEndRegex.Split(line, 2)[0]
-			if port, ok := parsePortDeclaration(strings.TrimSpace(lineBeforeHeaderEnd), parameters); ok {
-				if _, exists := parsedPortsMap[port.Name]; !exists {
-					parsedPortsMap[port.Name] = *port
-				}
-			}
-			continue // Move to next line after header end
-		}
-
-		if moduleEndRegex.MatchString(line) {
-			break // Stop scanning
-		}
-
-		// If we are inside the module body (after header, before endmodule)
-		if !inModuleHeader && inTargetModule {
-			// Attempt to parse the line as a non-ANSI port declaration
-			if port, ok := parsePortDeclaration(trimmedLine, parameters); ok {
-				// Store the details found in the body, avoid overwriting if already found (first declaration wins)
-				if _, exists := parsedPortsMap[port.Name]; !exists {
-					parsedPortsMap[port.Name] = *port
-				}
-			}
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error scanning content: %v", err) // Updated error message
-	}
-
-	return parsedPortsMap, nil
 }
 
 // extractNonANSIPortDeclarations scans the provided content for non-ANSI port declarations in the module content
