@@ -122,7 +122,7 @@ func TestPortTypeToString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := PortTypeToString(tt.pt); got != tt.want {
+			if got := TypeToString(tt.pt); got != tt.want {
 				t.Errorf("PortTypeToString() = %v, want %v", got, tt.want)
 			}
 		})
@@ -145,13 +145,13 @@ func TestPrintParameter(t *testing.T) {
 		{"SimpleLast", Parameter{Name: "WIDTH", DefaultValue: "8"}, true, "parameter WIDTH = 8"},
 		{
 			"TypedNotLast",
-			Parameter{Name: "DATA_W", Type: "int", DefaultValue: "32"},
+			Parameter{Name: "DATA_W", Type: INT, DefaultValue: "32"},
 			false,
 			"parameter int DATA_W = 32,",
 		},
 		{
 			"TypedLast",
-			Parameter{Name: "ADDR_W", Type: "integer", DefaultValue: "16"},
+			Parameter{Name: "ADDR_W", Type: INTEGER, DefaultValue: "16"},
 			true,
 			"parameter integer ADDR_W = 16",
 		},
@@ -159,7 +159,7 @@ func TestPrintParameter(t *testing.T) {
 		{"NoDefaultLast", Parameter{Name: "CLK_FREQ"}, true, "parameter CLK_FREQ"},
 		{
 			"TypedNoDefaultLast",
-			Parameter{Name: "MODE", Type: "string"},
+			Parameter{Name: "MODE", Type: STRING},
 			true,
 			"parameter string MODE",
 		},

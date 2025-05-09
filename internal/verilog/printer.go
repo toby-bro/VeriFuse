@@ -92,7 +92,7 @@ func PortDirectionToString(d PortDirection) string {
 	}
 }
 
-func PortTypeToString(pt PortType) string {
+func TypeToString(pt PortType) string {
 	switch pt {
 	case REG:
 		return "reg"
@@ -147,8 +147,8 @@ func PortTypeToString(pt PortType) string {
 func PrintParameter(param Parameter, isLast bool) string {
 	var sb strings.Builder
 	sb.WriteString("parameter ")
-	if param.Type != "" {
-		sb.WriteString(param.Type)
+	if param.Type != UNKNOWN {
+		sb.WriteString(param.Type.String())
 		sb.WriteString(" ")
 	}
 	sb.WriteString(param.Name)
@@ -170,7 +170,7 @@ func PrintPort(port Port, isLast bool) string {
 		sb.WriteString(" ")
 	}
 
-	portTypeStr := PortTypeToString(port.Type)
+	portTypeStr := TypeToString(port.Type)
 	if portTypeStr != "" {
 		// Avoid printing 'logic' if it's the default and no other specifiers exist,
 		// unless it's truly specified. This can be tricky.
@@ -199,7 +199,7 @@ func PrintPort(port Port, isLast bool) string {
 // PrintVariableDeclaration formats a Variable declaration (for structs, etc.).
 func PrintVariableDeclaration(v *Variable) string {
 	var sb strings.Builder
-	typeStr := PortTypeToString(v.Type)
+	typeStr := TypeToString(v.Type)
 	if v.Type == USERDEFINED {
 		// This part needs to be smarter, potentially looking up the actual type name
 		// from a VerilogFile context if the variable's Type field doesn't store the name.
