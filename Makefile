@@ -9,38 +9,18 @@ build-fuzzer:
 	go build -o pfuzz cmd/pfuzz/main.go
 
 .PHONY: build-tools
-build-tools: build-analyze build-patterns build-focused
-
-.PHONY: build-analyze
-build-analyze:
-	go build -o analyze cmd/analyze/main.go
+build-tools: build-patterns
 
 .PHONY: build-patterns
 build-patterns:
 	go build -o patterns cmd/patterns/main.go
 
-.PHONY: build-focused
-build-focused:
-	go build -o focused cmd/focused/main.go
-
 .PHONY: run
 run: test-module
-
-.PHONY: analyze-mismatch
-analyze-mismatch:
-	@if [ -z "$(MISMATCH)" ]; then \
-		echo "Usage: make analyze-mismatch MISMATCH=mismatches/mismatch_X"; \
-	else \
-		./analyze $(MISMATCH); \
-	fi
 
 .PHONY: patterns
 patterns:
 	./patterns
-
-.PHONY: focused
-focused:
-	./focused
 
 .PHONY: test-go
 test-go: build-fuzzer
@@ -79,7 +59,7 @@ clean:
 
 .PHONY: purge
 purge: clean
-	rm -f pfuzz analyze patterns focused mismatch_*.txt
+	rm -f pfuzz patterns mismatch_*.txt
 
 .PHONY: help
 help:
@@ -90,16 +70,13 @@ help:
 	@echo "  make tests        - Run all tests"
 	@echo "  make clean        - Remove temporary files"
 	@echo "  make purge        - Remove all generated files and executables"
-	@echo "  make analyze-mismatch MISMATCH=mismatches/mismatch_X - Analyze a specific mismatch"
 	@echo "  make patterns     - Analyze patterns in mismatches"
-	@echo "  make focused      - Run focused test cases"
 	@echo "  make test-module FILE=path/to/module.sv - Test a specific module"
 	@echo ""
 	@echo "Example usage:"
 	@echo "  make              - Run default fuzzer"
 	@echo "  make run OPTS=\"-n 100 -strategy simple -vvv\" - Run with custom options"
 	@echo "  make tests        - Run all test cases"
-	@echo "  make analyze-mismatch MISMATCH=mismatches/mismatch_0 - Analyze first mismatch"
 	@echo "  make test-module FILE=testfiles/sv/simple_adder.sv - Test a specific module"
 
 # Allow passing custom options to the fuzzer
