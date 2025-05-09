@@ -17,13 +17,11 @@ import (
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
-// Test file prefixes for different simulators
 const (
 	IV_PREFIX = "iv_"
 	VL_PREFIX = "vl_"
 )
 
-// Fuzzer is the main fuzzing orchestrator
 type Fuzzer struct {
 	stats       *Stats
 	strategy    Strategy
@@ -31,21 +29,17 @@ type Fuzzer struct {
 	verbose     int
 	seed        int64
 	debug       *utils.DebugLogger
-	verilogFile string
-	moduleName  string
-	module      *verilog.Module
+	svFile      *verilog.VerilogFile
 	mutate      bool
 	maxAttempts int
 }
 
-// NewFuzzer creates a new fuzzer instance
 func NewFuzzer(
 	strategy string,
 	workers int,
 	verbose int,
 	seed int64,
-	verilogFile string,
-	moduleName string,
+	fileName string,
 	mutate bool,
 	maxAttempts int,
 ) *Fuzzer {
@@ -57,10 +51,12 @@ func NewFuzzer(
 		verbose:     verbose,
 		seed:        seed,
 		debug:       utils.NewDebugLogger(verbose),
-		verilogFile: verilogFile,
-		moduleName:  moduleName,
 		mutate:      mutate,
 		maxAttempts: maxAttempts,
+	}
+
+	fuzzer.svFile = &verilog.VerilogFile{
+		Name: fileName,
 	}
 
 	switch strategy {
@@ -76,81 +72,28 @@ func NewFuzzer(
 	return fuzzer
 }
 
-// PrepareSVFile analyzes and prepares the Verilog file for testing
-func PrepareSVFile(
-	initialVerilogFile string,
-	mockedVerilogPath string,
-	mock bool,
-	verbose int,
-) error {
-	logger := utils.NewDebugLogger(verbose)
-	if mock {
-		content, err := mocker.MockVerilogFile(initialVerilogFile)
-		if err != nil {
-			return fmt.Errorf("failed to analyze Verilog file: %v", err)
-		}
-		if err := utils.WriteFileContent(mockedVerilogPath, content); err != nil {
-			return fmt.Errorf("failed to write mocked SV file: %v", err)
-		}
-		logger.Debug("Created mocked SystemVerilog file: %s", mockedVerilogPath)
-	} else {
-		if err := utils.CopyFile(initialVerilogFile, mockedVerilogPath); err != nil {
-			return fmt.Errorf("failed to copy original Verilog file: %v", err)
-		}
-	}
-	if _, err := os.Stat(mockedVerilogPath); os.IsNotExist(err) {
-		return fmt.Errorf("mocked verilog file was not created at %s", mockedVerilogPath)
-	}
-	return nil
-}
-
-func addMockedSuffix(filename string) string {
-	ext := filepath.Ext(filename)
-	base := strings.TrimSuffix(filename, ext)
-	newFilename := base + "_mocked" + ext
-	return newFilename
-}
-
-// Setup prepares the environment for fuzzing
 func (f *Fuzzer) Setup() error {
 	if err := utils.EnsureDirs(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
 
-	originalModule, err := verilog.ParseVerilogFile(f.verilogFile, f.moduleName)
+	fileName := f.svFile.Name
+
+	fileContent, err := utils.ReadFileContent(fileName)
 	if err != nil {
-		return fmt.Errorf("failed to parse original Verilog file: %v", err)
+		f.debug.Fatal("Failed to read file %s: %v", fileName, err)
 	}
-	f.module = originalModule
-
-	originalVerilogFile := f.verilogFile
-	originalModuleName := f.moduleName
-
-	if mock {
-		f.module.Name = addMockedSuffix(originalModule.Name)
-		f.verilogFile = addMockedSuffix(f.verilogFile)
-		f.moduleName = f.module.Name
+	f.svFile, err = verilog.ParseVerilog(fileContent, verbose)
+	if err != nil {
+		f.debug.Fatal("Failed to parse file %s: %v", fileName, err)
 	}
+	f.svFile.Name = fileName
 
-	if moduleAwareStrategy, ok := f.strategy.(ModuleAwareStrategy); ok {
-		moduleAwareStrategy.SetModule(f.module)
+	verilogPath := filepath.Join(utils.TMP_DIR, fileName)
+
+	if err := utils.CopyFile(fileName, verilogPath); err != nil {
+		return fmt.Errorf("failed to copy original Verilog file: %v", err)
 	}
-
-	f.debug.Info("Parsed original module '%s' with %d ports", f.module.Name, len(f.module.Ports))
-
-	verilogFileName := filepath.Base(f.verilogFile)
-	verilogPath := filepath.Join(utils.TMP_DIR, verilogFileName)
-
-	sourceFileForPrepare := originalVerilogFile
-	if !mock {
-		sourceFileForPrepare = f.verilogFile
-	}
-
-	if err := PrepareSVFile(sourceFileForPrepare, verilogPath, mock, f.verbose); err != nil {
-		return err
-	}
-
-	f.debug.Info("Verilog file prepared at %s", verilogPath)
 
 	if err := testIVerilogTool(); err != nil {
 		return fmt.Errorf("iverilog tool check failed: %v", err)
@@ -160,7 +103,6 @@ func (f *Fuzzer) Setup() error {
 		return fmt.Errorf("verilator tool check failed: %v", err)
 	}
 	f.debug.Debug("Verilator tool found.")
-	f.moduleName = originalModuleName
 	return nil
 }
 
@@ -198,44 +140,31 @@ func testVerilatorTool() error {
 	return nil
 }
 
-// Run performs the fuzzing
 func (f *Fuzzer) Run(numTests int) error {
 	f.debug.Info("Starting fuzzing with %d test cases using strategy: %s\n",
 		numTests, f.strategy.Name())
-	f.debug.Info("Target module: %s with %d ports", f.module.Name, len(f.module.Ports))
+	f.debug.Info("Target file: %s with %d modules", f.svFile.Name, len(f.svFile.Modules))
 
-	inputCount := 0
-	outputCount := 0
-	for _, port := range f.module.Ports {
-		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-			inputCount++
-		}
-		if port.Direction == verilog.OUTPUT {
-			outputCount++
-		}
-	}
-	f.debug.Info("Module has %d inputs and %d outputs", inputCount, outputCount)
-
-	originalPorts := make(map[string]verilog.Port)
-	for _, p := range f.module.Ports {
-		originalPorts[p.Name] = p
-	}
-
-	var wg sync.WaitGroup // For fuzzing workers
+	var wg sync.WaitGroup
 	testCases := make(chan int, f.workers)
 
-	// Progress tracking - pass the worker WaitGroup
 	progressTracker := NewProgressTracker(numTests, f.stats, &wg)
 	progressTracker.Start()
 	defer progressTracker.Stop()
 
-	// Create a context that can be cancelled when workers are done
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // Ensure cancel is called to free resources
+	defer cancel()
+
+	moduleNames := make([]string, len(f.svFile.Modules))
+	ic := 0
+	for _, module := range f.svFile.Modules {
+		moduleNames[ic] = module.Name
+		ic++
+	}
 
 	for w := 0; w < f.workers; w++ {
 		wg.Add(1)
-		go f.worker(&wg, testCases, originalPorts)
+		go f.worker(&wg, testCases, f.svFile.Modules[moduleNames[w]])
 	}
 
 	var feedingWg sync.WaitGroup
@@ -263,10 +192,8 @@ func (f *Fuzzer) Run(numTests int) error {
 	cancel()
 	feedingWg.Wait()
 
-	f.stats.PrintSummary() // Uses updated PrintSummary
+	f.stats.PrintSummary()
 
-	// Check if any tests were actually run, especially if numTests > 0
-	// Message updated to not mention SimErrors
 	if numTests > 0 && f.stats.TotalTests == 0 {
 		f.debug.Warn("Fuzzing completed, but no test cases were successfully executed.")
 		f.debug.Warn("Out of %d test cases requested, %d were run.", numTests, f.stats.TotalTests)
@@ -384,11 +311,10 @@ func (f *Fuzzer) processTestCases(
 	workerID, workerDir string,
 	ivsim, vlsim simulator.Simulator,
 	workerModule *verilog.Module,
-	originalPorts map[string]verilog.Port,
 	testCases <-chan int,
 ) {
 	for i := range testCases {
-		f.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, originalPorts, i)
+		f.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, i)
 	}
 }
 
@@ -396,15 +322,13 @@ func (f *Fuzzer) runSingleTest(
 	workerID, workerDir string,
 	ivsim, vlsim simulator.Simulator,
 	workerModule *verilog.Module,
-	originalPorts map[string]verilog.Port,
 	testIndex int,
 ) {
 	testCase := f.strategy.GenerateTestCase(testIndex)
 	f.stats.AddTest()
 
 	for _, port := range workerModule.Ports {
-		_, isOriginal := originalPorts[port.Name]
-		if (port.Direction == verilog.INPUT || port.Direction == verilog.INOUT) && !isOriginal {
+		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			if _, exists := testCase[port.Name]; !exists {
 				defaultValue := strings.Repeat("0", port.Width)
 				testCase[port.Name] = defaultValue
@@ -576,9 +500,8 @@ func (f *Fuzzer) handleMismatch(
 func (f *Fuzzer) performWorkerAttempt(
 	workerID string,
 	testCases <-chan int,
-	originalPorts map[string]verilog.Port,
+	workerModule *verilog.Module,
 ) (setupSuccessful bool, err error) {
-	VerilogFileName := filepath.Base(f.verilogFile)
 	workerDir, cleanupFunc, setupErr := f.setupWorker(workerID)
 	if setupErr != nil {
 		return false, fmt.Errorf("worker setup failed for %s: %w", workerID, setupErr)
@@ -588,7 +511,6 @@ func (f *Fuzzer) performWorkerAttempt(
 	defer func() {
 		if cleanupFunc != nil {
 			if (f.verbose > 2 && !attemptCompletelySuccessful) || f.verbose > 3 {
-				// Preserve directory if verbose > 3
 				f.debug.Debug(
 					"[%s] Preserving worker directory %s (verbose = %d). Attempt success: %t",
 					workerID,
@@ -597,39 +519,43 @@ func (f *Fuzzer) performWorkerAttempt(
 					attemptCompletelySuccessful,
 				)
 			} else {
-				// Cleanup directory if verbose <= 3
 				f.debug.Debug("[%s] Cleaning up worker directory %s. Attempt success: %t", workerID, workerDir, attemptCompletelySuccessful)
 				cleanupFunc()
 			}
 		}
 	}()
 
-	if err := f.copyWorkerFiles(workerID, workerDir, VerilogFileName); err != nil {
+	if err := f.copyWorkerFiles(workerID, workerDir, f.svFile.Name); err != nil {
 		return false, fmt.Errorf("failed to copy files for worker %s: %w", workerID, err)
 	}
 
-	workerVerilogPath := filepath.Join(workerDir, VerilogFileName)
-
+	workerVerilogPath := filepath.Join(workerDir, f.svFile.Name)
+	var svFile *verilog.VerilogFile
 	if f.mutate {
 		f.debug.Debug("[%s] Attempting mutation on %s", workerID, workerVerilogPath)
-		if err := MutateFile(workerVerilogPath, f.verbose); err != nil {
+		if svFile, err = MutateFile(workerVerilogPath, f.verbose); err != nil {
 			return false, fmt.Errorf("[%s] mutation failed: %w", workerID, err)
 		}
 		f.debug.Debug("[%s] Mutation applied. Proceeding.", workerID)
 	} else {
 		f.debug.Debug("[%s] Mutation not requested. Proceeding with original file.", workerID)
+		fileContent, err := utils.ReadFileContent(workerVerilogPath)
+		if err != nil {
+			return false, fmt.Errorf("[%s] failed to read Verilog file: %w", workerID, err)
+		}
+		svFile, err = verilog.ParseVerilog(fileContent, f.verbose)
+		if err != nil {
+			return false, fmt.Errorf("[%s] failed to parse Verilog file: %w", workerID, err)
+		}
 	}
 
-	f.debug.Debug("[%s] Parsing potentially mutated Verilog file: %s", workerID, workerVerilogPath)
-	workerModule, err := verilog.ParseVerilogFile(workerVerilogPath, f.moduleName)
 	if err != nil {
 		return false, fmt.Errorf("[%s] failed to parse mutated Verilog: %w", workerID, err)
 	}
 	f.debug.Debug(
-		"[%s] Parsed module '%s' with %d ports from worker file.",
+		"[%s] Parsed %d modules from worker file.",
 		workerID,
-		workerModule.Name,
-		len(workerModule.Ports),
+		len(svFile.Modules),
 	)
 
 	f.debug.Debug(
@@ -649,15 +575,15 @@ func (f *Fuzzer) performWorkerAttempt(
 		return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
 	}
 
-	f.processTestCases(workerID, workerDir, ivsim, vlsim, workerModule, originalPorts, testCases)
+	f.processTestCases(workerID, workerDir, ivsim, vlsim, workerModule, testCases)
 	attemptCompletelySuccessful = true // Mark as successful for cleanup logic
-	return true, nil                   // Setup successful, processTestCases completed.
+	return true, nil
 }
 
 func (f *Fuzzer) worker(
 	wg *sync.WaitGroup,
 	testCases <-chan int,
-	originalPorts map[string]verilog.Port,
+	moduleToTest *verilog.Module,
 ) {
 	defer wg.Done()
 
@@ -665,14 +591,13 @@ func (f *Fuzzer) worker(
 	workerID := fmt.Sprintf("worker_%d", time.Now().UnixNano())
 
 	for attempt := 0; attempt < f.maxAttempts; attempt++ {
-		// workerCompleteID must be unique per attempt. Using PID, time, and attempt number.
 		workerCompleteID := fmt.Sprintf(
 			"%s_%d",
 			workerID,
 			attempt,
 		)
 
-		setupOk, err := f.performWorkerAttempt(workerCompleteID, testCases, originalPorts)
+		setupOk, err := f.performWorkerAttempt(workerCompleteID, testCases, moduleToTest)
 
 		if setupOk {
 			f.debug.Info("[%s] Worker completed its tasks.", workerID)

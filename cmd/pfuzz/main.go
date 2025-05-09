@@ -28,7 +28,6 @@ func main() {
 	)
 	vvvFlag := flag.Bool("vvv", false, "Verbose output (level 3).")
 	verilogFile := flag.String("file", "", "Path to Verilog file to fuzz (required)")
-	moduleFlag := flag.String("module", "", "Module name to fuzz (if different from filename)")
 	mutate := flag.Bool("mutate", false, "Mutate enums and structs in the testbench")
 	maxAttempts := flag.Int("max-attempts", -1, "Maximum attempts to create a valid file")
 	if *maxAttempts < 1 {
@@ -66,7 +65,6 @@ func main() {
 		verboseLevel,
 		*seedFlag,
 		*verilogFile,
-		*moduleFlag,
 		*mutate,
 		*maxAttempts,
 	)
