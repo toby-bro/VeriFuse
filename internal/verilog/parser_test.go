@@ -1,7 +1,6 @@
 package verilog
 
 import (
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -9,18 +8,6 @@ import (
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
-
-// Helper function to create a temporary Verilog file
-func createTempVerilogFile(t *testing.T, content string, filename string) string {
-	t.Helper()
-	dir := t.TempDir()
-	filePath := filepath.Join(dir, filename)
-	err := os.WriteFile(filePath, []byte(content), 0o644)
-	if err != nil {
-		t.Fatalf("Failed to create temp file %s: %v", filePath, err)
-	}
-	return filePath
-}
 
 func TestParsePortDeclaration(t *testing.T) {
 	testCases := []struct {
@@ -284,14 +271,13 @@ func TestParseRange(t *testing.T) {
 	}
 }
 
-// New test function for ParseVerilogFile
-func TestParseVerilogFile(t *testing.T) {
+// Renamed from TestParseVerilogFile and updated for ParseVerilog
+func TestParseVerilog(t *testing.T) {
 	testCases := []struct {
 		name                string
 		content             string
-		filename            string // Filename to simulate
-		targetModule        string // Optional target module name
-		expectedModule      *Module
+		targetModuleName    string  // Used to identify the module to check in the result
+		expectedModule      *Module // This is the module we expect to find in VerilogFile.Modules
 		expectError         bool
 		expectedErrorSubstr string
 	}{
@@ -307,7 +293,7 @@ module simple_adder (
     assign sum = a + b;
 endmodule
 `,
-			filename: "simple_adder.sv",
+			targetModuleName: "simple_adder",
 			expectedModule: &Module{
 				Name: "simple_adder",
 				Ports: []Port{
@@ -315,8 +301,7 @@ endmodule
 					{Name: "b", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
 					{Name: "sum", Direction: OUTPUT, Type: LOGIC, Width: 9, IsSigned: false},
 				},
-				Parameters: []Parameter{},
-				// Content will be filled by parser
+				Body: "    assign sum = a + b;", // Expected body after parsing
 			},
 			expectError: false,
 		},
@@ -332,22 +317,21 @@ module parameterized_module #(
     assign out = in;
 endmodule
 `,
-			filename: "parameterized_module.sv",
+			targetModuleName: "parameterized_module",
 			expectedModule: &Module{
 				Name: "parameterized_module",
 				Ports: []Port{
-					// Width should now be correctly resolved to 8
 					{Name: "in", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
 					{Name: "out", Direction: OUTPUT, Type: LOGIC, Width: 8, IsSigned: false},
 				},
 				Parameters: []Parameter{
 					{
 						Name:         "WIDTH",
-						Type:         "", // Type parsing might still be basic
+						Type:         "",
 						DefaultValue: "8",
 					},
 				},
-				// Content will be filled by parser
+				Body: "    assign out = in;", // Expected body after parsing
 			},
 			expectError: false,
 		},
@@ -358,85 +342,136 @@ endmodule
 wire x;
 assign x = 1'b1;
 `,
-			filename:            "no_module.sv",
-			expectError:         true,
-			expectedErrorSubstr: "no module found",
+			targetModuleName:    "", // No specific module expected
+			expectedModule:      nil,
+			expectError:         false, // ParseVerilog itself might not error, but Modules map will be empty
+			expectedErrorSubstr: "",    // No error string to check if expectError is false
 		},
 		{
 			name:                "Empty File",
 			content:             ``,
-			filename:            "empty.sv",
-			expectError:         true,
-			expectedErrorSubstr: "no module found",
+			targetModuleName:    "", // No specific module expected
+			expectedModule:      nil,
+			expectError:         false, // ParseVerilog itself might not error
+			expectedErrorSubstr: "",    // No error string to check if expectError is false
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			filePath := createTempVerilogFile(t, tc.content, tc.filename)
-			// Ensure expected module has correct filename and content for comparison
-			if tc.expectedModule != nil {
-				tc.expectedModule.Body = tc.content
-			}
-
-			module, err := ParseVerilogFile(filePath, tc.targetModule)
+			// Call ParseVerilog with the content string and a default verbosity (e.g., 0)
+			vfile, err := ParseVerilog(tc.content, 0)
 
 			hasError := (err != nil)
 			if hasError != tc.expectError {
-				t.Fatalf("ParseVerilogFile() error = %v, expectError %v", err, tc.expectError)
+				t.Fatalf("ParseVerilog() error = %v, expectError %v", err, tc.expectError)
 			}
-			if tc.expectError && err != nil {
-				if tc.expectedErrorSubstr != "" &&
+
+			if tc.expectError {
+				if err != nil && tc.expectedErrorSubstr != "" &&
 					!strings.Contains(err.Error(), tc.expectedErrorSubstr) {
 					t.Errorf(
-						"ParseVerilogFile() error = %q, expected substring %q",
+						"ParseVerilog() error = %q, expected substring %q",
 						err,
 						tc.expectedErrorSubstr,
 					)
 				}
-				// Don't compare module struct if error was expected
+				return // Don't check vfile content if an error was expected
+			}
+
+			// If no error was expected, vfile should be non-nil
+			if vfile == nil {
+				t.Fatalf("ParseVerilog() returned nil VerilogFile, expected non-nil")
+			}
+
+			if tc.expectedModule == nil { // Cases like "No Module Found" or "Empty File"
+				if len(vfile.Modules) != 0 {
+					t.Errorf(
+						"Expected no modules, but got %d: %+v",
+						len(vfile.Modules),
+						vfile.Modules,
+					)
+				}
+				if len(vfile.Classes) != 0 {
+					t.Errorf(
+						"Expected no classes, but got %d: %+v",
+						len(vfile.Classes),
+						vfile.Classes,
+					)
+				}
+				if len(vfile.Structs) != 0 {
+					t.Errorf(
+						"Expected no structs, but got %d: %+v",
+						len(vfile.Structs),
+						vfile.Structs,
+					)
+				}
 				return
 			}
 
-			// Compare modules (excluding Content for simplicity if needed, but include for now)
-			if !reflect.DeepEqual(module, tc.expectedModule) {
-				// Use %+v for better struct diff visibility
+			// Check for the specific module
+			parsedModule, ok := vfile.Modules[tc.targetModuleName]
+			if !ok {
+				t.Fatalf(
+					"Module '%s' not found in parsed VerilogFile.Modules. Found: %+v",
+					tc.targetModuleName,
+					vfile.Modules,
+				)
+			}
+
+			// Compare the found module with the expected module
+			// Note: The Body field in expectedModule must match the processed body from ParseVerilog
+			if !reflect.DeepEqual(parsedModule, tc.expectedModule) {
 				t.Errorf(
-					"ParseVerilogFile() returned module:\n%+v\nExpected module:\n%+v",
-					module,
+					"ParseVerilog() returned module does not match expected.\nReturned: %+v\nExpected: %+v",
+					parsedModule,
 					tc.expectedModule,
 				)
-				// Optionally print specific diffs
-				if module == nil || tc.expectedModule == nil {
-					t.Errorf("One of the modules is nil, cannot compare details.")
-					return // Avoid panic on nil pointers
-				}
-				if len(module.Ports) != len(tc.expectedModule.Ports) {
+				// Detailed diff (optional, for easier debugging)
+				if parsedModule.Name != tc.expectedModule.Name {
 					t.Errorf(
-						"Port count mismatch: got %d, want %d",
-						len(module.Ports),
-						len(tc.expectedModule.Ports),
+						"Name mismatch: got %s, want %s",
+						parsedModule.Name,
+						tc.expectedModule.Name,
 					)
-				} else {
-					for i := range module.Ports {
-						if !reflect.DeepEqual(module.Ports[i], tc.expectedModule.Ports[i]) {
-							t.Errorf("Port %d mismatch: got %+v, want %+v", i, module.Ports[i], tc.expectedModule.Ports[i])
-						}
-					}
 				}
-				if len(module.Parameters) != len(tc.expectedModule.Parameters) {
+				if !reflect.DeepEqual(parsedModule.Ports, tc.expectedModule.Ports) {
 					t.Errorf(
-						"Parameter count mismatch: got %d, want %d",
-						len(module.Parameters),
-						len(tc.expectedModule.Parameters),
+						"Ports mismatch: got %+v, want %+v",
+						parsedModule.Ports,
+						tc.expectedModule.Ports,
 					)
-				} else {
-					for i := range module.Parameters {
-						if !reflect.DeepEqual(module.Parameters[i], tc.expectedModule.Parameters[i]) {
-							t.Errorf("Parameter %d mismatch: got %+v, want %+v", i, module.Parameters[i], tc.expectedModule.Parameters[i])
-						}
-					}
 				}
+				if !reflect.DeepEqual(parsedModule.Parameters, tc.expectedModule.Parameters) {
+					t.Errorf(
+						"Parameters mismatch: got %+v, want %+v",
+						parsedModule.Parameters,
+						tc.expectedModule.Parameters,
+					)
+				}
+				if parsedModule.Body != tc.expectedModule.Body {
+					t.Errorf(
+						"Body mismatch: got %q, want %q",
+						parsedModule.Body,
+						tc.expectedModule.Body,
+					)
+				}
+			}
+
+			// For these specific test cases, we don't expect other structs or classes
+			if len(vfile.Structs) != 0 {
+				t.Errorf(
+					"Expected no structs, but found %d: %+v",
+					len(vfile.Structs),
+					vfile.Structs,
+				)
+			}
+			if len(vfile.Classes) != 0 {
+				t.Errorf(
+					"Expected no classes, but found %d: %+v",
+					len(vfile.Classes),
+					vfile.Classes,
+				)
 			}
 		})
 	}
@@ -737,7 +772,7 @@ func TestDependancyGraph(t *testing.T) {
 		t.Fatalf("Failed to get root directory: %v", err)
 	}
 	snippetsDir := filepath.Join(rootDir, "snippets")
-	filename := "randomize.sv"
+	filename := "number.sv"
 	filename = filepath.Join(snippetsDir, filename)
 	fileContent, err := utils.ReadFileContent(filename)
 	if err != nil {
