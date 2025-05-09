@@ -13,7 +13,6 @@ import (
 
 var logger *utils.DebugLogger
 
-// PortDirection represents the direction of a module port
 type (
 	PortDirection int
 	PortType      int
@@ -48,23 +47,21 @@ const (
 	USERDEFINED
 )
 
-// Parameter represents a module parameter
 type Parameter struct {
 	Name         string
-	Type         string
+	Type         PortType
 	DefaultValue string
+	Localparam   bool
 }
 
-// Port represents a single port in a Verilog module
 type Port struct {
 	Name      string
 	Direction PortDirection
-	Type      PortType // e.g., logic, reg, wire, int, bit
-	Width     int      // Width in bits (1 for scalar)
-	IsSigned  bool     // Whether the port is signed
+	Type      PortType
+	Width     int
+	IsSigned  bool
 }
 
-// Module represents a parsed Verilog module
 type Module struct {
 	Name       string
 	Ports      []Port
@@ -72,28 +69,27 @@ type Module struct {
 	Body       string
 }
 
-// DeepCopy creates a deep copy of the Module.
 func (m *Module) DeepCopy() *Module {
 	if m == nil {
 		return nil
 	}
 	copiedModule := &Module{
-		Name: m.Name, // Strings are immutable
-		Body: m.Body, // Strings are immutable
+		Name: m.Name,
+		Body: m.Body,
 	}
 
 	if m.Ports != nil {
 		copiedModule.Ports = make([]Port, len(m.Ports))
 		copy(copiedModule.Ports, m.Ports)
 	} else {
-		copiedModule.Ports = []Port{} // Initialize to empty slice if nil, to be safe
+		copiedModule.Ports = []Port{}
 	}
 
 	if m.Parameters != nil {
 		copiedModule.Parameters = make([]Parameter, len(m.Parameters))
 		copy(copiedModule.Parameters, m.Parameters)
 	} else {
-		copiedModule.Parameters = []Parameter{} // Initialize to empty slice if nil
+		copiedModule.Parameters = []Parameter{}
 	}
 
 	return copiedModule
@@ -127,7 +123,7 @@ type Struct struct {
 }
 
 // We do NOT support virtual classes and static functions yet
-// TODO: #4 Add support for virtual classes and static functionsto get parametrized tasks https://stackoverflow.com/questions/57755991/passing-parameters-to-a-verilog-function
+// TODO: #4 Add support for virtual classes and static functions to get parametrized tasks https://stackoverflow.com/questions/57755991/passing-parameters-to-a-verilog-function
 type Function struct {
 	Name  string
 	Ports []Port
@@ -164,7 +160,7 @@ type Interface struct {
 	Body       string
 }
 
-type VerilogFile struct { // nolint:revive
+type VerilogFile struct {
 	Name          string
 	Modules       map[string]*Module
 	Interfaces    map[string]*Interface
@@ -179,7 +175,7 @@ type DependencyNode struct {
 }
 
 // TODO: #5 Improve the type for structs, enums, userdefined types...
-func GetPortType(portTypeString string) PortType {
+func GetType(portTypeString string) PortType {
 	switch strings.ToLower(portTypeString) {
 	case "reg":
 		return REG
@@ -233,7 +229,7 @@ func GetWidthForType(portType PortType) int {
 	case REAL, REALTIME:
 		return 64
 	default:
-		return 0 // Unknown type
+		return 0
 	}
 }
 
@@ -264,6 +260,8 @@ var generalStructRegex = regexp.MustCompile(
 
 var baseTypes = `reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum`
 
+var baseTypesRegex = regexp.MustCompile(fmt.Sprintf(`(?m)^\s*(%s)\s*$`, baseTypes))
+
 var variableRegexTemplate = `(?m)^\s*(?:\w+\s+)?(%s)\s+(?:(?:(\[[\w\-]+:[\w\-]+\])+|(unsigned))\s+)?(?:#\(\w+\)\s+)?(?:(?:(\w+),\s+)*(\w+))(?:\s+(\[.*\]))?(?:\s+=\s+new\(.*\))?;`
 
 var generalPortRegex = regexp.MustCompile(fmt.Sprintf(
@@ -271,6 +269,10 @@ var generalPortRegex = regexp.MustCompile(fmt.Sprintf(
 	baseTypes,
 ))
 
+var generalParameterRegex = regexp.MustCompile(fmt.Sprintf(
+	`(?m)^\s*(?:(localparam|parameter)\s+)?(?:(%s)\s+)?(?:(?:unsigned|signed)\s+)?(\w+)(?:\s*(=)\s*(.+))?\s*(?:,|;)?$`,
+	baseTypes,
+))
 
 // TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not Also add the support for declarations with , for many decls
 var generalVariableRegex = regexp.MustCompile(
@@ -319,21 +321,8 @@ func matchUserDefinedVariablesFromString(vf *VerilogFile, content string) [][]st
 	return userDedinedVariablesRegex(vf).FindAllStringSubmatch(content, -1)
 }
 
-// TODO make the regex matching depend on thetypes we defined above
-func matchParameter(param string) []string {
-	// Regex to capture optional type, mandatory name, and optional value.
-	// Group 1: Optional type (including qualifiers like 'unsigned')
-	// Group 2: Parameter name
-	// Group 3: Optional default value (including the '=')
-	// Group 4: Just the default value if present
-	paramRegex := regexp.MustCompile(
-		`^\s*(?:parameter\s+)?` + // Optional "parameter" keyword
-			`(?:(logic|reg|wire|bit|int|integer|byte|shortint|longint|time|real|realtime(?:\s+(?:unsigned|signed))?)\s+)?` + // Optional Type (Group 1)
-			`(\w+)` + // Parameter Name (Group 2)
-			`(?:\s*(=)\s*(.+))?` + // Optional Default Value part (Group 3=equals, Group 4=value)
-			`\s*(?:,|;)?$`, // Optional terminator
-	)
-	return paramRegex.FindStringSubmatch(param)
+func MatchAllParametersFromString(param string) []string {
+	return generalParameterRegex.FindStringSubmatch(param)
 }
 
 // --- End Regex Helper Functions ---
@@ -430,7 +419,7 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 		return nil, false // Not a matching port declaration line
 	}
 	direction = GetPortDirection(strings.TrimSpace(matches[1]))
-	portType := GetPortType(strings.TrimSpace(matches[2]))
+	portType := GetType(strings.TrimSpace(matches[2]))
 	signedStr := strings.TrimSpace(matches[3])
 	rangeStr := strings.TrimSpace(matches[4])
 	portName := strings.TrimSpace(matches[5])
@@ -500,7 +489,7 @@ func extractANSIPortDeclarations(
 			// Full ANSI declaration found
 			directionStr := strings.TrimSpace(matches[1])
 			portStr := strings.TrimSpace(matches[2])
-			portType := GetPortType(portStr)
+			portType := GetType(portStr)
 			signedStr := strings.TrimSpace(matches[3])
 			rangeStr := strings.TrimSpace(matches[4])
 			portName = strings.TrimSpace(matches[5])
@@ -786,50 +775,141 @@ func (v *VerilogFile) ParseClasses(classText string) error {
 	return nil
 }
 
-// parseParameters extracts parameters from the module parameter list
-func parseParameters(paramList string) ([]Parameter, error) {
-	// Split by commas, but handle multi-line parameters carefully
-	// A simple split might break if a value contains a comma (e.g., in string literal)
-	// For now, assume simple comma separation works for typical parameter lists.
-	// TODO: Improve splitting logic if needed for complex parameter values.
-	params := strings.Split(paramList, ",")
+func inferTypeFromDefaultValue(defaultValue string) PortType {
+	trimmedVal := strings.TrimSpace(defaultValue)
 
-	var parametersList []Parameter
+	if strings.HasPrefix(trimmedVal, "\"") && strings.HasSuffix(trimmedVal, "\"") {
+		return STRING
+	}
 
-	for _, param := range params {
-		param = strings.TrimSpace(param)
-		if param == "" {
+	if defaultValue == "0" || defaultValue == "1" {
+		return LOGIC
+	}
+
+	if strings.Contains(trimmedVal, "'") { // A single quote is a strong indicator
+		lowerVal := strings.ToLower(trimmedVal)
+		if strings.Contains(lowerVal, "'b") {
+			return BIT // Or LOGIC. BIT is common for such defaults.
+		}
+		if strings.Contains(lowerVal, "'h") {
+			return LOGIC // General type for hex values. Could be BYTE, INT etc., but LOGIC is safe.
+		}
+		if strings.Contains(lowerVal, "'o") {
+			return LOGIC // General type for octal values.
+		}
+		// Check for explicit decimal base like 16'd100 or 'd10
+		if strings.Contains(lowerVal, "'d") {
+			return INTEGER // Or INT. INTEGER is a good general type.
+		}
+		// SystemVerilog unsized single-bit literals '0, '1, 'z, 'x
+		if trimmedVal == "'0" || trimmedVal == "'1" || lowerVal == "'x" || lowerVal == "'z" {
+			return BIT
+		}
+	}
+
+	timeSuffixes := []string{"fs", "ps", "ns", "us", "ms", "s"}
+	for _, suffix := range timeSuffixes {
+		if strings.HasSuffix(trimmedVal, suffix) {
+			numericPart := strings.TrimSuffix(trimmedVal, suffix)
+			if _, err := strconv.ParseFloat(numericPart, 64); err == nil {
+				return TIME
+			}
+			if _, err := strconv.ParseInt(numericPart, 10, 64); err == nil {
+				return TIME
+			}
+		}
+	}
+
+	if strings.Contains(trimmedVal, ".") {
+		if _, err := strconv.ParseFloat(trimmedVal, 64); err == nil {
+			return REAL
+		}
+	}
+
+	if _, err := strconv.ParseInt(trimmedVal, 10, 64); err == nil {
+		return INTEGER
+	}
+
+	if strings.HasPrefix(trimmedVal, "0x") || strings.HasPrefix(trimmedVal, "0X") {
+		if _, err := strconv.ParseInt(trimmedVal, 0, 64); err == nil {
+			return LOGIC // Or INTEGER. LOGIC is a safe bet if width is unknown.
+		}
+	}
+
+	return UNKNOWN
+}
+
+func parseParameters(parameterListString string) ([]Parameter, error) {
+	params := strings.Split(parameterListString, ",")
+	parametersList := []Parameter{}
+
+	for _, paramStr := range params {
+		trimmedParamStr := strings.TrimSpace(paramStr)
+		if trimmedParamStr == "" {
 			continue
 		}
 
-		// Use helper function to match parameter
-		matches := matchParameter(param)
+		matches := MatchAllParametersFromString(trimmedParamStr)
 
-		// Expected matches:
-		// matches[0]: Full match
-		// matches[1]: Type (optional)
-		// matches[2]: Name
-		// matches[3]: Equals sign (if value exists)
-		// matches[4]: Value (if value exists)
-
-		if len(matches) >= 3 { // Need at least the name (Group 2)
-			paramType := strings.TrimSpace(matches[1]) // Type is in Group 1
-			paramName := strings.TrimSpace(matches[2]) // Name is in Group 2
+		if len(matches) == 6 {
+			paramLocalityStr := strings.TrimSpace(matches[1])
+			paramTypeStr := strings.TrimSpace(matches[2])
+			paramName := strings.TrimSpace(matches[3])
 			paramValue := ""
-			if len(matches) >= 5 && matches[3] == "=" { // Check if Group 3 captured '='
-				paramValue = strings.TrimSpace(matches[4]) // Value is in Group 4
+			if matches[4] == "=" {
+				paramValue = strings.TrimSpace(matches[5])
 			}
 
-			// Ensure paramType is not accidentally set to "parameter" if keyword was matched but no type specified
-			// The regex structure prevents this now, but double-check. Group 1 should be empty if no type keyword found.
+			if paramName == "" {
+				logger.Warn(
+					"could not parse parameter fragment, missing parameter name in: '%s'",
+					trimmedParamStr,
+				)
+				continue
+			}
+			paramType := GetType(paramTypeStr)
+			paramLocality := paramLocalityStr == "localparam"
+
+			if paramTypeStr == "" && paramLocalityStr == "" && paramValue == "" {
+				// Parameter defined in an enum of params separated by commas
+				if len(parametersList) > 0 {
+					paramType = parametersList[len(parametersList)-1].Type
+					paramLocality = parametersList[len(parametersList)-1].Localparam
+				}
+			}
+
+			if paramName == "parameter" || paramName == "localparam" ||
+				baseTypesRegex.MatchString(paramName) {
+				logger.Warn(
+					"Missing name in parameter fragment: '%s'. Skipping.\n",
+					trimmedParamStr,
+				)
+				continue
+			}
+
+			if paramTypeStr == "" && paramValue != "" {
+				paramType = inferTypeFromDefaultValue(paramValue)
+				if paramType == UNKNOWN {
+					logger.Debug(
+						"Could not infer type from default value '%s' for parameter '%s'",
+						paramValue,
+						paramName,
+					)
+				}
+			}
 
 			parametersList = append(parametersList, Parameter{
 				Name:         paramName,
-				Type:         paramType, // Will be "" if no type keyword was found
+				Type:         paramType,
 				DefaultValue: paramValue,
+				Localparam:   paramLocality,
 			})
 		} else {
-			return nil, fmt.Errorf("Could not parse parameter fragment: '%s'", param)
+			logger.Warn(
+				"could not parse parameter fragment: '%s'",
+				trimmedParamStr,
+			)
+			continue
 		}
 	}
 	return parametersList, nil
@@ -882,7 +962,7 @@ func ParseVariables(v *VerilogFile,
 		if len(matchedVariable) < 4 {
 			return nil, errors.New("no variable found in the provided text")
 		}
-		varType := GetPortType(matchedVariable[1])
+		varType := GetType(matchedVariable[1])
 		widthStr := matchedVariable[2]
 		width, err := ParseRange(widthStr, nil)
 		if err != nil {

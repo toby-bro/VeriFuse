@@ -87,29 +87,37 @@ func (g *Generator) generateSVModuleInstantiation() string {
 
 			defaultVal := param.DefaultValue
 			if defaultVal == "" {
-				switch {
-				case strings.HasPrefix(strings.ToLower(param.Type), "int"):
+				switch param.Type {
+				case verilog.INT:
 					defaultVal = "1"
-				case strings.HasPrefix(strings.ToLower(param.Type), "bit"):
+				case verilog.BIT:
 					defaultVal = "1'b0"
-				case strings.HasPrefix(strings.ToLower(param.Type), "logic"):
+				case verilog.LOGIC:
 					defaultVal = "1'b0"
-				case strings.HasPrefix(strings.ToLower(param.Type), "real"):
+				case verilog.REAL:
 					defaultVal = "0.0"
-				case strings.HasPrefix(strings.ToLower(param.Type), "string"):
+				case verilog.STRING:
 					defaultVal = "\"\""
-				case strings.HasPrefix(strings.ToLower(param.Type), "time"):
+				case verilog.TIME:
 					defaultVal = "0"
-				case strings.HasPrefix(strings.ToLower(param.Type), "integer"):
+				case verilog.INTEGER:
 					defaultVal = "0"
-				case strings.HasPrefix(strings.ToLower(param.Type), "parameter"):
+				case verilog.REG:
+					defaultVal = "1'b0"
+				case verilog.WIRE:
+					defaultVal = "1'b0"
+				case verilog.REALTIME:
+					defaultVal = "0.0"
+				case verilog.BYTE:
+					defaultVal = "8'h00"
+				case verilog.SHORTINT:
 					defaultVal = "0"
-				case strings.HasPrefix(strings.ToLower(param.Type), "localparam"):
+				case verilog.LONGINT:
 					defaultVal = "0"
-				case strings.HasPrefix(strings.ToLower(param.Type), "enum"):
-					defaultVal = "0"
+				case verilog.SHORTREAL:
+					defaultVal = "0.0"
 				default:
-					defaultVal = "0"
+					defaultVal = ""
 				}
 			}
 
