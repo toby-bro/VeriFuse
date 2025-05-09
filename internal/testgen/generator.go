@@ -12,14 +12,16 @@ import (
 
 // Generator handles testbench generation
 type Generator struct {
-	module *verilog.Module
+	module   *verilog.Module
+	fileName string
 }
 
 // NewGenerator creates a new testbench generator
-func NewGenerator(module *verilog.Module) *Generator {
+func NewGenerator(module *verilog.Module, fileName string) *Generator {
 	// We don't need to extract enums here anymore since they're embedded in the mocked file
 	return &Generator{
-		module: module,
+		module:   module,
+		fileName: fileName,
 	}
 }
 
@@ -297,7 +299,7 @@ func (g *Generator) GenerateSVTestbench(outputDir string) error {
 	// Include the mocked module file - assumes the verilog file is in the same dir
 	// The path might need adjustment depending on where the worker copies the verilog file relative to testbench.sv
 	// Assuming they are in the same directory (outputDir) for now.
-	includeDirective := fmt.Sprintf("`include \"%s.sv\"", g.module.Name)
+	includeDirective := fmt.Sprintf("`include \"%s\"", g.fileName)
 
 	// Apply the generated code to the template
 	testbench := fmt.Sprintf(svTestbenchTemplate,

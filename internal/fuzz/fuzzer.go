@@ -87,12 +87,17 @@ func (f *Fuzzer) Setup() error {
 	if err != nil {
 		f.debug.Fatal("Failed to parse file %s: %v", fileName, err)
 	}
-	f.svFile.Name = fileName
+	f.svFile.Name = filepath.Base(fileName)
 
-	verilogPath := filepath.Join(utils.TMP_DIR, fileName)
+	verilogPath := filepath.Join(utils.TMP_DIR, filepath.Base(fileName))
+	f.debug.Debug("Copying original Verilog file `%s` to `%s`", fileName, verilogPath)
 
 	if err := utils.CopyFile(fileName, verilogPath); err != nil {
 		return fmt.Errorf("failed to copy original Verilog file: %v", err)
+	}
+
+	if _, err := os.Stat(verilogPath); os.IsNotExist(err) {
+		return fmt.Errorf("copied Verilog file does not exist: %v", err)
 	}
 
 	if err := testIVerilogTool(); err != nil {
@@ -265,9 +270,14 @@ func (f *Fuzzer) setupWorker(workerID string) (string, func(), error) {
 }
 
 func (f *Fuzzer) copyWorkerFiles(workerID, workerDir, verilogFileName string) error {
-	f.debug.Debug("[%s]: Copying Verilog source file to worker directory", workerID)
 	srcPath := filepath.Join(utils.TMP_DIR, verilogFileName)
 	dstPath := filepath.Join(workerDir, verilogFileName)
+	f.debug.Debug(
+		"[%s]: Copying Verilog source file `%s` to `%s`",
+		workerID,
+		srcPath,
+		dstPath,
+	)
 	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
 		return fmt.Errorf("[%s]: Source Verilog file %s does not exist", workerID, srcPath)
 	}
@@ -291,8 +301,20 @@ func (f *Fuzzer) setupSimulators(
 ) (simulator.Simulator, simulator.Simulator, error) {
 	f.debug.Debug("[%s]: Creating simulators for module %s", workerID, workerModuleName)
 	// ivsim := simulator.NewIVerilogSimulator(workerDir, f.verbose)
-	vlsim3 := simulator.NewVerilatorSimulator(workerDir, workerModuleName, true, f.verbose)
-	vlsim0 := simulator.NewVerilatorSimulator(workerDir, workerModuleName, false, f.verbose)
+	vlsim3 := simulator.NewVerilatorSimulator(
+		workerDir,
+		f.svFile,
+		workerModuleName,
+		true,
+		f.verbose,
+	)
+	vlsim0 := simulator.NewVerilatorSimulator(
+		workerDir,
+		f.svFile,
+		workerModuleName,
+		false,
+		f.verbose,
+	)
 	f.debug.Debug("[%s]: Compiling IVerilog simulator", workerID)
 	// if err := ivsim.Compile(); err != nil {
 	//	return nil, nil, fmt.Errorf("failed to compile IVerilog in worker %s: %w", workerID, err)
@@ -544,6 +566,7 @@ func (f *Fuzzer) performWorkerAttempt(
 			return false, fmt.Errorf("[%s] failed to read Verilog file: %w", workerID, err)
 		}
 		svFile, err = verilog.ParseVerilog(fileContent, f.verbose)
+		svFile.Name = f.svFile.Name
 		if err != nil {
 			return false, fmt.Errorf("[%s] failed to parse Verilog file: %w", workerID, err)
 		}
@@ -564,7 +587,7 @@ func (f *Fuzzer) performWorkerAttempt(
 		workerModule.Name,
 		workerDir,
 	)
-	gen := testgen.NewGenerator(workerModule)
+	gen := testgen.NewGenerator(workerModule, svFile.Name)
 	if err := gen.GenerateTestbenchesInDir(workerDir); err != nil {
 		return false, fmt.Errorf("[%s] failed to generate testbenches: %w", workerID, err)
 	}
