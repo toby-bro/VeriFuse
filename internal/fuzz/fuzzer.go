@@ -150,6 +150,10 @@ func (f *Fuzzer) Run(numTests int) error {
 		numTests, f.strategy.Name())
 	f.debug.Info("Target file: %s with %d modules", f.svFile.Name, len(f.svFile.Modules))
 
+	if len(f.svFile.Modules) == 0 {
+		return fmt.Errorf("no modules found in the provided Verilog file")
+	}
+
 	var wg sync.WaitGroup
 	testCases := make(chan int, f.workers)
 
