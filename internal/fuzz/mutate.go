@@ -474,25 +474,25 @@ func addDependancies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
 	return nil
 }
 
-func MutateFile(fileName string, verbose int) error {
+func MutateFile(fileName string, verbose int) (*verilog.VerilogFile, error) {
 	logger = utils.NewDebugLogger(verbose)
 	originalContent, err := utils.ReadFileContent(fileName)
 	if err != nil {
-		return fmt.Errorf("failed to read file %s: %v", fileName, err)
+		return nil, fmt.Errorf("failed to read file %s: %v", fileName, err)
 	}
 
-	vsFile, err := verilog.ParseVerilog(originalContent, verbose)
-	if err != nil || vsFile == nil {
-		return fmt.Errorf("failed to parse Verilog file %s: %v", fileName, err)
+	svFile, err := verilog.ParseVerilog(originalContent, verbose)
+	if err != nil || svFile == nil {
+		return nil, fmt.Errorf("failed to parse Verilog file %s: %v", fileName, err)
 	}
-	if vsFile.Name == "" {
-		vsFile.Name = fileName
+	if svFile.Name == "" {
+		svFile.Name = fileName
 	}
 
 	mutatedOverall := false
 	injectedSnippetParentFiles := make(map[string]*verilog.VerilogFile)
 
-	for moduleName, currentModule := range vsFile.Modules {
+	for moduleName, currentModule := range svFile.Modules {
 		moduleToMutate := currentModule.DeepCopy()
 		if moduleToMutate == nil {
 			logger.Warn("Failed to copy module %s for mutation, skipping.", moduleName)
@@ -540,10 +540,10 @@ func MutateFile(fileName string, verbose int) error {
 				continue
 			}
 
-			vsFile.Modules[moduleName] = moduleToMutate
-			err := addDependancies(vsFile, snippet)
+			svFile.Modules[moduleName] = moduleToMutate
+			err := addDependancies(svFile, snippet)
 			if err != nil {
-				return fmt.Errorf(
+				return nil, fmt.Errorf(
 					"failed to add dependencies for snippet %s: %v",
 					snippet.Name,
 					err,
@@ -562,14 +562,14 @@ func MutateFile(fileName string, verbose int) error {
 		}
 	}
 
-	finalMutatedContent, err := verilog.PrintVerilogFile(vsFile)
+	finalMutatedContent, err := verilog.PrintVerilogFile(svFile)
 	if err != nil {
-		return fmt.Errorf("failed to print Verilog file %s after mutation: %v", fileName, err)
+		return nil, fmt.Errorf("failed to print Verilog file %s after mutation: %v", fileName, err)
 	}
 
 	err = utils.WriteFileContent(fileName, finalMutatedContent)
 	if err != nil {
-		return fmt.Errorf("failed to write mutated content to %s: %v", fileName, err)
+		return nil, fmt.Errorf("failed to write mutated content to %s: %v", fileName, err)
 	}
 	if mutatedOverall {
 		logger.Info("Successfully mutated and rewrote file %s\n", fileName)
@@ -577,5 +577,5 @@ func MutateFile(fileName string, verbose int) error {
 		logger.Warn("File %s rewritten (no mutations applied or all failed).\n", fileName)
 	}
 
-	return nil
+	return svFile, nil
 }
