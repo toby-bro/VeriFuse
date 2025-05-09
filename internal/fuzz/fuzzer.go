@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/toby-bro/pfuzz/internal/mocker"
 	"github.com/toby-bro/pfuzz/internal/simulator"
 	"github.com/toby-bro/pfuzz/internal/testgen"
 	"github.com/toby-bro/pfuzz/internal/verilog"
@@ -113,7 +112,7 @@ func addMockedSuffix(filename string) string {
 }
 
 // Setup prepares the environment for fuzzing
-func (f *Fuzzer) Setup(mock bool) error {
+func (f *Fuzzer) Setup() error {
 	if err := utils.EnsureDirs(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}

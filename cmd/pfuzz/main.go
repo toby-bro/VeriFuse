@@ -29,7 +29,6 @@ func main() {
 	vvvFlag := flag.Bool("vvv", false, "Verbose output (level 3).")
 	verilogFile := flag.String("file", "", "Path to Verilog file to fuzz (required)")
 	moduleFlag := flag.String("module", "", "Module name to fuzz (if different from filename)")
-	mock := flag.Bool("mock", false, "Use mock enums and structs in the testbench")
 	mutate := flag.Bool("mutate", false, "Mutate enums and structs in the testbench")
 	maxAttempts := flag.Int("max-attempts", -1, "Maximum attempts to create a valid file")
 	if *maxAttempts < 1 {
@@ -72,7 +71,7 @@ func main() {
 		*maxAttempts,
 	)
 
-	if err := fuzzer.Setup(*mock); err != nil {
+	if err := fuzzer.Setup(); err != nil {
 		logger.Fatal("Setup failed: ", err)
 	}
 
