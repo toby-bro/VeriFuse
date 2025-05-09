@@ -308,7 +308,8 @@ endmodule
 					{Name: "b", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
 					{Name: "sum", Direction: OUTPUT, Type: LOGIC, Width: 9, IsSigned: false},
 				},
-				Body: "    assign sum = a + b;", // Expected body after parsing
+				Body:       "    assign sum = a + b;", // Expected body after parsing
+				Parameters: []Parameter{},
 			},
 			expectError: false,
 		},
@@ -334,7 +335,7 @@ endmodule
 				Parameters: []Parameter{
 					{
 						Name:         "WIDTH",
-						Type:         "",
+						Type:         INTEGER,
 						DefaultValue: "8",
 					},
 				},
@@ -690,6 +691,7 @@ module module2 #(parameter WIDTH=8) (input logic [WIDTH-1:0] data_in, output log
 endmodule
 
 module module3 (); // No ports
+	$display("Hello, World!");
 endmodule
 
 module simple_sub(
@@ -1379,6 +1381,158 @@ input int counter_val;
 				for k, actualV := range portsMap {
 					if _, ok := tc.expectedPortsMap[k]; !ok {
 						t.Errorf("Extra port in map: %s (value: %+v)", k, actualV)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestParseParameters(t *testing.T) {
+	testCases := []struct {
+		name           string
+		paramListStr   string
+		expectedParams []Parameter
+	}{
+		{
+			name:           "Empty parameter list",
+			paramListStr:   "",
+			expectedParams: []Parameter{},
+		},
+		{
+			name:         "Extra whitespace",
+			paramListStr: "  parameter   int    P_VAL   =  5  ,  NEXT_P  ",
+			expectedParams: []Parameter{
+				{Name: "P_VAL", Type: INT, DefaultValue: "5"},
+				{Name: "NEXT_P", Type: INT, DefaultValue: ""},
+			},
+		},
+		{
+			name:         "Localparam (parsed as parameter)",
+			paramListStr: "localparam STATE_IDLE = 0",
+			expectedParams: []Parameter{
+				{Name: "STATE_IDLE", Type: LOGIC, DefaultValue: "0", Localparam: true},
+			},
+		},
+		{
+			name:           "Malformed - just equals",
+			paramListStr:   "= 5",
+			expectedParams: []Parameter{},
+		},
+		{
+			name:           "Malformed - missing name after type",
+			paramListStr:   "parameter int = 5",
+			expectedParams: []Parameter{},
+		},
+		{
+			name:           "Malformed - parameter keyword alone",
+			paramListStr:   "parameter",
+			expectedParams: []Parameter{},
+		},
+		{
+			name:           "Malformed - parameter with only type",
+			paramListStr:   "parameter real",
+			expectedParams: []Parameter{},
+		},
+		{
+			name:         "Multiple parameters",
+			paramListStr: "parameter A = 1, B = 2, C = 3",
+			expectedParams: []Parameter{
+				{Name: "A", Type: LOGIC, DefaultValue: "1"},
+				{Name: "B", Type: INTEGER, DefaultValue: "2"},
+				{Name: "C", Type: INTEGER, DefaultValue: "3"},
+			},
+		},
+		{
+			name:         "Multiple parameters with types",
+			paramListStr: "parameter integer COUNT = 10, parameter real DELAY = 1.2, bit ENABLE = 1'b1",
+			expectedParams: []Parameter{
+				{Name: "COUNT", Type: INTEGER, DefaultValue: "10"},
+				{Name: "DELAY", Type: REAL, DefaultValue: "1.2"},
+				{Name: "ENABLE", Type: BIT, DefaultValue: "1'b1"},
+			},
+		},
+		{
+			name:         "Parameter with complex value including function call",
+			paramListStr: `P_COMPLEX = $clog2(ANOTHER_PARAM + 1) - 1`,
+			expectedParams: []Parameter{
+				{Name: "P_COMPLEX", Type: UNKNOWN, DefaultValue: "$clog2(ANOTHER_PARAM + 1) - 1"},
+			},
+		},
+		{
+			name:         "Parameter with expression as default value",
+			paramListStr: "ADDR_WIDTH = DATA_WIDTH / 2",
+			expectedParams: []Parameter{
+				{Name: "ADDR_WIDTH", Type: UNKNOWN, DefaultValue: "DATA_WIDTH / 2"},
+			},
+		},
+		{
+			name:         "Parameter with string default value",
+			paramListStr: `FILENAME = "test.txt"`,
+			expectedParams: []Parameter{
+				{Name: "FILENAME", Type: STRING, DefaultValue: `"test.txt"`},
+			},
+		},
+		{
+			name:           "Parameter with trailing comma",
+			paramListStr:   "P1 = 1,",
+			expectedParams: []Parameter{{Name: "P1", Type: LOGIC, DefaultValue: "1"}},
+		},
+		{
+			name:           "Parameter with type 'time'",
+			paramListStr:   "parameter time SIM_TIME = 100ns",
+			expectedParams: []Parameter{{Name: "SIM_TIME", Type: TIME, DefaultValue: "100ns"}},
+		},
+		{
+			name:         "Parameter with type and signed-unsigned (type captures base)",
+			paramListStr: "parameter integer unsigned MAX_COUNT = 100",
+			expectedParams: []Parameter{
+				{Name: "MAX_COUNT", Type: INTEGER, DefaultValue: "100"},
+			}, // Regex captures 'integer' as type
+		},
+		{
+			name:           "Single parameter no type no default",
+			paramListStr:   "WIDTH",
+			expectedParams: []Parameter{{Name: "WIDTH", Type: LOGIC, DefaultValue: ""}},
+		},
+		{
+			name:           "Single parameter with default value",
+			paramListStr:   "WIDTH = 8",
+			expectedParams: []Parameter{{Name: "WIDTH", Type: INTEGER, DefaultValue: "8"}},
+		},
+		{
+			name:           "Single parameter with type and default value",
+			paramListStr:   "parameter int DATA_WIDTH = 32",
+			expectedParams: []Parameter{{Name: "DATA_WIDTH", Type: INT, DefaultValue: "32"}},
+		},
+		{
+			name:           "Single parameter with type no default",
+			paramListStr:   "parameter logic CLK_PERIOD",
+			expectedParams: []Parameter{{Name: "CLK_PERIOD", Type: LOGIC, DefaultValue: ""}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			params, err := parseParameters(tc.paramListStr)
+			if err != nil {
+				t.Fatalf("parseParameters() error = %v", err)
+			}
+
+			if !reflect.DeepEqual(params, tc.expectedParams) {
+				t.Errorf("parseParameters() = %v, want %v", params, tc.expectedParams)
+				// Detailed comparison
+				if len(params) != len(tc.expectedParams) {
+					t.Errorf(
+						"Length mismatch: got %d, want %d",
+						len(params),
+						len(tc.expectedParams),
+					)
+				} else {
+					for i := range params {
+						if !reflect.DeepEqual(params[i], tc.expectedParams[i]) {
+							t.Errorf("Mismatch at index %d: got %+v, want %+v", i, params[i], tc.expectedParams[i])
+						}
 					}
 				}
 			}
