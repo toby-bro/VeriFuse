@@ -193,7 +193,7 @@ func GetPortType(portTypeString string) PortType {
 		return TIME
 	case "realtime":
 		return REALTIME
-	case "logic":
+	case "logic", "":
 		return LOGIC
 	case "bit":
 		return BIT
@@ -251,7 +251,7 @@ func GetPortDirection(direction string) PortDirection {
 }
 
 var generalModuleRegex = regexp.MustCompile(
-	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);\s((?:(?:\s\s|\t\s*)+.*)+)\sendmodule`,
+	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([^\)]*?)\);(?:\s((?:(?:\s\s|\t\s*)+.*)+))?\sendmodule`,
 )
 
 var generalClassRegex = regexp.MustCompile(
@@ -262,31 +262,23 @@ var generalStructRegex = regexp.MustCompile(
 	`(?m)typedef\s+struct\s+(?:packed\s+)\{((?:\s+.*)+)\}\s+(\w+);`,
 )
 
-// TODO: #17 improve the multiple declarations with , and the array declarations
+var baseTypes = `reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum`
+
 var variableRegexTemplate = `(?m)^\s*(?:\w+\s+)?(%s)\s+(?:(?:(\[[\w\-]+:[\w\-]+\])+|(unsigned))\s+)?(?:#\(\w+\)\s+)?(?:(?:(\w+),\s+)*(\w+))(?:\s+(\[.*\]))?(?:\s+=\s+new\(.*\))?;`
+
+var generalPortRegex = regexp.MustCompile(fmt.Sprintf(
+	`^\s*(input|output|inout)\s+(?:(%s)\s+)?(?:(signed|unsigned)\s+)?(\[\s*[\w\-\+\:\s]+\s*\])?\s*(\w+)\s*(?:,|;)`,
+	baseTypes,
+))
+
 
 // TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not Also add the support for declarations with , for many decls
 var generalVariableRegex = regexp.MustCompile(
 	fmt.Sprintf(
 		variableRegexTemplate,
-		`reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum`,
+		baseTypes,
 	),
 )
-
-func matchSpecificModule(content []byte, targetModule string) [][]byte {
-	// Find module declaration - supports parameter section with #(...)
-	moduleRegex := regexp.MustCompile(
-		fmt.Sprintf(
-			`module\s+%s\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([\s\S]*?)\);`,
-			regexp.QuoteMeta(targetModule),
-		),
-	)
-	return moduleRegex.FindSubmatch(content)
-}
-
-func matchModulesFromBytes(content []byte) [][]byte {
-	return generalModuleRegex.FindSubmatch(content)
-}
 
 func MatchAllModulesFromString(content string) [][]string {
 	return generalModuleRegex.FindAllStringSubmatch(content, -1)
@@ -425,21 +417,6 @@ func ParseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 	)
 }
 
-// Regular expressions for port declarations within the module body (non-ANSI style)
-// These assume declarations end with a semicolon or are part of a comma-separated list.
-// Adjusted to be less strict about the semicolon at the end and capture type/signedness better.
-var (
-	inputRegex = regexp.MustCompile(
-		`^\s*input\s+(?:(logic|reg|wire|bit|int|integer|byte|shortint|longint|time|real|realtime)\s+)?(?:(signed|unsigned)\s+)?(\[\s*[\w\-\+\:\s]+\s*\])?\s*(\w+)\s*(?:,|;)?`,
-	)
-	outputRegex = regexp.MustCompile(
-		`^\s*output\s+(?:(logic|reg|wire|bit|int|integer|byte|shortint|longint|time|real|realtime)\s+)?(?:(signed|unsigned)\s+)?(\[\s*[\w\-\+\:\s]+\s*\])?\s*(\w+)\s*(?:,|;)?`,
-	)
-	inoutRegex = regexp.MustCompile(
-		`^\s*inout\s+(?:(logic|reg|wire|bit|int|integer|byte|shortint|longint|time|real|realtime)\s+)?(?:(signed|unsigned)\s+)?(\[\s*[\w\-\+\:\s]+\s*\])?\s*(\w+)\s*(?:,|;)?`,
-	)
-)
-
 // parsePortDeclaration attempts to parse a line as a non-ANSI port declaration.
 // It returns the parsed Port and true if successful, otherwise nil and false.
 func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, bool) {
@@ -448,23 +425,15 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 
 	line = strings.TrimSpace(line) // Ensure leading/trailing whitespace is removed
 
-	if m := inputRegex.FindStringSubmatch(line); len(m) > 4 {
-		matches = m
-		direction = INPUT
-	} else if m := outputRegex.FindStringSubmatch(line); len(m) > 4 {
-		matches = m
-		direction = OUTPUT
-	} else if m := inoutRegex.FindStringSubmatch(line); len(m) > 4 {
-		matches = m
-		direction = INOUT
-	} else {
+	matches = generalPortRegex.FindStringSubmatch(line)
+	if len(matches) != 6 {
 		return nil, false // Not a matching port declaration line
 	}
-
-	portType := GetPortType(strings.TrimSpace(matches[1]))
-	signedStr := strings.TrimSpace(matches[2])
-	rangeStr := strings.TrimSpace(matches[3])
-	portName := strings.TrimSpace(matches[4])
+	direction = GetPortDirection(strings.TrimSpace(matches[1]))
+	portType := GetPortType(strings.TrimSpace(matches[2]))
+	signedStr := strings.TrimSpace(matches[3])
+	rangeStr := strings.TrimSpace(matches[4])
+	portName := strings.TrimSpace(matches[5])
 
 	if portType == UNKNOWN {
 		portType = LOGIC // Default type if not specified (SystemVerilog) or wire (Verilog)
@@ -480,13 +449,6 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 			portName,
 			width, // Use the width returned by parseRange (the default)
 			err,
-		)
-	}
-
-	if width == 0 { // Ensure width is at least 1 (should not happen if parseRange guarantees >= 1)
-		logger.Warn(
-			"Port '%s' ended up with width 0 after parsing.\n",
-			portName,
 		)
 	}
 
@@ -514,9 +476,9 @@ func extractANSIPortDeclarations(
 
 	// Regex for ANSI port declarations in the header
 	ansiPortRegex := regexp.MustCompile(
-		`(?m)^\s*(input|output|inout)?\s*` + // Optional direction (1)
-			`(logic|reg|wire|bit|int|integer|byte|shortint|longint|time|real|realtime)?\s*` + // Optional type (2)
-			`(signed|unsigned)?\s*` + // Optional signedness (3)
+		`^\s*(input|output|inout)?\s*(` + // Optional direction (1)
+			baseTypes + // Optional type (2)
+			`)?\s*(signed|unsigned)?\s*` + // Optional signedness (3)
 			`(\[\s*[\w\-\+\:\s]+\s*\])?\s*` + // Optional range (4)
 			`(\w+)\s*$`, // Port name (5)
 	)
@@ -537,41 +499,56 @@ func extractANSIPortDeclarations(
 		if matches := ansiPortRegex.FindStringSubmatch(portDecl); len(matches) > 5 {
 			// Full ANSI declaration found
 			directionStr := strings.TrimSpace(matches[1])
-			portType := GetPortType(strings.TrimSpace(matches[2]))
+			portStr := strings.TrimSpace(matches[2])
+			portType := GetPortType(portStr)
 			signedStr := strings.TrimSpace(matches[3])
 			rangeStr := strings.TrimSpace(matches[4])
 			portName = strings.TrimSpace(matches[5])
 
-			isSigned := (signedStr == "signed")
-			width, err := ParseRange(rangeStr, parameters)
-			if err != nil {
-				// Use the default width returned by parseRange on error
-				logger.Warn(
-					"Header parseRange failed for '%s' (%s): Using default width %d. Error: %v.\n",
-					portName,
-					rangeStr,
-					width, // Use the width returned by parseRange (the default)
-					err,
-				)
-			}
+			if directionStr == "" && portStr == "" && signedStr == "" && rangeStr == "" {
+				if len(headerPortOrder) == 0 {
+					logger.Warn("Header port declaration '%s' is empty.\n", portDecl)
+					continue
+				} else {
+					// Port is the same as the last port
+					precedingPort := headerPorts[headerPortOrder[len(headerPortOrder)-1]]
+					port = Port{
+						Name:      portName,
+						Direction: precedingPort.Direction,
+						Type:      precedingPort.Type,
+						Width:     precedingPort.Width,
+						IsSigned:  precedingPort.IsSigned,
+					}
+				}
+			} else {
+				isSigned := (signedStr == "signed")
+				width, err := ParseRange(rangeStr, parameters)
+				if err != nil {
+					// Use the default width returned by parseRange on error
+					logger.Warn(
+						"Header parseRange failed for '%s' (%s): Using default width %d. Error: %v.\n",
+						portName,
+						rangeStr,
+						width, // Use the width returned by parseRange (the default)
+						err,
+					)
+				}
 
-			// Determine direction
-			direction := GetPortDirection(directionStr)
+				// Determine direction
+				direction := GetPortDirection(directionStr)
 
-			// Handle default widths for types if no range specified AND parseRange didn't error
-			if width == 1 && rangeStr == "" && err == nil {
-				width = GetWidthForType(portType)
-			}
-			if width == 0 {
-				width = 1
-			} // Ensure minimum width
+				// Handle default widths for types if no range specified AND parseRange didn't error
+				if false && width == 1 && rangeStr == "" && err == nil {
+					width = GetWidthForType(portType)
+				}
 
-			port = Port{
-				Name:      portName,
-				Direction: direction,
-				Type:      portType,
-				Width:     width,
-				IsSigned:  isSigned,
+				port = Port{
+					Name:      portName,
+					Direction: direction,
+					Type:      portType,
+					Width:     width,
+					IsSigned:  isSigned,
+				}
 			}
 		} else if matches := simplePortRegex.FindStringSubmatch(portDecl); len(matches) > 2 {
 			// Simple name found (likely non-ANSI or Verilog-1995) or .name(signal)
@@ -610,34 +587,8 @@ func extractNonANSIPortDeclarations(
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	parsedPortsMap := make(map[string]Port)
 
-	inCommentBlock := false
-
 	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Handle multi-line comments
-		if strings.Contains(line, "/*") {
-			if !strings.Contains(line, "*/") {
-				inCommentBlock = true
-			}
-			line = regexp.MustCompile(`/\*.*?\*/`).ReplaceAllString(line, "")
-			line = regexp.MustCompile(`/\*.*`).ReplaceAllString(line, "")
-		}
-		if inCommentBlock {
-			if strings.Contains(line, "*/") {
-				inCommentBlock = false
-				line = regexp.MustCompile(`.*\*/`).ReplaceAllString(line, "")
-			} else {
-				continue
-			}
-		}
-		// Handle single-line comments
-		line = regexp.MustCompile(`//.*`).ReplaceAllString(line, "")
-		trimmedLine := strings.TrimSpace(line)
-
-		if trimmedLine == "" {
-			continue
-		}
+		trimmedLine := strings.TrimSpace(scanner.Text())
 
 		// Attempt to parse the line as a port declaration
 		if port, ok := parsePortDeclaration(trimmedLine, parameters); ok {
@@ -738,15 +689,6 @@ func mergePortInfo(
 			finalPort.Type = bodyPort.Type
 			finalPort.Width = bodyPort.Width
 			finalPort.IsSigned = bodyPort.IsSigned
-		}
-
-		// Final check for width=0 (shouldn't happen with parseRange defaulting to 1 or body scan)
-		if finalPort.Width == 0 {
-			logger.Warn(
-				"Port '%s' ended up with width 0 after merge. Setting to 1.\n",
-				finalPort.Name,
-			)
-			finalPort.Width = 1
 		}
 
 		finalPorts = append(finalPorts, finalPort)
@@ -1105,16 +1047,19 @@ func removeComments(content string) string {
 	// Remove single-line comments
 	content = regexp.MustCompile(`(?m)//\s.*$`).ReplaceAllString(content, "")
 	// Remove multi-line comments
-	content = regexp.MustCompile(`/\*.*?\*/`).ReplaceAllString(content, "")
-	// Remove empty lines
-	content = regexp.MustCompile(`(?m)^\s*$\s`).ReplaceAllString(content, "")
+	content = regexp.MustCompile(`/\*[\s\S]*\*/`).ReplaceAllString(content, "")
 	return content
+}
+
+func cleanText(text string) string {
+	text = removeComments(text)
+	text = removeEmptyLines(text)
+	return text
 }
 
 func ParseVerilog(content string, verbose int) (*VerilogFile, error) {
 	logger = utils.NewDebugLogger(verbose)
-	content = removeComments(content)
-	content = removeEmptyLines(content)
+	content = cleanText(content)
 	verilogFile := &VerilogFile{}
 	err := verilogFile.ParseStructs(content, true)
 	if err != nil {
