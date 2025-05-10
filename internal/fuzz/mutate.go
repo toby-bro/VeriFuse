@@ -384,19 +384,9 @@ func addDependancies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
 	return nil
 }
 
-func MutateFile(fileName string, verbose int) (*verilog.VerilogFile, error) {
-	logger = utils.NewDebugLogger(verbose)
-	originalContent, err := utils.ReadFileContent(fileName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file %s: %v", fileName, err)
-	}
-
-	svFile, err := verilog.ParseVerilog(originalContent, verbose)
-	svFile.Name = fileName
-	if err != nil || svFile == nil {
-		return nil, fmt.Errorf("failed to parse Verilog file %s: %v", fileName, err)
-	}
-
+func MutateFile(originalSvFile *verilog.VerilogFile, verbose int) (*verilog.VerilogFile, error) {
+	svFile := originalSvFile.DeepCopy()
+	fileName := svFile.Name
 	mutatedOverall := false
 	injectedSnippetParentFiles := make(map[string]*verilog.VerilogFile)
 
