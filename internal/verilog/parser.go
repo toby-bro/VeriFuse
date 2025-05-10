@@ -69,44 +69,6 @@ type Module struct {
 	Body       string
 }
 
-func (m *Module) DeepCopy() *Module {
-	if m == nil {
-		return nil
-	}
-	copiedModule := &Module{
-		Name: m.Name,
-		Body: m.Body,
-	}
-
-	if m.Ports != nil {
-		copiedModule.Ports = make([]Port, len(m.Ports))
-		copy(copiedModule.Ports, m.Ports)
-	} else {
-		copiedModule.Ports = []Port{}
-	}
-
-	if m.Parameters != nil {
-		copiedModule.Parameters = make([]Parameter, len(m.Parameters))
-		copy(copiedModule.Parameters, m.Parameters)
-	} else {
-		copiedModule.Parameters = []Parameter{}
-	}
-
-	return copiedModule
-}
-
-func (d *DependencyNode) DeepCopy() *DependencyNode {
-	if d == nil {
-		return nil
-	}
-	copiedNode := &DependencyNode{
-		Name:      d.Name,
-		DependsOn: make([]string, len(d.DependsOn)),
-	}
-	copy(copiedNode.DependsOn, d.DependsOn)
-	return copiedNode
-}
-
 type Variable struct {
 	Name         string
 	Type         PortType
