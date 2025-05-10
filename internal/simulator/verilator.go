@@ -31,6 +31,9 @@ func NewVerilatorSimulator(
 	optimized bool,
 	verbose int,
 ) *VerilatorSimulator {
+	if _, exists := svFile.Modules[moduleName]; !exists {
+		panic(fmt.Sprintf("Module %s not found in Verilog file", moduleName))
+	}
 	return &VerilatorSimulator{
 		execPath:  filepath.Join(workDir, "obj_dir", "Vtestbench"),
 		workDir:   workDir,
