@@ -318,12 +318,8 @@ func findInsertionPoint(lines []string) int {
 	return len(lines)
 }
 
-func AddCodeToSnippet(originalContent, snippet string) (string, error) {
-	return "", fmt.Errorf(
-		"AddCodeToSnippet not implemented yet. Original content: %s, Snippet: %s",
-		originalContent,
-		snippet,
-	)
+func AddCodeToSnippet(originalContent, snippet string) (string, error) { //nolint:revive
+	return "", errors.New("AddCodeToSnippet not implemented yet")
 }
 
 // dfsDependencies recursively adds child structs/classes of nodeName from parentVF into targetFile
