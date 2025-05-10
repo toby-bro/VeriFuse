@@ -13,7 +13,7 @@ import (
 func main() {
 	// Parse command-line flags
 	numTests := flag.Int("n", 1000, "Number of test cases to run")
-	strategy := flag.String("strategy", "simple", "Fuzzing strategy: simple, random, smart")
+	strategy := flag.String("strategy", "smart", "Fuzzing strategy: simple, random, smart")
 	workers := flag.Int("workers", runtime.NumCPU(), "Number of parallel workers")
 	seedFlag := flag.Int64("seed", time.Now().UnixNano(), "Random seed")
 	vFlag := flag.Bool(
@@ -30,6 +30,9 @@ func main() {
 	verilogFile := flag.String("file", "", "Path to Verilog file to fuzz (required)")
 	mutate := flag.Bool("mutate", false, "Mutate enums and structs in the testbench")
 	maxAttempts := flag.Int("max-attempts", -1, "Maximum attempts to create a valid file")
+	checkFile := flag.Bool(
+		"check-file", false, "Check that all the modules in the file are valid",
+	)
 	if *maxAttempts < 1 {
 		switch *mutate {
 		case true:
@@ -56,6 +59,16 @@ func main() {
 	// Check if Verilog file is provided
 	if *verilogFile == "" {
 		logger.Fatal("Error: No Verilog file specified. Use -file option.")
+	}
+
+	if *checkFile {
+		logger.Info("Checking Verilog file for valid modules...")
+		*workers = 10
+		*maxAttempts = 1
+		*mutate = false
+		*strategy = "smart"
+		*seedFlag = 0
+		*numTests = 10
 	}
 
 	// Create and setup fuzzer using the new package structure

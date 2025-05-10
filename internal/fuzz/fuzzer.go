@@ -158,10 +158,11 @@ func (f *Fuzzer) Run(numTests int) error {
 	var wg sync.WaitGroup
 	testCases := make(chan int, f.workers)
 
-	progressTracker := NewProgressTracker(numTests, f.stats, &wg)
-	progressTracker.Start()
-	defer progressTracker.Stop()
-
+	if f.mutate {
+		progressTracker := NewProgressTracker(numTests, f.stats, &wg)
+		progressTracker.Start()
+		defer progressTracker.Stop()
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -174,7 +175,7 @@ func (f *Fuzzer) Run(numTests int) error {
 
 	for w := 0; w < f.workers; w++ {
 		wg.Add(1)
-		go f.worker(&wg, testCases, f.svFile.Modules[moduleNames[w]])
+		go f.worker(&wg, testCases, f.svFile.Modules[moduleNames[w%len(moduleNames)]])
 	}
 
 	var feedingWg sync.WaitGroup
@@ -202,7 +203,9 @@ func (f *Fuzzer) Run(numTests int) error {
 	cancel()
 	feedingWg.Wait()
 
-	f.stats.PrintSummary()
+	if f.mutate {
+		f.stats.PrintSummary()
+	}
 
 	if numTests > 0 && f.stats.TotalTests == 0 {
 		f.debug.Warn("Fuzzing completed, but no test cases were successfully executed.")
@@ -220,7 +223,7 @@ func (f *Fuzzer) Run(numTests int) error {
 		)
 	}
 
-	if f.stats.Mismatches > 0 {
+	if f.stats.Mismatches > 0 && f.mutate {
 		f.debug.Info("Found %d mismatches between iverilog and verilator!\n", f.stats.Mismatches)
 		return fmt.Errorf("%d mismatches found", f.stats.Mismatches)
 	}
@@ -655,7 +658,9 @@ func (f *Fuzzer) worker(
 		f.maxAttempts,
 		lastSetupError,
 	)
-	f.debug.Error("[%s] Slot will be lost", workerID)
+	if f.maxAttempts > 1 {
+		f.debug.Error("[%s] Slot will be lost", workerID)
+	}
 }
 
 func writeTestInputs(testDir string, testCase map[string]string) error {
