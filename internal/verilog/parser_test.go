@@ -500,19 +500,19 @@ logic [7:0] internal_wire;
 func TestParseVariables(t *testing.T) {
 	expectedVars := []*Variable{
 		{Name: "GGG_field1", Type: LOGIC, Width: 8, Unsigned: false},
-		{Name: "GGG_field2", Type: INT, Width: 32, Unsigned: true},
-		{Name: "GGG_condition_var", Type: BIT, Width: 1, Unsigned: false},
+		{Name: "GGG_field2", Type: INT, Width: 0, Unsigned: true},
+		{Name: "GGG_condition_var", Type: BIT, Width: 0, Unsigned: false},
 		{
 			Name:     "GGG_array_var",
 			Type:     LOGIC,
 			Width:    8,
 			Unsigned: false,
 		}, // Array attribute not checked here
-		{Name: "GGG_index_limit", Type: INT, Width: 32, Unsigned: false},
+		{Name: "GGG_index_limit", Type: INT, Width: 0, Unsigned: false},
 		{
 			Name:     "m_queue",
 			Type:     INT,
-			Width:    32,
+			Width:    0,
 			Unsigned: false,
 		}, // Array attribute not checked here
 		// For GGG_class_rand_var, ParseRange with nil parameters will default to width 8 for "[GGG_CLASS_WIDTH-1:0]"
@@ -554,6 +554,164 @@ func TestParseVariables(t *testing.T) {
 				actual.Unsigned,
 			)
 		}
+	}
+}
+
+func TestParseVariables_MultipleDeclarations(t *testing.T) {
+	testCases := []struct {
+		name         string
+		content      string
+		expectedVars []*Variable
+	}{
+		{
+			name: "Mixed single and multiple declarations",
+			content: `
+logic GGG_single1;
+int GGG_multiA, GGG_multiB;
+logic [3:0] GGG_nibble;
+bit GGG_controlA, GGG_controlB, GGG_controlC;
+`,
+			expectedVars: []*Variable{
+				{Name: "GGG_single1", Type: LOGIC, Width: 0, Unsigned: false},
+				{Name: "GGG_multiA", Type: INT, Width: 0, Unsigned: false},
+				{Name: "GGG_multiB", Type: INT, Width: 0, Unsigned: false},
+				{Name: "GGG_nibble", Type: LOGIC, Width: 4, Unsigned: false},
+				{Name: "GGG_controlA", Type: BIT, Width: 0, Unsigned: false},
+				{Name: "GGG_controlB", Type: BIT, Width: 0, Unsigned: false},
+				{Name: "GGG_controlC", Type: BIT, Width: 0, Unsigned: false},
+			},
+		},
+		{
+			name: "Multiple bit with rand and unsigned",
+			content: `
+rand bit unsigned GGG_flagX, GGG_flagY, GGG_flagZ;
+`,
+			expectedVars: []*Variable{
+				{Name: "GGG_flagX", Type: BIT, Width: 0, Unsigned: true},
+				{Name: "GGG_flagY", Type: BIT, Width: 0, Unsigned: true},
+				{Name: "GGG_flagZ", Type: BIT, Width: 0, Unsigned: true},
+			},
+		},
+		{
+			name: "Multiple declarations with varied spacing",
+			content: `
+logic var_s1,var_s2;
+int   var_s3 , var_s4 ;
+logic [7:0] var_s5,  var_s6;
+`,
+			expectedVars: []*Variable{
+				{Name: "var_s1", Type: LOGIC, Width: 0, Unsigned: false},
+				{Name: "var_s2", Type: LOGIC, Width: 0, Unsigned: false},
+				{Name: "var_s3", Type: INT, Width: 0, Unsigned: false},
+				{Name: "var_s4", Type: INT, Width: 0, Unsigned: false},
+				{Name: "var_s5", Type: LOGIC, Width: 8, Unsigned: false},
+				{Name: "var_s6", Type: LOGIC, Width: 8, Unsigned: false},
+			},
+		},
+		{
+			name: "Multiple int with rand",
+			content: `
+rand int GGG_int1, GGG_int2;
+`,
+			expectedVars: []*Variable{
+				{Name: "GGG_int1", Type: INT, Width: 0, Unsigned: false},
+				{Name: "GGG_int2", Type: INT, Width: 0, Unsigned: false},
+			},
+		},
+		{
+			name: "Multiple logic with width",
+			content: `
+logic [15:0] GGG_busA, GGG_busB;
+`,
+			expectedVars: []*Variable{
+				{Name: "GGG_busA", Type: LOGIC, Width: 16, Unsigned: false},
+				{Name: "GGG_busB", Type: LOGIC, Width: 16, Unsigned: false},
+			},
+		},
+		{
+			name: "Multiple with array (array attribute not checked here)",
+			content: `
+logic [7:0] GGG_arrData1 [4], GGG_arrData2 [8];
+int GGG_idx1, GGG_idx2 [10];
+`,
+			expectedVars: []*Variable{
+				{
+					Name:     "GGG_arrData1",
+					Type:     LOGIC,
+					Width:    8,
+					Unsigned: false,
+				}, // Array attribute not checked
+				{
+					Name:     "GGG_arrData2",
+					Type:     LOGIC,
+					Width:    8,
+					Unsigned: false,
+				}, // Array attribute not checked
+				{Name: "GGG_idx1", Type: INT, Width: 0, Unsigned: false},
+				{
+					Name:     "GGG_idx2",
+					Type:     INT,
+					Width:    0,
+					Unsigned: false,
+				}, // Array attribute not checked
+			},
+		},
+		{
+			name: "Simple multiple logic",
+			content: `
+logic GGG_varA, GGG_varB, GGG_varC;
+`,
+			expectedVars: []*Variable{
+				{Name: "GGG_varA", Type: LOGIC, Width: 0, Unsigned: false},
+				{Name: "GGG_varB", Type: LOGIC, Width: 0, Unsigned: false},
+				{Name: "GGG_varC", Type: LOGIC, Width: 0, Unsigned: false},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			parsedVars, err := ParseVariables(nil, tc.content)
+			if err != nil {
+				t.Fatalf("ParseVariables failed for content '%s': %v", tc.content, err)
+			}
+
+			if len(parsedVars) != len(tc.expectedVars) {
+				t.Fatalf(
+					"Expected %d variables, got %d variables.\nContent:\n%s\nParsed: %+v\nExpected: %+v",
+					len(tc.expectedVars),
+					len(parsedVars),
+					tc.content,
+					parsedVars,
+					tc.expectedVars,
+				)
+			}
+
+			for i, expected := range tc.expectedVars {
+				actual := parsedVars[i]
+				if actual.Name != expected.Name ||
+					actual.Type != expected.Type ||
+					actual.Width != expected.Width ||
+					actual.Unsigned != expected.Unsigned {
+					t.Errorf(
+						"Variable %d ('%s') mismatch:\nExpected: Name=%s, Type=%s (%d), Width=%d, Unsigned=%t\nActual:   Name=%s, Type=%s (%d), Width=%d, Unsigned=%t\nContent:\n%s",
+						i,
+						expected.Name,
+						expected.Name,
+						expected.Type.String(),
+						expected.Type,
+						expected.Width,
+						expected.Unsigned,
+						actual.Name,
+						actual.Type.String(),
+						actual.Type,
+						actual.Width,
+						actual.Unsigned,
+						tc.content,
+					)
+				}
+			}
+		})
 	}
 }
 

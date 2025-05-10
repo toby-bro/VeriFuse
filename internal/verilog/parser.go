@@ -112,7 +112,7 @@ type Variable struct {
 	Type         PortType
 	Width        int
 	Unsigned     bool
-	Array        []int
+	Array        string
 	ParentStruct *Struct
 	ParentClass  *Class
 }
@@ -262,7 +262,7 @@ var baseTypes = `reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int
 
 var baseTypesRegex = regexp.MustCompile(fmt.Sprintf(`(?m)^\s*(%s)\s*$`, baseTypes))
 
-var variableRegexTemplate = `(?m)^\s*(?:\w+\s+)?(%s)\s+(?:(?:(\[[\w\-]+:[\w\-]+\])+|(unsigned))\s+)?(?:#\(\w+\)\s+)?(?:(?:(\w+),\s+)*(\w+))(?:\s+(\[.*\]))?(?:\s+=\s+new\(.*\))?;`
+var variableRegexTemplate = `(?m)^\s*(?:\w+\s+)?(%s)\s+(?:(?:(\[[\w\-]+:[\w\-]+\])+|(unsigned))\s+)?(?:#\(\w+\)\s+)?((?:(?:(?:\w+(?:\s+\[[^\]]+\])?\s*,\s*)+)\s*)*(?:\w+(?:\s+\[[^\]]+\])?))(?:\s+=\s+new\(.*\))?\s*;`
 
 var generalPortRegex = regexp.MustCompile(fmt.Sprintf(
 	`^\s*(input|output|inout)\s+(?:(%s)\s+)?(?:(signed|unsigned)\s+)?(\[\s*[\w\-\+\:\s]+\s*\])?\s*(\w+)\s*(?:,|;)`,
@@ -273,6 +273,8 @@ var generalParameterRegex = regexp.MustCompile(fmt.Sprintf(
 	`(?m)^\s*(?:(localparam|parameter)\s+)?(?:(%s)\s+)?(?:(?:unsigned|signed)\s+)?(\w+)(?:\s*(=)\s*(.+))?\s*(?:,|;)?$`,
 	baseTypes,
 ))
+
+var arrayRegex = regexp.MustCompile(`(?m)(\w+)(?:\s+(\[[^\]]+\]))?`)
 
 // TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not Also add the support for declarations with , for many decls
 var generalVariableRegex = regexp.MustCompile(
@@ -296,6 +298,10 @@ func MatchAllStructsFromString(content string) [][]string {
 
 func MatchAllVariablesFromString(content string) [][]string {
 	return generalVariableRegex.FindAllStringSubmatch(content, -1)
+}
+
+func MatchArraysFromString(content string) []string {
+	return arrayRegex.FindStringSubmatch(content)
 }
 
 func userDedinedVariablesRegex(verilogFile *VerilogFile) *regexp.Regexp {
@@ -977,9 +983,6 @@ func ParseVariables(v *VerilogFile,
 				return nil, fmt.Errorf("failed to parse width: %v", err)
 			}
 		}
-		if width == 0 {
-			width = GetWidthForType(varType)
-		}
 		var parentStruct *Struct
 		var parentClass *Class
 		if varType == UNKNOWN {
@@ -991,20 +994,43 @@ func ParseVariables(v *VerilogFile,
 				varType = USERDEFINED
 				parentClass = v.Classes[matchedVariable[1]]
 			} else {
-				return nil, fmt.Errorf("unknown type '%s' for variable '%s'", matchedVariable[1], matchedVariable[5])
+				return nil, fmt.Errorf("unknown type '%s' for variable '%s'", matchedVariable[1], matchedVariable[4])
 			}
 		}
 		unsigned := matchedVariable[3] == "unsigned"
-		variableName := matchedVariable[5]
-		variable := &Variable{
-			Name:         variableName,
-			Type:         varType,
-			Width:        width,
-			Unsigned:     unsigned,
-			ParentStruct: parentStruct,
-			ParentClass:  parentClass,
+		for _, decl := range strings.Split(matchedVariable[4], ",") {
+			decl = strings.TrimSpace(decl)
+			if decl == "" {
+				continue
+			}
+			arrayMatch := MatchArraysFromString(decl)
+			if len(arrayMatch) != 3 {
+				logger.Warn(
+					"could not parse variable fragment, missing variable name in: '%s'",
+					decl,
+				)
+				continue
+			}
+			varName := strings.TrimSpace(arrayMatch[1])
+			if varName == "" {
+				logger.Warn(
+					"could not parse variable fragment, missing variable name in: '%s'",
+					decl,
+				)
+				continue
+			}
+
+			variable := &Variable{
+				Name:         varName,
+				Type:         varType,
+				Width:        width,
+				Unsigned:     unsigned,
+				ParentStruct: parentStruct,
+				ParentClass:  parentClass,
+				Array:        arrayMatch[2],
+			}
+			variables = append(variables, variable)
 		}
-		variables = append(variables, variable)
 	}
 	return variables, nil
 }
