@@ -25,6 +25,12 @@ type Snippet struct {
 	ParentFile *verilog.VerilogFile
 }
 
+func loadLogger(v int) {
+	if logger == nil {
+		logger = utils.NewDebugLogger(v)
+	}
+}
+
 func findSnippetFiles() ([]string, error) {
 	repoRoot, err := utils.GetRootDir()
 	if err != nil || repoRoot == "" {
@@ -389,6 +395,7 @@ func MutateFile(originalSvFile *verilog.VerilogFile, verbose int) (*verilog.Veri
 	fileName := svFile.Name
 	mutatedOverall := false
 	injectedSnippetParentFiles := make(map[string]*verilog.VerilogFile)
+	loadLogger(verbose)
 
 	for moduleName, currentModule := range svFile.Modules {
 		moduleToMutate := currentModule.DeepCopy()
