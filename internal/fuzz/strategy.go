@@ -23,65 +23,109 @@ type ModuleAwareStrategy interface {
 
 // GenerateHexValue generates a random hex value of the appropriate width for a port
 func GenerateHexValue(width int, r *rand.Rand) string {
-	// Calculate number of hex digits needed (ceiling of width/4)
-	hexDigits := (width + 3) / 4
-
-	// For debug validation
-	if width == 32 && hexDigits != 8 {
-		hexDigits = 8 // Force correction for 32-bit values
+	if width <= 0 {
+		return "0"
 	}
 
-	// For 32-bit values, generate a full range of interesting values
-	if width == 32 {
-		strategy := r.Intn(10)
-		switch strategy {
-		case 0: // All zeros
-			return "00000000"
-		case 1: // All ones
-			return "ffffffff"
-		case 2: // Single bit set in high word
-			bitPos := 16 + r.Intn(16)
-			value := uint64(1) << bitPos
-			return fmt.Sprintf("%08x", value)
-		case 3: // Single bit set in low word
-			bitPos := r.Intn(16)
-			value := uint64(1) << bitPos
-			return fmt.Sprintf("%08x", value)
-		case 4: // Alternating bits
-			return "55555555"
-		case 5: // Inverse alternating bits
-			return "aaaaaaaa"
-		case 6: // Small positive number
-			return fmt.Sprintf("%08x", r.Intn(1000))
-		case 7: // Likely address (aligned)
-			// Generate address-like pattern (e.g., 0x00004000)
-			value := uint64(r.Intn(0x10)) << 12
-			return fmt.Sprintf("%08x", value)
-		case 8: // Special pattern
-			patterns := []string{"deadbeef", "cafebabe", "a5a5a5a5", "01234567", "fedcba98"}
-			return patterns[r.Intn(len(patterns))]
-		default: // Fully random value
-			value := r.Uint64() & 0xFFFFFFFF
-			return fmt.Sprintf("%08x", value)
+	hexDigits := (width + 3) / 4
+	if hexDigits == 0 {
+		hexDigits = 1
+	}
+
+	if width == 1 {
+		return strconv.Itoa(r.Intn(2))
+	}
+
+	var value uint64
+	effectiveWidth := width
+	if effectiveWidth > 64 {
+		effectiveWidth = 64
+	}
+
+	mask := uint64(0)
+	if effectiveWidth > 0 {
+		if effectiveWidth == 64 {
+			mask = 0xFFFFFFFFFFFFFFFF
+		} else {
+			mask = (uint64(1) << effectiveWidth) - 1
 		}
 	}
 
-	// Generate random value with appropriate range
-	maxValue := uint64(1)
-	for i := 0; i < width; i++ {
-		maxValue *= 2
-	}
-	maxValue-- // Get 2^width - 1
-
-	// Limit to 64 bits max (uint64 range)
-	if width > 64 {
-		hexDigits = 16 // Max 16 hex digits for 64-bit
-		maxValue = 0xFFFFFFFFFFFFFFFF
+	numStrategies := 6 // Base: all_zeros, all_ones, single_bit, small_num, near_max, alternating
+	if width == 32 {
+		numStrategies = 7 // Add special 32-bit patterns
+	} else if width < 4 {
+		numStrategies = 4 // Fewer for very narrow: all_zeros, all_ones, single_bit, random (covered by small_num/default)
 	}
 
-	value := r.Uint64() % maxValue
+	strategy := r.Intn(numStrategies)
 
-	// Format with the right number of hex digits
+	switch strategy {
+	case 0: // All zeros
+		value = 0
+	case 1: // All ones
+		value = mask
+	case 2: // Single bit set
+		bitPos := r.Intn(width)
+		if bitPos < 64 {
+			value = uint64(1) << bitPos
+		} else {
+			value = uint64(1) << (r.Intn(64))
+		}
+	case 3: // Small number (0-255 or up to mask)
+		smallRangeMax := uint64(255)
+		if effectiveWidth > 0 && mask < smallRangeMax {
+			smallRangeMax = mask
+		} else if effectiveWidth == 0 {
+			smallRangeMax = 0
+		}
+
+		if smallRangeMax == 0xFFFFFFFFFFFFFFFF {
+			value = r.Uint64()
+		} else if smallRangeMax > 0 {
+			value = r.Uint64() % (smallRangeMax + 1)
+		} else {
+			value = 0
+		}
+	case 4: // Number near max value
+		if mask > 10 {
+			offset := r.Uint64() % 10
+			if mask >= offset {
+				value = mask - offset
+			} else {
+				value = mask
+			}
+		} else {
+			value = r.Uint64() // Or simply `value = mask`
+		}
+	case 5: // Alternating bits
+		if r.Intn(2) == 0 {
+			value = 0x5555555555555555
+		} else {
+			value = 0xAAAAAAAAAAAAAAAA
+		}
+	case 6: // Special 32-bit patterns (only if width == 32)
+		if width == 32 {
+			patterns := []uint64{
+				0xdeadbeef,
+				0xcafebabe,
+				0xa5a5a5a5,
+				0x01234567,
+				0xfedcba98,
+				0x00004000,
+				0x80000000,
+				0x55555555,
+				0xaaaaaaaa,
+			}
+			value = patterns[r.Intn(len(patterns))]
+		} else {
+			value = r.Uint64()
+		}
+	default: // Fully random
+		value = r.Uint64()
+	}
+
+	value &= mask
 	return fmt.Sprintf("%0*x", hexDigits, value)
 }
 
@@ -286,53 +330,810 @@ func (s *SmartStrategy) generateControlPortValue(port verilog.Port, r *rand.Rand
 	return fmt.Sprintf("%0*x", hexDigits, value)
 }
 
-// generateDataPortValue generates a value for a data port using various strategies
-func (s *SmartStrategy) generateDataPortValue(port verilog.Port, r *rand.Rand) string {
-	strategy := r.Intn(8) // Choose one of the 8 strategies
-	hexDigits := (port.Width + 3) / 4
-	if hexDigits == 0 {
-		hexDigits = 1 // Ensure at least one digit
+// generateDataPortValue generates a value for a data port using various strategies,
+// now aware of port.Type from parser.go and properly respects port.Width
+func (s *SmartStrategy) generateDataPortValue( //nolint:gocyclo
+	port verilog.Port,
+	r *rand.Rand,
+) string {
+	// First determine the value distribution strategy (small, middle, large, random)
+	distributionChoice := r.Intn(5)
+	valuePreference := ""
+
+	switch distributionChoice {
+	case 0:
+		valuePreference = "min" // Prefer minimal/smallest values
+	case 1:
+		valuePreference = "max" // Prefer maximal/largest values
+	case 2:
+		valuePreference = "mid" // Prefer middle-range values
+	case 3:
+		valuePreference = "extreme" // Prefer extremes (min or max)
+	default:
+		valuePreference = "random" // Fully random - use existing distribution
 	}
 
-	switch strategy {
-	case 0: // All zeros
-		return strings.Repeat("0", hexDigits) // Use padded zeros
-	case 1: // All ones
-		return strings.Repeat("f", hexDigits)
-	case 2: // Single bit set
-		if port.Width == 0 {
-			return strings.Repeat("0", hexDigits) // Padded zero if width is 0
+	// Ensure we have a valid width, defaulting to type-specific width if port.Width is zero
+	width := port.Width
+	if width <= 0 {
+		width = verilog.GetWidthForType(port.Type)
+		// If still zero (unknown type), default to 1
+		if width <= 0 {
+			width = 1
 		}
-		bitPos := r.Intn(port.Width)
-		value := uint64(1) << bitPos
-		return fmt.Sprintf("%0*x", hexDigits, value)
-	case 3: // Alternating bits (0101...)
-		pattern := uint64(0x5555555555555555)
-		if port.Width < 64 {
-			mask := (uint64(1) << port.Width) - 1
-			pattern &= mask
-		}
-		return fmt.Sprintf("%0*x", hexDigits, pattern)
-	case 4: // Small integer (0-9)
-		value := r.Intn(10)
-		return fmt.Sprintf("%0*x", hexDigits, value) // Apply padding
-	case 5: // Powers of 2
-		if port.Width == 0 {
-			return strings.Repeat("0", hexDigits) // Padded zero if width is 0
-		}
-		power := r.Intn(port.Width)
-		value := uint64(1) << power
-		return fmt.Sprintf("%0*x", hexDigits, value)
-	case 6: // Powers of 2 minus 1 (all ones up to a point)
-		if port.Width == 0 {
-			return strings.Repeat("0", hexDigits) // Padded zero if width is 0
-		}
-		power := r.Intn(port.Width) + 1
-		value := uint64((uint64(1) << power) - 1)
-		return fmt.Sprintf("%0*x", hexDigits, value)
-	default: // Fully random value using the existing helper
-		return GenerateHexValue(port.Width, r) // This function already handles padding
 	}
+
+	// Handle specific Verilog types that don't map well to simple hex values
+	switch port.Type {
+	case verilog.REAL, verilog.REALTIME, verilog.SHORTREAL:
+		var fVal float64
+
+		switch valuePreference {
+		case "min":
+			if r.Intn(5) == 0 { // Occasionally extreme min
+				return "-1.0e38" // Very large negative
+			}
+			// Small negative values
+			fVal = -r.Float64() * 10.0
+		case "max":
+			if r.Intn(5) == 0 { // Occasionally extreme max
+				return "1.0e38" // Very large positive
+			}
+			// Large positive values
+			fVal = r.Float64() * 1000.0
+		case "mid":
+			// Values around zero
+			fVal = (r.Float64() - 0.5) * 10.0
+		case "extreme":
+			if r.Intn(2) == 0 {
+				return "-1.0e38" // Extreme negative
+			} else {
+				return "1.0e38" // Extreme positive
+			}
+		default: // random - use existing distribution
+			strat := r.Intn(5)
+			switch strat {
+			case 0:
+				fVal = 0.0
+			case 1:
+				fVal = (r.Float64() - 0.5) * 2.0 // Small value around 0
+			case 2:
+				fVal = (r.Float64() - 0.5) * 2.0e10 // Large value
+				if r.Intn(4) == 0 {                 // Occasionally very large/small
+					fVal *= r.Float64() * 1e20
+				}
+			case 3:
+				fVal = r.NormFloat64() * 1000 // Gaussian distribution
+			case 4:
+				fVal = float64(r.Intn(2000) - 1000) // Integer-like floats
+			}
+		}
+
+		// Add extremal IEEE 754 values sometimes
+		if r.Intn(20) == 0 { // Inf, -Inf, NaN
+			switch r.Intn(3) {
+			case 0:
+				return "1.0/0.0" // Positive Infinity for Verilog
+			case 1:
+				return "-1.0/0.0" // Negative Infinity for Verilog
+			case 2:
+				return "0.0/0.0" // NaN for Verilog
+			}
+		}
+		return fmt.Sprintf("%g", fVal)
+
+	case verilog.STRING:
+		strat := r.Intn(5)
+		var strVal string
+		chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_ " // Space included
+
+		// Adjust string generation based on value preference
+		switch valuePreference {
+		case "min":
+			if r.Intn(3) == 0 {
+				strVal = "" // Empty string - smallest possible
+			} else {
+				// Very short string
+				length := r.Intn(3) + 1
+				b := make([]byte, length)
+				for i := range b {
+					b[i] = chars[r.Intn(len(chars))]
+				}
+				strVal = string(b)
+			}
+		case "max":
+			// Very long string
+			length := r.Intn(200) + 100
+			b := make([]byte, length)
+			for i := range b {
+				b[i] = chars[r.Intn(len(chars))]
+			}
+			strVal = string(b)
+		case "mid":
+			// Medium length string
+			length := r.Intn(20) + 10
+			b := make([]byte, length)
+			for i := range b {
+				b[i] = chars[r.Intn(len(chars))]
+			}
+			strVal = string(b)
+		case "extreme":
+			if r.Intn(2) == 0 {
+				strVal = "" // Empty string
+			} else {
+				// Very long string
+				length := r.Intn(200) + 150
+				b := make([]byte, length)
+				for i := range b {
+					b[i] = chars[r.Intn(len(chars))]
+				}
+				strVal = string(b)
+			}
+		default: // Use existing distribution
+			switch strat {
+			case 0: // Empty string
+				strVal = ""
+			case 1: // Short random alphanumeric string
+				length := r.Intn(10) + 1 // 1-10 chars
+				b := make([]byte, length)
+				for i := range b {
+					b[i] = chars[r.Intn(len(chars))]
+				}
+				strVal = string(b)
+			case 2: // Longer random alphanumeric string
+				length := r.Intn(50) + 10 // 10-59 chars
+				if r.Intn(10) == 0 {      // Occasionally very long
+					length = r.Intn(200) + 50 // 50-249
+				}
+				b := make([]byte, length)
+				for i := range b {
+					b[i] = chars[r.Intn(len(chars))]
+				}
+				strVal = string(b)
+			case 3: // String with some common punctuation
+				punctuations := "!@#$%^&*()_+-=[]{}|;':,.<>?/" // Avoid backslash and double quote for simplicity here
+				length := r.Intn(10) + 5
+				b := make([]byte, length)
+				for i := range b {
+					if r.Intn(4) == 0 {
+						b[i] = punctuations[r.Intn(len(punctuations))]
+					} else {
+						b[i] = chars[r.Intn(len(chars))]
+					}
+				}
+				strVal = string(b)
+			case 4: // Numeric string
+				strVal = strconv.FormatInt(r.Int63n(1000000)-500000, 10) // numbers pos/neg
+			}
+		}
+		return fmt.Sprintf("\"%s\"", strings.ReplaceAll(strVal, "\"", "\\\""))
+
+	case verilog.TIME:
+		var timeVal int64
+		units := []string{"fs", "ps", "ns", "us", "ms", "s"}
+		unit := units[r.Intn(len(units))]
+
+		switch valuePreference {
+		case "min":
+			if r.Intn(3) == 0 {
+				return "\"0ps\"" // Zero time - minimum
+			}
+			timeVal = r.Int63n(10) + 1 // Very small (1-10)
+		case "max":
+			if r.Intn(3) == 0 {
+				return fmt.Sprintf("\"%d%s\"", 0x7FFFFFFF, unit) // Very large
+			}
+			timeVal = r.Int63n(10000000) + 9000000 // Near max (9M-19M)
+		case "mid":
+			timeVal = r.Int63n(5000) + 2500 // Middle range (2500-7499)
+		case "extreme":
+			if r.Intn(2) == 0 {
+				return "\"0ps\"" // Minimum
+			} else {
+				return fmt.Sprintf("\"%d%s\"", 0x7FFFFFFF, unit) // Maximum
+			}
+		default: // Use existing distribution
+			strat := r.Intn(4)
+			switch strat {
+			case 0: // Zero time
+				return "\"0ps\"" // Explicit zero time with a unit
+			case 1: // Small time value
+				timeVal = r.Int63n(100) + 1 // 1-100
+			case 2: // Medium time value
+				timeVal = r.Int63n(10000) + 1 // 1-10000
+			case 3: // Large time value
+				timeVal = r.Int63n(10000000) + 1 // 1-10,000,000
+			}
+		}
+		return fmt.Sprintf("\"%d%s\"", timeVal, unit)
+
+	case verilog.INTEGER, verilog.INT:
+		// Handle signed integer values based on specified width
+		var value int64
+
+		// Calculate maximum positive and negative values based on width
+		maxPositive := int64((uint64(1) << (width - 1)) - 1) // 2^(width-1) - 1
+		minNegative := -int64(uint64(1) << (width - 1))      // -2^(width-1)
+
+		// Ensure we don't exceed int32/int64 boundaries
+		if width > 32 {
+			if maxPositive > 0x7FFFFFFFFFFFFFFF {
+				maxPositive = 0x7FFFFFFFFFFFFFFF
+			}
+			if minNegative < -0x7FFFFFFFFFFFFFFF {
+				minNegative = -0x7FFFFFFFFFFFFFFF
+			}
+		}
+
+		switch valuePreference {
+		case "min":
+			if r.Intn(4) == 0 {
+				value = minNegative // Minimum int32
+			} else {
+				value = -int64(r.Intn(1000) + 1) // Small negative (-1001 to -1)
+			}
+		case "max":
+			if r.Intn(4) == 0 {
+				value = maxPositive // Maximum int32
+			} else {
+				// Large positive but below max
+				offset := int64(r.Intn(100))
+				if maxPositive > offset {
+					value = maxPositive - offset
+				} else {
+					value = maxPositive
+				}
+			}
+		case "mid":
+			// Values around zero or middle of range based on width
+			if width <= 8 {
+				// For small widths, use scaled values
+				midPoint := int64(r.Intn(width*2) - width)
+				value = midPoint
+			} else {
+				midPoint := int64(r.Intn(10000) - 5000) // Values around zero (-5000 to 4999)
+
+				// Ensure we're within range for the width
+				if midPoint > maxPositive {
+					midPoint = maxPositive
+				}
+				if midPoint < minNegative {
+					midPoint = minNegative
+				}
+				value = midPoint
+			}
+		case "extreme":
+			if r.Intn(2) == 0 {
+				value = minNegative // Minimum for width
+			} else {
+				value = maxPositive // Maximum for width
+			}
+		default: // Use existing distribution with width awareness
+			strat := r.Intn(10)
+			switch strat {
+			case 0: // Zero
+				value = 0
+			case 1: // Max positive for width
+				value = maxPositive
+			case 2: // Max negative for width
+				value = minNegative
+			case 3: // Near max positive
+				if maxPositive > 100 {
+					offset := int64(r.Intn(100))
+					value = maxPositive - offset
+				} else {
+					value = maxPositive // Just use max if it's small
+				}
+			case 4: // Near max negative
+				if minNegative < -100 {
+					offset := int64(r.Intn(100))
+					value = minNegative + offset
+				} else {
+					value = minNegative // Just use min if it's small
+				}
+			case 5: // Small positive
+				value = int64(r.Intn(100) + 1)
+			case 6: // Small negative
+				value = -int64(r.Intn(100) + 1)
+			case 7: // Powers of 2 (positive)
+				// Ensure power is within the width limit
+				maxExp := width - 2 // -2 for signed (need 1 sign bit, and stay under max)
+				if maxExp < 0 {
+					maxExp = 0
+				}
+				exp := r.Intn(maxExp + 1)
+				value = int64(1) << exp
+			case 8: // Powers of 2 (negative)
+				// Ensure power is within the width limit
+				maxExp := width - 2 // -2 for signed (need 1 sign bit, and stay under max)
+				if maxExp < 0 {
+					maxExp = 0
+				}
+				exp := r.Intn(maxExp + 1)
+				value = -int64(1) << exp
+			case 9: // Fully random within width range
+				// Generate a random value within the range for the width
+				range64 := maxPositive - minNegative + 1
+				if range64 > 0 && range64 < 1000000 { // Avoid massive ranges that could overflow
+					randomOffset := int64(r.Uint64() % uint64(range64))
+					value = minNegative + randomOffset
+				} else {
+					// For extremely large widths, fall back to simpler approach
+					value = int64(r.Int63())
+					if r.Intn(2) == 0 { // 50% chance of negative
+						value = -value
+					}
+				}
+			}
+		}
+
+		// Format based on width - use hex for wider values for readability
+		if width > 16 {
+			return fmt.Sprintf("0x%x", value)
+		}
+		return fmt.Sprintf("%d", value)
+
+	case verilog.BIT:
+		// BIT is always 0 or 1 for single bit, otherwise treat like LOGIC
+		if width == 1 {
+			if valuePreference == "min" {
+				return "0" // Minimal value is 0
+			} else if valuePreference == "max" {
+				return "1" // Maximal value is 1
+			} else {
+				return strconv.Itoa(r.Intn(2)) // Random 0/1
+			}
+		}
+		// For multi-bit BIT vectors, use the same approach as LOGIC
+		fallthrough
+
+	case verilog.LOGIC, verilog.REG, verilog.WIRE:
+		// For LOGIC, WIRE, REG types, handle specifically based on width
+		if width == 1 {
+			if valuePreference == "min" {
+				return "0" // Minimal value is 0
+			} else if valuePreference == "max" {
+				return "1" // Maximal value is 1
+			} else {
+				return strconv.Itoa(r.Intn(2)) // Random 0/1
+			}
+		}
+
+		// For multi-bit values, calculate proper hex digits for specified width
+		hexDigits := (width + 3) / 4
+		if hexDigits == 0 {
+			hexDigits = 1
+		}
+
+		var value uint64
+		effectiveWidth := width
+		if effectiveWidth > 64 {
+			effectiveWidth = 64
+		}
+
+		// Calculate mask for the actual port width
+		mask := uint64(0)
+		if effectiveWidth > 0 {
+			if effectiveWidth == 64 {
+				mask = 0xFFFFFFFFFFFFFFFF
+			} else {
+				mask = (uint64(1) << effectiveWidth) - 1
+			}
+		}
+
+		switch valuePreference {
+		case "min":
+			value = 0 // All zeros for minimum
+		case "max":
+			value = mask // All ones for maximum
+		case "mid":
+			// Middle value - set approximately half the bits based on actual width
+			if effectiveWidth < 64 {
+				midWidth := effectiveWidth / 2
+				if midWidth > 0 {
+					midValue := uint64(1) << midWidth
+					if midValue > 0 {
+						value = midValue - 1 // e.g., 0x007F for 8-bit
+					}
+				}
+			} else {
+				value = 0x00000000FFFFFFFF // Middle value for 64-bit
+			}
+		case "extreme":
+			if r.Intn(2) == 0 {
+				value = 0 // Minimum
+			} else {
+				value = mask // Maximum
+			}
+		default: // Use existing distribution - more variety
+			strat := r.Intn(8)
+			switch strat {
+			case 0: // All zeros
+				value = 0
+			case 1: // All ones within width
+				value = mask
+			case 2: // Alternating 01010... (respecting width)
+				value = 0x5555555555555555 & mask
+			case 3: // Alternating 10101... (respecting width)
+				value = 0xAAAAAAAAAAAAAAAA & mask
+			case 4: // Single bit set (random position within width)
+				bitPos := 0
+				if width > 0 {
+					bitPos = r.Intn(width)
+				}
+				if bitPos < 64 {
+					value = uint64(1) << bitPos
+				} else {
+					value = uint64(1) << (r.Intn(64))
+				}
+			case 5: // Value near maximum (respecting width)
+				offset := r.Uint64() % 16
+				if mask >= offset {
+					value = mask - offset
+				} else {
+					value = mask
+				}
+			case 6: // Value near minimum (small positive)
+				value = r.Uint64() % 16
+			default: // Random value within width range
+				value = r.Uint64() & mask
+			}
+		}
+
+		return fmt.Sprintf("%0*x", hexDigits, value)
+
+	case verilog.BYTE:
+		// BYTE is 8-bit unsigned integer
+		var value uint8
+
+		switch valuePreference {
+		case "min":
+			if r.Intn(4) == 0 {
+				value = 0 // Absolute minimum
+			} else {
+				value = uint8(r.Intn(5) + 1) // Small values (1-5)
+			}
+		case "max":
+			if r.Intn(4) == 0 {
+				value = 0xFF // Absolute maximum (255)
+			} else {
+				value = uint8(0xFF - r.Intn(5)) // Near max (251-254)
+			}
+		case "mid":
+			value = uint8(0x7F + r.Intn(17) - 8) // Middle range (119-135)
+		case "extreme":
+			if r.Intn(2) == 0 {
+				value = 0x00 // Minimum
+			} else {
+				value = 0xFF // Maximum
+			}
+		default: // Use existing distribution
+			strat := r.Intn(10)
+			switch strat {
+			case 0: // Zero
+				value = 0
+			case 1: // Max value
+				value = 0xFF // 255
+			case 2: // One
+				value = 1
+			case 3: // Middle value
+				value = 0x80 // 128
+			case 4: // Half-middle low
+				value = 0x40 // 64
+			case 5: // Half-middle high
+				value = 0xC0 // 192
+			case 6: // ASCII printable range
+				value = uint8(r.Intn(95) + 32) // 32-126 ASCII
+			case 7: // One less than max
+				value = 0xFE // 254
+			case 8: // Powers of 2
+				exp := r.Intn(8) // 0-7 for 2^0 to 2^7
+				value = 1 << exp
+			default: // Fully random
+				value = uint8(r.Intn(256))
+			}
+		}
+
+		// Format as 2-digit hex value
+		return fmt.Sprintf("%02x", value)
+
+	case verilog.SHORTINT:
+		// SHORTINT is 16-bit signed integer
+		var value int16
+
+		switch valuePreference {
+		case "min":
+			if r.Intn(4) == 0 {
+				value = -0x8000 // Minimum int16 (-32768)
+			} else {
+				value = int16(-r.Intn(100) - 1) // Small negative (-101 to -1)
+			}
+		case "max":
+			if r.Intn(4) == 0 {
+				value = 0x7FFF // Maximum int16 (32767)
+			} else {
+				value = int16(0x7FFF - r.Intn(100)) // Near max (32667-32766)
+			}
+		case "mid":
+			value = int16(r.Intn(1000) - 500) // Middle range (-500 to 499)
+		case "extreme":
+			if r.Intn(2) == 0 {
+				value = -0x8000 // Minimum
+			} else {
+				value = 0x7FFF // Maximum
+			}
+		default: // Use existing distribution
+			strat := r.Intn(10)
+			switch strat {
+			case 0: // Zero
+				value = 0
+			case 1: // Extremal: Max positive
+				value = 0x7FFF // 32767
+			case 2: // Extremal: Max negative
+				value = -0x8000 // -32768
+			case 3: // Near max positive
+				value = 0x7FFF - int16(r.Intn(100))
+			case 4: // Near max negative
+				value = -0x8000 + int16(r.Intn(100))
+			case 5: // Small positive
+				value = int16(r.Intn(100) + 1)
+			case 6: // Small negative
+				value = int16(-r.Intn(100) - 1)
+			case 7: // Powers of 2 (positive)
+				exp := r.Intn(15) // 0-14 to stay within int16 range
+				value = 1 << exp
+			case 8: // Powers of 2 (negative)
+				exp := r.Intn(15) // 0-14 to stay within int16 range
+				if exp < 15 {     // Avoid overflow
+					value = -1 * (1 << exp)
+				} else {
+					value = -0x4000 // Use -2^14 as safer alternative
+				}
+			case 9: // Fully random
+				value = int16(r.Intn(65536) - 32768) // Full int16 range
+			}
+		}
+
+		// Format as signed decimal value
+		return fmt.Sprintf("%d", value)
+
+	case verilog.LONGINT:
+		// LONGINT is 64-bit signed integer
+		var value int64
+
+		switch valuePreference {
+		case "min":
+			if r.Intn(4) == 0 {
+				value = -0x7FFFFFFFFFFFFFFF - 1 // Minimum int64
+			} else {
+				value = -r.Int63n(10000) - 1 // Small negative (-10001 to -1)
+			}
+		case "max":
+			if r.Intn(4) == 0 {
+				value = 0x7FFFFFFFFFFFFFFF // Maximum int64
+			} else {
+				value = r.Int63n(10000) + (0x7FFFFFFFFFFFFFFF - 10000) // Near max
+			}
+		case "mid":
+			value = r.Int63n(20000) - 10000 // Middle range (-10000 to 9999)
+		case "extreme":
+			if r.Intn(2) == 0 {
+				value = -0x7FFFFFFFFFFFFFFF - 1 // Minimum
+			} else {
+				value = 0x7FFFFFFFFFFFFFFF // Maximum
+			}
+		default: // Use existing distribution
+			strat := r.Intn(10)
+			switch strat {
+			case 0: // Zero
+				value = 0
+			case 1: // Extremal: Large positive (not quite max to avoid overflow issues)
+				value = 0x7FFFFFFFFFFFFFFF - r.Int63n(1000)
+			case 2: // Extremal: Large negative
+				value = -0x7FFFFFFFFFFFFFFF + r.Int63n(1000)
+			case 3: // Small positive
+				value = r.Int63n(1000) + 1
+			case 4: // Small negative
+				value = -r.Int63n(1000) - 1
+			case 5: // Powers of 2 (positive)
+				exp := r.Intn(63) // 0-62 to stay within int64 range
+				value = 1 << exp
+			case 6: // Powers of 2 (negative)
+				exp := r.Intn(63) // 0-62 to stay within int64 range
+				value = -1 * (1 << exp)
+			case 7: // Medium range positive
+				value = r.Int63n(1000000) + 1000
+			case 8: // Medium range negative
+				value = -r.Int63n(1000000) - 1000
+			case 9: // Fully random
+				value = r.Int63()
+				if r.Intn(2) == 0 { // 50% chance of negative
+					value = -value
+				}
+			}
+		}
+
+		// Format as signed decimal value or hex for very large values
+		if value > 1000000000 || value < -1000000000 {
+			// Use hex for very large values to avoid potential formatting issues
+			return fmt.Sprintf("0x%x", value)
+		}
+		return fmt.Sprintf("%d", value)
+	}
+
+	// Default to hex generation for bit-vector types (REG, WIRE, etc.)
+	if width <= 0 {
+		return "0"
+	}
+
+	hexDigits := (width + 3) / 4
+	if hexDigits == 0 {
+		hexDigits = 1
+	}
+
+	if width == 1 {
+		// Respect value preference for single-bit values
+		switch valuePreference {
+		case "min":
+			return "0"
+		case "max":
+			return "1"
+		default:
+			return strconv.Itoa(r.Intn(2))
+		}
+	}
+
+	var value uint64
+	var generatedHex string
+
+	effectiveWidth := width
+	if effectiveWidth > 64 {
+		effectiveWidth = 64
+	}
+
+	// Calculate mask based on ACTUAL width to ensure values are in range
+	mask := uint64(0)
+	if effectiveWidth > 0 {
+		if effectiveWidth == 64 {
+			mask = 0xFFFFFFFFFFFFFFFF
+		} else {
+			mask = (uint64(1) << effectiveWidth) - 1
+		}
+	}
+
+	// Use valuePreference to guide value generation for generic bit vectors
+	switch valuePreference {
+	case "min":
+		if r.Intn(5) == 0 {
+			value = 0 // Absolute minimum (all zeros)
+		} else {
+			value = r.Uint64() % 10 // Very small value (0-9)
+		}
+	case "max":
+		if r.Intn(5) == 0 {
+			value = mask // Absolute maximum (all ones for this width)
+		} else {
+			// Very close to max for this width
+			value = mask - (r.Uint64() % 10)
+		}
+	case "mid":
+		// Mid-range - set approximately half the bits based on actual port width
+		if effectiveWidth > 1 {
+			halfWidth := effectiveWidth / 2
+			if halfWidth < 64 {
+				halfMask := (uint64(1) << halfWidth) - 1
+				value = halfMask
+			} else {
+				value = 0xFFFFFFFF // Half of 64-bit
+			}
+
+			// Add some randomness around the middle value
+			if r.Intn(2) == 0 {
+				offset := r.Uint64() % 100
+				if value >= offset {
+					value = value - offset // Slightly below middle
+				}
+			} else {
+				value = value + (r.Uint64() % 100) // Slightly above middle
+				if value > mask {
+					value = mask // Cap at maximum for this width
+				}
+			}
+		} else {
+			// For width=1, mid is arbitrary (0 or 1)
+			value = uint64(r.Intn(2))
+		}
+	case "extreme":
+		if r.Intn(2) == 0 {
+			value = 0 // Minimum
+		} else {
+			value = mask // Maximum for this width
+		}
+	default: // random - use existing strategies with width awareness
+		numHexStrategies := 10
+		strategy := r.Intn(numHexStrategies)
+
+		switch strategy {
+		case 0: // All zeros
+			value = 0
+		case 1: // All ones (for this width)
+			value = mask
+		case 2: // Single bit set within width
+			bitPos := 0
+			if width > 0 {
+				bitPos = r.Intn(width)
+			}
+
+			if bitPos < 64 {
+				value = uint64(1) << bitPos
+			} else {
+				value = uint64(1) << (r.Intn(64))
+			}
+			value &= mask
+		case 3: // Alternating bits (0101...) - limited to width
+			value = 0x5555555555555555 & mask
+		case 4: // Alternating bits (1010...) - limited to width
+			value = 0xAAAAAAAAAAAAAAAA & mask
+		case 5: // Small integer (0-255), represented as hex
+			smallVal := r.Uint64() % 256
+			value = smallVal & mask
+		case 6: // Powers of 2 within width limit
+			// Ensure power doesn't exceed width
+			maxPower := width - 1
+			if maxPower < 0 {
+				maxPower = 0
+			}
+
+			power := 0
+			if maxPower > 0 {
+				power = r.Intn(maxPower + 1)
+			}
+
+			if power < 64 {
+				value = uint64(1) << power
+			} else {
+				value = uint64(1) << (r.Intn(64))
+			}
+			value &= mask
+		case 7: // Powers of 2 minus 1 (limited by width)
+			limit := width
+			if limit <= 0 {
+				limit = 1
+			}
+
+			// Ensure power is at least 1 for (1<<power)-1 to be meaningful
+			power := 1
+			if limit > 1 {
+				power = r.Intn(limit-1) + 1
+				// Don't exceed port width
+				if power > width {
+					power = width
+				}
+			}
+
+			if power >= 64 {
+				value = 0xFFFFFFFFFFFFFFFF
+			} else {
+				value = (uint64(1) << power) - 1
+			}
+			value &= mask
+		case 8: // Value near maximum for the specific port width
+			offset := r.Uint64() % 16 // Small offset 0-15
+			if mask >= offset {
+				value = mask - offset
+			} else {
+				value = mask
+			}
+		default: // Fully random value using the enhanced GenerateHexValue
+			// This allows GenerateHexValue's internal strategies to be used with the correct width
+			generatedHex = GenerateHexValue(width, r)
+			return generatedHex
+		}
+	}
+
+	// Format with the correct number of hex digits for this width
+	generatedHex = fmt.Sprintf("%0*x", hexDigits, value)
+	return generatedHex
 }
 
 // generateNewTestCase creates a new test case from scratch using smart strategies
