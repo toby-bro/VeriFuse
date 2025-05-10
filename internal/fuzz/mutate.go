@@ -390,7 +390,11 @@ func addDependancies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
 	return nil
 }
 
-func MutateFile(originalSvFile *verilog.VerilogFile, verbose int) (*verilog.VerilogFile, error) {
+func MutateFile(
+	originalSvFile *verilog.VerilogFile,
+	pathToWrite string,
+	verbose int,
+) (*verilog.VerilogFile, error) {
 	svFile := originalSvFile.DeepCopy()
 	fileName := svFile.Name
 	mutatedOverall := false
@@ -469,17 +473,21 @@ func MutateFile(originalSvFile *verilog.VerilogFile, verbose int) (*verilog.Veri
 
 	finalMutatedContent, err := verilog.PrintVerilogFile(svFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to print Verilog file %s after mutation: %v", fileName, err)
+		return nil, fmt.Errorf(
+			"failed to print Verilog file %s after mutation: %v",
+			pathToWrite,
+			err,
+		)
 	}
 
-	err = utils.WriteFileContent(fileName, finalMutatedContent)
+	err = utils.WriteFileContent(pathToWrite, finalMutatedContent)
 	if err != nil {
-		return nil, fmt.Errorf("failed to write mutated content to %s: %v", fileName, err)
+		return nil, fmt.Errorf("failed to write mutated content to %s: %v", pathToWrite, err)
 	}
 	if mutatedOverall {
-		logger.Info("Successfully mutated and rewrote file %s\n", fileName)
+		logger.Info("Successfully mutated and rewrote file %s\n", pathToWrite)
 	} else {
-		logger.Warn("File %s rewritten (no mutations applied or all failed).\n", fileName)
+		logger.Warn("File %s rewritten (no mutations applied or all failed).\n", pathToWrite)
 	}
 
 	return svFile, nil

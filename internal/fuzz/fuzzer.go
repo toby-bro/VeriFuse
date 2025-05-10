@@ -563,7 +563,7 @@ func (f *Fuzzer) performWorkerAttempt(
 	var svFile *verilog.VerilogFile
 	if f.mutate {
 		f.debug.Debug("[%s] Attempting mutation on %s", workerID, workerVerilogPath)
-		if svFile, err = MutateFile(f.svFile, f.verbose); err != nil {
+		if svFile, err = MutateFile(f.svFile, workerVerilogPath, f.verbose); err != nil {
 			return false, fmt.Errorf("[%s] mutation failed: %w", workerID, err)
 		}
 		f.debug.Debug("[%s] Mutation applied. Proceeding.", workerID)
