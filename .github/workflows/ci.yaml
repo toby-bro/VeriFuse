@@ -9,9 +9,8 @@ on:
       - master
 
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -42,6 +41,22 @@ jobs:
             exit 1
           fi
 
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: "^1.20" # Specify the Go version you need
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog verilator
+
       - name: Build
         run: |
           make build
@@ -49,6 +64,23 @@ jobs:
             echo "Make build failed"
             exit 1
           fi
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build # Ensures the build job completes successfully before testing
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: "^1.20" # Specify the Go version you need
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog verilator
 
       - name: Run
         run: |
