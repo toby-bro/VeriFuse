@@ -180,7 +180,7 @@ func TestPfuzzEndToEnd(t *testing.T) {
 			// Use the local test file name relative to the temp dir
 			args := []string{
 				"-n", "10", // Keep test runs short
-				"-strategy", "simple",
+				"-strategy", "random",
 				"-workers", "1", // Keep workers=1 for simplicity within each parallel test
 				"-file", testFileName, // Use the relative path within tempTestDir
 			}
