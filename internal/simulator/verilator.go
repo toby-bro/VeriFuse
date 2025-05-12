@@ -54,10 +54,10 @@ func (sim *VerilatorSimulator) Compile() error {
 
 	testbenchPath := filepath.Join(sim.workDir, "testbench.sv")
 	if _, err := os.Stat(testbenchPath); os.IsNotExist(err) {
-		// The testbench.sv is not in the working directory, copy it from tmp_gen
+		// The testbench.sv is not in the working directory, copy it from dist
 		srcTestbench := filepath.Join(utils.TMP_DIR, "testbench.sv")
 		if _, err := os.Stat(srcTestbench); os.IsNotExist(err) {
-			// If it doesn't exist in tmp_gen either, generate it if we have module info
+			// If it doesn't exist in dist either, generate it if we have module info
 			if sim.module != nil {
 				gen := testgen.NewGenerator(sim.module, sim.svFile.Name)
 				if err := gen.GenerateTestbenches(); err != nil {
@@ -68,7 +68,7 @@ func (sim *VerilatorSimulator) Compile() error {
 			}
 		}
 
-		// Now copy from tmp_gen to the working directory
+		// Now copy from dist to the working directory
 		if err := utils.CopyFile(srcTestbench, testbenchPath); err != nil {
 			return fmt.Errorf("failed to copy testbench.sv to working directory: %v", err)
 		}

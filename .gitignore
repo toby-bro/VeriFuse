@@ -2,7 +2,7 @@ obj_dir/
 *.swp
 
 testbench.*
-tmp_gen/
+dist/
 pfuzz
 !cmd/pfuzz
 mismatches/

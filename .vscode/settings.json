@@ -1,5 +1,5 @@
 {
-  "sonarlint.analysisExcludesStandalone": "**/tmp_gen/testbench.cpp",
+  "sonarlint.analysisExcludesStandalone": "**/dist/testbench.cpp",
   "go.lintTool": "golangci-lint",
   "go.lintFlags": ["--path-mode=abs", "--fast-only"],
   "go.formatTool": "custom",
