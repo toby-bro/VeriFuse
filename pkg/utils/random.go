@@ -2,8 +2,8 @@ package utils
 
 import "math/rand"
 
-func RandomInt(min, max int) int {
-	return min + rand.Intn(max-min+1)
+func RandomInt(minInt, maxInt int) int {
+	return minInt + rand.Intn(maxInt-minInt+1)
 }
 
 func Min(a, b int) int {
