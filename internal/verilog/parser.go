@@ -526,22 +526,6 @@ func mergePortInfo(
 		processedPorts[nameInHeader] = true
 	}
 
-	// Add any ports found ONLY in the body scan (e.g., if header list was incomplete or malformed)
-	// This is less common but possible.
-	for nameInBody, bodyPort := range parsedPortsMap {
-		if !processedPorts[nameInBody] {
-			logger.Warn(
-				"Port '%s' found in body scan but not listed in header. Adding anyway.\n",
-				nameInBody,
-			)
-			if bodyPort.Width == 0 { // Ensure width is valid
-				bodyPort.Width = 1
-			}
-			finalPorts = append(finalPorts, bodyPort)
-			processedPorts[nameInBody] = true
-		}
-	}
-
 	return finalPorts
 }
 
