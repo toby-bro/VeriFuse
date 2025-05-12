@@ -193,6 +193,8 @@ func (f *Fuzzer) Run(numTests int) error {
 
 	if f.mutate {
 		f.stats.PrintSummary()
+	} else {
+		fmt.Printf("[+] File `%s` checked successfully, modules seem valid.\n", f.svFile.Name)
 	}
 
 	if numTests > 0 && f.stats.TotalTests == 0 {
@@ -609,7 +611,7 @@ func (f *Fuzzer) worker(
 	wg *sync.WaitGroup,
 	testCases <-chan int,
 	moduleToTest *verilog.Module,
-) {
+) error {
 	defer wg.Done()
 
 	var lastSetupError error
@@ -621,8 +623,7 @@ func (f *Fuzzer) worker(
 	case "smart":
 		strategy = &SmartStrategy{}
 	default:
-		f.debug.Error("Unknown strategy: %s", f.strategyName)
-		return
+		return fmt.Errorf("Unknown strategy: %s", f.strategyName)
 	}
 
 	strategy.SetModule(moduleToTest)
@@ -638,7 +639,7 @@ func (f *Fuzzer) worker(
 
 		if setupOk {
 			f.debug.Info("[%s] Worker completed its tasks.", workerID)
-			return // Worker's job is done for this goroutine.
+			return nil
 		}
 
 		// Setup failed for this attempt
@@ -659,14 +660,12 @@ func (f *Fuzzer) worker(
 		}
 	}
 
-	f.debug.Error(
-		"Worker failed to initialize permanently after %d attempts. Last error: %v.",
+	return fmt.Errorf(
+		"[%s] Worker failed to initialize after %d attempts: %v",
+		workerID,
 		f.maxAttempts,
 		lastSetupError,
 	)
-	if f.maxAttempts > 1 {
-		f.debug.Error("[%s] Slot will be lost", workerID)
-	}
 }
 
 func writeTestInputs(testDir string, testCase map[string]string) error {
