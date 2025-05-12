@@ -13,7 +13,7 @@ import (
 func main() {
 	// Parse command-line flags
 	numTests := flag.Int("n", 1000, "Number of test cases to run")
-	strategy := flag.String("strategy", "smart", "Fuzzing strategy: simple, random, smart")
+	strategy := flag.String("strategy", "smart", "Fuzzing strategy: random, smart")
 	workers := flag.Int("workers", runtime.NumCPU(), "Number of parallel workers")
 	seedFlag := flag.Int64("seed", time.Now().UnixNano(), "Random seed")
 	vFlag := flag.Bool(
@@ -66,7 +66,6 @@ func main() {
 		*workers = 10
 		*maxAttempts = 1
 		*mutate = false
-		*strategy = "smart"
 		*seedFlag = 0
 		*numTests = 10
 	}

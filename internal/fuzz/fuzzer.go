@@ -24,15 +24,15 @@ const (
 )
 
 type Fuzzer struct {
-	stats       *Stats
-	strategy    Strategy
-	workers     int
-	verbose     int
-	seed        int64
-	debug       *utils.DebugLogger
-	svFile      *verilog.VerilogFile
-	mutate      bool
-	maxAttempts int
+	stats        *Stats
+	strategyName string
+	workers      int
+	verbose      int
+	seed         int64
+	debug        *utils.DebugLogger
+	svFile       *verilog.VerilogFile
+	mutate       bool
+	maxAttempts  int
 }
 
 func NewFuzzer(
@@ -44,32 +44,20 @@ func NewFuzzer(
 	mutate bool,
 	maxAttempts int,
 ) *Fuzzer {
-	var s Strategy
-
 	fuzzer := &Fuzzer{
-		stats:       NewStats(),
-		workers:     workers,
-		verbose:     verbose,
-		seed:        seed,
-		debug:       utils.NewDebugLogger(verbose),
-		mutate:      mutate,
-		maxAttempts: maxAttempts,
+		stats:        NewStats(),
+		workers:      workers,
+		verbose:      verbose,
+		seed:         seed,
+		debug:        utils.NewDebugLogger(verbose),
+		mutate:       mutate,
+		maxAttempts:  maxAttempts,
+		strategyName: strategy,
 	}
 
 	fuzzer.svFile = &verilog.VerilogFile{
 		Name: fileName,
 	}
-
-	switch strategy {
-	case "simple":
-		s = &SimpleStrategy{seed: seed}
-	case "smart":
-		s = &SmartStrategy{seed: seed}
-	default:
-		s = &RandomStrategy{seed: seed}
-	}
-
-	fuzzer.strategy = s
 	return fuzzer
 }
 
@@ -148,7 +136,7 @@ func testVerilatorTool() error {
 
 func (f *Fuzzer) Run(numTests int) error {
 	f.debug.Info("Starting fuzzing with %d test cases using strategy: %s\n",
-		numTests, f.strategy.Name())
+		numTests, f.strategyName)
 	f.debug.Info("Target file: %s with %d modules", f.svFile.Name, len(f.svFile.Modules))
 
 	if len(f.svFile.Modules) == 0 {
@@ -342,9 +330,10 @@ func (f *Fuzzer) processTestCases(
 	ivsim, vlsim simulator.Simulator,
 	workerModule *verilog.Module,
 	testCases <-chan int,
+	strategy Strategy,
 ) {
 	for i := range testCases {
-		f.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, i)
+		f.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, i, strategy)
 	}
 }
 
@@ -353,8 +342,9 @@ func (f *Fuzzer) runSingleTest(
 	ivsim, vlsim simulator.Simulator,
 	workerModule *verilog.Module,
 	testIndex int,
+	strategy Strategy,
 ) {
-	testCase := f.strategy.GenerateTestCase(testIndex)
+	testCase := strategy.GenerateTestCase(testIndex)
 	f.stats.AddTest()
 
 	for _, port := range workerModule.Ports {
@@ -531,6 +521,7 @@ func (f *Fuzzer) performWorkerAttempt(
 	workerID string,
 	testCases <-chan int,
 	workerModule *verilog.Module,
+	strategy Strategy,
 ) (setupSuccessful bool, err error) {
 	workerDir, cleanupFunc, setupErr := f.setupWorker(workerID)
 	if setupErr != nil {
@@ -606,7 +597,7 @@ func (f *Fuzzer) performWorkerAttempt(
 		return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
 	}
 
-	f.processTestCases(workerID, workerDir, ivsim, vlsim, workerModule, testCases)
+	f.processTestCases(workerID, workerDir, ivsim, vlsim, workerModule, testCases, strategy)
 	attemptCompletelySuccessful = true // Mark as successful for cleanup logic
 	return true, nil
 }
@@ -620,6 +611,18 @@ func (f *Fuzzer) worker(
 
 	var lastSetupError error
 	workerID := fmt.Sprintf("worker_%d", time.Now().UnixNano())
+	var strategy Strategy
+	switch f.strategyName {
+	case "random":
+		strategy = &RandomStrategy{}
+	case "smart":
+		strategy = &SmartStrategy{}
+	default:
+		f.debug.Error("Unknown strategy: %s", f.strategyName)
+		return
+	}
+
+	strategy.SetModule(moduleToTest)
 
 	for attempt := 0; attempt < f.maxAttempts; attempt++ {
 		workerCompleteID := fmt.Sprintf(
@@ -628,7 +631,7 @@ func (f *Fuzzer) worker(
 			attempt,
 		)
 
-		setupOk, err := f.performWorkerAttempt(workerCompleteID, testCases, moduleToTest)
+		setupOk, err := f.performWorkerAttempt(workerCompleteID, testCases, moduleToTest, strategy)
 
 		if setupOk {
 			f.debug.Info("[%s] Worker completed its tasks.", workerID)
