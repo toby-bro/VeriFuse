@@ -93,6 +93,8 @@ endmodule
 
 // Module targeting tasks with ref arguments
 module GGGtask_ref_args (
+    input logic clk,            // Clock input
+    input logic rst_n,          // Asynchronous active-low reset
     input logic [7:0] GGGin,
     output logic [7:0] GGGout
 );
@@ -104,14 +106,26 @@ module GGGtask_ref_args (
         GGGref_var = GGGinput_val + GGGref_var;
     endtask
 
-    logic [7:0] GGGdata_var = 8'hAA;
+    logic [7:0] GGGdata_var; // Removed initializer, will be set by reset
+    logic [7:0] GGGdata_var_next;
 
+    // Combinational logic to calculate the next state of GGGdata_var
     always_comb begin
-        // Call site: GGGtask_modify_ref(GGGin, GGGdata_var);
-        GGGtask_modify_ref(GGGin, GGGdata_var); // Direct call in always_comb
-        //INJECT
-        GGGout = GGGdata_var; // GGGdata_var is modified by the task
+        GGGdata_var_next = GGGdata_var; // Start with current value
+        GGGtask_modify_ref(GGGin, GGGdata_var_next); // Task modifies GGGdata_var_next
     end
+
+    // Sequential logic to register GGGdata_var
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            GGGdata_var <= 8'hAA; // Initialize GGGdata_var on reset
+        end else begin
+            GGGdata_var <= GGGdata_var_next;
+        end
+    end
+
+    // Assign output based on the registered GGGdata_var
+    assign GGGout = GGGdata_var;
 
 endmodule
 
