@@ -55,7 +55,7 @@ test-module: clean
 
 .PHONY: clean
 clean:
-	rm -rf tmp_gen mismatches debug_logs *.json
+	rm -rf dist mismatches debug_logs *.json
 
 .PHONY: purge
 purge: clean

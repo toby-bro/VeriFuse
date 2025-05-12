@@ -9,7 +9,7 @@ import (
 
 // Common directory paths
 var (
-	TMP_DIR        = "tmp_gen"
+	TMP_DIR        = "dist"
 	MISMATCHES_DIR = "mismatches"
 	DEBUG_LOGS_DIR = "debug_logs"
 )

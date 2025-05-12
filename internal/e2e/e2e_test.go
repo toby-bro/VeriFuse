@@ -139,7 +139,7 @@ func TestPfuzzEndToEnd(t *testing.T) {
 	t.Logf("Found %d test files.", len(testFiles))
 
 	// Clean shared directories once before starting parallel tests (optional, good practice)
-	_ = os.RemoveAll(filepath.Join(projectRoot, "tmp_gen"))
+	_ = os.RemoveAll(filepath.Join(projectRoot, "dist"))
 	_ = os.RemoveAll(filepath.Join(projectRoot, "mismatches"))
 	_ = os.RemoveAll(filepath.Join(projectRoot, "debug_logs"))
 

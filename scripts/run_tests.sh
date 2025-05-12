@@ -11,7 +11,7 @@ fi
 
 # Create test directories if they don't exist
 mkdir -p testfiles/sv
-mkdir -p tmp_gen
+mkdir -p dist
 
 # List of test files to run
 # Get list of test files as an array
@@ -31,7 +31,7 @@ for test_file in "${TEST_FILES[@]}"; do
     echo -n "Testing ${test_file}... "
     
     # Clean temporary files
-    rm -rf tmp_gen/* mismatches/* debug_logs/*
+    rm -rf dist/* mismatches/* debug_logs/*
     
     # Run the pfuzz command with limited tests
     if ./pfuzz -n 10 -strategy simple -workers 1 -file "$test_file" &> /tmp/pfuzz_test_output; then
