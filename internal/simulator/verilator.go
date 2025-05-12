@@ -193,17 +193,18 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 	)
 
 	if err := cmd.Run(); err != nil {
-		sim.logger.Error("Verilator execution failed. Error: %v", err)
-		sim.logger.Error("Verilator execution stdout:\n%s", stdout.String())
-		sim.logger.Error("Verilator execution stderr:\n%s", stderr.String())
-		// List directory contents after failed run for debugging
 		files, _ := os.ReadDir(sim.workDir)
 		fileList := make([]string, 0, len(files))
 		for _, f := range files {
 			fileList = append(fileList, f.Name())
 		}
-		sim.logger.Error("Work directory contents after failed run: %v", fileList)
-		return fmt.Errorf("verilator execution failed: %v\nstderr: %s", err, stderr.String())
+		sim.logger.Debug("Work directory contents after failed run: %v", fileList)
+		return fmt.Errorf(
+			"verilator execution failed: %v\nstdout: %sstderr: %s",
+			err,
+			stdout.String(),
+			stderr.String(),
+		)
 	}
 	sim.logger.Debug("Verilator execution successful.")
 	sim.logger.Debug(

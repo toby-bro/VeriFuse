@@ -374,15 +374,18 @@ func (f *Fuzzer) runSingleTest(
 		return
 	}
 
-	ivResult, ivSuccess := f.runSimulator("iverilog", ivsim, testDir, workerModule)
-	if !ivSuccess {
-		f.debug.Error("[%s] IVerilog simulation failed for test %d", workerID, testIndex)
-		return
-	}
+	ivResult, ivErr := f.runSimulator("iverilog", ivsim, testDir, workerModule)
+	vlResult, vlErr := f.runSimulator("verilator", vlsim, testDir, workerModule)
 
-	vlResult, vlSuccess := f.runSimulator("verilator", vlsim, testDir, workerModule)
-	if !vlSuccess {
-		f.debug.Error("[%s] Verilator simulation failed for test %d", workerID, testIndex)
+	if ivErr != nil && vlErr != nil {
+		f.debug.Error(
+			"[%s] Both simulations failed for test %d on module %s with errors : \n%s\n%s",
+			workerID,
+			testIndex,
+			workerModule.Name,
+			ivErr,
+			vlErr,
+		)
 		return
 	}
 
@@ -681,11 +684,10 @@ func (f *Fuzzer) runSimulator(
 	sim simulator.Simulator,
 	testDir string,
 	module *verilog.Module,
-) (map[string]string, bool) {
+) (map[string]string, error) {
 	outputDir := filepath.Join(testDir, simName)
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		f.debug.Error("Failed to create output dir %s: %v", outputDir, err)
-		return nil, false
+		return nil, fmt.Errorf("failed to create output dir %s: %v", outputDir, err)
 	}
 
 	outputPaths := make(map[string]string)
@@ -711,20 +713,22 @@ func (f *Fuzzer) runSimulator(
 	}
 
 	if err := sim.RunTest(testDir, outputPaths); err != nil {
-		return nil, false
+		return nil, fmt.Errorf("failed to run %s: %v", simName, err)
 	}
 
 	if len(outputPaths) > 0 {
 		if err := simulator.VerifyOutputFiles(outputPaths); err != nil {
-			f.debug.Error("Output file verification failed for %s: %v", simName, err)
-			return nil, false
+			return nil, fmt.Errorf(
+				"Output file verification failed for %s: %v",
+				simName,
+				err,
+			)
 		}
 	}
 
 	results, err := simulator.ReadOutputFiles(outputPaths)
 	if err != nil {
-		f.debug.Error("Failed to read output files for %s: %v", simName, err)
-		return nil, false
+		return nil, fmt.Errorf("failed to read output files for %s: %v", simName, err)
 	}
-	return results, true
+	return results, nil
 }
