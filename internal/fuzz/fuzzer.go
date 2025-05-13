@@ -210,7 +210,6 @@ func (f *Fuzzer) Run(numTests int) error {
 			f.debug.Error("%s", we)
 		}
 	} else if !f.mutate {
-		// TODO: #20 fix the error handling
 		fmt.Printf("%s[+] File `%s` checked successfully, modules seem valid.%s\n", utils.ColorGreen, f.svFile.Name, utils.ColorReset)
 	}
 
