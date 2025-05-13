@@ -28,15 +28,18 @@ const (
 )
 
 type DebugLogger struct {
-	verbose int
-	logger  *log.Logger
+	verbose   int
+	logger    *log.Logger
+	errLogger *log.Logger
 }
 
 func NewDebugLogger(verbose int) *DebugLogger {
 	customLogger := log.New(os.Stdout, "", 0)
+	errorLogger := log.New(os.Stderr, "", 0)
 	return &DebugLogger{
-		verbose: verbose,
-		logger:  customLogger,
+		verbose:   verbose,
+		logger:    customLogger,
+		errLogger: errorLogger,
 	}
 }
 
@@ -68,13 +71,13 @@ func (d *DebugLogger) Error(format string, v ...interface{}) {
 	if d.verbose >= VerbosityError {
 		msg := fmt.Sprintf("%s[+] ERROR:%s", BoldStart, BoldEnd)
 		msg += fmt.Sprintf(" "+format, v...)
-		d.logger.Print(ColorRed + msg + ColorReset)
+		d.errLogger.Print(ColorRed + msg + ColorReset)
 	}
 }
 
 func (d *DebugLogger) Fatal(format string, v ...interface{}) {
 	msg := fmt.Sprintf("%s[+] FATAL:%s", BoldStart, BoldEnd)
 	msg += fmt.Sprintf(" "+format, v...)
-	d.logger.Print(ColorRed + msg + ColorReset)
+	d.errLogger.Print(ColorRed + msg + ColorReset)
 	os.Exit(1)
 }
