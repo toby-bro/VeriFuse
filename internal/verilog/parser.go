@@ -302,7 +302,6 @@ func extractANSIPortDeclarations(
 	portListStr string,
 	parameters map[string]Parameter,
 ) (map[string]Port, []string) {
-	// TODO determine if the headerPortOrder is really usefull if not delete it
 	headerPorts := make(map[string]Port)
 	headerPortOrder := []string{}
 
