@@ -106,6 +106,7 @@ func getRandomSnippet() (*Snippet, error) {
 }
 
 func injectSnippetInModule(targetModule *verilog.Module, snippet *Snippet) error {
+	// TODO: #18 exclude variables that are not in scope (zB function / task ...)
 	variables, err := verilog.ParseVariables(snippet.ParentFile, targetModule.Body)
 	if err != nil {
 		return fmt.Errorf("failed to extract variables from module: %v", err)
