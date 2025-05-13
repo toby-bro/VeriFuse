@@ -72,7 +72,7 @@ func (f *Fuzzer) Setup() error {
 	if err != nil {
 		f.debug.Fatal("Failed to read file %s: %v", fileName, err)
 	}
-	f.svFile, err = verilog.ParseVerilog(fileContent, verbose)
+	f.svFile, err = verilog.ParseVerilog(fileContent, f.verbose)
 	if err != nil {
 		f.debug.Fatal("Failed to parse file %s: %v", fileName, err)
 	}
@@ -145,6 +145,7 @@ func (f *Fuzzer) Run(numTests int) error {
 
 	var wg sync.WaitGroup
 	testCases := make(chan int, f.workers)
+	errChan := make(chan error, f.workers)
 
 	if f.mutate {
 		progressTracker := NewProgressTracker(numTests, f.stats, &wg)
@@ -163,7 +164,13 @@ func (f *Fuzzer) Run(numTests int) error {
 
 	for w := 0; w < f.workers; w++ {
 		wg.Add(1)
-		go f.worker(&wg, testCases, f.svFile.Modules[moduleNames[w%len(moduleNames)]])
+		workerIdx := w
+		go func(idx int, mod *verilog.Module) {
+			defer wg.Done()
+			if err := f.worker(testCases, mod); err != nil {
+				errChan <- fmt.Errorf("worker %d (module %s) error: %w", idx, mod.Name, err)
+			}
+		}(workerIdx, f.svFile.Modules[moduleNames[workerIdx%len(moduleNames)]])
 	}
 
 	var feedingWg sync.WaitGroup
@@ -190,11 +197,23 @@ func (f *Fuzzer) Run(numTests int) error {
 	wg.Wait()
 	cancel()
 	feedingWg.Wait()
+	close(errChan)
+
+	var allWorkerErrors []error
+	for err := range errChan {
+		allWorkerErrors = append(allWorkerErrors, err)
+	}
+	if len(allWorkerErrors) > 0 {
+		f.debug.Error("Fuzzing completed with %d worker error(s):", len(allWorkerErrors))
+		for _, we := range allWorkerErrors {
+			f.debug.Error("%s", we)
+		}
+	} else if !f.mutate {
+		fmt.Printf("%s[+] File `%s` checked successfully, modules seem valid.%s\n", utils.ColorGreen, f.svFile.Name, utils.ColorReset)
+	}
 
 	if f.mutate {
 		f.stats.PrintSummary()
-	} else {
-		fmt.Printf("[+] File `%s` checked successfully, modules seem valid.\n", f.svFile.Name)
 	}
 
 	if numTests > 0 && f.stats.TotalTests == 0 {
@@ -216,6 +235,14 @@ func (f *Fuzzer) Run(numTests int) error {
 	if f.stats.Mismatches > 0 && f.mutate {
 		f.debug.Info("Found %d mismatches between iverilog and verilator!\n", f.stats.Mismatches)
 		return fmt.Errorf("%d mismatches found", f.stats.Mismatches)
+	}
+
+	if len(allWorkerErrors) > 0 {
+		return fmt.Errorf(
+			"fuzzing failed due to %d worker errors; first: %w",
+			len(allWorkerErrors),
+			allWorkerErrors[0],
+		)
 	}
 
 	f.debug.Info("No mismatches found after %d tests.\n", numTests)
@@ -608,12 +635,9 @@ func (f *Fuzzer) performWorkerAttempt(
 }
 
 func (f *Fuzzer) worker(
-	wg *sync.WaitGroup,
 	testCases <-chan int,
 	moduleToTest *verilog.Module,
 ) error {
-	defer wg.Done()
-
 	var lastSetupError error
 	workerID := fmt.Sprintf("worker_%d", time.Now().UnixNano())
 	var strategy Strategy

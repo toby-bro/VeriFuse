@@ -15,6 +15,8 @@ const (
 	ColorBlue   = "\033[34m"
 	ColorWhite  = "\033[37m"
 	ColorGrey   = "\033[90m"
+	BoldStart   = "\033[1m"
+	BoldEnd     = "\033[22m"
 )
 
 const (
@@ -40,34 +42,39 @@ func NewDebugLogger(verbose int) *DebugLogger {
 
 func (d *DebugLogger) Debug(format string, v ...interface{}) {
 	if d.verbose >= VerbosityDebug {
-		msg := fmt.Sprintf("[+] DEBUG: "+format, v...)
+		msg := fmt.Sprintf("%s[+] DEBUG:%s", BoldStart, BoldEnd)
+		msg += fmt.Sprintf(" "+format, v...)
 		d.logger.Print(ColorGrey + msg + ColorReset)
 	}
 }
 
 func (d *DebugLogger) Info(format string, v ...interface{}) {
 	if d.verbose >= VerbosityInfo {
-		msg := fmt.Sprintf("[+] INFO: "+format, v...)
+		msg := fmt.Sprintf("%s[+] INFO :%s", BoldStart, BoldEnd)
+		msg += fmt.Sprintf(" "+format, v...)
 		d.logger.Print(ColorGreen + msg + ColorReset)
 	}
 }
 
 func (d *DebugLogger) Warn(format string, v ...interface{}) {
 	if d.verbose >= VerbosityWarning {
-		msg := fmt.Sprintf("[+] WARN: "+format, v...)
+		msg := fmt.Sprintf("%s[+] WARN :%s", BoldStart, BoldEnd)
+		msg += fmt.Sprintf(" "+format, v...)
 		d.logger.Print(ColorYellow + msg + ColorReset)
 	}
 }
 
 func (d *DebugLogger) Error(format string, v ...interface{}) {
 	if d.verbose >= VerbosityError {
-		msg := fmt.Sprintf("[+] ERROR: "+format, v...)
+		msg := fmt.Sprintf("%s[+] ERROR:%s", BoldStart, BoldEnd)
+		msg += fmt.Sprintf(" "+format, v...)
 		d.logger.Print(ColorRed + msg + ColorReset)
 	}
 }
 
 func (d *DebugLogger) Fatal(format string, v ...interface{}) {
-	msg := fmt.Sprintf("[+] FATAL: "+format, v...)
+	msg := fmt.Sprintf("%s[+] FATAL:%s", BoldStart, BoldEnd)
+	msg += fmt.Sprintf(" "+format, v...)
 	d.logger.Print(ColorRed + msg + ColorReset)
 	os.Exit(1)
 }
