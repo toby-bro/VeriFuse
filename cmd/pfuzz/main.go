@@ -63,11 +63,11 @@ func main() {
 
 	if *checkFile {
 		logger.Info("Checking Verilog file for valid modules...")
-		*workers = 10
+		*workers = runtime.NumCPU()
 		*maxAttempts = 1
 		*mutate = false
 		*seedFlag = 0
-		*numTests = 10
+		*numTests = runtime.NumCPU()
 	}
 
 	// Create and setup fuzzer using the new package structure
