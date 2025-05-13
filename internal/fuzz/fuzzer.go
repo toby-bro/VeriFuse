@@ -374,10 +374,15 @@ func (f *Fuzzer) processTestCases(
 	workerModule *verilog.Module,
 	testCases <-chan int,
 	strategy Strategy,
-) {
+) []error {
+	errors := []error{}
 	for i := range testCases {
-		f.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, i, strategy)
+		err := f.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, i, strategy)
+		if err != nil {
+			errors = append(errors, err)
+		}
 	}
+	return errors
 }
 
 func (f *Fuzzer) runSingleTest(
@@ -386,7 +391,7 @@ func (f *Fuzzer) runSingleTest(
 	workerModule *verilog.Module,
 	testIndex int,
 	strategy Strategy,
-) {
+) error {
 	testCase := strategy.GenerateTestCase(testIndex)
 	f.stats.AddTest()
 
@@ -405,23 +410,21 @@ func (f *Fuzzer) runSingleTest(
 
 	testDir := filepath.Join(workerDir, fmt.Sprintf("test_%d", testIndex))
 	if err := os.MkdirAll(testDir, 0o755); err != nil {
-		f.debug.Fatal("[%s] Failed to create test directory %s: %v", workerID, testDir, err)
-		return
+		return fmt.Errorf("[%s] Failed to create test directory %s: %v", workerID, testDir, err)
 	}
 	defer func() {
 		os.RemoveAll(testDir)
 	}()
 
 	if err := writeTestInputs(testDir, testCase); err != nil {
-		f.debug.Fatal("[%s] Failed to write inputs for test %d: %v", workerID, testIndex, err)
-		return
+		return fmt.Errorf("[%s] Failed to write inputs for test %d: %v", workerID, testIndex, err)
 	}
 
 	ivResult, ivErr := f.runSimulator("iverilog", ivsim, testDir, workerModule)
 	vlResult, vlErr := f.runSimulator("verilator", vlsim, testDir, workerModule)
 
 	if ivErr != nil && vlErr != nil {
-		f.debug.Error(
+		return fmt.Errorf(
 			"[%s] Both simulations failed for test %d on module %s with errors : \n%s\n%s",
 			workerID,
 			testIndex,
@@ -429,13 +432,13 @@ func (f *Fuzzer) runSingleTest(
 			ivErr,
 			vlErr,
 		)
-		return
 	}
 
 	mismatch, mismatchDetails := f.compareSimulationResults(ivResult, vlResult)
 	if mismatch {
 		f.handleMismatch(testIndex, testDir, testCase, mismatchDetails, workerModule)
 	}
+	return nil
 }
 
 func (f *Fuzzer) validateMultiBitSignals(module *verilog.Module, testCase map[string]string) {
@@ -643,7 +646,22 @@ func (f *Fuzzer) performWorkerAttempt(
 		return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
 	}
 
-	f.processTestCases(workerID, workerDir, ivsim, vlsim, workerModule, testCases, strategy)
+	errors := f.processTestCases(
+		workerID,
+		workerDir,
+		ivsim,
+		vlsim,
+		workerModule,
+		testCases,
+		strategy,
+	)
+	if len(errors) != 0 {
+		errStr := fmt.Errorf("")
+		for _, err := range errors {
+			errStr = fmt.Errorf("%s\n%s", errStr, err)
+		}
+		return false, errStr
+	}
 	attemptCompletelySuccessful = true // Mark as successful for cleanup logic
 	return true, nil
 }
