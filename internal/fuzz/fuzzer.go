@@ -162,6 +162,7 @@ func (f *Fuzzer) Run(numTests int) error {
 		ic++
 	}
 
+	// TODO: #19 make a channel of modules so as to be sure to test them all out
 	for w := 0; w < f.workers; w++ {
 		wg.Add(1)
 		workerIdx := w
@@ -209,6 +210,7 @@ func (f *Fuzzer) Run(numTests int) error {
 			f.debug.Error("%s", we)
 		}
 	} else if !f.mutate {
+		// TODO: #20 fix the error handling
 		fmt.Printf("%s[+] File `%s` checked successfully, modules seem valid.%s\n", utils.ColorGreen, f.svFile.Name, utils.ColorReset)
 	}
 
@@ -345,11 +347,23 @@ func (f *Fuzzer) setupSimulators(
 	//	return nil, nil, fmt.Errorf("failed to compile IVerilog in worker %s: %w", workerID, err)
 	//}
 	f.debug.Debug("[%s]: Compiling Verilator simulator", workerID)
-	if err := vlsim0.Compile(); err != nil {
-		return nil, nil, fmt.Errorf("failed to compile Verilator in worker %s: %w", workerID, err)
+	vl0err := vlsim0.Compile()
+	vl3err := vlsim3.Compile()
+	if vl0err != nil && vl3err != nil {
+		return nil, nil, fmt.Errorf(
+			"Both Verilator compilations failed in worker %s: %w, %w",
+			workerID,
+			vl0err,
+			vl3err,
+		)
 	}
-	if err := vlsim3.Compile(); err != nil {
-		return nil, nil, fmt.Errorf("failed to compile Verilator in worker %s: %w", workerID, err)
+	if vl0err != nil || vl3err != nil {
+		f.debug.Warn(
+			"[%s]: One of the Verilator compilations failed, Continuing: %v, %v",
+			workerID,
+			vl0err,
+			vl3err,
+		)
 	}
 	return vlsim0, vlsim3, nil
 }
