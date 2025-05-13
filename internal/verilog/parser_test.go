@@ -940,7 +940,7 @@ func TestDependancyGraph(t *testing.T) {
 		t.Fatalf("Failed to get root directory: %v", err)
 	}
 	snippetsDir := filepath.Join(rootDir, "snippets")
-	filename := "number.sv"
+	filename := "task.sv"
 	filename = filepath.Join(snippetsDir, filename)
 	fileContent, err := utils.ReadFileContent(filename)
 	if err != nil {
