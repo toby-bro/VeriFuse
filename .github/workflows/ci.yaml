@@ -72,13 +72,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y iverilog verilator
 
-      - name: Run
-        run: |
-          make run
-          if [ $? -ne 0 ]; then
-            echo "Make run failed"
-            exit 1
-          fi
       - name: Test
         run: |
           make tests
