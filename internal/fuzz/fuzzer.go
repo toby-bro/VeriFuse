@@ -374,14 +374,14 @@ func (f *Fuzzer) processTestCases(
 	testCases <-chan int,
 	strategy Strategy,
 ) []error {
-	errors := []error{}
+	errorMap := []error{}
 	for i := range testCases {
 		err := f.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, i, strategy)
 		if err != nil {
-			errors = append(errors, err)
+			errorMap = append(errorMap, err)
 		}
 	}
-	return errors
+	return errorMap
 }
 
 func (f *Fuzzer) runSingleTest(
@@ -645,7 +645,7 @@ func (f *Fuzzer) performWorkerAttempt(
 		return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
 	}
 
-	errors := f.processTestCases(
+	errorMap := f.processTestCases(
 		workerID,
 		workerDir,
 		ivsim,
@@ -654,9 +654,9 @@ func (f *Fuzzer) performWorkerAttempt(
 		testCases,
 		strategy,
 	)
-	if len(errors) != 0 {
-		errStr := fmt.Errorf("")
-		for _, err := range errors {
+	if len(errorMap) != 0 {
+		errStr := errors.New("")
+		for _, err := range errorMap {
 			errStr = fmt.Errorf("%s\n%s", errStr, err)
 		}
 		return false, errStr
