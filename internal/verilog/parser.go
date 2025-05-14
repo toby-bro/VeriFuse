@@ -424,7 +424,7 @@ func extractANSIPortDeclarations(
 
 			if directionStr == "" && portStr == "" && signedStr == "" && rangeStr == "" {
 				if len(headerPortOrder) == 0 {
-					logger.Warn("Header port declaration '%s' is empty.", portDecl)
+					logger.Debug("Header port declaration '%s' is empty.", portDecl)
 					continue
 				}
 				// Port is the same as the last port
