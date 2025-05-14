@@ -256,6 +256,7 @@ func TestParseRange(t *testing.T) {
 			8,
 			true,
 		}, // Non-numeric, fallback
+		{"input wire [(1'h0):(1'h0)] clk;", "[(1'h0):(1'h0)]", nil, 1, false},
 	}
 
 	for _, tc := range testCases {
@@ -1612,6 +1613,21 @@ input int counter_val;
 					Type:      REG,
 					Width:     8,
 					IsSigned:  false,
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:       "weirdWidths",
+			content:    "input wire [(1'h0):(1'h0)] clk;",
+			parameters: nil,
+			expectedPortsMap: map[string]Port{
+				"clk": {
+					Name:      "clk",
+					Direction: INPUT,
+					Type:      WIRE,
+					Width:     1,
+					IsSigned:  true,
 				},
 			},
 			expectError: false,

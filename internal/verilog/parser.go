@@ -99,13 +99,16 @@ var generalStructRegex = regexp.MustCompile(
 
 var baseTypes = `reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum`
 
+var widthRegex = `\[\s*[\w\(\)'\-\+\:\s]+\s*\]`
+
 var baseTypesRegex = regexp.MustCompile(fmt.Sprintf(`(?m)^\s*(%s)\s*$`, baseTypes))
 
-var variableRegexTemplate = `(?m)^(\s*)(?:\w+\s+)?(%s)\s+(?:(?:(\[[\w\-]+:[\w\-]+\])+|(unsigned))\s+)?(?:#\(\w+\)\s+)?((?:(?:(?:\w+(?:\s+\[[^\]]+\])?\s*,\s*)+)\s*)*(?:\w+(?:\s+\[[^\]]+\])?))(?:\s+=\s+new\(.*\))?\s*;`
+var variableRegexTemplate = `(?m)^(\s*)(?:\w+\s+)?(%s)\s+(?:(?:(%s)+|(unsigned))\s+)?(?:#\(\w+\)\s+)?((?:(?:(?:\w+(?:\s+\[[^\]]+\])?\s*,\s*)+)\s*)*(?:\w+(?:\s+\[[^\]]+\])?))(?:\s+=\s+new\(.*\))?\s*;`
 
 var generalPortRegex = regexp.MustCompile(fmt.Sprintf(
-	`^\s*(input|output|inout)\s+(?:(%s)\s+)?(?:(signed|unsigned)\s+)?(\[\s*[\w\-\+\:\s]+\s*\])?\s*(\w+)\s*(?:,|;)`,
+	`^\s*(input|output|inout)\s+(?:(%s)\s+)?(?:(signed|unsigned)\s+)?(%s)?\s*(\w+)\s*(?:,|;)`,
 	baseTypes,
+	widthRegex,
 ))
 
 var generalParameterRegex = regexp.MustCompile(fmt.Sprintf(
@@ -132,6 +135,7 @@ var generalVariableRegex = regexp.MustCompile(
 	fmt.Sprintf(
 		variableRegexTemplate,
 		baseTypes,
+		widthRegex,
 	),
 )
 
@@ -170,6 +174,7 @@ func userDedinedVariablesRegex(verilogFile *VerilogFile) *regexp.Regexp {
 	regexpString := fmt.Sprintf(
 		variableRegexTemplate,
 		newTypesConcat,
+		widthRegex,
 	)
 	return regexp.MustCompile(regexpString)
 }
