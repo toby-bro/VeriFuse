@@ -411,8 +411,11 @@ func (f *Fuzzer) runSingleTest(
 	if err := os.MkdirAll(testDir, 0o755); err != nil {
 		return fmt.Errorf("[%s] Failed to create test directory %s: %v", workerID, testDir, err)
 	}
+	mismatch := false
 	defer func() {
-		os.RemoveAll(testDir)
+		if !mismatch {
+			os.RemoveAll(testDir)
+		}
 	}()
 
 	if err := writeTestInputs(testDir, testCase); err != nil {
@@ -498,7 +501,15 @@ func (f *Fuzzer) handleMismatch(
 	mismatchDetails map[string]string,
 	workerModule *verilog.Module,
 ) {
-	f.debug.Info("Mismatch found in test %d:", testIndex)
+	defer func() {
+		os.RemoveAll(testDir)
+	}()
+	f.debug.Info(
+		"[%s] Mismatch found in test %d: for module %s",
+		testDir,
+		testIndex,
+		workerModule.Name,
+	)
 	f.debug.Info("Inputs:")
 	for portName, value := range testCase {
 		f.debug.Info("  %s = %s", portName, value)
