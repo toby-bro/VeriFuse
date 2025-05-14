@@ -101,7 +101,7 @@ var baseTypes = `reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int
 
 var baseTypesRegex = regexp.MustCompile(fmt.Sprintf(`(?m)^\s*(%s)\s*$`, baseTypes))
 
-var variableRegexTemplate = `(?m)^\s*(?:\w+\s+)?(%s)\s+(?:(?:(\[[\w\-]+:[\w\-]+\])+|(unsigned))\s+)?(?:#\(\w+\)\s+)?((?:(?:(?:\w+(?:\s+\[[^\]]+\])?\s*,\s*)+)\s*)*(?:\w+(?:\s+\[[^\]]+\])?))(?:\s+=\s+new\(.*\))?\s*;`
+var variableRegexTemplate = `(?m)^(\s*)(?:\w+\s+)?(%s)\s+(?:(?:(\[[\w\-]+:[\w\-]+\])+|(unsigned))\s+)?(?:#\(\w+\)\s+)?((?:(?:(?:\w+(?:\s+\[[^\]]+\])?\s*,\s*)+)\s*)*(?:\w+(?:\s+\[[^\]]+\])?))(?:\s+=\s+new\(.*\))?\s*;`
 
 var generalPortRegex = regexp.MustCompile(fmt.Sprintf(
 	`^\s*(input|output|inout)\s+(?:(%s)\s+)?(?:(signed|unsigned)\s+)?(\[\s*[\w\-\+\:\s]+\s*\])?\s*(\w+)\s*(?:,|;)`,
@@ -780,45 +780,53 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 // TODO: #16 support arrays which will break the current width checking
 func ParseVariables(v *VerilogFile,
 	content string,
-) ([]*Variable, error) {
+) ([]*Variable, *ScopeNode, error) {
 	allMatchedVariables := MatchAllVariablesFromString(content)
 	variables := make([]*Variable, 0, len(allMatchedVariables))
+	scopeTree := &ScopeNode{
+		Level:     0,
+		Variables: []*Variable{},
+		Children:  []*ScopeNode{},
+		Parent:    nil,
+	}
+	scopeNode := scopeTree
 	for _, matchedVariable := range allMatchedVariables {
 		if len(matchedVariable) < 4 {
-			return nil, errors.New("no variable found in the provided text")
+			return nil, nil, errors.New("no variable found in the provided text")
 		}
-		varType := GetType(matchedVariable[1])
-		widthStr := matchedVariable[2]
+		indent := len(strings.ReplaceAll(matchedVariable[1], "\t", "    ")) / 4
+		varType := GetType(matchedVariable[2])
+		widthStr := matchedVariable[3]
 		width, err := ParseRange(widthStr, nil)
 		if err != nil {
 			if width != 0 {
 				logger.Warn(
 					"Could not parse range '%s' for variable '%s'. Using default width %d. Error: %v\n",
 					widthStr,
-					matchedVariable[3],
+					matchedVariable[4],
 					width,
 					err,
 				)
 			} else {
-				return nil, fmt.Errorf("failed to parse width: %v", err)
+				return nil, nil, fmt.Errorf("failed to parse width: %v", err)
 			}
 		}
 		var parentStruct *Struct
 		var parentClass *Class
 		if varType == UNKNOWN {
 			// Check if it's a struct or class that we have already defined
-			if _, exists := v.Structs[matchedVariable[1]]; exists {
+			if _, exists := v.Structs[matchedVariable[2]]; exists {
 				varType = USERDEFINED
-				parentStruct = v.Structs[matchedVariable[1]]
-			} else if _, exists := v.Classes[matchedVariable[1]]; exists {
+				parentStruct = v.Structs[matchedVariable[2]]
+			} else if _, exists := v.Classes[matchedVariable[2]]; exists {
 				varType = USERDEFINED
-				parentClass = v.Classes[matchedVariable[1]]
+				parentClass = v.Classes[matchedVariable[2]]
 			} else {
-				return nil, fmt.Errorf("unknown type '%s' for variable '%s'", matchedVariable[1], matchedVariable[4])
+				return nil, nil, fmt.Errorf("unknown type '%s' for variable '%s'", matchedVariable[2], matchedVariable[5])
 			}
 		}
-		unsigned := matchedVariable[3] == "unsigned"
-		for _, decl := range strings.Split(matchedVariable[4], ",") {
+		unsigned := matchedVariable[4] == "unsigned"
+		for _, decl := range strings.Split(matchedVariable[5], ",") {
 			decl = strings.TrimSpace(decl)
 			if decl == "" {
 				continue
@@ -850,9 +858,24 @@ func ParseVariables(v *VerilogFile,
 				Array:        arrayMatch[2],
 			}
 			variables = append(variables, variable)
+			if indent == scopeNode.Level {
+				scopeNode.Variables = append(scopeNode.Variables, variable)
+			} else {
+				for scopeNode.Level > indent {
+					scopeNode = scopeNode.Parent
+				}
+				newScopeNode := &ScopeNode{
+					Level:     indent,
+					Variables: []*Variable{variable},
+					Children:  []*ScopeNode{},
+					Parent:    scopeNode,
+				}
+				scopeNode.Children = append(scopeNode.Children, newScopeNode)
+				scopeNode = newScopeNode
+			}
 		}
 	}
-	return variables, nil
+	return variables, scopeTree, nil
 }
 
 func (v *VerilogFile) ParseStructs(
@@ -875,7 +898,7 @@ func (v *VerilogFile) ParseStructs(
 			}
 			v.Structs[structName] = s
 		} else {
-			variables, err := ParseVariables(v, varList)
+			variables, _, err := ParseVariables(v, varList)
 			if err != nil {
 				return fmt.Errorf("failed to parse variables in struct '%s': %v", structName, err)
 			}
@@ -910,7 +933,7 @@ func (v *VerilogFile) typeDependenciesParser() error {
 			if len(matchedVariable) < 4 {
 				return errors.New("no variable found in the provided text")
 			}
-			userTypeStr := matchedVariable[1]
+			userTypeStr := matchedVariable[2]
 			v.DependancyMap[class.Name].DependsOn = append(
 				v.DependancyMap[class.Name].DependsOn,
 				userTypeStr,
@@ -923,7 +946,7 @@ func (v *VerilogFile) typeDependenciesParser() error {
 			if len(matchedVariable) < 4 {
 				return errors.New("no variable found in the provided text")
 			}
-			userTypeStr := matchedVariable[1]
+			userTypeStr := matchedVariable[2]
 			v.DependancyMap[module.Name].DependsOn = append(
 				v.DependancyMap[module.Name].DependsOn,
 				userTypeStr,

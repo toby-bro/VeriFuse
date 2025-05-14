@@ -122,3 +122,10 @@ type DependencyNode struct {
 	Name      string
 	DependsOn []string
 }
+
+type ScopeNode struct {
+	Level     int
+	Variables []*Variable
+	Children  []*ScopeNode
+	Parent    *ScopeNode
+}

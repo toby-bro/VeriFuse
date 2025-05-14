@@ -1,6 +1,7 @@
 package verilog
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -485,14 +486,15 @@ assign x = 1'b1;
 	}
 }
 
-var aa = `rand logic [7:0] GGG_field1;
+var aa = `
+rand logic [7:0] GGG_field1;
     rand int unsigned GGG_field2;
 bit GGG_condition_var;
 rand logic [7:0] GGG_array_var [GGG_CONTAINER_SIZE];
     int GGG_index_limit; // Member to use in constraint expression
-int 	m_queue [$]; 
-    rand logic [GGG_CLASS_WIDTH-1:0] GGG_class_rand_var;
-		myPacket pkt0, pkt1;
+	    int 	m_queue [$]; 
+        rand logic [GGG_CLASS_WIDTH-1:0] GGG_class_rand_var;
+	myPacket pkt0, pkt1;
 logic [7:0] internal_wire;
 
 	`
@@ -519,12 +521,50 @@ func TestParseVariables(t *testing.T) {
 		{Name: "GGG_class_rand_var", Type: LOGIC, Width: 8, Unsigned: false},
 		{Name: "internal_wire", Type: LOGIC, Width: 8, Unsigned: false},
 	}
-
+	expectedTree := &ScopeNode{
+		Level:     0,
+		Parent:    nil,
+		Variables: []*Variable{expectedVars[0]},
+		Children:  []*ScopeNode{},
+	}
+	expectedTree.Children = append(expectedTree.Children, &ScopeNode{
+		Level:     1,
+		Parent:    expectedTree,
+		Variables: []*Variable{expectedVars[1]},
+		Children:  []*ScopeNode{},
+	})
+	expectedTree.Children = append(expectedTree.Children, &ScopeNode{
+		Level:     0,
+		Parent:    expectedTree,
+		Variables: []*Variable{expectedVars[2], expectedVars[3]},
+		Children:  []*ScopeNode{},
+	})
+	expectedTree.Children[1].Children = append(expectedTree.Children[1].Children, &ScopeNode{
+		Level:     1,
+		Parent:    expectedTree.Children[1],
+		Variables: []*Variable{expectedVars[4]},
+		Children:  []*ScopeNode{},
+	})
+	expectedTree.Children[1].Children[0].Children = append(
+		expectedTree.Children[1].Children[0].Children,
+		&ScopeNode{
+			Level:     2,
+			Parent:    expectedTree.Children[1].Children[0],
+			Variables: []*Variable{expectedVars[5], expectedVars[6]},
+			Children:  []*ScopeNode{},
+		},
+	)
+	expectedTree.Children[1].Children = append(expectedTree.Children[1].Children, &ScopeNode{
+		Level:     0,
+		Parent:    expectedTree.Children[1],
+		Variables: []*Variable{expectedVars[7]},
+		Children:  []*ScopeNode{},
+	})
 	// Pass nil for VerilogFile as 'aa' contains only basic types for this test's scope,
 	// and we are not testing user-defined type resolution here.
 	// The `myPacket pkt0, pkt1;` line in `aa` will be skipped by MatchAllVariablesFromString
 	// because `myPacket` is not a built-in type in the generalVariableRegex.
-	parsedVars, err := ParseVariables(nil, aa)
+	parsedVars, scopeTree, err := ParseVariables(nil, aa)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
@@ -555,6 +595,78 @@ func TestParseVariables(t *testing.T) {
 			)
 		}
 	}
+
+	// Compare scope trees
+	if err := compareScopeTrees(scopeTree, expectedTree); err != nil {
+		t.Errorf("Scope tree mismatch: %v", err)
+		// For detailed visualization if the trees are small enough or for debugging:
+		t.Logf("Actual Scope Tree: %+v", scopeTree)
+		t.Logf("Expected Scope Tree: %+v", expectedTree)
+	}
+}
+
+// compareScopeTrees recursively compares two ScopeNode trees.
+// It returns an error if a mismatch is found.
+func compareScopeTrees(actual, expected *ScopeNode) error {
+	if actual == nil && expected == nil {
+		return nil
+	}
+	if actual == nil || expected == nil {
+		return fmt.Errorf(
+			"one node is nil while the other is not (actual: %v, expected: %v)",
+			actual != nil,
+			expected != nil,
+		)
+	}
+
+	if actual.Level != expected.Level {
+		return fmt.Errorf("level mismatch: actual %d, expected %d", actual.Level, expected.Level)
+	}
+
+	if !reflect.DeepEqual(actual.Variables, expected.Variables) {
+		var actualVarNames []string
+		for _, v := range actual.Variables {
+			if v != nil {
+				actualVarNames = append(actualVarNames, v.Name)
+			} else {
+				actualVarNames = append(actualVarNames, "<nil>")
+			}
+		}
+		var expectedVarNames []string
+		for _, v := range expected.Variables {
+			if v != nil {
+				expectedVarNames = append(expectedVarNames, v.Name)
+			} else {
+				expectedVarNames = append(expectedVarNames, "<nil>")
+			}
+		}
+		if !reflect.DeepEqual(expectedVarNames, actualVarNames) {
+			return fmt.Errorf(
+				"variables mismatch at level %d: actual names %v, expected names %v. Actual vars: %+v, Expected vars: %+v",
+				actual.Level,
+				actualVarNames,
+				expectedVarNames,
+				actual.Variables,
+				expected.Variables,
+			)
+		}
+	}
+
+	if len(actual.Children) != len(expected.Children) {
+		return fmt.Errorf(
+			"children count mismatch at level %d: actual %d, expected %d",
+			actual.Level,
+			len(actual.Children),
+			len(expected.Children),
+		)
+	}
+
+	for i := range actual.Children {
+		if err := compareScopeTrees(actual.Children[i], expected.Children[i]); err != nil {
+			return fmt.Errorf("mismatch in child %d at level %d: %w", i, actual.Level, err)
+		}
+	}
+	return nil
 }
 
 func TestParseVariables_MultipleDeclarations(t *testing.T) {
@@ -671,7 +783,7 @@ logic GGG_varA, GGG_varB, GGG_varC;
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			parsedVars, err := ParseVariables(nil, tc.content)
+			parsedVars, _, err := ParseVariables(nil, tc.content)
 			if err != nil {
 				t.Fatalf("ParseVariables failed for content '%s': %v", tc.content, err)
 			}
