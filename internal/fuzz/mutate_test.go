@@ -213,7 +213,7 @@ endmodule
 		ParentFile: snippetFile,
 	}
 
-	variables, _, err := verilog.ParseVariables(verilogFile, module.Body)
+	_, scopeTree, err := verilog.ParseVariables(verilogFile, module.Body)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
@@ -221,7 +221,7 @@ endmodule
 	portConnections, newDeclarations, err := matchVariablesToSnippetPorts(
 		module,
 		snippet,
-		variables,
+		scopeTree,
 	)
 	if err != nil {
 		t.Fatalf("matchVariablesToSnippetPorts failed: %v", err)

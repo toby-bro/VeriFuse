@@ -64,6 +64,7 @@ func loadSnippets() error {
 			return fmt.Errorf("failed to read snippet file %s: %v", snippetFile, err)
 		}
 		verilogFile, err := verilog.ParseVerilog(fileContent, verbose)
+		verilogFile.Name = snippetFile
 		if err != nil || verilogFile == nil {
 			return err
 		}
@@ -106,22 +107,33 @@ func getRandomSnippet() (*Snippet, error) {
 }
 
 func injectSnippetInModule(targetModule *verilog.Module, snippet *Snippet) error {
-	// TODO: #18 exclude variables that are not in scope (zB function / task ...)
-	variables, _, err := verilog.ParseVariables(snippet.ParentFile, targetModule.Body)
+	_, scopeTree, err := verilog.ParseVariables(snippet.ParentFile, targetModule.Body)
 	if err != nil {
 		return fmt.Errorf("failed to extract variables from module: %v", err)
+	}
+	if scopeTree == nil {
+		return fmt.Errorf("failed to parse scope tree for module %s", targetModule.Name)
+	}
+
+	bestScope := findBestScopeNode(scopeTree, snippet.Module.Ports)
+	if bestScope == nil {
+		logger.Warn(
+			"Could not determine a best scope for snippet %s in module %s. Using module root.",
+			snippet.Name,
+			targetModule.Name,
+		)
+		bestScope = scopeTree
 	}
 
 	portConnections, newSignalDeclarations, err := matchVariablesToSnippetPorts(
 		targetModule,
 		snippet,
-		variables,
+		scopeTree,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to match variables to snippet ports: %v", err)
 	}
 
-	// ensureOutputPortForSnippet modifies targetModule.Ports directly
 	err = ensureOutputPortForSnippet(targetModule, snippet, portConnections)
 	if err != nil {
 		return fmt.Errorf("failed to ensure output port for snippet: %v", err)
@@ -129,11 +141,21 @@ func injectSnippetInModule(targetModule *verilog.Module, snippet *Snippet) error
 
 	instantiation := generateSnippetInstantiation(snippet, portConnections)
 
-	// insertSnippetIntoModule modifies targetModule.Body directly
-	err = insertSnippetIntoModule(targetModule, instantiation, newSignalDeclarations)
+	err = insertSnippetIntoModule(
+		targetModule,
+		instantiation,
+		newSignalDeclarations,
+		bestScope,
+		scopeTree,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to insert snippet into module: %v", err)
 	}
+	logger.Info(
+		"Injected snippet %s into module %s",
+		snippet.Name,
+		targetModule.Name,
+	)
 
 	return nil
 }
@@ -141,29 +163,44 @@ func injectSnippetInModule(targetModule *verilog.Module, snippet *Snippet) error
 func matchVariablesToSnippetPorts(
 	module *verilog.Module,
 	snippet *Snippet,
-	variables []*verilog.Variable,
+	scopeTree *verilog.ScopeNode,
 ) (map[string]string, []verilog.Port, error) {
 	portConnections := make(map[string]string)
 	newDeclarations := []verilog.Port{}
 
-	usedInternalVars := make(map[string]bool)      // For variables from module.Body
-	usedModuleInputPorts := make(map[string]bool)  // For module.Ports with direction INPUT
-	usedModuleOutputPorts := make(map[string]bool) // For module.Ports with direction OUTPUT
+	usedInternalVars := make(map[string]bool)
+	usedModuleInputPorts := make(map[string]bool)
+	usedModuleOutputPorts := make(map[string]bool)
+
+	bestScopeForSnippet := findBestScopeNode(scopeTree, snippet.Module.Ports)
+	if bestScopeForSnippet == nil {
+		logger.Warn(
+			"findBestScopeNode returned nil, falling back to module root scope for snippet %s",
+			snippet.Name,
+		)
+		bestScopeForSnippet = scopeTree
+	}
+
+	varsAccessibleInBestScope := collectAccessibleVars(bestScopeForSnippet)
 
 	for _, port := range snippet.Module.Ports {
 		foundMatch := false
 
-		if port.Direction == verilog.INPUT {
-			// 1. Try to match with an unused internal variable from the module body
-			matchedVar := findMatchingVariable(port, variables, usedInternalVars)
-			if matchedVar != nil {
-				portConnections[port.Name] = matchedVar.Name
-				usedInternalVars[matchedVar.Name] = true
+		if len(varsAccessibleInBestScope) > 0 {
+			matchedVarFromScope := findMatchingVariable(
+				port,
+				varsAccessibleInBestScope,
+				usedInternalVars,
+			)
+			if matchedVarFromScope != nil {
+				portConnections[port.Name] = matchedVarFromScope.Name
+				usedInternalVars[matchedVarFromScope.Name] = true
 				foundMatch = true
 			}
+		}
 
-			// 2. If no internal variable, try to match with an unused module input port
-			if !foundMatch {
+		if !foundMatch {
+			if port.Direction == verilog.INPUT {
 				for _, modulePort := range module.Ports {
 					if modulePort.Direction == verilog.INPUT &&
 						modulePort.Type == port.Type &&
@@ -175,20 +212,7 @@ func matchVariablesToSnippetPorts(
 						break
 					}
 				}
-			}
-		} else if port.Direction == verilog.OUTPUT {
-			// 1. Try to match with an unused internal variable (if it can be driven)
-			//    or an existing module output port that ParseVariables might have picked up.
-			//    For simplicity, we assume any compatible internal var can be connected.
-			matchedVar := findMatchingVariable(port, variables, usedInternalVars)
-			if matchedVar != nil {
-				portConnections[port.Name] = matchedVar.Name
-				usedInternalVars[matchedVar.Name] = true
-				foundMatch = true
-			}
-
-			// 2. If no internal variable, try to match with an unused module output port
-			if !foundMatch {
+			} else if port.Direction == verilog.OUTPUT {
 				for _, modulePort := range module.Ports {
 					if modulePort.Direction == verilog.OUTPUT &&
 						modulePort.Type == port.Type &&
@@ -203,7 +227,6 @@ func matchVariablesToSnippetPorts(
 			}
 		}
 
-		// 3. If no match found by any means, create a new internal signal
 		if !foundMatch {
 			newSignalName := fmt.Sprintf("inj_%s_%d", strings.ToLower(port.Name), rand.Intn(1000))
 			newSignalObj := verilog.Port{
@@ -219,6 +242,107 @@ func matchVariablesToSnippetPorts(
 	}
 
 	return portConnections, newDeclarations, nil
+}
+
+func findBestScopeNode(
+	rootNode *verilog.ScopeNode,
+	requiredPorts []verilog.Port,
+) *verilog.ScopeNode {
+	if rootNode == nil {
+		return nil
+	}
+	bestScope := rootNode
+	maxSatisfiedCount := -1
+	var perfectMatchScope *verilog.ScopeNode
+
+	var dfs func(currentNode *verilog.ScopeNode, parentAccessibleVars []*verilog.Variable)
+	dfs = func(currentNode *verilog.ScopeNode, parentAccessibleVars []*verilog.Variable) {
+		if perfectMatchScope != nil {
+			return
+		}
+
+		currentScopeAndParentVars := make(
+			[]*verilog.Variable,
+			0,
+			len(currentNode.Variables)+len(parentAccessibleVars),
+		)
+		currentScopeAndParentVars = append(currentScopeAndParentVars, currentNode.Variables...)
+		currentScopeAndParentVars = append(currentScopeAndParentVars, parentAccessibleVars...)
+
+		tempUsedInCheck := make(map[string]bool)
+		currentSatisfied := 0
+		allRequiredSatisfied := true
+
+		if len(requiredPorts) == 0 {
+			perfectMatchScope = currentNode
+			maxSatisfiedCount = 0
+			bestScope = currentNode
+			return
+		}
+
+		for _, port := range requiredPorts {
+			portIsSatisfied := false
+			for _, v := range currentScopeAndParentVars {
+				if !tempUsedInCheck[v.Name] && v.Type == port.Type && v.Width == port.Width {
+					currentSatisfied++
+					tempUsedInCheck[v.Name] = true
+					portIsSatisfied = true
+					break
+				}
+			}
+			if !portIsSatisfied {
+				allRequiredSatisfied = false
+			}
+		}
+
+		if allRequiredSatisfied {
+			perfectMatchScope = currentNode
+			maxSatisfiedCount = currentSatisfied
+			bestScope = currentNode
+			return
+		}
+
+		if currentSatisfied > maxSatisfiedCount {
+			maxSatisfiedCount = currentSatisfied
+			bestScope = currentNode
+		}
+
+		varsForChildren := make(
+			[]*verilog.Variable,
+			0,
+			len(currentNode.Variables)+len(parentAccessibleVars),
+		)
+		varsForChildren = append(
+			varsForChildren,
+			currentNode.Variables...)
+		varsForChildren = append(
+			varsForChildren,
+			parentAccessibleVars...)
+
+		for _, child := range currentNode.Children {
+			dfs(child, varsForChildren)
+			if perfectMatchScope != nil {
+				return
+			}
+		}
+	}
+
+	dfs(rootNode, []*verilog.Variable{})
+
+	if perfectMatchScope != nil {
+		return perfectMatchScope
+	}
+	return bestScope
+}
+
+func collectAccessibleVars(node *verilog.ScopeNode) []*verilog.Variable {
+	var collectedVars []*verilog.Variable
+	curr := node
+	for curr != nil {
+		collectedVars = append(collectedVars, curr.Variables...)
+		curr = curr.Parent
+	}
+	return collectedVars
 }
 
 func findMatchingVariable(
@@ -287,44 +411,125 @@ func insertSnippetIntoModule(
 	module *verilog.Module,
 	instantiation string,
 	newDeclarations []verilog.Port,
+	bestScope *verilog.ScopeNode,
+	moduleScopeTree *verilog.ScopeNode,
 ) error {
 	lines := strings.Split(module.Body, "\n")
-	insertionIndex := findInsertionPoint(lines)
 
-	// Insert new signal declarations
-	for i := len(newDeclarations) - 1; i >= 0; i-- { // Insert in reverse to maintain order at insertion point
-		portToDeclare := newDeclarations[i]
-		declarationString := generateSignalDeclaration(portToDeclare, portToDeclare.Name)
-		lines = append(
-			lines[:insertionIndex],
-			append([]string{declarationString}, lines[insertionIndex:]...)...)
+	insertionPoint := findEndOfModuleDeclarations(lines)
+
+	if bestScope != nil && moduleScopeTree != nil && bestScope != moduleScopeTree {
+		logger.Debug(
+			"Snippet insertion is based on a nested scope (level %d: vars like '%s'), but current logic inserts new code at the module level (around line %d). True nested scope textual insertion would require enhancing ScopeNode with source mapping.",
+			bestScope.Level,
+			func() string {
+				if len(bestScope.Variables) > 0 {
+					return bestScope.Variables[0].Name
+				}
+				return "N/A"
+			}(),
+			insertionPoint,
+		)
 	}
 
-	// Insert snippet instantiation
-	instantiationInsertionIndex := insertionIndex + len(newDeclarations)
-	lines = append(
-		lines[:instantiationInsertionIndex],
-		append([]string{instantiation}, lines[instantiationInsertionIndex:]...)...)
+	var contentToInsert []string
+	for i := len(newDeclarations) - 1; i >= 0; i-- {
+		portToDeclare := newDeclarations[i]
+		declarationString := generateSignalDeclaration(portToDeclare, portToDeclare.Name)
+		contentToInsert = append([]string{declarationString}, contentToInsert...)
+	}
+	contentToInsert = append(contentToInsert, instantiation)
 
-	module.Body = strings.Join(lines, "\n")
+	if insertionPoint < 0 {
+		insertionPoint = 0
+	}
+
+	if insertionPoint > len(lines) {
+		insertionPoint = len(lines)
+	}
+
+	var resultLines []string
+	resultLines = append(resultLines, lines[:insertionPoint]...)
+	resultLines = append(resultLines, contentToInsert...)
+	resultLines = append(resultLines, lines[insertionPoint:]...)
+
+	module.Body = strings.Join(resultLines, "\n")
 	return nil
 }
 
-func findInsertionPoint(lines []string) int {
+func findEndOfModuleDeclarations(lines []string) int {
+	lastDeclarationLine := -1
 	for i, line := range lines {
-		if strings.Contains(line, "endmodule") {
+		trimmedLine := strings.TrimSpace(line)
+
+		if strings.HasPrefix(trimmedLine, "//") || trimmedLine == "" {
+			continue
+		}
+
+		if strings.HasPrefix(trimmedLine, "assign ") ||
+			strings.HasPrefix(trimmedLine, "always") ||
+			strings.HasPrefix(trimmedLine, "initial ") ||
+			strings.HasPrefix(trimmedLine, "generate") ||
+			(strings.Contains(trimmedLine, "(") && !isDeclarationLine(trimmedLine) &&
+				!strings.HasPrefix(trimmedLine, "function ") &&
+				!strings.HasPrefix(trimmedLine, "task ") &&
+				!strings.HasPrefix(trimmedLine, "module ")) {
+			if lastDeclarationLine != -1 {
+				return lastDeclarationLine + 1
+			}
+			return i
+		}
+
+		if isDeclarationLine(trimmedLine) {
+			lastDeclarationLine = i
+		}
+
+		if strings.HasPrefix(trimmedLine, "endmodule") {
+			if lastDeclarationLine != -1 {
+				return lastDeclarationLine + 1
+			}
+			return i
+		}
+	}
+
+	if lastDeclarationLine != -1 {
+		return lastDeclarationLine + 1
+	}
+
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.Contains(lines[i], "endmodule") {
 			return i
 		}
 	}
 	return len(lines)
 }
 
+func isDeclarationLine(line string) bool {
+	trimmedLine := strings.TrimSpace(line)
+	declarationKeywords := []string{
+		"input", "output", "inout", "reg", "wire", "logic", "integer", "real", "time", "realtime",
+		"bit", "byte", "shortint", "int", "longint", "shortreal", "string", "parameter", "localparam",
+		"genvar", "typedef", "struct", "enum", "class",
+	}
+	for _, keyword := range declarationKeywords {
+		if strings.HasPrefix(trimmedLine, keyword+" ") ||
+			strings.HasPrefix(trimmedLine, keyword+"[") {
+			return true
+		}
+	}
+	if !strings.Contains(trimmedLine, "(") && strings.HasSuffix(trimmedLine, ";") &&
+		strings.Count(trimmedLine, " ") >= 1 {
+		if !strings.ContainsAny(strings.Split(trimmedLine, " ")[0], "=+-*/%&|^<>()[]{}:;") {
+			return true
+		}
+	}
+	return false
+}
+
 func AddCodeToSnippet(originalContent, snippet string) (string, error) { //nolint:revive
 	return "", errors.New("AddCodeToSnippet not implemented yet")
 }
 
-// dfsDependencies recursively adds child structs/classes of nodeName from parentVF into targetFile
-// and records them under targetFile.DependancyMap[snippetName].DependsOn.
 func dfsDependencies(
 	nodeName string,
 	parentVF *verilog.VerilogFile,
@@ -337,29 +542,24 @@ func dfsDependencies(
 
 	for _, dep := range parentNode.DependsOn {
 		if _, found := targetFile.DependancyMap[dep]; found {
-			// already in targetFile, skip
 			continue
 		}
 		targetFile.DependancyMap[dep] = parentVF.DependancyMap[dep]
-		// copy struct if needed
 		if s, found := parentVF.Structs[dep]; found {
 			if _, exists := targetFile.Structs[dep]; !exists {
 				targetFile.Structs[dep] = s
 			}
 		}
-		// copy class if needed
 		if c, found := parentVF.Classes[dep]; found {
 			if _, exists := targetFile.Classes[dep]; !exists {
 				targetFile.Classes[dep] = c
 			}
 		}
-		// copy module if needed
 		if m, found := parentVF.Modules[dep]; found {
 			if _, exists := targetFile.Modules[dep]; !exists {
 				targetFile.Modules[dep] = m
 			}
 		}
-		// recurse
 		dfsDependencies(dep, parentVF, targetFile)
 	}
 }
@@ -369,11 +569,9 @@ func addDependancies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
 	if parentVF == nil {
 		return errors.New("snippet parent file is nil")
 	}
-	// ensure targetFile.DependancyMap exists
 	if targetFile.DependancyMap == nil {
 		targetFile.DependancyMap = make(map[string]*verilog.DependencyNode)
 	}
-	// Ensure snippet entry exists, but with no parents
 	if _, ok := targetFile.DependancyMap[snippet.Name]; !ok {
 		targetFile.DependancyMap[snippet.Name] = &verilog.DependencyNode{
 			Name:      snippet.Module.Name,
@@ -398,7 +596,7 @@ func MutateFile(
 	injectedSnippetParentFiles := make(map[string]*verilog.VerilogFile)
 	loadLogger(verbose)
 
-	for moduleName, currentModule := range svFile.Modules {
+	for moduleName, currentModule := range svFile.DeepCopy().Modules {
 		moduleToMutate := currentModule.DeepCopy()
 		if moduleToMutate == nil {
 			logger.Warn("Failed to copy module %s for mutation, skipping.", moduleName)
@@ -449,8 +647,8 @@ func MutateFile(
 			svFile.Modules[moduleName] = moduleToMutate
 			err := addDependancies(svFile, snippet)
 			if err != nil {
-				return nil, fmt.Errorf(
-					"failed to add dependencies for snippet %s: %v",
+				logger.Error(
+					"Failed to add dependencies for snippet %s: %v. Continuing with mutation.",
 					snippet.Name,
 					err,
 				)
@@ -468,6 +666,13 @@ func MutateFile(
 		}
 	}
 
+	if !mutatedOverall {
+		logger.Info(
+			"No successful mutations applied to file %s. Writing original or partially modified content if other steps occurred.\n",
+			pathToWrite,
+		)
+	}
+
 	finalMutatedContent, err := verilog.PrintVerilogFile(svFile)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -481,10 +686,11 @@ func MutateFile(
 	if err != nil {
 		return nil, fmt.Errorf("failed to write mutated content to %s: %v", pathToWrite, err)
 	}
+
 	if mutatedOverall {
-		logger.Info("Successfully mutated and rewrote file %s\n", pathToWrite)
+		logger.Debug("Successfully mutated and rewrote file %s", pathToWrite)
 	} else {
-		logger.Warn("File %s rewritten (no mutations applied or all failed).\n", pathToWrite)
+		logger.Warn("File %s rewritten (no mutations applied or all failed).", pathToWrite)
 	}
 
 	return svFile, nil
