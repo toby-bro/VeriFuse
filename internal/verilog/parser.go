@@ -115,6 +115,18 @@ var generalParameterRegex = regexp.MustCompile(fmt.Sprintf(
 
 var arrayRegex = regexp.MustCompile(`(?m)(\w+)(?:\s+(\[[^\]]+\]))?`)
 
+var ansiPortRegex = regexp.MustCompile(
+	`^\s*(?:(input|output|inout)\s+)?(?:(` +
+		baseTypes +
+		`)\s+)?(?:(signed|unsigned)\s+)?` +
+		`(?:(\[\s*[\w\-\+\:\s]+\s*\])\s+)?` +
+		`(\w+)\s*$`,
+)
+
+var simplePortRegex = regexp.MustCompile(
+	`^\s*(?:\.\s*(\w+)\s*\()?\s*(\w+)\s*\)?\s*$`,
+)
+
 // TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not Also add the support for declarations with , for many decls
 var generalVariableRegex = regexp.MustCompile(
 	fmt.Sprintf(
@@ -305,19 +317,6 @@ func extractANSIPortDeclarations(
 	headerPorts := make(map[string]Port)
 	headerPortOrder := []string{}
 
-	// Regex for ANSI port declarations in the header
-	ansiPortRegex := regexp.MustCompile(
-		`^\s*(input|output|inout)?\s*(` + // Optional direction (1)
-			baseTypes + // Optional type (2)
-			`)?\s*(signed|unsigned)?\s*` + // Optional signedness (3)
-			`(\[\s*[\w\-\+\:\s]+\s*\])?\s*` + // Optional range (4)
-			`(\w+)\s*$`, // Port name (5)
-	)
-	// Regex for simple port names (no type/direction in header) or named connections
-	simplePortRegex := regexp.MustCompile(
-		`^\s*(?:\.\s*(\w+)\s*\()?\s*(\w+)\s*\)?\s*$`,
-	) // Handles name and .name(name)
-
 	for _, p := range strings.Split(portListStr, ",") {
 		portDecl := strings.TrimSpace(p)
 		if portDecl == "" {
@@ -338,7 +337,7 @@ func extractANSIPortDeclarations(
 
 			if directionStr == "" && portStr == "" && signedStr == "" && rangeStr == "" {
 				if len(headerPortOrder) == 0 {
-					logger.Warn("Header port declaration '%s' is empty.\n", portDecl)
+					logger.Warn("Header port declaration '%s' is empty.", portDecl)
 					continue
 				}
 				// Port is the same as the last port
