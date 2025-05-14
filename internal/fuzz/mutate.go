@@ -346,7 +346,7 @@ func findBestScopeNode(
 }
 
 func collectAccessibleVars(node *verilog.ScopeNode) map[string]*verilog.Variable {
-	var collectedVars map[string]*verilog.Variable
+	collectedVars := make(map[string]*verilog.Variable)
 	curr := node
 	for curr != nil {
 		maps.Copy(collectedVars, curr.Variables)

@@ -341,7 +341,11 @@ func ParseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 
 // parsePortDeclaration attempts to parse a line as a non-ANSI port declaration.
 // It returns the parsed Port and true if successful, otherwise nil and false.
-func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, bool) {
+func parsePortDeclaration(
+	line string,
+	parameters map[string]Parameter,
+	variables map[string]*Variable,
+) (*Port, bool) {
 	var matches []string
 	var direction PortDirection
 
@@ -352,10 +356,15 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 		return nil, false // Not a matching port declaration line
 	}
 	direction = GetPortDirection(strings.TrimSpace(matches[1]))
-	portType := GetType(strings.TrimSpace(matches[2]))
+	portTypeStr := strings.TrimSpace(matches[2])
+	portType := GetType(portTypeStr)
 	signedStr := strings.TrimSpace(matches[3])
 	rangeStr := strings.TrimSpace(matches[4])
 	portName := strings.TrimSpace(matches[5])
+
+	if _, exists := variables[portName]; exists && portTypeStr == "" {
+		portType = variables[portName].Type
+	}
 
 	if portType == UNKNOWN {
 		portType = LOGIC // Default type if not specified (SystemVerilog) or wire (Verilog)
@@ -494,11 +503,16 @@ func extractNonANSIPortDeclarations(
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	parsedPortsMap := make(map[string]Port)
 
+	parsedVariables, _, err := ParseVariables(nil, content)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing variables: %v", err)
+	}
+
 	for scanner.Scan() {
 		trimmedLine := strings.TrimSpace(scanner.Text())
 
 		// Attempt to parse the line as a port declaration
-		if port, ok := parsePortDeclaration(trimmedLine, parameters); ok {
+		if port, ok := parsePortDeclaration(trimmedLine, parameters, parsedVariables); ok {
 			if _, exists := parsedPortsMap[port.Name]; !exists {
 				parsedPortsMap[port.Name] = *port
 			}
