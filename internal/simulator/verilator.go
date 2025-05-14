@@ -139,7 +139,6 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 	}
 	if len(inputFiles) == 0 {
 		sim.logger.Warn("No input files (input_*.hex) found in: %s", inputDir)
-		// Depending on the design, this might not be an error, continue for now.
 	} else {
 		sim.logger.Debug("Verilator RunTest: Found input files: %v", inputFiles)
 	}
