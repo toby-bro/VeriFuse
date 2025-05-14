@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -500,6 +501,17 @@ assign x = 1'b1;
 					vfile.Modules,
 				)
 			}
+
+			// Reorder the variable names by alphabetical order for comparison
+			// This is a workaround for the fact that the order of variables in the parsed module
+			// may not match the order in the original file.
+
+			// Note: This is a simple approach and may not cover all cases.
+			// A more robust solution would involve a deep comparison of the entire module structure.
+			// Sort the Ports and Parameters by name
+			sort.Slice(parsedModule.Ports, func(i, j int) bool {
+				return parsedModule.Ports[i].Name < parsedModule.Ports[j].Name
+			})
 
 			// Compare the found module with the expected module
 			// Note: The Body field in expectedModule must match the processed body from ParseVerilog

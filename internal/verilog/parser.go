@@ -563,40 +563,38 @@ func applyPortDeclarationFallback(
 
 // mergePortInfo combines information from header parsing and body scanning.
 // It prioritizes details found in the body scan (non-ANSI) over header placeholders or potentially incomplete ANSI info.
+// This version merges the two maps directly, and the order of the resulting ports is not guaranteed.
 func mergePortInfo(
 	headerPorts map[string]Port,
 	parsedPortsMap map[string]Port,
-	headerPortOrder []string,
 ) []Port {
-	finalPorts := []Port{}
-	processedPorts := make(map[string]bool)
+	finalPortsMap := make(map[string]Port)
 
-	for _, nameInHeader := range headerPortOrder {
-		if processedPorts[nameInHeader] {
-			continue // Already processed (e.g., duplicate name in header)
-		}
+	// Add all ports from headerPorts first
+	for name, port := range headerPorts {
+		finalPortsMap[name] = port
+	}
 
-		headerPort, foundInHeader := headerPorts[nameInHeader]
-		bodyPort, foundInBody := parsedPortsMap[nameInHeader]
-
-		if !foundInHeader {
-			// This shouldn't happen if headerPortOrder comes from headerPorts keys, but handle defensively
-			logger.Warn("Port '%s' in order but not found in header map.", nameInHeader)
-			continue
-		}
-
-		finalPort := headerPort // Start with header info
-
-		// If found in body scan, these details are more accurate for non-ANSI or override header info
-		if foundInBody {
+	// Then, merge/override with ports from parsedPortsMap
+	for name, bodyPort := range parsedPortsMap {
+		if headerPort, exists := finalPortsMap[name]; exists {
+			// Port exists in both, bodyPort details take precedence
+			finalPort := headerPort // Start with header info
 			finalPort.Direction = bodyPort.Direction
 			finalPort.Type = bodyPort.Type
 			finalPort.Width = bodyPort.Width
 			finalPort.IsSigned = bodyPort.IsSigned
+			finalPortsMap[name] = finalPort
+		} else {
+			// Port only exists in parsedPortsMap (body scan)
+			finalPortsMap[name] = bodyPort
 		}
+	}
 
-		finalPorts = append(finalPorts, finalPort)
-		processedPorts[nameInHeader] = true
+	// Convert map to slice
+	finalPorts := make([]Port, 0, len(finalPortsMap))
+	for _, port := range finalPortsMap {
+		finalPorts = append(finalPorts, port)
 	}
 
 	return finalPorts
@@ -817,7 +815,10 @@ func parseParameters(parameterListString string) ([]Parameter, error) {
 func parsePortsAndUpdateModule(portList string, module *Module) error {
 	paramMap := parametersToMap(module.Parameters)
 
-	headerPorts, headerPortOrder := extractANSIPortDeclarations(portList, paramMap)
+	headerPorts, _ := extractANSIPortDeclarations(
+		portList,
+		paramMap,
+	) // headerPortOrder is no longer used by mergePortInfo directly
 	parsedPortsMap, scanErr := extractNonANSIPortDeclarations(
 		module.Body,
 		paramMap,
@@ -830,12 +831,13 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 	}
 
 	// Merge header and body scan information
-	module.Ports = mergePortInfo(headerPorts, parsedPortsMap, headerPortOrder)
+	module.Ports = mergePortInfo(headerPorts, parsedPortsMap)
 
 	// Apply fallback for ports that remained placeholders after merge
+	// For now, it iterates over headerPorts which might be sufficient if placeholders are primarily from there.
 	applyPortDeclarationFallback(
 		module,
-		headerPorts,
+		headerPorts, // Still pass headerPorts for fallback logic to check against original header list
 		parsedPortsMap,
 	)
 
