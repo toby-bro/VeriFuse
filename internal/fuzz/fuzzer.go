@@ -234,7 +234,7 @@ func (f *Fuzzer) Run(numTests int) error {
 	}
 
 	if f.stats.Mismatches > 0 && f.mutate {
-		f.debug.Info("Found %d mismatches between iverilog and verilator!\n", f.stats.Mismatches)
+		f.debug.Info("Found %d mismatches between iverilog and verilator!", f.stats.Mismatches)
 		return fmt.Errorf("%d mismatches found", f.stats.Mismatches)
 	}
 
