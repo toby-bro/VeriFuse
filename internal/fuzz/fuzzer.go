@@ -135,7 +135,7 @@ func testVerilatorTool() error {
 }
 
 func (f *Fuzzer) Run(numTests int) error {
-	f.debug.Info("Starting fuzzing with %d test cases using strategy: %s\n",
+	f.debug.Info("Starting fuzzing with %d test cases using strategy: %s",
 		numTests, f.strategyName)
 	f.debug.Info("Target file: %s with %d modules", f.svFile.Name, len(f.svFile.Modules))
 
@@ -498,14 +498,14 @@ func (f *Fuzzer) handleMismatch(
 	mismatchDetails map[string]string,
 	workerModule *verilog.Module,
 ) {
-	f.debug.Info("Mismatch found in test %d:\n", testIndex)
-	f.debug.Info("Inputs:\n")
+	f.debug.Info("Mismatch found in test %d:", testIndex)
+	f.debug.Info("Inputs:")
 	for portName, value := range testCase {
-		f.debug.Info("  %s = %s\n", portName, value)
+		f.debug.Info("  %s = %s", portName, value)
 	}
-	f.debug.Info("Mismatched outputs:\n")
+	f.debug.Info("Mismatched outputs:")
 	for portName, detail := range mismatchDetails {
-		f.debug.Info("  %s: %s\n", portName, detail)
+		f.debug.Info("  %s: %s", portName, detail)
 	}
 	mismatchDir := filepath.Join(utils.MISMATCHES_DIR, fmt.Sprintf("mismatch_%d", testIndex))
 	if err := os.MkdirAll(mismatchDir, 0o755); err != nil {
