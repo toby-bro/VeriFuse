@@ -25,7 +25,7 @@ patterns:
 .PHONY: test-go
 test-go: build-fuzzer
 	@echo "Running Go tests..."
-	@go test -v -parallel 1 -timeout 120s ./...
+	@go test -parallel 1 -timeout 120s ./...
 
 .PHONY: tests
 tests: test-go
