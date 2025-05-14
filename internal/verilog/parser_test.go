@@ -609,40 +609,46 @@ func TestParseVariables(t *testing.T) {
 	expectedTree := &ScopeNode{
 		Level:     0,
 		Parent:    nil,
-		Variables: []*Variable{expectedVars[0]},
+		Variables: map[string]*Variable{expectedVars[0].Name: expectedVars[0]},
 		Children:  []*ScopeNode{},
 	}
 	expectedTree.Children = append(expectedTree.Children, &ScopeNode{
 		Level:     1,
 		Parent:    expectedTree,
-		Variables: []*Variable{expectedVars[1]},
+		Variables: map[string]*Variable{expectedVars[1].Name: expectedVars[1]},
 		Children:  []*ScopeNode{},
 	})
 	expectedTree.Children = append(expectedTree.Children, &ScopeNode{
-		Level:     0,
-		Parent:    expectedTree,
-		Variables: []*Variable{expectedVars[2], expectedVars[3]},
-		Children:  []*ScopeNode{},
+		Level:  0,
+		Parent: expectedTree,
+		Variables: map[string]*Variable{
+			expectedVars[2].Name: expectedVars[2],
+			expectedVars[3].Name: expectedVars[3],
+		},
+		Children: []*ScopeNode{},
 	})
 	expectedTree.Children[1].Children = append(expectedTree.Children[1].Children, &ScopeNode{
 		Level:     1,
 		Parent:    expectedTree.Children[1],
-		Variables: []*Variable{expectedVars[4]},
+		Variables: map[string]*Variable{expectedVars[4].Name: expectedVars[4]},
 		Children:  []*ScopeNode{},
 	})
 	expectedTree.Children[1].Children[0].Children = append(
 		expectedTree.Children[1].Children[0].Children,
 		&ScopeNode{
-			Level:     2,
-			Parent:    expectedTree.Children[1].Children[0],
-			Variables: []*Variable{expectedVars[5], expectedVars[6]},
-			Children:  []*ScopeNode{},
+			Level:  2,
+			Parent: expectedTree.Children[1].Children[0],
+			Variables: map[string]*Variable{
+				expectedVars[5].Name: expectedVars[5],
+				expectedVars[6].Name: expectedVars[6],
+			},
+			Children: []*ScopeNode{},
 		},
 	)
 	expectedTree.Children[1].Children = append(expectedTree.Children[1].Children, &ScopeNode{
 		Level:     0,
 		Parent:    expectedTree.Children[1],
-		Variables: []*Variable{expectedVars[7]},
+		Variables: map[string]*Variable{expectedVars[7].Name: expectedVars[7]},
 		Children:  []*ScopeNode{},
 	})
 	// Pass nil for VerilogFile as 'aa' contains only basic types for this test's scope,
@@ -658,28 +664,13 @@ func TestParseVariables(t *testing.T) {
 		t.Fatalf("Expected %d variables, got %d variables.", len(expectedVars), len(parsedVars))
 	}
 
-	for i, expected := range expectedVars {
-		actual := parsedVars[i]
-		// Compare relevant fields. ParentStruct, ParentClass, Array are not set by this parsing path or are nil/empty.
-		if actual.Name != expected.Name ||
-			actual.Type != expected.Type ||
-			actual.Width != expected.Width ||
-			actual.Unsigned != expected.Unsigned {
+	if !reflect.DeepEqual(parsedVars, expectedVars) {
 			t.Errorf(
-				"Variable %d ('%s') mismatch:\nExpected: Name=%s, Type=%d, Width=%d, Unsigned=%t\nActual:   Name=%s, Type=%d, Width=%d, Unsigned=%t",
-				i,
-				expected.Name,
-				expected.Name,
-				expected.Type,
-				expected.Width,
-				expected.Unsigned,
-				actual.Name,
-				actual.Type,
-				actual.Width,
-				actual.Unsigned,
+			"Parsed variables do not match expected variables.\nParsed: %+v\nExpected: %+v",
+			parsedVars,
+			expectedVars,
 			)
 		}
-	}
 
 	// Compare scope trees
 	if err := compareScopeTrees(scopeTree, expectedTree); err != nil {
@@ -884,15 +875,14 @@ logic GGG_varA, GGG_varB, GGG_varC;
 				)
 			}
 
-			for i, expected := range tc.expectedVars {
-				actual := parsedVars[i]
+			for _, expected := range tc.expectedVars {
+				actual := parsedVars[expected.Name]
 				if actual.Name != expected.Name ||
 					actual.Type != expected.Type ||
 					actual.Width != expected.Width ||
 					actual.Unsigned != expected.Unsigned {
 					t.Errorf(
-						"Variable %d ('%s') mismatch:\nExpected: Name=%s, Type=%s (%d), Width=%d, Unsigned=%t\nActual:   Name=%s, Type=%s (%d), Width=%d, Unsigned=%t\nContent:\n%s",
-						i,
+						"Variable ('%s') mismatch:\nExpected: Name=%s, Type=%s (%d), Width=%d, Unsigned=%t\nActual:   Name=%s, Type=%s (%d), Width=%d, Unsigned=%t\nContent:\n%s",
 						expected.Name,
 						expected.Name,
 						expected.Type.String(),
