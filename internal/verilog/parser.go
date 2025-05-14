@@ -234,18 +234,21 @@ func parseVerilogLiteral(literalStr string) (int64, error) {
 			)
 		}
 		return val, nil
-	} else {
-		// Not a based literal, attempt to parse as a simple decimal integer.
-		// Underscores are allowed in Verilog numbers, e.g., 1_000_000.
-		cleanedDecimalStr := strings.ReplaceAll(literalStr, "_", "")
-		val, err := strconv.ParseInt(cleanedDecimalStr, 10, 64)
-		if err != nil {
-			// If it's not a based literal and not a simple decimal, it's an error for this function.
-			// It might be a parameter name or an expression, which this function is not meant to parse.
-			return 0, fmt.Errorf("failed to parse '%s' as a Verilog-style based literal or simple decimal integer: %v", literalStr, err)
-		}
-		return val, nil // Successfully parsed as simple decimal
 	}
+	// Not a based literal, attempt to parse as a simple decimal integer.
+	// Underscores are allowed in Verilog numbers, e.g., 1_000_000.
+	cleanedDecimalStr := strings.ReplaceAll(literalStr, "_", "")
+	val, err := strconv.ParseInt(cleanedDecimalStr, 10, 64)
+	if err != nil {
+		// If it's not a based literal and not a simple decimal, it's an error for this function.
+		// It might be a parameter name or an expression, which this function is not meant to parse.
+		return 0, fmt.Errorf(
+			"failed to parse '%s' as a Verilog-style based literal or simple decimal integer: %v",
+			literalStr,
+			err,
+		)
+	}
+	return val, nil // Successfully parsed as simple decimal
 }
 
 // Utility functions for bit width parsing
