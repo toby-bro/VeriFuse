@@ -195,7 +195,7 @@ func TestParsePortDeclaration(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Pass emptyParams to the function
-			port, ok := parsePortDeclaration(tc.line, emptyParams)
+			port, ok := parsePortDeclaration(tc.line, emptyParams, nil)
 
 			if ok != tc.expectedOK {
 				t.Errorf("parsePortDeclaration(%q) ok = %v; want %v", tc.line, ok, tc.expectedOK)
@@ -585,52 +585,54 @@ logic [7:0] internal_wire;
 	`
 
 func TestParseVariables(t *testing.T) {
-	expectedVars := []*Variable{
-		{Name: "GGG_field1", Type: LOGIC, Width: 8, Unsigned: false},
-		{Name: "GGG_field2", Type: INT, Width: 0, Unsigned: true},
-		{Name: "GGG_condition_var", Type: BIT, Width: 0, Unsigned: false},
-		{
+	expectedVars := map[string]*Variable{
+		"GGG_field1":        {Name: "GGG_field1", Type: LOGIC, Width: 8, Unsigned: false},
+		"GGG_field2":        {Name: "GGG_field2", Type: INT, Width: 0, Unsigned: true},
+		"GGG_condition_var": {Name: "GGG_condition_var", Type: BIT, Width: 0, Unsigned: false},
+		"GGG_array_var": {
 			Name:     "GGG_array_var",
 			Type:     LOGIC,
 			Width:    8,
 			Unsigned: false,
+			Array:    "[GGG_CONTAINER_SIZE]",
 		}, // Array attribute not checked here
-		{Name: "GGG_index_limit", Type: INT, Width: 0, Unsigned: false},
-		{
+		"GGG_index_limit": {Name: "GGG_index_limit", Type: INT, Width: 0, Unsigned: false},
+		"m_queue": {
 			Name:     "m_queue",
 			Type:     INT,
 			Width:    0,
 			Unsigned: false,
+			Array:    "[$]",
 		}, // Array attribute not checked here
 		// For GGG_class_rand_var, ParseRange with nil parameters will default to width 8 for "[GGG_CLASS_WIDTH-1:0]"
-		{Name: "GGG_class_rand_var", Type: LOGIC, Width: 8, Unsigned: false},
-		{Name: "internal_wire", Type: LOGIC, Width: 8, Unsigned: false},
+		"GGG_class_rand_var": {Name: "GGG_class_rand_var", Type: LOGIC, Width: 8, Unsigned: false},
+		"internal_wire":      {Name: "internal_wire", Type: LOGIC, Width: 8, Unsigned: false},
 	}
 	expectedTree := &ScopeNode{
 		Level:     0,
 		Parent:    nil,
-		Variables: map[string]*Variable{expectedVars[0].Name: expectedVars[0]},
+		Variables: map[string]*Variable{"GGG_field1": expectedVars["GGG_field1"]},
 		Children:  []*ScopeNode{},
 	}
 	expectedTree.Children = append(expectedTree.Children, &ScopeNode{
 		Level:     1,
 		Parent:    expectedTree,
-		Variables: map[string]*Variable{expectedVars[1].Name: expectedVars[1]},
+		Variables: map[string]*Variable{"GGG_field2": expectedVars["GGG_field2"]},
 		Children:  []*ScopeNode{},
 	})
 	expectedTree.Children = append(expectedTree.Children, &ScopeNode{
 		Level:  0,
 		Parent: expectedTree,
 		Variables: map[string]*Variable{
-			expectedVars[2].Name: expectedVars[2],
-			expectedVars[3].Name: expectedVars[3],
+			"GGG_condition_var": expectedVars["GGG_condition_var"],
+			"GGG_array_var":     expectedVars["GGG_array_var"],
 		},
 		Children: []*ScopeNode{},
 	})
 	expectedTree.Children[1].Children = append(expectedTree.Children[1].Children, &ScopeNode{
 		Level:     1,
 		Parent:    expectedTree.Children[1],
-		Variables: map[string]*Variable{expectedVars[4].Name: expectedVars[4]},
+		Variables: map[string]*Variable{"GGG_index_limit": expectedVars["GGG_index_limit"]},
 		Children:  []*ScopeNode{},
 	})
 	expectedTree.Children[1].Children[0].Children = append(
@@ -639,8 +641,8 @@ func TestParseVariables(t *testing.T) {
 			Level:  2,
 			Parent: expectedTree.Children[1].Children[0],
 			Variables: map[string]*Variable{
-				expectedVars[5].Name: expectedVars[5],
-				expectedVars[6].Name: expectedVars[6],
+				"m_queue":            expectedVars["m_queue"],
+				"GGG_class_rand_var": expectedVars["GGG_class_rand_var"],
 			},
 			Children: []*ScopeNode{},
 		},
@@ -648,7 +650,7 @@ func TestParseVariables(t *testing.T) {
 	expectedTree.Children[1].Children = append(expectedTree.Children[1].Children, &ScopeNode{
 		Level:     0,
 		Parent:    expectedTree.Children[1],
-		Variables: map[string]*Variable{expectedVars[7].Name: expectedVars[7]},
+		Variables: map[string]*Variable{"internal_wire": expectedVars["internal_wire"]},
 		Children:  []*ScopeNode{},
 	})
 	// Pass nil for VerilogFile as 'aa' contains only basic types for this test's scope,
@@ -664,13 +666,24 @@ func TestParseVariables(t *testing.T) {
 		t.Fatalf("Expected %d variables, got %d variables.", len(expectedVars), len(parsedVars))
 	}
 
-	if !reflect.DeepEqual(parsedVars, expectedVars) {
+	for _, v := range parsedVars {
+		if !reflect.DeepEqual(v, expectedVars[v.Name]) {
 			t.Errorf(
+				"Parsed variable %s does not match expected variable.\nParsed: %+v\nExpected: %+v",
+				v.Name,
+				v,
+				expectedVars[v.Name],
+			)
+		}
+	}
+
+	if !reflect.DeepEqual(parsedVars, expectedVars) {
+		t.Errorf(
 			"Parsed variables do not match expected variables.\nParsed: %+v\nExpected: %+v",
 			parsedVars,
 			expectedVars,
-			)
-		}
+		)
+	}
 
 	// Compare scope trees
 	if err := compareScopeTrees(scopeTree, expectedTree); err != nil {
