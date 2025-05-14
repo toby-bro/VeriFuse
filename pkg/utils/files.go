@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // Common directory paths
@@ -113,7 +114,12 @@ func CopyFile(src, dst string) error {
 	}
 
 	// Write destination file
-	return os.WriteFile(dst, data, 0o644)
+	err = os.WriteFile(dst, data, 0o644)
+	if err != nil {
+		return fmt.Errorf("failed to write destination file: %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	return nil
 }
 
 // FileExists checks if a file exists and is not a directory
