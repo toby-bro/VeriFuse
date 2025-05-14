@@ -389,14 +389,14 @@ func extractANSIPortDeclarations(
 			// Create a placeholder, details expected in body scan
 			port = Port{Name: portName, Width: 0, Type: UNKNOWN, Direction: INTERNAL, IsSigned: false} // Sensible defaults
 		} else {
-			logger.Warn("Could not parse port declaration fragment in header: '%s'\n", portDecl)
+			logger.Warn("Could not parse port declaration fragment in header: '%s'", portDecl)
 			continue // Skip if we can't extract a name
 		}
 
 		if portName != "" {
 			if _, exists := headerPorts[portName]; exists {
 				logger.Warn(
-					"Duplicate port name '%s' detected in module header.\n",
+					"Duplicate port name '%s' detected in module header.",
 					portName,
 				)
 			}
