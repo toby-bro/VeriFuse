@@ -213,7 +213,7 @@ endmodule
 		ParentFile: snippetFile,
 	}
 
-	variables, err := verilog.ParseVariables(verilogFile, module.Body)
+	variables, _, err := verilog.ParseVariables(verilogFile, module.Body)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
@@ -361,7 +361,7 @@ endmodule
 		t.Fatalf("Module 'TestModule' not found in parsed file")
 	}
 
-	variables, err := verilog.ParseVariables(verilogFile, module.Body)
+	variables, _, err := verilog.ParseVariables(verilogFile, module.Body)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
