@@ -80,7 +80,7 @@ func loadSnippets() error {
 			verilogFiles = append(verilogFiles, verilogFile)
 		}
 	}
-	logger.Debug("Loaded %d snippets from %d files\n", len(snippets), len(sourceFiles))
+	logger.Debug("Loaded %d snippets from %d files", len(snippets), len(sourceFiles))
 	return nil
 }
 
@@ -630,14 +630,14 @@ func MutateFile(
 
 		if mutationType == 0 {
 			logger.Debug(
-				"Attempting InjectSnippet mutation for module %s in file %s...\n",
+				"Attempting InjectSnippet mutation for module %s in file %s...",
 				moduleToMutate.Name,
 				fileName,
 			)
 			err = injectSnippetInModule(moduleToMutate, snippet)
 			if err != nil {
 				logger.Info(
-					"InjectSnippet failed for module %s: %v. Skipping mutation for this module.\n",
+					"InjectSnippet failed for module %s: %v. Skipping mutation for this module.",
 					moduleToMutate.Name,
 					err,
 				)
@@ -655,7 +655,7 @@ func MutateFile(
 			}
 			mutatedOverall = true
 			logger.Debug(
-				"Mutation applied to module %s in %s (Type: %d)\n",
+				"Mutation applied to module %s in %s (Type: %d)",
 				moduleToMutate.Name,
 				fileName,
 				mutationType,
@@ -668,7 +668,7 @@ func MutateFile(
 
 	if !mutatedOverall {
 		logger.Info(
-			"No successful mutations applied to file %s. Writing original or partially modified content if other steps occurred.\n",
+			"No successful mutations applied to file %s. Writing original or partially modified content if other steps occurred.",
 			pathToWrite,
 		)
 	}

@@ -221,13 +221,13 @@ func ParseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 			}
 			// Parameter value is not a simple integer, fall through to other checks
 			logger.Warn(
-				"Parameter '%s' value '%s' is not a simple integer for range '%s'.\n",
+				"Parameter '%s' value '%s' is not a simple integer for range '%s'.",
 				paramName,
 				param.DefaultValue,
 				rangeStr,
 			)
 		} else {
-			logger.Warn("Parameter '%s' not found or has no value for range '%s'.\n", paramName, rangeStr)
+			logger.Warn("Parameter '%s' not found or has no value for range '%s'.", paramName, rangeStr)
 		}
 		// If parameter lookup failed (not found, no value, not int), fall through to heuristics/default
 	}
@@ -288,7 +288,7 @@ func parsePortDeclaration(line string, parameters map[string]Parameter) (*Port, 
 		// If parseRange returns an error, use the returned default width (e.g., 8)
 		// but still log the original error message.
 		logger.Warn(
-			"Could not parse range '%s' for port '%s'. Using default width %d. Error: %v\n",
+			"Could not parse range '%s' for port '%s'. Using default width %d. Error: %v",
 			rangeStr,
 			portName,
 			width, // Use the width returned by parseRange (the default)
@@ -355,7 +355,7 @@ func extractANSIPortDeclarations(
 				if err != nil {
 					// Use the default width returned by parseRange on error
 					logger.Warn(
-						"Header parseRange failed for '%s' (%s): Using default width %d. Error: %v.\n",
+						"Header parseRange failed for '%s' (%s): Using default width %d. Error: %v.",
 						portName,
 						rangeStr,
 						width, // Use the width returned by parseRange (the default)
@@ -458,7 +458,7 @@ func applyPortDeclarationFallback(
 
 		if isPlaceholder && !definedInBody && !alreadyAdded {
 			logger.Warn(
-				" Port '%s' listed in header but not defined in body. Applying fallback naming convention.\n",
+				" Port '%s' listed in header but not defined in body. Applying fallback naming convention.",
 				name,
 			)
 			// Apply naming convention fallback
@@ -506,7 +506,7 @@ func mergePortInfo(
 
 		if !foundInHeader {
 			// This shouldn't happen if headerPortOrder comes from headerPorts keys, but handle defensively
-			logger.Warn("Port '%s' in order but not found in header map.\n", nameInHeader)
+			logger.Warn("Port '%s' in order but not found in header map.", nameInHeader)
 			continue
 		}
 
@@ -563,7 +563,7 @@ func (v *VerilogFile) ParseModules(moduleText string) error {
 		module.Parameters = parameters
 		err = parsePortsAndUpdateModule(portListStr, module)
 		if err != nil {
-			logger.Warn("Skipping %s as failed to parse ports: %v\n", moduleName, err)
+			logger.Warn("Skipping %s as failed to parse ports: %v", moduleName, err)
 			continue // Skip this module if port parsing fails
 		}
 		v.Modules[moduleName] = module
@@ -705,7 +705,7 @@ func parseParameters(parameterListString string) ([]Parameter, error) {
 			if paramName == "parameter" || paramName == "localparam" ||
 				baseTypesRegex.MatchString(paramName) {
 				logger.Warn(
-					"Missing name in parameter fragment: '%s'. Skipping.\n",
+					"Missing name in parameter fragment: '%s'. Skipping.",
 					trimmedParamStr,
 				)
 				continue
@@ -748,7 +748,7 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 		paramMap,
 	)
 	if scanErr != nil {
-		logger.Warn("Error during scan for non-ANSI ports: %v\n", scanErr)
+		logger.Warn("Error during scan for non-ANSI ports: %v", scanErr)
 		if parsedPortsMap == nil {
 			parsedPortsMap = make(map[string]Port)
 		}
@@ -770,7 +770,7 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 			module.Name,
 		)
 	} else if len(module.Ports) == 0 {
-		logger.Warn("No ports found or parsed for module %s. Module might have no ports.\n", module.Name)
+		logger.Warn("No ports found or parsed for module %s. Module might have no ports.", module.Name)
 	}
 	return nil
 }
@@ -800,7 +800,7 @@ func ParseVariables(v *VerilogFile,
 		if err != nil {
 			if width != 0 {
 				logger.Warn(
-					"Could not parse range '%s' for variable '%s'. Using default width %d. Error: %v\n",
+					"Could not parse range '%s' for variable '%s'. Using default width %d. Error: %v",
 					widthStr,
 					matchedVariable[4],
 					width,
