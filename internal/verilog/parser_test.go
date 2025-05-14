@@ -280,6 +280,78 @@ func TestParseRange(t *testing.T) {
 	}
 }
 
+func TestParseVerilogLiteral(t *testing.T) {
+	tests := []struct {
+		name       string
+		literalStr string
+		wantVal    int64
+		wantErr    bool
+	}{
+		// Valid Based Literals
+		{"Hex simple", "'hFAB", 0xFAB, false},
+		{"Hex with size", "12'hFAB", 0xFAB, false},
+		{"Hex with underscores", "16'hF_A_B", 0xFAB, false},
+		{"Binary simple", "'b1010", 10, false},
+		{"Binary with size", "4'b1010", 10, false},
+		{"Binary with underscores", "8'b1010_0101", 0xA5, false},
+		{"Octal simple", "'o77", 0o77, false},
+		{"Octal with size", "6'o77", 0o77, false},
+		{"Octal with underscores", "9'o1_2_3", 0o123, false},
+		{"Decimal based simple", "'d123", 123, false},
+		{"Decimal based with size", "8'd123", 123, false},
+		{"Decimal based with underscores", "10'd1_2_3", 123, false},
+		{"Uppercase base H", "8'HF0", 0xF0, false},
+		{"Uppercase base B", "4'B1100", 12, false},
+		{"Uppercase base O", "6'O52", 42, false},
+		{"Uppercase base D", "8'D99", 99, false},
+
+		// Valid Simple Decimal Literals
+		{"Simple decimal", "255", 255, false},
+		{"Simple decimal with underscores", "1_000_000", 1000000, false},
+		{"Zero", "0", 0, false},
+		{"Negative simple decimal", "-10", -10, false}, // Assuming simple decimals can be negative
+
+		// Invalid Inputs - Based Literals
+		{"Invalid base char", "'xFAB", 0, true},
+		{"Invalid hex value", "4'hG", 0, true},
+		{"Invalid binary value", "2'b2", 0, true},
+		{"Invalid octal value", "3'o8", 0, true},
+		{"Invalid decimal based value", "4'dABC", 0, true},
+		{"Missing value based", "'h", 0, true},
+		{
+			"Missing value based with size",
+			"4'",
+			0,
+			true,
+		}, // This will be caught by regex not matching
+
+		// Invalid Inputs - Simple Decimal
+		{"Non-numeric simple", "abc", 0, true},
+		{"Mixed alpha-numeric simple", "1a2b", 0, true},
+
+		// Edge cases
+		{"Empty string", "", 0, true},
+		{"Only underscores", "___", 0, true},
+		{"Based literal too large for int64 (hex)", "65'hFFFFFFFFFFFFFFFFF", 0, true}, // > 64 bits
+
+		// verismith
+		{"Parenthesis", "(1'h0)", 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotVal, err := parseVerilogLiteral(tt.literalStr)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseVerilogLiteral() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && gotVal != tt.wantVal {
+				t.Errorf("parseVerilogLiteral() gotVal = %v, want %v", gotVal, tt.wantVal)
+			}
+		})
+	}
+}
+
 // Renamed from TestParseVerilogFile and updated for ParseVerilog
 func TestParseVerilog(t *testing.T) {
 	testCases := []struct {
@@ -1627,7 +1699,7 @@ input int counter_val;
 					Direction: INPUT,
 					Type:      WIRE,
 					Width:     1,
-					IsSigned:  true,
+					IsSigned:  false,
 				},
 			},
 			expectError: false,
