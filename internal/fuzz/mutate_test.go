@@ -232,11 +232,11 @@ endmodule
 	}
 
 	if portConnections["input1"] != "data_in1" {
-		t.Errorf("Expected 'input1' to connect to 'data_in', got '%s'", portConnections["input1"])
+		t.Errorf("Expected 'input1' to connect to 'data_in1', got '%s'", portConnections["input1"])
 	}
 
 	if portConnections["input2"] != "data_in2" {
-		t.Errorf("Expected 'input1' to connect to 'data_in', got '%s'", portConnections["input1"])
+		t.Errorf("Expected 'input1' to connect to 'data_in2', got '%s'", portConnections["input1"])
 	}
 
 	if portConnections["output1"] != "data_out" {
