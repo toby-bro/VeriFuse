@@ -501,9 +501,6 @@ func (f *Fuzzer) handleMismatch(
 	mismatchDetails map[string]string,
 	workerModule *verilog.Module,
 ) {
-	defer func() {
-		os.RemoveAll(testDir)
-	}()
 	f.debug.Info(
 		"[%s] Mismatch found in test %d: for module %s",
 		testDir,
@@ -569,6 +566,7 @@ func (f *Fuzzer) handleMismatch(
 			f.debug.Error("Failed to create mismatch summary file %s: %v", summaryPath, err)
 		}
 	}
+	os.RemoveAll(testDir)
 	f.stats.AddMismatch(testCase)
 }
 
