@@ -171,6 +171,8 @@ func matchVariablesToSnippetPorts(
 	usedInternalVars := make(map[string]bool)
 	usedModuleInputPorts := make(map[string]bool)
 	usedModuleOutputPorts := make(map[string]bool)
+	// Tracks module variable names (from scope or module ports) already connected to a snippet port
+	overallAssignedModuleVarNames := make(map[string]bool)
 
 	bestScopeForSnippet := findBestScopeNode(scopeTree, snippet.Module.Ports)
 	if bestScopeForSnippet == nil {
@@ -185,6 +187,7 @@ func matchVariablesToSnippetPorts(
 
 	for _, port := range snippet.Module.Ports {
 		foundMatch := false
+		var connectedVarName string
 
 		if len(varsAccessibleInBestScope) > 0 {
 			matchedVarFromScope := findMatchingVariable(
@@ -192,9 +195,13 @@ func matchVariablesToSnippetPorts(
 				varsAccessibleInBestScope,
 				usedInternalVars,
 			)
-			if matchedVarFromScope != nil {
-				portConnections[port.Name] = matchedVarFromScope.Name
-				usedInternalVars[matchedVarFromScope.Name] = true
+			// Check if this variable name has already been assigned to another snippet port
+			if matchedVarFromScope != nil &&
+				!overallAssignedModuleVarNames[matchedVarFromScope.Name] {
+				connectedVarName = matchedVarFromScope.Name
+				portConnections[port.Name] = connectedVarName
+				usedInternalVars[connectedVarName] = true              // Mark as used for this strategy
+				overallAssignedModuleVarNames[connectedVarName] = true // Mark as globally assigned
 				foundMatch = true
 			}
 		}
@@ -205,9 +212,12 @@ func matchVariablesToSnippetPorts(
 					if modulePort.Direction == verilog.INPUT &&
 						modulePort.Type == port.Type &&
 						modulePort.Width == port.Width &&
-						!usedModuleInputPorts[modulePort.Name] {
-						portConnections[port.Name] = modulePort.Name
-						usedModuleInputPorts[modulePort.Name] = true
+						!usedModuleInputPorts[modulePort.Name] && // Ensure this module input port isn't already used by this strategy
+						!overallAssignedModuleVarNames[modulePort.Name] { // Ensure this module port name isn't globally assigned
+						connectedVarName = modulePort.Name
+						portConnections[port.Name] = connectedVarName
+						usedModuleInputPorts[connectedVarName] = true          // Mark as used for this strategy
+						overallAssignedModuleVarNames[connectedVarName] = true // Mark as globally assigned
 						foundMatch = true
 						break
 					}
@@ -217,9 +227,12 @@ func matchVariablesToSnippetPorts(
 					if modulePort.Direction == verilog.OUTPUT &&
 						modulePort.Type == port.Type &&
 						modulePort.Width == port.Width &&
-						!usedModuleOutputPorts[modulePort.Name] {
-						portConnections[port.Name] = modulePort.Name
-						usedModuleOutputPorts[modulePort.Name] = true
+						!usedModuleOutputPorts[modulePort.Name] && // Ensure this module output port isn't already used by this strategy
+						!overallAssignedModuleVarNames[modulePort.Name] { // Ensure this module port name isn't globally assigned
+						connectedVarName = modulePort.Name
+						portConnections[port.Name] = connectedVarName
+						usedModuleOutputPorts[connectedVarName] = true         // Mark as used for this strategy
+						overallAssignedModuleVarNames[connectedVarName] = true // Mark as globally assigned
 						foundMatch = true
 						break
 					}
@@ -238,6 +251,7 @@ func matchVariablesToSnippetPorts(
 			}
 			newDeclarations = append(newDeclarations, newSignalObj)
 			portConnections[port.Name] = newSignalName
+			// Newly created signals are unique by generation and don't need to be added to overallAssignedModuleVarNames
 		}
 	}
 
