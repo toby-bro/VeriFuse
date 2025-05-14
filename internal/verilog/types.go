@@ -125,7 +125,7 @@ type DependencyNode struct {
 
 type ScopeNode struct {
 	Level     int
-	Variables []*Variable
+	Variables map[string]*Variable
 	Children  []*ScopeNode
 	Parent    *ScopeNode
 }

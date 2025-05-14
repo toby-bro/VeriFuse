@@ -10,6 +10,7 @@ import (
 
 	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
+	"golang.org/x/exp/maps"
 )
 
 var (
@@ -269,19 +270,17 @@ func findBestScopeNode(
 	maxSatisfiedCount := -1
 	var perfectMatchScope *verilog.ScopeNode
 
-	var dfs func(currentNode *verilog.ScopeNode, parentAccessibleVars []*verilog.Variable)
-	dfs = func(currentNode *verilog.ScopeNode, parentAccessibleVars []*verilog.Variable) {
+	var dfs func(currentNode *verilog.ScopeNode, parentAccessibleVars map[string]*verilog.Variable)
+	dfs = func(currentNode *verilog.ScopeNode, parentAccessibleVars map[string]*verilog.Variable) {
 		if perfectMatchScope != nil {
 			return
 		}
 
 		currentScopeAndParentVars := make(
-			[]*verilog.Variable,
-			0,
-			len(currentNode.Variables)+len(parentAccessibleVars),
+			map[string]*verilog.Variable,
 		)
-		currentScopeAndParentVars = append(currentScopeAndParentVars, currentNode.Variables...)
-		currentScopeAndParentVars = append(currentScopeAndParentVars, parentAccessibleVars...)
+		maps.Copy(currentScopeAndParentVars, currentNode.Variables)
+		maps.Copy(currentScopeAndParentVars, parentAccessibleVars)
 
 		tempUsedInCheck := make(map[string]bool)
 		currentSatisfied := 0
@@ -322,16 +321,13 @@ func findBestScopeNode(
 		}
 
 		varsForChildren := make(
-			[]*verilog.Variable,
-			0,
-			len(currentNode.Variables)+len(parentAccessibleVars),
+			map[string]*verilog.Variable,
 		)
-		varsForChildren = append(
+		maps.Copy(varsForChildren, currentNode.Variables)
+		maps.Copy(
 			varsForChildren,
-			currentNode.Variables...)
-		varsForChildren = append(
-			varsForChildren,
-			parentAccessibleVars...)
+			parentAccessibleVars,
+		)
 
 		for _, child := range currentNode.Children {
 			dfs(child, varsForChildren)
@@ -341,7 +337,7 @@ func findBestScopeNode(
 		}
 	}
 
-	dfs(rootNode, []*verilog.Variable{})
+	dfs(rootNode, make(map[string]*verilog.Variable))
 
 	if perfectMatchScope != nil {
 		return perfectMatchScope
@@ -349,11 +345,11 @@ func findBestScopeNode(
 	return bestScope
 }
 
-func collectAccessibleVars(node *verilog.ScopeNode) []*verilog.Variable {
-	var collectedVars []*verilog.Variable
+func collectAccessibleVars(node *verilog.ScopeNode) map[string]*verilog.Variable {
+	var collectedVars map[string]*verilog.Variable
 	curr := node
 	for curr != nil {
-		collectedVars = append(collectedVars, curr.Variables...)
+		maps.Copy(collectedVars, curr.Variables)
 		curr = curr.Parent
 	}
 	return collectedVars
@@ -361,7 +357,7 @@ func collectAccessibleVars(node *verilog.ScopeNode) []*verilog.Variable {
 
 func findMatchingVariable(
 	port verilog.Port,
-	variables []*verilog.Variable,
+	variables map[string]*verilog.Variable,
 	usedVars map[string]bool,
 ) *verilog.Variable {
 	for _, variable := range variables {
@@ -434,14 +430,8 @@ func insertSnippetIntoModule(
 
 	if bestScope != nil && moduleScopeTree != nil && bestScope != moduleScopeTree {
 		logger.Debug(
-			"Snippet insertion is based on a nested scope (level %d: vars like '%s'), but current logic inserts new code at the module level (around line %d). True nested scope textual insertion would require enhancing ScopeNode with source mapping.",
+			"Snippet insertion is based on a nested scope (level %d), but current logic inserts new code at the module level (around line %d). True nested scope textual insertion would require enhancing ScopeNode with source mapping.",
 			bestScope.Level,
-			func() string {
-				if len(bestScope.Variables) > 0 {
-					return bestScope.Variables[0].Name
-				}
-				return "N/A"
-			}(),
 			insertionPoint,
 		)
 	}

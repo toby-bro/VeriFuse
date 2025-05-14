@@ -314,10 +314,10 @@ endmodule
 }
 
 func TestFindMatchingVariable(t *testing.T) {
-	variables := []*verilog.Variable{
-		{Name: "data_in", Type: verilog.LOGIC, Width: 8},
-		{Name: "data_out", Type: verilog.LOGIC, Width: 8},
-		{Name: "control", Type: verilog.BIT, Width: 1},
+	variables := map[string]*verilog.Variable{
+		"data_in":  {Name: "data_in", Type: verilog.LOGIC, Width: 8},
+		"data_out": {Name: "data_out", Type: verilog.LOGIC, Width: 8},
+		"control":  {Name: "control", Type: verilog.BIT, Width: 1},
 	}
 	port := verilog.Port{Name: "input1", Type: verilog.LOGIC, Width: 8}
 

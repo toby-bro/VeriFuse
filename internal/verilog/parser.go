@@ -859,12 +859,12 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 // TODO: #16 support arrays which will break the current width checking
 func ParseVariables(v *VerilogFile,
 	content string,
-) ([]*Variable, *ScopeNode, error) {
+) (map[string]*Variable, *ScopeNode, error) {
 	allMatchedVariables := MatchAllVariablesFromString(content)
-	variables := make([]*Variable, 0, len(allMatchedVariables))
+	variablesMap := make(map[string]*Variable)
 	scopeTree := &ScopeNode{
 		Level:     0,
-		Variables: []*Variable{},
+		Variables: make(map[string]*Variable),
 		Children:  []*ScopeNode{},
 		Parent:    nil,
 	}
@@ -892,7 +892,7 @@ func ParseVariables(v *VerilogFile,
 		}
 		var parentStruct *Struct
 		var parentClass *Class
-		if varType == UNKNOWN {
+		if varType == UNKNOWN && v != nil {
 			// Check if it's a struct or class that we have already defined
 			if _, exists := v.Structs[matchedVariable[2]]; exists {
 				varType = USERDEFINED
@@ -936,25 +936,26 @@ func ParseVariables(v *VerilogFile,
 				ParentClass:  parentClass,
 				Array:        arrayMatch[2],
 			}
-			variables = append(variables, variable)
+			variablesMap[varName] = variable
 			if indent == scopeNode.Level {
-				scopeNode.Variables = append(scopeNode.Variables, variable)
+				scopeNode.Variables[variable.Name] = variable
 			} else {
 				for scopeNode.Level > indent {
 					scopeNode = scopeNode.Parent
 				}
 				newScopeNode := &ScopeNode{
 					Level:     indent,
-					Variables: []*Variable{variable},
+					Variables: make(map[string]*Variable),
 					Children:  []*ScopeNode{},
 					Parent:    scopeNode,
 				}
+				newScopeNode.Variables[variable.Name] = variable
 				scopeNode.Children = append(scopeNode.Children, newScopeNode)
 				scopeNode = newScopeNode
 			}
 		}
 	}
-	return variables, scopeTree, nil
+	return variablesMap, scopeTree, nil
 }
 
 func (v *VerilogFile) ParseStructs(
@@ -977,9 +978,13 @@ func (v *VerilogFile) ParseStructs(
 			}
 			v.Structs[structName] = s
 		} else {
-			variables, _, err := ParseVariables(v, varList)
+			variablesMap, _, err := ParseVariables(v, varList)
 			if err != nil {
 				return fmt.Errorf("failed to parse variables in struct '%s': %v", structName, err)
+			}
+			variables := []*Variable{}
+			for _, variable := range variablesMap {
+				variables = append(variables, variable)
 			}
 			v.Structs[structName].Variables = variables
 			for _, variable := range variables {
