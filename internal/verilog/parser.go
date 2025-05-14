@@ -118,6 +118,14 @@ var generalParameterRegex = regexp.MustCompile(fmt.Sprintf(
 
 var arrayRegex = regexp.MustCompile(`(?m)(\w+)(?:\s+(\[[^\]]+\]))?`)
 
+// Regex for general [MSB:LSB] range structure
+var literalValueRangeRegex = regexp.MustCompile(`(?m)^\[\s*(.+)\s*:\s*(.+)\s*\]$`)
+
+// Regex for parsing Verilog-style based literals (e.g., 12'hFAB, 'b10, 8'd255)
+var verilogBasedLiteralRegex = regexp.MustCompile(
+	`^\(?(?:(\d+)?\s*')?([bodhBODH])\s*([0-9a-fA-F_]+)\)?$`,
+)
+
 var ansiPortRegex = regexp.MustCompile(
 	`^\s*(?:(input|output|inout)\s+)?(?:(` +
 		baseTypes +
@@ -187,6 +195,59 @@ func MatchAllParametersFromString(param string) []string {
 	return generalParameterRegex.FindStringSubmatch(param)
 }
 
+func parseVerilogLiteral(literalStr string) (int64, error) {
+	literalStr = strings.TrimSpace(literalStr)
+
+	parts := verilogBasedLiteralRegex.FindStringSubmatch(literalStr)
+
+	if len(parts) > 0 { // Matches format like 12'hFAB, 'hFAB (based literal)
+		// parts[0] is full match
+		// parts[1] is optional size (e.g., "12") - not strictly needed for the value itself
+		// parts[2] is base character (e.g., "h")
+		// parts[3] is the number string (e.g., "FAB")
+		baseChar := strings.ToLower(parts[2])
+		valueStr := strings.ReplaceAll(parts[3], "_", "") // Remove underscores for parsing
+
+		var base int
+		switch baseChar {
+		case "b":
+			base = 2
+		case "o":
+			base = 8
+		case "d":
+			base = 10
+		case "h":
+			base = 16
+		default:
+			// Should not happen if regex matches correctly
+			return 0, fmt.Errorf("internal error: unknown base character '%s' from regex", baseChar)
+		}
+
+		val, err := strconv.ParseInt(valueStr, base, 64)
+		if err != nil {
+			return 0, fmt.Errorf(
+				"failed to parse based literal value '%s' (original: '%s') with base %d: %v",
+				valueStr,
+				literalStr,
+				base,
+				err,
+			)
+		}
+		return val, nil
+	} else {
+		// Not a based literal, attempt to parse as a simple decimal integer.
+		// Underscores are allowed in Verilog numbers, e.g., 1_000_000.
+		cleanedDecimalStr := strings.ReplaceAll(literalStr, "_", "")
+		val, err := strconv.ParseInt(cleanedDecimalStr, 10, 64)
+		if err != nil {
+			// If it's not a based literal and not a simple decimal, it's an error for this function.
+			// It might be a parameter name or an expression, which this function is not meant to parse.
+			return 0, fmt.Errorf("failed to parse '%s' as a Verilog-style based literal or simple decimal integer: %v", literalStr, err)
+		}
+		return val, nil // Successfully parsed as simple decimal
+	}
+}
+
 // Utility functions for bit width parsing
 func ParseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 	// Handle common formats: [7:0], [WIDTH-1:0], etc.
@@ -196,17 +257,26 @@ func ParseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 		return 0, nil // No range means scalar (1-bit)
 	}
 
-	// --- Priority 1: Simple numeric case [N:0] ---
-	simpleRangeRegex := regexp.MustCompile(`^\[\s*(\d+)\s*:\s*0\s*\]$`)
-	if matches := simpleRangeRegex.FindStringSubmatch(rangeStr); len(matches) > 1 {
-		var width int
-		// Use Sscanf for safer parsing
-		n, err := fmt.Sscanf(matches[1], "%d", &width)
-		if err != nil || n != 1 {
-			// Use default width 8 on error, but signal the error
-			return 8, fmt.Errorf("invalid numeric range format: %s, defaulting to 8", rangeStr)
+	// --- Priority 1: Literal-based or simple numeric range: [MSB_LITERAL:LSB_LITERAL] or [N:M] ---
+	if matches := literalValueRangeRegex.FindStringSubmatch(rangeStr); len(matches) > 2 {
+		msbStr := matches[1]
+		lsbStr := matches[2]
+
+		msbVal, errMsb := parseVerilogLiteral(msbStr)
+		lsbVal, errLsb := parseVerilogLiteral(lsbStr)
+
+		if errMsb == nil && errLsb == nil { // Both parts successfully parsed as literals
+			if msbVal < lsbVal {
+				return 8, fmt.Errorf(
+					"invalid literal range in '%s': MSB (%d) < LSB (%d), defaulting to 8",
+					rangeStr,
+					msbVal,
+					lsbVal,
+				)
+			}
+			return int(msbVal-lsbVal) + 1, nil
 		}
-		return width + 1, nil
+		// If one or both parts failed to parse as literals, fall through to other parsing rules (e.g., parameters).
 	}
 
 	// --- Priority 2: Parameter-based range: [PARAM-1:0] or [PARAM:0] ---
