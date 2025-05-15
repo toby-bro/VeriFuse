@@ -24,6 +24,20 @@ type VerilatorSimulator struct {
 	logger    *utils.DebugLogger
 }
 
+func TestVerilatorTool() error {
+	cmd := exec.Command("verilator", "--version")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf(
+			"verilator basic check failed, check installation/PATH: %v - %s",
+			err,
+			stderr.String(),
+		)
+	}
+	return nil
+}
+
 // NewVerilatorSimulator creates a new Verilator simulator instance
 func NewVerilatorSimulator(
 	workDir string,
