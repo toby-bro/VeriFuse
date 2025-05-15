@@ -168,7 +168,7 @@ func (f *Fuzzer) Run(numTests int) error {
 		workerIdx := w
 		go func(idx int, mod *verilog.Module) {
 			defer wg.Done()
-			if err := f.worker(testCases, mod); err != nil {
+			if err := f.worker(testCases, mod, workerIdx); err != nil {
 				errChan <- fmt.Errorf("worker %d (module %s) error: %w", idx, mod.Name, err)
 			}
 		}(workerIdx, f.svFile.Modules[moduleNames[workerIdx%len(moduleNames)]])
@@ -677,9 +677,10 @@ func (f *Fuzzer) performWorkerAttempt(
 func (f *Fuzzer) worker(
 	testCases <-chan int,
 	moduleToTest *verilog.Module,
+	workerId int,
 ) error {
 	var lastSetupError error
-	workerID := fmt.Sprintf("worker_%d", time.Now().UnixNano())
+	workerID := fmt.Sprintf("worker_%d_%d", workerId, time.Now().UnixNano())
 	var strategy Strategy
 	switch f.strategyName {
 	case "random":
