@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/toby-bro/pfuzz/internal/testgen"
 	"github.com/toby-bro/pfuzz/internal/verilog"
@@ -96,7 +97,7 @@ func (sim *VerilatorSimulator) Compile() error {
 		"-Wno-WIDTHTRUNC",
 		"-Wno-MULTITOP",
 		"-Wno-ALWCOMBORDER",
-		"testbench.sv",
+		"../testbench.sv",
 	}
 
 	if sim.optimized {
@@ -112,15 +113,33 @@ func (sim *VerilatorSimulator) Compile() error {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
+	/* sim.logger.Debug(
+	 *	"Verilator command details: Path=%s, Dir=%s, Args=%v",
+	 *	cmd.Path,
+	 *	cmd.Dir,
+	 *	cmd.Args,
+	 *)
+	 *sim.logger.Debug("Verilator command: %s", cmd.String())
+	 */
+
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("verilator compilation failed: %v\n%s", err, stderr.String())
+		// retry
+		sim.logger.Warn("Verilator compilation failed, retrying...")
+		time.Sleep(10 * time.Millisecond)
+		err = cmd.Run()
+		if err != nil {
+			return fmt.Errorf("verilator compilation failed: %v\n%s", err, stderr.String())
+		}
 	}
 
 	// Verify the executable was created
 	execPath := sim.execPath
 	if _, err := os.Stat(execPath); os.IsNotExist(err) {
-		return fmt.Errorf("verilator executable not created at %s", execPath)
+		time.Sleep(10 * time.Millisecond)
+		if _, err := os.Stat(execPath); os.IsNotExist(err) {
+			return fmt.Errorf("verilator executable not created at %s", execPath)
+		}
 	}
 
 	return nil

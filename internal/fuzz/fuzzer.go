@@ -328,14 +328,14 @@ func (f *Fuzzer) setupSimulators(
 	f.debug.Debug("[%s]: Creating simulators for module %s", workerID, workerModuleName)
 	// ivsim := simulator.NewIVerilogSimulator(workerDir, f.verbose)
 	vlsim3 := simulator.NewVerilatorSimulator(
-		workerDir,
+		workerDir+"/O3",
 		f.svFile,
 		workerModuleName,
 		true,
 		f.verbose,
 	)
 	vlsim0 := simulator.NewVerilatorSimulator(
-		workerDir,
+		workerDir+"/O0",
 		f.svFile,
 		workerModuleName,
 		false,
