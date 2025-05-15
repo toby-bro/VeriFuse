@@ -111,23 +111,25 @@ func (f *Fuzzer) Run(numTests int) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	moduleNames := make([]string, len(f.svFile.Modules))
-	ic := 0
-	for _, module := range f.svFile.Modules {
-		moduleNames[ic] = module.Name
-		ic++
+	workerSlots := make(chan int, f.workers)
+	for i := 0; i < f.workers; i++ {
+		workerSlots <- i
 	}
 
-	// TODO: #19 make a channel of modules so as to be sure to test them all out
-	for w := 0; w < f.workers; w++ {
+	for _, module := range f.svFile.Modules {
 		wg.Add(1)
-		workerIdx := w
-		go func(idx int, mod *verilog.Module) {
+		currentModule := module
+
+		go func(mod *verilog.Module) {
 			defer wg.Done()
-			if err := f.worker(testCases, mod, workerIdx); err != nil {
-				errChan <- fmt.Errorf("worker %d (module %s) error: %w", idx, mod.Name, err)
+
+			slotIdx := <-workerSlots
+			defer func() { workerSlots <- slotIdx }()
+
+			if err := f.worker(testCases, mod, slotIdx); err != nil {
+				errChan <- fmt.Errorf("worker (slot %d) for module %s error: %w", slotIdx, mod.Name, err)
 			}
-		}(workerIdx, f.svFile.Modules[moduleNames[workerIdx%len(moduleNames)]])
+		}(currentModule)
 	}
 
 	var feedingWg sync.WaitGroup
