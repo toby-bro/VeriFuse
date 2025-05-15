@@ -47,15 +47,11 @@ func (g *Generator) GenerateTestbenchesInDir(outputDir string) error {
 func (g *Generator) generateSVPortDeclarations() string {
 	var declarations strings.Builder
 	for _, port := range g.module.Ports {
-		var typeDecl string
-		// Ensure we're declaring the right bit width for each port
-		if port.Width > 1 {
-			typeDecl = fmt.Sprintf("logic [%d:0] ", port.Width-1)
-		} else {
-			typeDecl = "logic "
-		}
 
-		// Clean port name
+		typeDecl := verilog.LOGIC.String()
+		if port.Width > 1 {
+			typeDecl += fmt.Sprintf(" [%d:0] ", port.Width-1)
+		}
 		portName := strings.TrimSpace(port.Name)
 		declarations.WriteString(fmt.Sprintf("    %s%s;\n", typeDecl, portName))
 	}

@@ -42,11 +42,12 @@ type Parameter struct {
 }
 
 type Port struct {
-	Name      string
-	Direction PortDirection
-	Type      PortType
-	Width     int
-	IsSigned  bool
+	Name            string
+	Direction       PortDirection
+	Type            PortType
+	Width           int
+	IsSigned        bool
+	AlreadyDeclared bool
 }
 
 type Module struct {

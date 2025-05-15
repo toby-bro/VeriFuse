@@ -362,8 +362,11 @@ func parsePortDeclaration(
 	rangeStr := strings.TrimSpace(matches[4])
 	portName := strings.TrimSpace(matches[5])
 
+	alreadyDeclared := false
+
 	if _, exists := variables[portName]; exists && portTypeStr == "" {
 		portType = variables[portName].Type
+		alreadyDeclared = true
 	}
 
 	if portType == UNKNOWN {
@@ -384,11 +387,12 @@ func parsePortDeclaration(
 	}
 
 	port := &Port{
-		Name:      portName,
-		Direction: direction,
-		Type:      portType,
-		Width:     width,
-		IsSigned:  isSigned,
+		Name:            portName,
+		Direction:       direction,
+		Type:            portType,
+		Width:           width,
+		IsSigned:        isSigned,
+		AlreadyDeclared: alreadyDeclared,
 	}
 
 	return port, true
