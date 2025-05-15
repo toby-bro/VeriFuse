@@ -562,12 +562,13 @@ func (f *Fuzzer) handleMismatch(
 		f.debug.Debug("Writing mismatch summary to %s", summaryPath)
 		utils.WriteFileContent(summaryPath, fileContent)
 		// also copy the file that was tested and the testbench
-		testFilePath := filepath.Join(testDir, f.svFile.Name)
-		if err := utils.CopyFile(testFilePath, mismatchDir); err != nil {
+		testFilePath := filepath.Join(testDir, "../")
+		testFilePath = filepath.Join(testFilePath, f.svFile.Name)
+		if err := utils.CopyFile(testFilePath, mismatchDir+"/"+f.svFile.Name); err != nil {
 			f.debug.Error("Failed to copy test file %s to mismatch directory %s: %v", testFilePath, mismatchDir, err)
 		}
-		testbenchPath := filepath.Join(testDir, "testbench.sv")
-		if err := utils.CopyFile(testbenchPath, mismatchDir); err != nil {
+		testbenchPath := filepath.Join(testDir, "../testbench.sv")
+		if err := utils.CopyFile(testbenchPath, mismatchDir+"/testbench.sv"); err != nil {
 			f.debug.Error("Failed to copy testbench file %s to mismatch directory %s: %v", testbenchPath, mismatchDir, err)
 		}
 		f.debug.Debug("Test files copied to mismatch directory %s", mismatchDir)
