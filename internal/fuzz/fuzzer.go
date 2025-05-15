@@ -560,7 +560,10 @@ func (f *Fuzzer) handleMismatch(
 			fileContent += fmt.Sprintf("  %s: %s\n", portName, detail)
 		}
 		f.debug.Debug("Writing mismatch summary to %s", summaryPath)
-		utils.WriteFileContent(summaryPath, fileContent)
+		err := utils.WriteFileContent(summaryPath, fileContent)
+		if err != nil {
+			f.debug.Error("Failed to write mismatch summary to %s: %v", summaryPath, err)
+		}
 		// also copy the file that was tested and the testbench
 		testFilePath := filepath.Join(testDir, "../")
 		testFilePath = filepath.Join(testFilePath, f.svFile.Name)
@@ -579,7 +582,6 @@ func (f *Fuzzer) handleMismatch(
 
 func (f *Fuzzer) handleCompilationMismatch(
 	workerID string, // This is the workerCompleteID from performWorkerAttempt
-	ivsim, vlsim simulator.Simulator, // ivsim and vlsim are not directly used in this function for file copying
 	workerModule *verilog.Module,
 	compilationErr error,
 ) {
@@ -745,16 +747,15 @@ func (f *Fuzzer) performWorkerAttempt(
 	ivsim, vlsim, err := f.setupSimulators(workerID, workerDir, workerModule.Name)
 	if err != nil {
 		if strings.Contains(err.Error(), "One of the compilations failed") {
-			f.handleCompilationMismatch(workerID, ivsim, vlsim, workerModule, err)
+			f.handleCompilationMismatch(workerID, workerModule, err)
 			f.stats.AddMismatch(nil)
 			return false, fmt.Errorf(
 				"[%s] One of the verilator compilations failed: %w",
 				workerID,
 				err,
 			)
-		} else {
-			return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
 		}
+		return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
 	}
 
 	errorMap := f.processTestCases(
@@ -780,10 +781,10 @@ func (f *Fuzzer) performWorkerAttempt(
 func (f *Fuzzer) worker(
 	testCases <-chan int,
 	moduleToTest *verilog.Module,
-	workerId int,
+	workerNum int,
 ) error {
 	var lastSetupError error
-	workerID := fmt.Sprintf("worker_%d_%d", workerId, time.Now().UnixNano())
+	workerID := fmt.Sprintf("worker_%d_%d", workerNum, time.Now().UnixNano())
 	var strategy Strategy
 	switch f.strategyName {
 	case "random":
