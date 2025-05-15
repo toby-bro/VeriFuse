@@ -47,7 +47,6 @@ func (g *Generator) GenerateTestbenchesInDir(outputDir string) error {
 func (g *Generator) generateSVPortDeclarations() string {
 	var declarations strings.Builder
 	for _, port := range g.module.Ports {
-
 		typeDecl := verilog.LOGIC.String()
 		if port.Width > 1 {
 			typeDecl += fmt.Sprintf(" [%d:0] ", port.Width-1)
