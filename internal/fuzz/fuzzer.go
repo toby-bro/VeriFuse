@@ -357,11 +357,25 @@ func (f *Fuzzer) setupSimulators(
 		)
 	}
 	if vl0err != nil || vl3err != nil {
+		// define which is the error
+		var err error
+		opt := "O0"
+		if vl0err != nil {
+			err = vl0err
+		} else {
+			err = vl3err
+			opt = "O3"
+		}
 		f.debug.Warn(
-			"[%s]: One of the Verilator compilations failed, Continuing: %v, %v",
+			"[%s]: One of the Verilator compilations failed, %v, %s",
 			workerID,
-			vl0err,
-			vl3err,
+			err,
+			opt,
+		)
+		return nil, nil, fmt.Errorf("[%s] One of the compilations failed: %w, %s",
+			workerID,
+			err,
+			opt,
 		)
 	}
 	return vlsim0, vlsim3, nil
@@ -407,7 +421,17 @@ func (f *Fuzzer) runSingleTest(
 
 	f.validateMultiBitSignals(workerModule, testCase)
 
-	testDir := filepath.Join(workerDir, fmt.Sprintf("test_%d", testIndex))
+	relativeTestDir := filepath.Join(workerDir, fmt.Sprintf("test_%d", testIndex))
+	testDir, err := filepath.Abs(relativeTestDir)
+	if err != nil {
+		return fmt.Errorf(
+			"[%s] Failed to get absolute path for test directory %s: %v",
+			workerID,
+			relativeTestDir,
+			err,
+		)
+	}
+
 	if err := os.MkdirAll(testDir, 0o755); err != nil {
 		return fmt.Errorf("[%s] Failed to create test directory %s: %v", workerID, testDir, err)
 	}
@@ -426,6 +450,7 @@ func (f *Fuzzer) runSingleTest(
 	vlResult, vlErr := f.runSimulator("verilator", vlsim, testDir, workerModule)
 
 	if ivErr != nil && vlErr != nil {
+		mismatch = true
 		return fmt.Errorf(
 			"[%s] Both simulations failed for test %d on module %s with errors : \n%s\n%s",
 			workerID,
@@ -519,55 +544,122 @@ func (f *Fuzzer) handleMismatch(
 	if err := os.MkdirAll(mismatchDir, 0o755); err != nil {
 		f.debug.Error("Failed to create mismatch directory %s: %v", mismatchDir, err)
 	} else {
-		for portName := range testCase {
-			inputFile := fmt.Sprintf("input_%s.hex", portName)
-			src := filepath.Join(testDir, inputFile)
-			dst := filepath.Join(mismatchDir, inputFile)
-			if err := utils.CopyFile(src, dst); err != nil {
-				f.debug.Error("Failed to copy input file %s: %v", inputFile, err)
-			}
-		}
-		outputPorts := make(map[string]struct{})
-		for _, port := range workerModule.Ports {
-			if port.Direction == verilog.OUTPUT {
-				outputPorts[port.Name] = struct{}{}
-			}
-		}
-		for portName := range outputPorts {
-			ivFile := filepath.Join(testDir, fmt.Sprintf("%s%s.hex", IV_PREFIX, portName))
-			vlFile := filepath.Join(testDir, fmt.Sprintf("%s%s.hex", VL_PREFIX, portName))
-			if utils.FileExists(ivFile) {
-				dst := filepath.Join(mismatchDir, fmt.Sprintf("%s%s.hex", IV_PREFIX, portName))
-				if err := utils.CopyFile(ivFile, dst); err != nil {
-					f.debug.Error("Failed to copy IVerilog output file %s: %v", ivFile, err)
-				}
-			}
-			if utils.FileExists(vlFile) {
-				dst := filepath.Join(mismatchDir, fmt.Sprintf("%s%s.hex", VL_PREFIX, portName))
-				if err := utils.CopyFile(vlFile, dst); err != nil {
-					f.debug.Error("Failed to copy Verilator output file %s: %v", vlFile, err)
-				}
-			}
+		// Copy all the files from the test directory to the mismatch directory
+		f.debug.Debug("Copying test files to mismatch directory %s", mismatchDir)
+		if err := utils.CopyDir(testDir, mismatchDir); err != nil {
+			f.debug.Error("Failed to copy test files to mismatch directory %s: %v", mismatchDir, err)
 		}
 		summaryPath := filepath.Join(mismatchDir, fmt.Sprintf("mismatch_%d_summary.txt", testIndex))
-		file, err := os.Create(summaryPath)
-		if err == nil {
-			defer file.Close()
-			fmt.Fprintf(file, "Test case %d\n\n", testIndex)
-			fmt.Fprintf(file, "Inputs:\n")
-			for portName, value := range testCase {
-				fmt.Fprintf(file, "  %s = %s\n", portName, value)
-			}
-			fmt.Fprintf(file, "\nMismatched outputs:\n")
-			for portName, detail := range mismatchDetails {
-				fmt.Fprintf(file, "  %s: %s\n", portName, detail)
-			}
-		} else {
-			f.debug.Error("Failed to create mismatch summary file %s: %v", summaryPath, err)
+		fileContent := fmt.Sprintf(
+			"Test case %d\n\nInputs:\n", testIndex)
+		for portName, value := range testCase {
+			fileContent += fmt.Sprintf("  %s = %s\n", portName, value)
 		}
+		fileContent += "\nMismatched outputs:\n"
+		for portName, detail := range mismatchDetails {
+			fileContent += fmt.Sprintf("  %s: %s\n", portName, detail)
+		}
+		f.debug.Debug("Writing mismatch summary to %s", summaryPath)
+		utils.WriteFileContent(summaryPath, fileContent)
+		// also copy the file that was tested and the testbench
+		testFilePath := filepath.Join(testDir, f.svFile.Name)
+		if err := utils.CopyFile(testFilePath, mismatchDir); err != nil {
+			f.debug.Error("Failed to copy test file %s to mismatch directory %s: %v", testFilePath, mismatchDir, err)
+		}
+		testbenchPath := filepath.Join(testDir, "testbench.sv")
+		if err := utils.CopyFile(testbenchPath, mismatchDir); err != nil {
+			f.debug.Error("Failed to copy testbench file %s to mismatch directory %s: %v", testbenchPath, mismatchDir, err)
+		}
+		f.debug.Debug("Test files copied to mismatch directory %s", mismatchDir)
 	}
 	os.RemoveAll(testDir)
 	f.stats.AddMismatch(testCase)
+}
+
+func (f *Fuzzer) handleCompilationMismatch(
+	workerID string, // This is the workerCompleteID from performWorkerAttempt
+	ivsim, vlsim simulator.Simulator, // ivsim and vlsim are not directly used in this function for file copying
+	workerModule *verilog.Module,
+	compilationErr error,
+) {
+	f.debug.Error(
+		"[%s] Handling compilation mismatch for module %s: %v",
+		workerID,
+		workerModule.Name,
+		compilationErr,
+	)
+
+	// Reconstruct workerDir from workerID, as workerID is the identifier used when setting up the worker's directory.
+	workerDir := filepath.Join(utils.TMP_DIR, workerID)
+
+	// Sanitize module name and workerID for use in directory/file names
+	safeModuleName := strings.ReplaceAll(workerModule.Name, "/", "_")
+	safeModuleName = strings.ReplaceAll(safeModuleName, ".", "_")
+	safeWorkerID := strings.ReplaceAll(workerID, "/", "_")
+	safeWorkerID = strings.ReplaceAll(safeWorkerID, ".", "_")
+
+	mismatchDirName := fmt.Sprintf("comp_mismatch_%s_%s", safeModuleName, safeWorkerID)
+	mismatchDir := filepath.Join(utils.MISMATCHES_DIR, mismatchDirName)
+
+	if err := os.MkdirAll(mismatchDir, 0o755); err != nil {
+		f.debug.Error(
+			"[%s] Failed to create compilation mismatch directory %s: %v",
+			workerID,
+			mismatchDir,
+			err,
+		)
+		// If directory creation fails, we can't save files, but still record the stat.
+	} else {
+		f.debug.Info("[%s] Saving compilation failure artifacts to %s", workerID, mismatchDir)
+
+		// 1. Copy the Verilog source file that failed compilation.
+		// This file is located in workerDir (e.g., utils.TMP_DIR/worker_XYZ/f.svFile.Name).
+		srcVerilogFile := filepath.Join(workerDir, f.svFile.Name)
+		destVerilogFile := filepath.Join(mismatchDir, f.svFile.Name)
+		if err := utils.CopyFile(srcVerilogFile, destVerilogFile); err != nil {
+			f.debug.Error("[%s] Failed to copy Verilog file %s to %s: %v", workerID, srcVerilogFile, mismatchDir, err)
+		} else {
+			f.debug.Debug("[%s] Copied Verilog file %s to %s", workerID, srcVerilogFile, mismatchDir)
+		}
+
+		// 2. Copy the testbench file.
+		// Testbenches are generated in workerDir before the compilation attempt.
+		// Assuming "testbench.sv" is the standard name, as implied by handleMismatch.
+		srcTestbenchFile := filepath.Join(workerDir, "testbench.sv")
+		if _, statErr := os.Stat(srcTestbenchFile); statErr == nil { // Check if testbench file exists
+			destTestbenchFile := filepath.Join(mismatchDir, "testbench.sv")
+			if err := utils.CopyFile(srcTestbenchFile, destTestbenchFile); err != nil {
+				f.debug.Error("[%s] Failed to copy testbench file %s to %s: %v", workerID, srcTestbenchFile, mismatchDir, err)
+			} else {
+				f.debug.Debug("[%s] Copied testbench file %s to %s", workerID, srcTestbenchFile, mismatchDir)
+			}
+		} else {
+			f.debug.Warn("[%s] Testbench file %s not found in %s (error: %v), skipping copy.", workerID, "testbench.sv", workerDir, statErr)
+		}
+
+		// 3. Write a summary file with the error details.
+		summaryFileName := fmt.Sprintf("summary_comp_mismatch_%s_%s.txt", safeModuleName, safeWorkerID)
+		summaryPath := filepath.Join(mismatchDir, summaryFileName)
+		summaryContent := fmt.Sprintf(
+			"Compilation Mismatch Report\n\n"+
+				"Worker ID: %s\n"+
+				"Module: %s\n"+
+				"Verilog File Base Name: %s\n\n"+ // This is the f.svFile.Name, which was copied to workerDir and compiled
+				"Error Details:\n%s\n",
+			workerID,
+			workerModule.Name,
+			f.svFile.Name,
+			compilationErr.Error(),
+		)
+
+		if err := utils.WriteFileContent(summaryPath, summaryContent); err != nil {
+			f.debug.Error("[%s] Failed to write compilation mismatch summary to %s: %v", workerID, summaryPath, err)
+		} else {
+			f.debug.Debug("[%s] Compilation mismatch summary written to %s", workerID, summaryPath)
+		}
+	}
+
+	f.stats.AddCompilationMismatch()
 }
 
 // performWorkerAttempt tries to set up and run tests for one worker attempt.
@@ -651,7 +743,17 @@ func (f *Fuzzer) performWorkerAttempt(
 
 	ivsim, vlsim, err := f.setupSimulators(workerID, workerDir, workerModule.Name)
 	if err != nil {
-		return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
+		if strings.Contains(err.Error(), "One of the compilations failed") {
+			f.handleCompilationMismatch(workerID, ivsim, vlsim, workerModule, err)
+			f.stats.AddMismatch(nil)
+			return false, fmt.Errorf(
+				"[%s] One of the verilator compilations failed: %w",
+				workerID,
+				err,
+			)
+		} else {
+			return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
+		}
 	}
 
 	errorMap := f.processTestCases(

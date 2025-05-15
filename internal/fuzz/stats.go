@@ -49,6 +49,12 @@ func (fs *Stats) AddMismatch(tc map[string]string) {
 	}
 }
 
+func (fs *Stats) AddCompilationMismatch() {
+	fs.mutex.Lock()
+	defer fs.mutex.Unlock()
+	fs.Mismatches++
+}
+
 // AddTest records a test execution
 func (fs *Stats) AddTest() {
 	fs.mutex.Lock()
