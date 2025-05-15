@@ -18,6 +18,26 @@ type IVerilogSimulator struct {
 	debug    *utils.DebugLogger
 }
 
+func TestIVerilogTool() error {
+	cmd := exec.Command("iverilog", "-V")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		cmd = exec.Command("iverilog")
+		stderr.Reset()
+		cmd.Stderr = &stderr
+		if errSimple := cmd.Run(); errSimple != nil &&
+			!strings.Contains(stderr.String(), "Usage:") {
+			return fmt.Errorf(
+				"iverilog basic check failed, check installation/PATH: %v - %s",
+				errSimple,
+				stderr.String(),
+			)
+		}
+	}
+	return nil
+}
+
 // NewIVerilogSimulator creates a new IVerilog simulator instance
 func NewIVerilogSimulator(workDir string, verbose int) *IVerilogSimulator {
 	return &IVerilogSimulator{
