@@ -12,6 +12,7 @@ var (
 	TMP_DIR        = "dist"
 	MISMATCHES_DIR = "mismatches"
 	DEBUG_LOGS_DIR = "debug_logs"
+	DEBUG          = false
 )
 
 // Global mutex for file operations
@@ -93,6 +94,9 @@ func WriteFileContent(path string, content string) error {
 	fileOpMutex.Lock()
 	defer fileOpMutex.Unlock()
 
+	if DEBUG {
+		fmt.Printf("%s[-] Writing file %s%s\n", ColorBlue, path, ColorReset)
+	}
 	// Ensure the directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -113,6 +117,9 @@ func CopyFile(src, dst string) error {
 	fileOpMutex.Lock()
 	defer fileOpMutex.Unlock()
 
+	if DEBUG {
+		fmt.Printf("%s[-] Copying file %s to %s%s\n", ColorBlue, src, dst, ColorReset)
+	}
 	// Ensure the destination directory exists
 	dir := filepath.Dir(dst)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
