@@ -139,11 +139,16 @@ func (sim *VerilatorSimulator) Compile() error {
 	err := cmd.Run()
 	if err != nil {
 		// retry
-		sim.logger.Warn("Verilator compilation failed, retrying...")
+		sim.logger.Warn("[%s] Verilator compilation failed, retrying...", sim.workDir)
 		time.Sleep(10 * time.Millisecond)
 		err = cmd.Run()
 		if err != nil {
-			return fmt.Errorf("verilator compilation failed: %v\n%s", err, stderr.String())
+			return fmt.Errorf(
+				"[%s] verilator compilation failed: %v\n%s",
+				sim.workDir,
+				err,
+				stderr.String(),
+			)
 		}
 	}
 

@@ -21,7 +21,7 @@ const (
 
 func (f *Fuzzer) setupWorker(workerID string) (string, func(), error) {
 	workerDir := filepath.Join(utils.TMP_DIR, workerID)
-	f.debug.Debug("[%s]: Creating worker directory at %s", workerID, workerDir)
+	f.debug.Debug("[%s] Creating worker directory at %s", workerID, workerDir)
 	if err := os.MkdirAll(workerDir, 0o755); err != nil {
 		return "", nil, fmt.Errorf("failed to create worker directory %s: %w", workerDir, err)
 	}
@@ -38,13 +38,13 @@ func (f *Fuzzer) copyWorkerFiles(workerID, workerDir, verilogFileName string) er
 	srcPath := filepath.Join(utils.TMP_DIR, verilogFileName)
 	dstPath := filepath.Join(workerDir, verilogFileName)
 	f.debug.Debug(
-		"[%s]: Copying Verilog source file `%s` to `%s`",
+		"[%s] Copying Verilog source file `%s` to `%s`",
 		workerID,
 		srcPath,
 		dstPath,
 	)
 	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
-		return fmt.Errorf("[%s]: Source Verilog file %s does not exist", workerID, srcPath)
+		return fmt.Errorf("[%s] Source Verilog file %s does not exist", workerID, srcPath)
 	}
 	if err := utils.CopyFile(srcPath, dstPath); err != nil {
 		return fmt.Errorf("failed to copy %s to worker directory: %w", verilogFileName, err)
@@ -54,10 +54,10 @@ func (f *Fuzzer) copyWorkerFiles(workerID, workerDir, verilogFileName string) er
 		if fi != nil {
 			fileSize = fi.Size()
 		}
-		return fmt.Errorf("[%s]: Verilog file %s not copied correctly, size: %d, error: %v",
+		return fmt.Errorf("[%s] Verilog file %s not copied correctly, size: %d, error: %v",
 			workerID, dstPath, fileSize, err)
 	}
-	f.debug.Debug("[%s]: Successfully copied %s", workerID, verilogFileName)
+	f.debug.Debug("[%s] Successfully copied %s", workerID, verilogFileName)
 	return nil
 }
 
@@ -138,7 +138,7 @@ func (f *Fuzzer) performWorkerAttempt(
 	if err := gen.GenerateTestbenchesInDir(workerDir); err != nil {
 		return false, fmt.Errorf("[%s] failed to generate testbenches: %w", workerID, err)
 	}
-	f.debug.Info("[%s] Testbenches generated.", workerID)
+	f.debug.Debug("[%s] Testbenches generated.", workerID)
 
 	ivsim, vlsim, err := f.setupSimulators(workerID, workerDir, workerModule.Name)
 	if err != nil {
@@ -177,7 +177,7 @@ func (f *Fuzzer) performWorkerAttempt(
 func (f *Fuzzer) setupSimulators(
 	workerID, workerDir, workerModuleName string,
 ) (simulator.Simulator, simulator.Simulator, error) {
-	f.debug.Debug("[%s]: Creating simulators for module %s", workerID, workerModuleName)
+	f.debug.Debug("[%s] Creating simulators for module %s", workerID, workerModuleName)
 	// ivsim := simulator.NewIVerilogSimulator(workerDir, f.verbose)
 	vlsim3 := simulator.NewVerilatorSimulator(
 		workerDir+"/O3",
@@ -193,11 +193,11 @@ func (f *Fuzzer) setupSimulators(
 		false,
 		f.verbose,
 	)
-	f.debug.Debug("[%s]: Compiling IVerilog simulator", workerID)
+	f.debug.Debug("[%s] Compiling IVerilog simulator", workerID)
 	// if err := ivsim.Compile(); err != nil {
 	//	return nil, nil, fmt.Errorf("failed to compile IVerilog in worker %s: %w", workerID, err)
 	//}
-	f.debug.Debug("[%s]: Compiling Verilator simulator", workerID)
+	f.debug.Debug("[%s] Compiling Verilator simulator", workerID)
 	vl0err := vlsim0.Compile()
 	vl3err := vlsim3.Compile()
 	if vl0err != nil && vl3err != nil {
@@ -219,7 +219,7 @@ func (f *Fuzzer) setupSimulators(
 			opt = "O3"
 		}
 		f.debug.Warn(
-			"[%s]: One of the Verilator compilations failed, %v, %s",
+			"[%s] One of the Verilator compilations failed, %v, %s",
 			workerID,
 			err,
 			opt,
@@ -269,10 +269,12 @@ func (f *Fuzzer) worker(
 		// Setup failed for this attempt
 		lastSetupError = err
 		f.debug.Warn(
-			"[%s] Worker attempt %d/%d failed setup",
+			"[%s] Worker attempt %d/%d failed setup for module %s from file %s",
 			workerCompleteID,
 			attempt+1,
 			f.maxAttempts,
+			moduleToTest.Name,
+			f.svFile.Name,
 		)
 
 		if attempt < f.maxAttempts-1 {
