@@ -18,7 +18,6 @@ type Fuzzer struct {
 	strategyName string
 	workers      int
 	verbose      int
-	seed         int64
 	debug        *utils.DebugLogger
 	svFile       *verilog.VerilogFile
 	mutate       bool
@@ -29,7 +28,6 @@ func NewFuzzer(
 	strategy string,
 	workers int,
 	verbose int,
-	seed int64,
 	fileName string,
 	mutate bool,
 	maxAttempts int,
@@ -38,7 +36,6 @@ func NewFuzzer(
 		stats:        NewStats(),
 		workers:      workers,
 		verbose:      verbose,
-		seed:         seed,
 		debug:        utils.NewDebugLogger(verbose),
 		mutate:       mutate,
 		maxAttempts:  maxAttempts,
@@ -125,6 +122,7 @@ func (f *Fuzzer) Run(numTests int) error {
 
 			slotIdx := <-workerSlots
 			defer func() { workerSlots <- slotIdx }()
+			f.debug.Info("Worker %d started for module %s", slotIdx, mod.Name)
 
 			if err := f.worker(testCases, mod, slotIdx); err != nil {
 				errChan <- fmt.Errorf("worker (slot %d) for module %s error: %w", slotIdx, mod.Name, err)
@@ -150,7 +148,11 @@ func (f *Fuzzer) Run(numTests int) error {
 				return
 			}
 		}
-		f.debug.Info("Successfully fed all %d test cases to the channel.", numTests)
+		if numTests == 1 {
+			f.debug.Info("Successfully fed 1 test case to the channel.")
+		} else {
+			f.debug.Info("Successfully fed all %d test cases to the channel.", numTests)
+		}
 	}()
 
 	wg.Wait()

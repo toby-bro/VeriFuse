@@ -4,7 +4,6 @@ import (
 	"flag"
 	"os"
 	"runtime"
-	"time"
 
 	"github.com/toby-bro/pfuzz/internal/fuzz"
 	"github.com/toby-bro/pfuzz/pkg/utils"
@@ -15,7 +14,6 @@ func main() {
 	numTests := flag.Int("n", 1000, "Number of test cases to run")
 	strategy := flag.String("strategy", "smart", "Fuzzing strategy: random, smart")
 	workers := flag.Int("workers", runtime.NumCPU(), "Number of parallel workers")
-	seedFlag := flag.Int64("seed", time.Now().UnixNano(), "Random seed")
 	vFlag := flag.Bool(
 		"v",
 		false,
@@ -63,11 +61,8 @@ func main() {
 
 	if *checkFile {
 		logger.Info("Checking Verilog file for valid modules...")
-		*workers = runtime.NumCPU()
 		*maxAttempts = 1
 		*mutate = false
-		*seedFlag = 0
-		*numTests = runtime.NumCPU()
 	}
 
 	// Create and setup fuzzer using the new package structure
@@ -75,7 +70,6 @@ func main() {
 		*strategy,
 		*workers,
 		verboseLevel,
-		*seedFlag,
 		*verilogFile,
 		*mutate,
 		*maxAttempts,
