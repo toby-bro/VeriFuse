@@ -113,21 +113,23 @@ func (f *Fuzzer) Run(numTests int) error {
 		workerSlots <- i
 	}
 
-	for _, module := range f.svFile.Modules {
-		wg.Add(1)
-		currentModule := module
+	for range f.workers / len(f.svFile.Modules) {
+		for _, module := range f.svFile.Modules {
+			wg.Add(1)
+			currentModule := module
 
-		go func(mod *verilog.Module) {
-			defer wg.Done()
+			go func(mod *verilog.Module) {
+				defer wg.Done()
 
-			slotIdx := <-workerSlots
-			defer func() { workerSlots <- slotIdx }()
-			f.debug.Info("Worker %d started for module %s", slotIdx, mod.Name)
+				slotIdx := <-workerSlots
+				defer func() { workerSlots <- slotIdx }()
+				f.debug.Info("Worker %d started for module %s", slotIdx, mod.Name)
 
-			if err := f.worker(testCases, mod, slotIdx); err != nil {
-				errChan <- fmt.Errorf("worker (slot %d) for module %s error: %w", slotIdx, mod.Name, err)
-			}
-		}(currentModule)
+				if err := f.worker(testCases, mod, slotIdx); err != nil {
+					errChan <- fmt.Errorf("worker (slot %d) for module %s error: %w", slotIdx, mod.Name, err)
+				}
+			}(currentModule)
+		}
 	}
 
 	var feedingWg sync.WaitGroup

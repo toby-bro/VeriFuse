@@ -1719,6 +1719,27 @@ input int counter_val;
 			},
 			expectError: false,
 		},
+		{
+			name: "No port buf function declaration",
+			content: `
+	function automatic bit [4:0] add_saturate;
+        input bit [3:0] op1;
+        input bit [3:0] op2;
+        bit [4:0] sum;
+        //INJECT
+        sum = {1'b0, op1} + {1'b0, op2};
+        if (sum > 5'd15) sum = 5'd15;
+        return sum;
+        //INJECT
+    endfunction
+    //INJECT
+    assign func_result = add_saturate(func_a, func_b);
+    //INJECT
+	`,
+			parameters:       nil,
+			expectedPortsMap: map[string]Port{},
+			expectError:      false,
+		},
 	}
 
 	for _, tc := range testCases {

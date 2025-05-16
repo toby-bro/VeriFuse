@@ -514,12 +514,18 @@ func extractNonANSIPortDeclarations(
 
 	for scanner.Scan() {
 		trimmedLine := strings.TrimSpace(scanner.Text())
+		if trimmedLine == "" {
+			continue
+		}
 
 		// Attempt to parse the line as a port declaration
-		if port, ok := parsePortDeclaration(trimmedLine, parameters, parsedVariables); ok {
+		port, ok := parsePortDeclaration(trimmedLine, parameters, parsedVariables)
+		if ok {
 			if _, exists := parsedPortsMap[port.Name]; !exists {
 				parsedPortsMap[port.Name] = *port
 			}
+		} else if end, _ := regexp.MatchString(`(function|task|always)`, trimmedLine); end {
+			break
 		}
 	}
 
