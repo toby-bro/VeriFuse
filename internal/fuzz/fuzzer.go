@@ -98,7 +98,7 @@ func (f *Fuzzer) Run(numTests int) error {
 
 	var wg sync.WaitGroup
 	testCases := make(chan int, f.workers)
-	errChan := make(chan error, f.workers)
+	errChan := make(chan error, max(f.workers, len(f.svFile.Modules)))
 
 	if f.mutate {
 		progressTracker := NewProgressTracker(numTests, f.stats, &wg)
