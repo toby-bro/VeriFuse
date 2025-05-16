@@ -2,14 +2,12 @@ package simulator
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
-	"github.com/toby-bro/pfuzz/internal/testgen"
 	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
@@ -67,31 +65,11 @@ func (sim *VerilatorSimulator) Compile() error {
 		return fmt.Errorf("failed to create obj_dir: %v", err)
 	}
 
-	testbenchPath := filepath.Join(sim.workDir, "testbench.sv")
-	if _, err := os.Stat(testbenchPath); os.IsNotExist(err) {
-		// The testbench.sv is not in the working directory, copy it from dist
-		srcTestbench := filepath.Join(utils.TMP_DIR, "testbench.sv")
-		if _, err := os.Stat(srcTestbench); os.IsNotExist(err) {
-			// If it doesn't exist in dist either, generate it if we have module info
-			if sim.module != nil {
-				gen := testgen.NewGenerator(sim.module, sim.svFile.Name)
-				if err := gen.GenerateTestbenches(); err != nil {
-					return fmt.Errorf("failed to generate testbenches: %v", err)
-				}
-			} else {
-				return errors.New("testbench.sv not found and module info not available")
-			}
-		}
-
-		// Now copy from dist to the working directory
-		if err := utils.CopyFile(srcTestbench, testbenchPath); err != nil {
-			return fmt.Errorf("failed to copy testbench.sv to working directory: %v", err)
-		}
-	}
+	testbenchPath := filepath.Join(filepath.Dir(sim.workDir), "testbench.sv")
 
 	// Verify the testbench file exists and has content
 	if info, err := os.Stat(testbenchPath); err != nil || info.Size() == 0 {
-		return fmt.Errorf("testbench.sv is missing or empty in %s", sim.workDir)
+		return fmt.Errorf("testbench.sv is missing or empty in %s", filepath.Dir(sim.workDir))
 	}
 
 	// Build verilator command with all SV files and parameters

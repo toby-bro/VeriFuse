@@ -25,11 +25,6 @@ func NewGenerator(module *verilog.Module, fileName string) *Generator {
 	}
 }
 
-// GenerateTestbenches creates both SystemVerilog and C++ testbenches in the default TMP_DIR
-func (g *Generator) GenerateTestbenches() error {
-	return g.GenerateTestbenchesInDir(utils.TMP_DIR)
-}
-
 // GenerateTestbenchesInDir creates both SystemVerilog and C++ testbenches in the specified directory
 func (g *Generator) GenerateTestbenchesInDir(outputDir string) error {
 	// Ensure the output directory exists

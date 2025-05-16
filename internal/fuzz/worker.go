@@ -123,9 +123,10 @@ func (f *Fuzzer) performWorkerAttempt(
 		return false, fmt.Errorf("[%s] failed to parse mutated Verilog: %w", workerID, err)
 	}
 	f.debug.Debug(
-		"[%s] Parsed %d modules from worker file.",
+		"[%s] Parsed %d modules from file %s.",
 		workerID,
 		len(svFile.Modules),
+		svFile.Name,
 	)
 
 	f.debug.Debug(
