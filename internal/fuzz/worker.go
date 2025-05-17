@@ -157,6 +157,15 @@ func (f *Fuzzer) performWorkerAttempt(
 		return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
 	}
 
+	logger.Debug("[%s] Simulators set up successfully.", workerID)
+	f.debug.Debug(
+		"[%s] Starting test case processing for module %s\n    %d test cases\n    %s strategy",
+		workerID,
+		workerModule.Name,
+		len(testCases),
+		strategy.Name(),
+	)
+
 	errorMap := f.processTestCases(
 		workerID,
 		workerDir,
