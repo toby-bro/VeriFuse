@@ -118,7 +118,7 @@ var generalParameterRegex = regexp.MustCompile(fmt.Sprintf(
 	baseTypes,
 ))
 
-var arrayRegex = regexp.MustCompile(`(?m)(\w+)(?:\s+(\[[^\]]+\]))?`)
+var arrayRegex = regexp.MustCompile(`(?m)(\w+)(?:\s+(\[[^\]:]+\]))?`)
 
 // Regex for general [MSB:LSB] range structure
 var literalValueRangeRegex = regexp.MustCompile(`(?m)^\[\s*(.+)\s*:\s*(.+)\s*\]$`)
@@ -133,7 +133,8 @@ var ansiPortRegex = regexp.MustCompile(
 		baseTypes +
 		`)\s+)?(?:(signed|unsigned)\s+)?` +
 		`(?:(\[\s*[\w\-\+\:\s]+\s*\])\s+)?` +
-		`(\w+)\s*$`,
+		`(\w+)\s*` +
+		`(?:\s*\[([^\]:])*\])?\s*$`,
 )
 
 var simplePortRegex = regexp.MustCompile(
@@ -427,6 +428,7 @@ func extractANSIPortDeclarations(
 			signedStr := strings.TrimSpace(matches[3])
 			rangeStr := strings.TrimSpace(matches[4])
 			portName = strings.TrimSpace(matches[5])
+			array := strings.TrimSpace(matches[6])
 
 			if directionStr == "" && portStr == "" && signedStr == "" && rangeStr == "" {
 				if len(headerPortOrder) == 0 {
@@ -441,6 +443,7 @@ func extractANSIPortDeclarations(
 					Type:      precedingPort.Type,
 					Width:     precedingPort.Width,
 					IsSigned:  precedingPort.IsSigned,
+					Array:     precedingPort.Array,
 				}
 			} else {
 				isSigned := (signedStr == "signed")
@@ -470,6 +473,7 @@ func extractANSIPortDeclarations(
 					Type:      portType,
 					Width:     width,
 					IsSigned:  isSigned,
+					Array:     array,
 				}
 			}
 		} else if matches := simplePortRegex.FindStringSubmatch(portDecl); len(matches) > 2 {
