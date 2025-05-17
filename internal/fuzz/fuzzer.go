@@ -132,7 +132,7 @@ func (f *Fuzzer) Run(numTests int) error {
 		}
 	}
 
-	f.debug.Debug("Starting %d test cases to %d workers", numTests, f.workers)
+	f.debug.Debug("Feeding %d test cases to %d workers", numTests, f.workers)
 
 	var feedingWg sync.WaitGroup
 	feedingWg.Add(1)
