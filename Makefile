@@ -84,3 +84,7 @@ ifneq ($(OPTS),)
 run: clean
 	./pfuzz $(OPTS)
 endif
+
+.PHONY: checkSnippets
+checkSnippets:
+	for i in snippets/*.sv ; do ss=$$(pfuzz -strategy smart -check-file -vv -file $$i 2>/dev/null) ; if [ $$? -eq 0 ]; then echo "[+] success" $$i ; else echo "[-] failure" $$i; fi ; done
