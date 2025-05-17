@@ -138,6 +138,8 @@ func TypeToString(pt PortType) string {
 		// For now, let's assume the parser/linker provides the actual name for USERDEFINED types.
 		// If this function is called with USERDEFINED, it implies a missing resolution.
 		return "" // Or "" if it should be resolved by caller
+	case TYPE:
+		return "type" // For parameters
 	default:
 		return fmt.Sprintf("type_%d", pt) // Fallback
 	}
@@ -155,6 +157,10 @@ func PrintParameter(param Parameter, isLast bool) string {
 	if param.DefaultValue != "" {
 		sb.WriteString(" = ")
 		sb.WriteString(param.DefaultValue)
+	}
+	if param.Width > 1 {
+		sb.WriteString(formatWidth(param.Width))
+		sb.WriteString(" ")
 	}
 	if !isLast {
 		sb.WriteString(",")

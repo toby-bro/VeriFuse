@@ -50,6 +50,8 @@ func GetType(portTypeString string) PortType {
 		return VOID
 	case "enum":
 		return ENUM
+	case "type":
+		return TYPE
 	default:
 		return UNKNOWN
 	}
@@ -99,24 +101,35 @@ var generalStructRegex = regexp.MustCompile(
 	`(?m)typedef\s+struct\s+(?:packed\s+)\{((?:\s+.*)+)\}\s+(\w+);`,
 )
 
-var baseTypes = `reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum`
+var baseTypes = `reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum|type`
 
 var widthRegex = `\[\s*[\w\(\)'\-\+\:\s]+\s*\]`
 
 var baseTypesRegex = regexp.MustCompile(fmt.Sprintf(`(?m)^\s*(%s)\s*$`, baseTypes))
 
-var variableRegexTemplate = `(?m)^(\s*)(?:\w+\s+)?(%s)\s+(?:(?:(%s)+|(unsigned))\s+)?(?:#\(\w+\)\s+)?((?:(?:(?:\w+(?:\s+\[[^\]]+\])?\s*,\s*)+)\s*)*(?:\w+(?:\s+\[[^\]]+\])?))(?:\s+=\s+new\(.*\))?\s*;`
+var variableRegexTemplate = `(?m)^(\s*)` +
+	`(?:\w+\s+)?` +
+	`(%s)\s+` +
+	`(?:(?:(%s)+|(unsigned))\s+)?` +
+	`(?:#\(\w+\)\s+)?` +
+	`((?:(?:(?:\w+(?:\s+\[[^\]]+\])?\s*,\s*)+)\s*)*` +
+	`(?:\w+(?:\s+\[[^\]]+\])?))(?:\s+=\s+new\(.*\))?\s*;`
 
 var generalPortRegex = regexp.MustCompile(fmt.Sprintf(
-	`^\s*(input|output|inout)\s+(?:(%s)\s+)?(?:(signed|unsigned)\s+)?(%s)?\s*(\w+)\s*(?:,|;)`,
+	`^\s*(input|output|inout)\s+(?:(%s)\s+)?(?:(signed|unsigned)\s+)?(\s*%s)?\s*(\w+)\s*(?:,|;)`,
 	baseTypes,
 	widthRegex,
 ))
 
-var generalParameterRegex = regexp.MustCompile(fmt.Sprintf(
-	`(?m)^\s*(?:(localparam|parameter)\s+)?(?:(%s)\s+)?(?:(?:unsigned|signed)\s+)?(\w+)(?:\s*(=)\s*(.+))?\s*(?:,|;)?$`,
-	baseTypes,
-))
+var generalParameterRegex = regexp.MustCompile(
+	`(?m)^\s*(?:(localparam|parameter)\s+)?` +
+		fmt.Sprintf(`(?:(%s)\s+)?`, baseTypes) +
+		fmt.Sprintf(`(?:\s*(%s)\s+)?`, widthRegex) +
+		`(?:(?:unsigned|signed)\s+)?` +
+		`(\w+)` +
+		`(?:\s*(=)\s*(.+))?` +
+		`\s*(?:,|;)?$`,
+)
 
 var arrayRegex = regexp.MustCompile(`(?m)(\w+)(?:\s+(\[[^\]:]+\]))?`)
 
@@ -781,13 +794,24 @@ func parseParameters(parameterListString string) ([]Parameter, error) {
 
 		matches := MatchAllParametersFromString(trimmedParamStr)
 
-		if len(matches) == 6 {
+		if len(matches) == 7 {
 			paramLocalityStr := strings.TrimSpace(matches[1])
 			paramTypeStr := strings.TrimSpace(matches[2])
-			paramName := strings.TrimSpace(matches[3])
+			paramWidthStr := strings.TrimSpace(matches[3])
+			paramWidth, err := ParseRange(paramWidthStr, nil)
+			if err != nil {
+				logger.Warn(
+					"Could not parse range '%s' for parameter '%s'. Using default width %d. Error: %v",
+					paramWidthStr,
+					trimmedParamStr,
+					paramWidth, // Use the width returned by parseRange (the default)
+					err,
+				)
+			}
+			paramName := strings.TrimSpace(matches[4])
 			paramValue := ""
-			if matches[4] == "=" {
-				paramValue = strings.TrimSpace(matches[5])
+			if matches[5] == "=" {
+				paramValue = strings.TrimSpace(matches[6])
 			}
 
 			if paramName == "" {
@@ -833,6 +857,7 @@ func parseParameters(parameterListString string) ([]Parameter, error) {
 				Type:         paramType,
 				DefaultValue: paramValue,
 				Localparam:   paramLocality,
+				Width:        paramWidth,
 			})
 		} else {
 			logger.Warn(
