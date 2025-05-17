@@ -383,7 +383,7 @@ endmodule
 					{Name: "b", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
 					{Name: "sum", Direction: OUTPUT, Type: LOGIC, Width: 9, IsSigned: false},
 				},
-				Body:       "    assign sum = a + b;", // Expected body after parsing
+				Body:       "\n    assign sum = a + b;\n", // Expected body after parsing
 				Parameters: []Parameter{},
 			},
 			expectError: false,
@@ -414,7 +414,7 @@ endmodule
 						DefaultValue: "8",
 					},
 				},
-				Body: "    assign out = in;", // Expected body after parsing
+				Body: "\n    assign out = in;\n", // Expected body after parsing
 			},
 			expectError: false,
 		},
@@ -1076,6 +1076,22 @@ module top #(parameter GGGp = 8) (
 
 endmodule
 
+module deep_comb_if_nested (
+    input wire [7:0] dcin_a,
+    input wire [7:0] dcin_b,
+    input wire [3:0] dc_select,
+    output logic [7:0] dcout_result
+);
+always_comb begin
+    logic [7:0] temp_result = 8'd0;
+    if (dc_select[0]) begin
+        if (dc_select[1]) begin
+
+    end
+    dcout_result = temp_result;
+end
+endmodule
+
 `
 
 func TestParseModules(t *testing.T) {
@@ -1090,7 +1106,7 @@ func TestParseModules(t *testing.T) {
 		t.Fatalf("Failed to parse modules: %v", err)
 	}
 	modules := vf.Modules
-	if len(modules) != 5 {
+	if len(modules) != 6 {
 		t.Errorf("Ouin ouin not enough modules found, got %d, want 5", len(modules))
 	}
 }
@@ -1931,5 +1947,33 @@ func TestParseParameters(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestParseTransFuzzFile(t *testing.T) {
+	// skip this test
+	t.Skip("Skipping local only test")
+	fmt.Printf("Modules regex, \n%s\n", generalModuleRegex.String())
+	fmt.Printf("Classes regex, \n%s\n", generalClassRegex.String())
+	rootDir, err := utils.GetRootDir()
+	if err != nil {
+		t.Fatalf("Failed to get root directory: %v", err)
+	}
+	snippetsDir := filepath.Join(
+		rootDir,
+		"../instrumentedVerilator/snippets",
+	)
+	filename := "V3DepthBlock.sv"
+	filename = filepath.Join(snippetsDir, filename)
+	fileContent, err := utils.ReadFileContent(filename)
+	if err != nil {
+		t.Fatalf("Failed to read file content from %s", filename)
+	}
+	svFile, err := ParseVerilog(fileContent, 5)
+	if err != nil {
+		t.Fatalf("Failed to parse file content from %s", filename)
+	}
+	if svFile.DependancyMap == nil {
+		t.Fatalf("Failed to parse dependancy map from %s", filename)
 	}
 }

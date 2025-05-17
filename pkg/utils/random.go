@@ -1,14 +1,18 @@
 package utils
 
-import "math/rand"
+import (
+	"fmt"
+	"math/rand"
+)
 
 func RandomInt(minInt, maxInt int) int {
 	return minInt + rand.Intn(maxInt-minInt+1)
 }
 
-func Min(a, b int) int {
-	if a < b {
-		return a
+func NegativeLookAhead(s string) string {
+	pattern := ""
+	for i := range s {
+		pattern += fmt.Sprintf("%s[^%s]|", s[:i], string(s[i]))
 	}
-	return b
+	return pattern[:len(pattern)-1]
 }
