@@ -144,8 +144,10 @@ func (f *Fuzzer) performWorkerAttempt(
 	ivsim, vlsim, err := f.setupSimulators(workerID, workerDir, workerModule.Name)
 	if err != nil {
 		if strings.Contains(err.Error(), "One of the compilations failed") {
-			f.handleCompilationMismatch(workerID, workerModule, err)
-			f.stats.AddMismatch(nil)
+			if f.mutate {
+				f.handleCompilationMismatch(workerID, workerModule, err)
+				f.stats.AddMismatch(nil)
+			}
 			return false, fmt.Errorf(
 				"[%s] One of the verilator compilations failed: %w",
 				workerID,
