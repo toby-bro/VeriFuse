@@ -85,13 +85,15 @@ func GetPortDirection(direction string) PortDirection {
 	}
 }
 
-var generalModuleRegex = regexp.MustCompile(
-	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([^\)]*?)\);(?:\s((?:(?:\s\s|\t\s*)+.*)+))?\sendmodule`,
-)
+var generalModuleRegex = regexp.MustCompile(fmt.Sprintf(
+	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([^\)]*?)\);((?:\s*(?:%s)*)*)\s*endmodule`,
+	utils.NegativeLookAhead("endmodule"),
+))
 
-var generalClassRegex = regexp.MustCompile(
-	`(?m)(?:(virtual)\s+)?class\s+(\w+)\s*(?:extends\s+(\w+))?(?:\s+#\s*\(([\s\S]*?)\))?;\s((?:(?:\t\s*|\s\s+).*)+)\sendclass`,
-)
+var generalClassRegex = regexp.MustCompile(fmt.Sprintf(
+	`(?m)(?:(virtual)\s+)?class\s+(\w+)\s*(?:extends\s+(\w+))?(?:\s+#\s*\(([\s\S]*?)\))?;\s((?:\s*(?:%s)*)*)\s*endclass`,
+	utils.NegativeLookAhead("endclass"),
+))
 
 var generalStructRegex = regexp.MustCompile(
 	`(?m)typedef\s+struct\s+(?:packed\s+)\{((?:\s+.*)+)\}\s+(\w+);`,
