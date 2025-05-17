@@ -32,6 +32,7 @@ const (
 	VOID
 	ENUM
 	USERDEFINED
+	TYPE // Only for parameters
 )
 
 type Parameter struct {
@@ -39,6 +40,7 @@ type Parameter struct {
 	Type         PortType
 	DefaultValue string
 	Localparam   bool
+	Width        int
 }
 
 type Port struct {

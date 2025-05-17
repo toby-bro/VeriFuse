@@ -1936,6 +1936,20 @@ func TestParseParameters(t *testing.T) {
 			paramListStr:   "parameter logic CLK_PERIOD",
 			expectedParams: []Parameter{{Name: "CLK_PERIOD", Type: LOGIC, DefaultValue: ""}},
 		},
+		{
+			name:         "Type",
+			paramListStr: "parameter type P_TYPE = logic",
+			expectedParams: []Parameter{
+				{Name: "P_TYPE", Type: TYPE, DefaultValue: "logic"},
+			},
+		},
+		{
+			name:         "param with width",
+			paramListStr: "parameter logic [7:0] P_SIZED = 8'hAA",
+			expectedParams: []Parameter{
+				{Name: "P_SIZED", Type: LOGIC, DefaultValue: "8'hAA", Width: 8},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1968,7 +1982,7 @@ func TestParseParameters(t *testing.T) {
 
 func TestParseTransFuzzFile(t *testing.T) {
 	// skip this test
-	t.Skip("Skipping local only test")
+	// t.Skip("Skipping local only test")
 	fmt.Printf("Modules regex, \n%s\n", generalModuleRegex.String())
 	fmt.Printf("Classes regex, \n%s\n", generalClassRegex.String())
 	rootDir, err := utils.GetRootDir()
@@ -1977,9 +1991,9 @@ func TestParseTransFuzzFile(t *testing.T) {
 	}
 	snippetsDir := filepath.Join(
 		rootDir,
-		"../instrumentedVerilator/snippets",
+		"snippets",
 	)
-	filename := "V3DepthBlock.sv"
+	filename := "V3Param.sv"
 	filename = filepath.Join(snippetsDir, filename)
 	fileContent, err := utils.ReadFileContent(filename)
 	if err != nil {
