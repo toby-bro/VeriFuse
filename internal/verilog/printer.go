@@ -192,6 +192,9 @@ func PrintPort(port Port, isLast bool) string {
 	}
 
 	sb.WriteString(port.Name)
+	if port.Array != "" {
+		sb.WriteString("[" + port.Array + "]")
+	}
 	if !isLast {
 		sb.WriteString(",")
 	}

@@ -1155,7 +1155,7 @@ func TestDependancyGraph(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get root directory: %v", err)
 	}
-	snippetsDir := filepath.Join(rootDir, "snippets")
+	snippetsDir := filepath.Join(rootDir, "snippets.old")
 	filename := "task.sv"
 	filename = filepath.Join(snippetsDir, filename)
 	fileContent, err := utils.ReadFileContent(filename)
@@ -1417,6 +1417,22 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			parameters:        nil,
 			expectedPortsMap:  map[string]Port{},
 			expectedPortOrder: []string{},
+		},
+		{
+			name:        "simple array",
+			portListStr: "input logic [7:0] data_array[4]",
+			parameters:  nil,
+			expectedPortsMap: map[string]Port{
+				"data_array": {
+					Name:      "data_array",
+					Direction: INPUT,
+					Type:      LOGIC,
+					Width:     8,
+					IsSigned:  false,
+					Array:     "4",
+				},
+			},
+			expectedPortOrder: []string{"data_array"},
 		},
 	}
 

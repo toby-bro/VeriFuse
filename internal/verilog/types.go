@@ -48,6 +48,7 @@ type Port struct {
 	Width           int
 	IsSigned        bool
 	AlreadyDeclared bool
+	Array           string
 }
 
 type Module struct {
