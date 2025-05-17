@@ -207,7 +207,8 @@ func (f *Fuzzer) Run(numTests int) error {
 			allWorkerErrors[0],
 		)
 	}
-
-	f.debug.Info("No mismatches found after %d tests.\n", numTests)
+	if f.mutate {
+		f.debug.Info("No mismatches found after %d tests.\n", numTests)
+	}
 	return nil
 }
