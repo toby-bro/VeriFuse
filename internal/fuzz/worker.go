@@ -270,6 +270,12 @@ func (f *Fuzzer) worker(
 			workerID,
 			attempt,
 		)
+		f.debug.Debug(
+			"[%s] Starting worker attempt %d/%d",
+			workerCompleteID,
+			attempt+1,
+			f.maxAttempts,
+		)
 
 		setupOk, err := f.performWorkerAttempt(workerCompleteID, testCases, moduleToTest, strategy)
 
