@@ -113,14 +113,14 @@ func (f *Fuzzer) Run(numTests int) error {
 		workerSlots <- i
 	}
 
-	f.debug.Info(
+	f.debug.Debug(
 		"Starting %d workers for %d modules so looping %d times",
 		f.workers,
 		len(f.svFile.Modules),
 		f.workers/len(f.svFile.Modules),
 	)
 
-	for range f.workers / len(f.svFile.Modules) {
+	for range f.workers/len(f.svFile.Modules) + 1 {
 		for _, module := range f.svFile.Modules {
 			wg.Add(1)
 			currentModule := module
