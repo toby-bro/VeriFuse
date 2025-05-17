@@ -374,7 +374,7 @@ func (f *Fuzzer) runSingleTest(
 	}
 
 	mismatch, mismatchDetails := f.compareSimulationResults(ivResult, vlResult)
-	if mismatch {
+	if mismatch && f.mutate {
 		f.handleMismatch(testIndex, testDir, testCase, mismatchDetails, workerModule)
 	}
 	return nil

@@ -63,6 +63,7 @@ func main() {
 		logger.Info("Checking Verilog file for valid modules...")
 		*maxAttempts = 1
 		*mutate = false
+		*numTests = 1
 	}
 
 	// Create and setup fuzzer using the new package structure
