@@ -89,6 +89,8 @@ func (sim *VerilatorSimulator) Compile() error {
 		"-Wno-WIDTHTRUNC",
 		"-Wno-MULTITOP",
 		"-Wno-ALWCOMBORDER",
+		"-Wno-CASEINCOMPLETE",
+		"-Wno-CASEOVERLAP",
 		"../testbench.sv",
 	}
 
