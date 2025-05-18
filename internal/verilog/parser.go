@@ -163,6 +163,8 @@ var generalVariableRegex = regexp.MustCompile(
 	),
 )
 
+var scopeChangeRegex = regexp.MustCompile(`(function|task|always)`)
+
 func MatchAllModulesFromString(content string) [][]string {
 	return generalModuleRegex.FindAllStringSubmatch(content, -1)
 }
@@ -543,7 +545,7 @@ func extractNonANSIPortDeclarations(
 			if _, exists := parsedPortsMap[port.Name]; !exists {
 				parsedPortsMap[port.Name] = *port
 			}
-		} else if end, _ := regexp.MatchString(`(function|task|always)`, trimmedLine); end {
+		} else if matched := scopeChangeRegex.MatchString(trimmedLine); matched {
 			break
 		}
 	}

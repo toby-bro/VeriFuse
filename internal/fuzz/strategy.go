@@ -128,6 +128,9 @@ func generateRandomValue(portType verilog.PortType, width int, isSigned bool) st
 		}
 		return "'x" // For scalar unknown/complex types or void
 
+	case verilog.TYPE: // Only for parameters
+		return ""
+
 	default:
 
 		return "'x" // Default to 'x for safety
@@ -287,6 +290,9 @@ func generateEdgeCaseValue( // nolint:gocyclo
 			return strconv.Itoa(effectiveWidth) + "'bx"
 		}
 		return "'x"
+
+	case verilog.TYPE:
+		return ""
 
 	default:
 		return "'x"
