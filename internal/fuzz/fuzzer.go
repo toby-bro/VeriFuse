@@ -120,7 +120,7 @@ func (f *Fuzzer) Run(numTests int) error {
 		f.workers/len(f.svFile.Modules),
 	)
 
-	for range f.workers/len(f.svFile.Modules) + 1 {
+	for range max(f.workers/len(f.svFile.Modules), 1) {
 		for _, module := range f.svFile.Modules {
 			wg.Add(1)
 			currentModule := module
