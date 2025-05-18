@@ -59,6 +59,8 @@ func (pt PortType) String() string {
 		return "void"
 	case ENUM:
 		return "enum"
+	case TYPE:
+		return "type" // For parameters
 	case USERDEFINED, UNKNOWN:
 		// The String() method for USERDEFINED should indicate it's a placeholder.
 		// The actual type name needs to be resolved from context.
