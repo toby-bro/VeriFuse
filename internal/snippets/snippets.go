@@ -1,4 +1,4 @@
-package fuzz
+package snippets
 
 import (
 	"errors"
@@ -19,6 +19,7 @@ type Snippet struct {
 var (
 	snippets     = []*Snippet{}
 	verilogFiles = []*verilog.VerilogFile{}
+	logger       = *utils.NewDebugLogger(1)
 )
 
 func findSnippetFiles() ([]string, error) {
@@ -53,7 +54,7 @@ func loadSnippets() error {
 		if err != nil {
 			return fmt.Errorf("failed to read snippet file %s: %v", snippetFile, err)
 		}
-		verilogFile, err := verilog.ParseVerilog(fileContent, verbose)
+		verilogFile, err := verilog.ParseVerilog(fileContent, logger.GetVerboseLevel())
 		verilogFile.Name = snippetFile
 		if err != nil || verilogFile == nil {
 			return err
@@ -84,7 +85,8 @@ func getSnippets() ([]*Snippet, []*verilog.VerilogFile, error) {
 	return snippets, verilogFiles, nil
 }
 
-func getRandomSnippet() (*Snippet, error) {
+func GetRandomSnippet(verbose int) (*Snippet, error) {
+	logger.SetVerboseLevel(verbose)
 	snippets, _, err := getSnippets()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snippets: %v", err)
@@ -94,4 +96,59 @@ func getRandomSnippet() (*Snippet, error) {
 	}
 	randomIndex := utils.RandomInt(0, len(snippets)-1)
 	return snippets[randomIndex], nil
+}
+
+func dfsDependencies(
+	nodeName string,
+	parentVF *verilog.VerilogFile,
+	targetFile *verilog.VerilogFile,
+) {
+	parentNode, ok := parentVF.DependancyMap[nodeName]
+	if !ok {
+		return
+	}
+
+	for _, dep := range parentNode.DependsOn {
+		if _, found := targetFile.DependancyMap[dep]; found {
+			continue
+		}
+		targetFile.DependancyMap[dep] = parentVF.DependancyMap[dep]
+		if s, found := parentVF.Structs[dep]; found {
+			if _, exists := targetFile.Structs[dep]; !exists {
+				targetFile.Structs[dep] = s
+			}
+		}
+		if c, found := parentVF.Classes[dep]; found {
+			if _, exists := targetFile.Classes[dep]; !exists {
+				targetFile.Classes[dep] = c
+			}
+		}
+		if m, found := parentVF.Modules[dep]; found {
+			if _, exists := targetFile.Modules[dep]; !exists {
+				targetFile.Modules[dep] = m
+			}
+		}
+		dfsDependencies(dep, parentVF, targetFile)
+	}
+}
+
+func AddDependencies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
+	parentVF := snippet.ParentFile
+	if parentVF == nil {
+		return errors.New("snippet parent file is nil")
+	}
+	if targetFile.DependancyMap == nil {
+		targetFile.DependancyMap = make(map[string]*verilog.DependencyNode)
+	}
+	if _, ok := targetFile.DependancyMap[snippet.Name]; !ok {
+		targetFile.DependancyMap[snippet.Name] = &verilog.DependencyNode{
+			Name:      snippet.Module.Name,
+			DependsOn: []string{},
+		}
+	}
+	targetFile.Modules[snippet.Module.Name] = snippet.Module
+
+	dfsDependencies(snippet.Name, parentVF, targetFile)
+
+	return nil
 }

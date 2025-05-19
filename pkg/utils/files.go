@@ -35,6 +35,16 @@ func EnsureDirs() error {
 	return nil
 }
 
+func EnsureDirWithPath(path string) error {
+	if DEBUG {
+		fmt.Printf("%s[-] Creating directory %s%s\n", ColorBlue, path, ColorReset)
+	}
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %v", path, err)
+	}
+	return nil
+}
+
 // EnsureTmpDir creates the temporary directory if it doesn't exist
 func EnsureTmpDir() error {
 	if _, err := os.Stat(TMP_DIR); os.IsNotExist(err) {

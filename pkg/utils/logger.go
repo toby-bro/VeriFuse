@@ -43,6 +43,18 @@ func NewDebugLogger(verbose int) *DebugLogger {
 	}
 }
 
+func (d *DebugLogger) SetVerboseLevel(level int) {
+	if level < VerbositySilent || level > VerbosityDebug {
+		d.verbose = VerbositySilent
+	} else {
+		d.verbose = level
+	}
+}
+
+func (d *DebugLogger) GetVerboseLevel() int {
+	return d.verbose
+}
+
 func (d *DebugLogger) Debug(format string, v ...interface{}) {
 	if d.verbose >= VerbosityDebug {
 		msg := fmt.Sprintf("%s[+] DEBUG:%s", BoldStart, BoldEnd)

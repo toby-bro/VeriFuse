@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"strings"
 
+	"github.com/toby-bro/pfuzz/internal/snippets"
 	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"golang.org/x/exp/maps"
@@ -22,7 +23,7 @@ func loadLogger(v int) {
 	}
 }
 
-func injectSnippetInModule(targetModule *verilog.Module, snippet *Snippet) error {
+func injectSnippetInModule(targetModule *verilog.Module, snippet *snippets.Snippet) error {
 	_, scopeTree, err := verilog.ParseVariables(snippet.ParentFile, targetModule.Body)
 	if err != nil {
 		return fmt.Errorf("failed to extract variables from module: %v", err)
@@ -78,7 +79,7 @@ func injectSnippetInModule(targetModule *verilog.Module, snippet *Snippet) error
 
 func matchVariablesToSnippetPorts(
 	module *verilog.Module,
-	snippet *Snippet,
+	snippet *snippets.Snippet,
 	scopeTree *verilog.ScopeNode,
 ) (map[string]string, []verilog.Port, error) {
 	portConnections := make(map[string]string)
@@ -297,7 +298,7 @@ func generateSignalDeclaration(port verilog.Port, signalName string) string {
 
 func ensureOutputPortForSnippet(
 	module *verilog.Module,
-	snippet *Snippet,
+	snippet *snippets.Snippet,
 	portConnections map[string]string,
 ) error {
 	for _, port := range snippet.Module.Ports {
@@ -318,7 +319,10 @@ func ensureOutputPortForSnippet(
 	return nil
 }
 
-func generateSnippetInstantiation(snippet *Snippet, portConnections map[string]string) string {
+func generateSnippetInstantiation(
+	snippet *snippets.Snippet,
+	portConnections map[string]string,
+) string {
 	instanceName := fmt.Sprintf("%s_inst_%d", snippet.Name, rand.Intn(10000))
 	instantiation := fmt.Sprintf("%s %s (\n", snippet.Module.Name, instanceName)
 
@@ -449,61 +453,6 @@ func AddCodeToSnippet(originalContent, snippet string) (string, error) { //nolin
 	return "", errors.New("AddCodeToSnippet not implemented yet")
 }
 
-func dfsDependencies(
-	nodeName string,
-	parentVF *verilog.VerilogFile,
-	targetFile *verilog.VerilogFile,
-) {
-	parentNode, ok := parentVF.DependancyMap[nodeName]
-	if !ok {
-		return
-	}
-
-	for _, dep := range parentNode.DependsOn {
-		if _, found := targetFile.DependancyMap[dep]; found {
-			continue
-		}
-		targetFile.DependancyMap[dep] = parentVF.DependancyMap[dep]
-		if s, found := parentVF.Structs[dep]; found {
-			if _, exists := targetFile.Structs[dep]; !exists {
-				targetFile.Structs[dep] = s
-			}
-		}
-		if c, found := parentVF.Classes[dep]; found {
-			if _, exists := targetFile.Classes[dep]; !exists {
-				targetFile.Classes[dep] = c
-			}
-		}
-		if m, found := parentVF.Modules[dep]; found {
-			if _, exists := targetFile.Modules[dep]; !exists {
-				targetFile.Modules[dep] = m
-			}
-		}
-		dfsDependencies(dep, parentVF, targetFile)
-	}
-}
-
-func addDependancies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
-	parentVF := snippet.ParentFile
-	if parentVF == nil {
-		return errors.New("snippet parent file is nil")
-	}
-	if targetFile.DependancyMap == nil {
-		targetFile.DependancyMap = make(map[string]*verilog.DependencyNode)
-	}
-	if _, ok := targetFile.DependancyMap[snippet.Name]; !ok {
-		targetFile.DependancyMap[snippet.Name] = &verilog.DependencyNode{
-			Name:      snippet.Module.Name,
-			DependsOn: []string{},
-		}
-	}
-	targetFile.Modules[snippet.Module.Name] = snippet.Module
-
-	dfsDependencies(snippet.Name, parentVF, targetFile)
-
-	return nil
-}
-
 func MutateFile(
 	originalSvFile *verilog.VerilogFile,
 	pathToWrite string,
@@ -522,7 +471,7 @@ func MutateFile(
 			continue
 		}
 
-		snippet, err := getRandomSnippet()
+		snippet, err := snippets.GetRandomSnippet(verbose)
 		if err != nil {
 			logger.Warn(
 				"Failed to get snippet for module %s: %v. Skipping mutation for this module.",
@@ -545,44 +494,39 @@ func MutateFile(
 			)
 		}
 
-		mutationType := 0
-
-		if mutationType == 0 {
-			logger.Debug(
-				"Attempting InjectSnippet mutation for module %s in file %s...",
+		logger.Debug(
+			"Attempting InjectSnippet mutation for module %s in file %s...",
+			moduleToMutate.Name,
+			fileName,
+		)
+		err = injectSnippetInModule(moduleToMutate, snippet)
+		if err != nil {
+			logger.Info(
+				"InjectSnippet failed for module %s: %v. Skipping mutation for this module.",
 				moduleToMutate.Name,
-				fileName,
+				err,
 			)
-			err = injectSnippetInModule(moduleToMutate, snippet)
-			if err != nil {
-				logger.Info(
-					"InjectSnippet failed for module %s: %v. Skipping mutation for this module.",
-					moduleToMutate.Name,
-					err,
-				)
-				continue
-			}
-
-			svFile.Modules[moduleName] = moduleToMutate
-			err := addDependancies(svFile, snippet)
-			if err != nil {
-				logger.Error(
-					"Failed to add dependencies for snippet %s: %v. Continuing with mutation.",
-					snippet.Name,
-					err,
-				)
-			}
-			mutatedOverall = true
-			logger.Debug(
-				"Mutation applied to module %s in %s (Type: %d)",
-				moduleToMutate.Name,
-				fileName,
-				mutationType,
-			)
-
-			// Key by snippet.Module.Name so we know exactly which module to DFS
-			injectedSnippetParentFiles[snippet.Name] = snippet.ParentFile
+			continue
 		}
+
+		svFile.Modules[moduleName] = moduleToMutate
+		err = snippets.AddDependencies(svFile, snippet)
+		if err != nil {
+			logger.Error(
+				"Failed to add dependencies for snippet %s: %v. Continuing with mutation.",
+				snippet.Name,
+				err,
+			)
+		}
+		mutatedOverall = true
+		logger.Debug(
+			"Mutation applied to module %s in %s",
+			moduleToMutate.Name,
+			fileName,
+		)
+
+		// Key by snippet.Module.Name so we know exactly which module to DFS
+		injectedSnippetParentFiles[snippet.Name] = snippet.ParentFile
 	}
 
 	if !mutatedOverall {
