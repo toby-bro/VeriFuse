@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/toby-bro/pfuzz/internal/snippets"
 	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
@@ -207,7 +208,7 @@ endmodule
 	if err != nil {
 		t.Fatalf("ParseVerilog failed for snippet: %v", err)
 	}
-	snippet := &Snippet{
+	snippet := &snippets.Snippet{
 		Name:       "SnippetModule",
 		Module:     snippetFile.Modules["SnippetModule"],
 		ParentFile: snippetFile,
@@ -286,7 +287,7 @@ endmodule
 	if err != nil {
 		t.Fatalf("ParseVerilog failed for snippet: %v", err)
 	}
-	snippet := &Snippet{
+	snippet := &snippets.Snippet{
 		Name:       "SnippetModule",
 		Module:     snippetFile.Modules["SnippetModule"],
 		ParentFile: snippetFile,
@@ -441,7 +442,7 @@ func TestGenerateSignalDeclaration(t *testing.T) {
 }
 
 func TestGenerateSnippetInstantiation(t *testing.T) {
-	snippet := &Snippet{
+	snippet := &snippets.Snippet{
 		Name: "TestSnippet",
 		Module: &verilog.Module{
 			Name: "SnippetModule",
@@ -476,15 +477,5 @@ func TestGenerateSnippetInstantiation(t *testing.T) {
 
 	if !strings.HasSuffix(instantiation, ");") {
 		t.Errorf("Expected instantiation to end with ');', got '%s'", instantiation)
-	}
-}
-
-func TestGetSnippets(t *testing.T) {
-	snippets, _, err := getSnippets()
-	if err != nil {
-		t.Fatalf("getSnippets failed: %v", err)
-	}
-	if len(snippets) == 0 {
-		t.Fatalf("getSnippets returned no snippets")
 	}
 }
