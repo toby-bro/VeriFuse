@@ -82,6 +82,21 @@ module casez_overlap (
         endcase
     end
 endmodule
+/* verilator lint_on CASEOVERLAP */
+module case_priority_unique (
+    input [1:0] in_val,
+    output reg out_res
+);
+    always_comb begin
+        out_res = 1'b0;
+        (* priority *) (* unique *) case (in_val)
+            2'b00: out_res = 1'b0;
+            2'b01: out_res = 1'b1;
+            2'b10: out_res = 1'b0;
+            2'b11: out_res = 1'b1;
+        endcase
+    end
+endmodule
 module case_large_width (
     input [20:0] in_val,
     output reg out_res
@@ -143,6 +158,49 @@ module case_enum (
         endcase
     end
 endmodule
+module case_enum_complete_unique (
+    input my_enum_t in_state,
+    output reg out_res
+);
+    always_comb begin
+        out_res = 1'b0;
+        (* unique *) case (in_state)
+            STATE_A: out_res = 1'b1;
+            STATE_B: out_res = 1'b0;
+            STATE_C: out_res = 1'b1;
+            STATE_D: out_res = 1'b0;
+            default: out_res = 1'b0;
+        endcase
+    end
+endmodule
+module case_inside (
+    input [3:0] in_val,
+    output reg out_res
+);
+    always_comb begin
+        out_res = 1'b0;
+        case (in_val) inside
+            4'b0001, 4'b0010: out_res = 1'b1;
+            4'b0100: out_res = 1'b0;
+            [4'h8:4'hF]: out_res = 1'b1;
+            4'b10?z: out_res = 1'b0;
+            default: out_res = 1'b0;
+        endcase
+    end
+endmodule
+module case_inside_range (
+    input [3:0] in_val,
+    output reg out_res
+);
+    always_comb begin
+        out_res = 1'b0;
+        case (in_val) inside
+            [4'b0000 : 4'b0011]: out_res = 1'b1;
+            [4'b0100 : 4'b0111]: out_res = 1'b0;
+            default: out_res = 1'b1;
+        endcase
+    end
+endmodule
 module casez_xz_plain (
     input [1:0] in_val,
     output reg out_res
@@ -184,6 +242,36 @@ module case_always_comb (
             2'b01: out_res = 1'b1;
             2'b10: out_res = 1'b0;
             default: out_res = 1'b1;
+        endcase
+    end
+endmodule
+/* verilator lint_off CASEOVERLAP */
+module casez_overlap_priority (
+    input [1:0] in_val,
+    output reg out_res
+);
+    always_comb begin
+        out_res = 1'b0;
+        (* priority *) casez (in_val)
+            2'b00: out_res = 1'b0;
+            2'b01: out_res = 1'b0;
+            2'b0?: out_res = 1'b1;
+            2'b1?: out_res = 1'b1;
+            default: out_res = 1'b0;
+        endcase
+    end
+endmodule
+/* verilator lint_on CASEOVERLAP */
+module case_unique_incomplete (
+    input [1:0] in_val,
+    output reg out_res
+);
+    always_comb begin
+        out_res = 1'b0;
+        (* unique *) case (in_val)
+            2'b00: out_res = 1'b0;
+            2'b01: out_res = 1'b1;
+            default: out_res = 1'b0;
         endcase
     end
 endmodule
@@ -335,6 +423,18 @@ module case_non_constant_cond (
             non_const_cond: out_res = 1'b1;
             2'b10: out_res = 1'b0;
             default: out_res = 1'b1;
+        endcase
+    end
+endmodule
+module case_enum_incomplete_unique_no_default (
+    input my_enum_incomplete_t in_state,
+    output reg out_res
+);
+    always_comb begin
+        out_res = 1'b0;
+        (* unique *) case (in_state)
+            STATE_A_INC: out_res = 1'b1;
+            STATE_B_INC: out_res = 1'b0;
         endcase
     end
 endmodule
