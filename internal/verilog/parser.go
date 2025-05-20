@@ -113,7 +113,7 @@ var variableRegexTemplate = `(?m)^(\s*)` +
 	`(?:(?:(%s)+|(unsigned))\s+)?` +
 	`(?:#\(\w+\)\s+)?` +
 	`((?:(?:(?:\w+(?:\s+\[[^\]]+\])?\s*,\s*)+)\s*)*` +
-	`(?:\w+(?:\s+\[[^\]]+\])?))(?:\s+=\s+new\(.*\))?\s*;`
+	`(?:\w+(?:\s+\[[^\]]+\])?))(?:\s+=\s+(?:new\([^\)]*\)|null))?\s*;`
 
 var generalPortRegex = regexp.MustCompile(fmt.Sprintf(
 	`^\s*(input|output|inout)\s+(?:(%s)\s+)?(?:(signed|unsigned)\s+)?(\s*%s)?\s*(\w+)\s*(?:,|;)`,
