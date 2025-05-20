@@ -88,17 +88,17 @@ func GetPortDirection(direction string) PortDirection {
 }
 
 var generalModuleRegex = regexp.MustCompile(fmt.Sprintf(
-	`(?m)module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([^\)]*?)\);((?:\s*(?:%s)*)*)\s*endmodule`,
+	`(?m)^module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([^\)]*?)\);((?:\s*(?:%s)*)*)\s*endmodule`,
 	utils.NegativeLookAhead("endmodule"),
 ))
 
 var generalClassRegex = regexp.MustCompile(fmt.Sprintf(
-	`(?m)(?:(virtual)\s+)?class\s+(\w+)\s*(?:extends\s+(\w+))?(?:\s+#\s*\(([\s\S]*?)\))?;\s((?:\s*(?:%s)*)*)\s*endclass`,
+	`(?m)^(?:(virtual)\s+)?class\s+(\w+)\s*(?:extends\s+(\w+))?(?:\s+#\s*\(([\s\S]*?)\))?;\s((?:\s*(?:%s)*)*)\s*endclass`,
 	utils.NegativeLookAhead("endclass"),
 ))
 
 var generalStructRegex = regexp.MustCompile(
-	`(?m)typedef\s+struct\s+(?:packed\s+)\{((?:\s+.*)+)\}\s+(\w+);`,
+	`(?m)^typedef\s+struct\s+(?:packed\s+)\{((?:\s+.*)+)\}\s+(\w+);`,
 )
 
 var baseTypes = `reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum|type`
@@ -1134,12 +1134,10 @@ func removeEmptyLines(content string) string {
 }
 
 func removeComments(content string) string {
-	// replace all the // INJECT by  //INJECT
-	content = regexp.MustCompile(`//\s*INJECT`).ReplaceAllString(content, "//INJECT")
 	// Remove single-line comments
-	content = regexp.MustCompile(`(?m)//\s.*$`).ReplaceAllString(content, "")
+	content = regexp.MustCompile(`(?Um)//\s.*$`).ReplaceAllString(content, "")
 	// Remove multi-line comments
-	content = regexp.MustCompile(`/\*[\s\S]*\*/`).ReplaceAllString(content, "")
+	content = regexp.MustCompile(`(?U)/\*[\s\S]*\*/`).ReplaceAllString(content, "")
 	return content
 }
 
