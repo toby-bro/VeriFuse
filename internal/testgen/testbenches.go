@@ -41,3 +41,51 @@ module top;
         $finish;
     end
 endmodule`
+
+// cppTestbenchTemplate is the template for C++ testbenches
+// Parameters:
+// 1. Module name
+// 2. Module name
+// 3. Module name (repeated)
+// 4. Input declarations
+// 5. Input reads
+// 6. Input application
+// 7. Clock handling code
+// 8. Output writes
+const cppTestbenchTemplate = `// filepath: testbench.cpp
+#include <verilated.h>
+#include "V%s.h"
+#include <fstream>
+#include <iostream>
+#include <iomanip>
+#include <cstdint>
+#include <string>
+
+int main(int argc, char** argv) {
+    // Create context and module
+    VerilatedContext* contextp = new VerilatedContext;
+    contextp->commandArgs(argc, argv);
+    
+    V%s* dut = new V%s{contextp};
+
+    // Declare input variables
+%s
+    
+    // Read input values
+%s
+    
+    // Apply inputs
+%s
+    
+    // Handle clock toggling and evaluation
+%s
+    
+    // Write outputs
+%s
+    
+    // Clean up
+    delete dut;
+    delete contextp;
+    return 0;
+}
+`
