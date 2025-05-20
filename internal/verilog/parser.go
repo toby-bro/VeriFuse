@@ -206,6 +206,9 @@ func userDedinedVariablesRegex(verilogFile *VerilogFile) *regexp.Regexp {
 }
 
 func matchUserDefinedVariablesFromString(vf *VerilogFile, content string) [][]string {
+	if len(vf.Classes) == 0 && len(vf.Interfaces) == 0 && len(vf.Structs) == 0 {
+		return [][]string{}
+	}
 	return userDedinedVariablesRegex(vf).FindAllStringSubmatch(content, -1)
 }
 
