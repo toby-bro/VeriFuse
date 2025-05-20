@@ -133,3 +133,14 @@ type ScopeNode struct {
 	Children  []*ScopeNode
 	Parent    *ScopeNode
 }
+
+func NewVerilogFile(name string) *VerilogFile {
+	return &VerilogFile{
+		Name:          name,
+		Modules:       make(map[string]*Module),
+		Interfaces:    make(map[string]*Interface),
+		Classes:       make(map[string]*Class),
+		Structs:       make(map[string]*Struct),
+		DependancyMap: make(map[string]*DependencyNode),
+	}
+}
