@@ -12,10 +12,7 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-var (
-	logger  *utils.DebugLogger
-	verbose int
-)
+var logger *utils.DebugLogger
 
 func loadLogger(v int) {
 	if logger == nil {

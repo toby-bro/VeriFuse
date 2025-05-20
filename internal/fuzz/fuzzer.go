@@ -200,6 +200,8 @@ func (f *Fuzzer) Run(numTests int) error {
 				return fmt.Errorf("failed to write snippets to file: %v", err)
 			}
 			f.debug.Info("Snippets written to file successfully.")
+		case OpFuzz:
+			f.debug.Info("Fuzzing completed successfully.")
 		}
 	}
 
