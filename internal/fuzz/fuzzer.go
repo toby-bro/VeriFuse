@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
+	"github.com/toby-bro/pfuzz/internal/snippets"
 	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
@@ -182,6 +183,11 @@ func (f *Fuzzer) Run(numTests int) error {
 		}
 	} else if !f.mutate {
 		fmt.Printf("%s[+] File `%s` checked successfully, modules seem valid.%s\n", utils.ColorGreen, f.svFile.Name, utils.ColorReset)
+		err := snippets.WriteFileAsSnippets(f.svFile)
+		if err != nil {
+			return fmt.Errorf("failed to write snippets to file: %v", err)
+		}
+		f.debug.Info("Snippets written to file successfully.")
 	}
 
 	if f.mutate {
