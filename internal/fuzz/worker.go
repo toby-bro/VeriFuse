@@ -100,7 +100,7 @@ func (f *Fuzzer) performWorkerAttempt(
 
 	workerVerilogPath := filepath.Join(workerDir, f.svFile.Name)
 	var svFile *verilog.VerilogFile
-	if f.mutate {
+	if f.operation == OpFuzz {
 		f.debug.Debug("[%s] Attempting mutation on %s", workerID, workerVerilogPath)
 		if svFile, err = MutateFile(f.svFile, workerVerilogPath, f.verbose); err != nil {
 			return false, fmt.Errorf("[%s] mutation failed: %w", workerID, err)
@@ -144,7 +144,7 @@ func (f *Fuzzer) performWorkerAttempt(
 	ivsim, vlsim, err := f.setupSimulators(workerID, workerDir, workerModule.Name)
 	if err != nil {
 		if strings.Contains(err.Error(), "One of the compilations failed") {
-			if f.mutate {
+			if f.operation == OpFuzz {
 				f.handleCompilationMismatch(workerID, workerModule, err)
 				f.stats.AddMismatch(nil)
 			}
@@ -391,7 +391,7 @@ func (f *Fuzzer) runSingleTest(
 	}
 
 	mismatch, mismatchDetails := f.compareSimulationResults(ivResult, vlResult)
-	if mismatch && f.mutate {
+	if mismatch && f.operation == OpFuzz {
 		f.handleMismatch(testIndex, testDir, testCase, mismatchDetails, workerModule)
 	}
 	return nil
