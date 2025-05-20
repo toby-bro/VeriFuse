@@ -581,7 +581,8 @@ rand logic [7:0] GGG_array_var [GGG_CONTAINER_SIZE];
         rand logic [GGG_CLASS_WIDTH-1:0] GGG_class_rand_var;
 	myPacket pkt0, pkt1;
 logic [7:0] internal_wire;
-
+continue;
+break;
 	`
 
 func TestParseVariables(t *testing.T) {
