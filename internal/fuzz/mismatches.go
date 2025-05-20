@@ -40,7 +40,7 @@ func compareOutputValues(ivValue, vlValue string) bool {
 	return false
 }
 
-func (f *Fuzzer) compareSimulationResults(
+func (sch *Scheduler) compareSimulationResults(
 	ivResult, vlResult map[string]string,
 ) (bool, map[string]string) {
 	mismatch := false
@@ -58,20 +58,20 @@ func (f *Fuzzer) compareSimulationResults(
 		} else {
 			mismatch = true
 			mismatchDetails[portName] = fmt.Sprintf("IVerilog=%s, Verilator=MISSING", ivValue)
-			f.debug.Debug("Warning: Output for port %s missing from Verilator result", portName)
+			sch.debug.Debug("Warning: Output for port %s missing from Verilator result", portName)
 		}
 	}
 	for portName, vlValue := range vlResult {
 		if _, exists := ivResult[portName]; !exists {
 			mismatch = true
 			mismatchDetails[portName] = "IVerilog=MISSING, Verilator=" + vlValue
-			f.debug.Debug("Warning: Output for port %s missing from IVerilog result", portName)
+			sch.debug.Debug("Warning: Output for port %s missing from IVerilog result", portName)
 		}
 	}
 	return mismatch, mismatchDetails
 }
 
-func (f *Fuzzer) handleMismatch(
+func (f *Scheduler) handleMismatch(
 	testIndex int,
 	testDir string,
 	testCase map[string]string,
@@ -132,12 +132,12 @@ func (f *Fuzzer) handleMismatch(
 	f.stats.AddMismatch(testCase)
 }
 
-func (f *Fuzzer) handleCompilationMismatch(
+func (sch *Scheduler) handleCompilationMismatch(
 	workerID string, // This is the workerCompleteID from performWorkerAttempt
 	workerModule *verilog.Module,
 	compilationErr error,
 ) {
-	f.debug.Error(
+	sch.debug.Error(
 		"[%s] Handling compilation mismatch for module %s: %v",
 		workerID,
 		workerModule.Name,
@@ -157,7 +157,7 @@ func (f *Fuzzer) handleCompilationMismatch(
 	mismatchDir := filepath.Join(utils.MISMATCHES_DIR, mismatchDirName)
 
 	if err := os.MkdirAll(mismatchDir, 0o755); err != nil {
-		f.debug.Error(
+		sch.debug.Error(
 			"[%s] Failed to create compilation mismatch directory %s: %v",
 			workerID,
 			mismatchDir,
@@ -165,16 +165,16 @@ func (f *Fuzzer) handleCompilationMismatch(
 		)
 		// If directory creation fails, we can't save files, but still record the stat.
 	} else {
-		f.debug.Info("[%s] Saving compilation failure artifacts to %s", workerID, mismatchDir)
+		sch.debug.Info("[%s] Saving compilation failure artifacts to %s", workerID, mismatchDir)
 
 		// 1. Copy the Verilog source file that failed compilation.
 		// This file is located in workerDir (e.g., utils.TMP_DIR/worker_XYZ/f.svFile.Name).
-		srcVerilogFile := filepath.Join(workerDir, f.svFile.Name)
-		destVerilogFile := filepath.Join(mismatchDir, f.svFile.Name)
+		srcVerilogFile := filepath.Join(workerDir, sch.svFile.Name)
+		destVerilogFile := filepath.Join(mismatchDir, sch.svFile.Name)
 		if err := utils.CopyFile(srcVerilogFile, destVerilogFile); err != nil {
-			f.debug.Error("[%s] Failed to copy Verilog file %s to %s: %v", workerID, srcVerilogFile, mismatchDir, err)
+			sch.debug.Error("[%s] Failed to copy Verilog file %s to %s: %v", workerID, srcVerilogFile, mismatchDir, err)
 		} else {
-			f.debug.Debug("[%s] Copied Verilog file %s to %s", workerID, srcVerilogFile, mismatchDir)
+			sch.debug.Debug("[%s] Copied Verilog file %s to %s", workerID, srcVerilogFile, mismatchDir)
 		}
 
 		// 2. Copy the testbench file.
@@ -184,12 +184,12 @@ func (f *Fuzzer) handleCompilationMismatch(
 		if _, statErr := os.Stat(srcTestbenchFile); statErr == nil { // Check if testbench file exists
 			destTestbenchFile := filepath.Join(mismatchDir, "testbench.sv")
 			if err := utils.CopyFile(srcTestbenchFile, destTestbenchFile); err != nil {
-				f.debug.Error("[%s] Failed to copy testbench file %s to %s: %v", workerID, srcTestbenchFile, mismatchDir, err)
+				sch.debug.Error("[%s] Failed to copy testbench file %s to %s: %v", workerID, srcTestbenchFile, mismatchDir, err)
 			} else {
-				f.debug.Debug("[%s] Copied testbench file %s to %s", workerID, srcTestbenchFile, mismatchDir)
+				sch.debug.Debug("[%s] Copied testbench file %s to %s", workerID, srcTestbenchFile, mismatchDir)
 			}
 		} else {
-			f.debug.Warn("[%s] Testbench file %s not found in %s (error: %v), skipping copy.", workerID, "testbench.sv", workerDir, statErr)
+			sch.debug.Warn("[%s] Testbench file %s not found in %s (error: %v), skipping copy.", workerID, "testbench.sv", workerDir, statErr)
 		}
 
 		// 3. Write a summary file with the error details.
@@ -203,16 +203,16 @@ func (f *Fuzzer) handleCompilationMismatch(
 				"Error Details:\n%s\n",
 			workerID,
 			workerModule.Name,
-			f.svFile.Name,
+			sch.svFile.Name,
 			compilationErr.Error(),
 		)
 
 		if err := utils.WriteFileContent(summaryPath, summaryContent); err != nil {
-			f.debug.Error("[%s] Failed to write compilation mismatch summary to %s: %v", workerID, summaryPath, err)
+			sch.debug.Error("[%s] Failed to write compilation mismatch summary to %s: %v", workerID, summaryPath, err)
 		} else {
-			f.debug.Debug("[%s] Compilation mismatch summary written to %s", workerID, summaryPath)
+			sch.debug.Debug("[%s] Compilation mismatch summary written to %s", workerID, summaryPath)
 		}
 	}
 
-	f.stats.AddCompilationMismatch()
+	sch.stats.AddCompilationMismatch()
 }
