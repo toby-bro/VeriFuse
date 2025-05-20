@@ -1,8 +1,8 @@
 module more_procedural (
-    input logic [31:0] p_in1,
     input logic [31:0] p_in2,
     output logic [31:0] p_out,
-    input logic [1:0] p_mode
+    input logic [1:0] p_mode,
+    input logic [31:0] p_in1
 );
     always_comb begin
     case (p_mode)

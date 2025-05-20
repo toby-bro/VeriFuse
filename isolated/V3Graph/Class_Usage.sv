@@ -1,3 +1,13 @@
+class MySimpleClass;
+      int data;
+      function new(int val);
+        data = val;
+      endfunction
+      function int getData();
+        return data;
+      endfunction
+endclass
+
 module Class_Usage (
     input wire trigger_in,
     output reg status_out
@@ -16,14 +26,4 @@ module Class_Usage (
     status_out = (temp_val == 100) || (temp_val == 200);
       end
 endmodule
-
-class MySimpleClass;
-      int data;
-      function new(int val);
-        data = val;
-      endfunction
-      function int getData();
-        return data;
-      endfunction
-endclass
 

@@ -1,19 +1,9 @@
-class Base;
-            int data = 10;
-            virtual function int get_data();
-                return data;
-            endfunction
-            function void set_data(int val);
-                data = val;
-            endfunction
-endclass
-
 module ClassAndNullHandling (
-    input logic pass_derived,
-    input int method_arg,
     output int method_result,
     output int class_op_result,
-    input logic create_obj
+    input logic create_obj,
+    input logic pass_derived,
+    input int method_arg
 );
     class Base;
         int data = 10;
@@ -56,11 +46,4 @@ module ClassAndNullHandling (
         end
     end
 endmodule
-
-class Derived extends Base;
-            int derived_data = 20;
-            function int get_data(); 
-                return data + derived_data;
-            endfunction
-endclass
 

@@ -1,20 +1,7 @@
-class MyClass;
-        logic my_member;
-        function new();
-          my_member = 1'b0;
-        endfunction
-        function void set_member(logic val);
-          my_member = val;
-        endfunction : set_member
-        function logic get_member();
-          return my_member;
-        endfunction : get_member
-endclass
-
 module mod_class_inst (
-    output logic o_data_out,
     input logic i_enable,
-    input logic i_data_in
+    input logic i_data_in,
+    output logic o_data_out
 );
     class MyClass;
     logic my_member;

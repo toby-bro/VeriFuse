@@ -1,8 +1,8 @@
 module deep_function_logic (
-    input wire [3:0] dfl_op_mode,
-    output logic [15:0] dfl_output_res,
     input wire [15:0] dfl_input1,
-    input wire [15:0] dfl_input2
+    input wire [15:0] dfl_input2,
+    input wire [3:0] dfl_op_mode,
+    output logic [15:0] dfl_output_res
 );
     function automatic [15:0] complex_op (input [15:0] val1, input [15:0] val2, input [3:0] mode);
     logic [15:0] func_temp;

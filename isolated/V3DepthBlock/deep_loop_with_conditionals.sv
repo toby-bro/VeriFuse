@@ -1,9 +1,9 @@
 module deep_loop_with_conditionals (
+    output logic [7:0] dlwc_output_sum,
     input wire [7:0] dlwc_data_in,
     input wire [3:0] dlwc_limit,
     input wire [3:0] dlwc_break_at,
-    input wire [3:0] dlwc_continue_at,
-    output logic [7:0] dlwc_output_sum
+    input wire [3:0] dlwc_continue_at
 );
     always_comb begin
     logic [7:0] sum_val = 8'd0;

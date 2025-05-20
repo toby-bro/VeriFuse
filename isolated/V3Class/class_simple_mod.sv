@@ -1,20 +1,7 @@
-class SimpleClass;
-        int member_var;
-        function new();
-          member_var = 0;
-        endfunction
-        task set_value(input int val);
-          member_var = val;
-        endtask
-        function int get_value();
-          return member_var;
-        endfunction
-endclass
-
 module class_simple_mod (
-    output int value_o,
     input bit clk_i,
-    input int value_i
+    input int value_i,
+    output int value_o
 );
     class SimpleClass;
     int member_var;

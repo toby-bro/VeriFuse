@@ -1,13 +1,3 @@
-class BasicClass;
-        int data;
-        function new(int val);
-          data = val;
-        endfunction
-        function int get_data();
-          return data;
-        endfunction
-endclass
-
 module class_basic_mod (
     input int input_val,
     output int output_val
