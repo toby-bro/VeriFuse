@@ -31,6 +31,11 @@ func main() {
 	checkFile := flag.Bool(
 		"check-file", false, "Check that all the modules in the file are valid",
 	)
+	rewriteAsSnippets := flag.Bool(
+		"rewrite-as-snippets",
+		false,
+		"Rewrite the checked file to snippets if validated",
+	)
 	if *maxAttempts < 1 {
 		switch *mutate {
 		case true:
@@ -54,6 +59,11 @@ func main() {
 	}
 	logger := utils.NewDebugLogger(verboseLevel)
 
+	var operation fuzz.Operation
+	if *mutate {
+		operation = fuzz.OpFuzz
+	}
+
 	// Check if Verilog file is provided
 	if *verilogFile == "" {
 		logger.Fatal("Error: No Verilog file specified. Use -file option.")
@@ -62,7 +72,12 @@ func main() {
 	if *checkFile {
 		logger.Info("Checking Verilog file for valid modules...")
 		*maxAttempts = 1
-		*mutate = false
+		switch *rewriteAsSnippets {
+		case true:
+			operation = fuzz.OpRewriteValid
+		case false:
+			operation = fuzz.OpCheckFile
+		}
 		*numTests = 1
 	}
 
@@ -72,7 +87,7 @@ func main() {
 		*workers,
 		verboseLevel,
 		*verilogFile,
-		*mutate,
+		operation,
 		*maxAttempts,
 	)
 

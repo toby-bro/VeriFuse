@@ -14,6 +14,14 @@ import (
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
+type Operation int
+
+const (
+	OpFuzz Operation = iota
+	OpCheckFile
+	OpRewriteValid
+)
+
 type Fuzzer struct {
 	stats        *Stats
 	strategyName string
@@ -21,7 +29,7 @@ type Fuzzer struct {
 	verbose      int
 	debug        *utils.DebugLogger
 	svFile       *verilog.VerilogFile
-	mutate       bool
+	operation    Operation
 	maxAttempts  int
 }
 
@@ -30,7 +38,7 @@ func NewFuzzer(
 	workers int,
 	verbose int,
 	fileName string,
-	mutate bool,
+	operation Operation,
 	maxAttempts int,
 ) *Fuzzer {
 	fuzzer := &Fuzzer{
@@ -38,7 +46,7 @@ func NewFuzzer(
 		workers:      workers,
 		verbose:      verbose,
 		debug:        utils.NewDebugLogger(verbose),
-		mutate:       mutate,
+		operation:    operation,
 		maxAttempts:  maxAttempts,
 		strategyName: strategy,
 	}
@@ -101,7 +109,7 @@ func (f *Fuzzer) Run(numTests int) error {
 	testCases := make(chan int, f.workers)
 	errChan := make(chan error, max(f.workers, len(f.svFile.Modules)))
 
-	if f.mutate {
+	if f.operation == OpFuzz {
 		progressTracker := NewProgressTracker(numTests, f.stats, &wg)
 		progressTracker.Start()
 		defer progressTracker.Stop()
@@ -181,16 +189,21 @@ func (f *Fuzzer) Run(numTests int) error {
 		for _, we := range allWorkerErrors {
 			f.debug.Error("%s", we)
 		}
-	} else if !f.mutate {
-		fmt.Printf("%s[+] File `%s` checked successfully, modules seem valid.%s\n", utils.ColorGreen, f.svFile.Name, utils.ColorReset)
-		err := snippets.WriteFileAsSnippets(f.svFile)
-		if err != nil {
-			return fmt.Errorf("failed to write snippets to file: %v", err)
+	} else {
+		switch f.operation {
+		case OpCheckFile:
+			fmt.Printf("%s[+] File `%s` checked successfully, modules seem valid.%s\n", utils.ColorGreen, f.svFile.Name, utils.ColorReset)
+		case OpRewriteValid:
+			err := snippets.WriteFileAsSnippets(f.svFile)
+			if err != nil {
+				f.debug.Error("failed to write snippets to file: %v", err)
+				return fmt.Errorf("failed to write snippets to file: %v", err)
+			}
+			f.debug.Info("Snippets written to file successfully.")
 		}
-		f.debug.Info("Snippets written to file successfully.")
 	}
 
-	if f.mutate {
+	if f.operation == OpFuzz {
 		f.stats.PrintSummary()
 	}
 
@@ -210,7 +223,7 @@ func (f *Fuzzer) Run(numTests int) error {
 		)
 	}
 
-	if f.stats.Mismatches > 0 && f.mutate {
+	if f.stats.Mismatches > 0 && f.operation == OpFuzz {
 		f.debug.Info("Found %d mismatches between iverilog and verilator!", f.stats.Mismatches)
 		return fmt.Errorf("%d mismatches found", f.stats.Mismatches)
 	}
@@ -222,7 +235,7 @@ func (f *Fuzzer) Run(numTests int) error {
 			allWorkerErrors[0],
 		)
 	}
-	if f.mutate {
+	if f.operation == OpFuzz {
 		f.debug.Info("No mismatches found after %d tests.\n", numTests)
 	}
 	return nil
