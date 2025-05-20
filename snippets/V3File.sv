@@ -26,8 +26,6 @@ module sequential_register (
     end else if (enable_in) begin
       data_out <= data_in; 
     end
-    /* This is a multi-line
-       comment example for sequential logic. */
   end
 endmodule
 module case_selector (
@@ -68,8 +66,6 @@ module function_example (
     output logic [7:0] func_out
 );
   function automatic logic [7:0] double_value (input logic [7:0] input_val);
-    /* Function body
-       with a comment block. */
     return input_val * 2;
   endfunction 
   always_comb begin
@@ -104,16 +100,12 @@ module formatting_stress (
     output logic [7:0] data_out_fmt
 );
   logic [7:0] temp_reg_fmt; 
-  /* This block demonstrates multi-line comments,
-     nested conditional logic, and various keywords.
-     It also includes a string literal in a comment. "Example String". */
   always_comb begin : stress_comb_block_label 
     data_out_fmt = 8'hXX; 
     if (enable_block_fmt) begin
       if (sel_fmt) begin
         case (case_sel_fmt) 
-          2'b00: data_out_fmt = data_in_fmt; /* Case 0: Assign input directly
-                                                Multi-line comment for case item */
+          2'b00: data_out_fmt = data_in_fmt;
           2'b01: begin 
                    data_out_fmt = ~data_in_fmt; 
                  end 
