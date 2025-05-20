@@ -92,6 +92,9 @@ func (f *Fuzzer) Setup() error {
 	if err := simulator.TestVerilatorTool(); err != nil {
 		return fmt.Errorf("verilator tool check failed: %v", err)
 	}
+	if err := simulator.TestCXXRTLTool(); err != nil {
+		return fmt.Errorf("cxxrtl tool check failed: %v", err)
+	}
 	f.debug.Debug("Verilator tool found.")
 	return nil
 }
