@@ -268,6 +268,33 @@ func PrintStruct(s *Struct) string {
 	return sb.String()
 }
 
+func PrintInterface(i *Interface) string {
+	var sb strings.Builder
+	sb.WriteString("interface ")
+	sb.WriteString(i.Name)
+	if len(i.Parameters) > 0 {
+		sb.WriteString(" #(\n")
+		for j, param := range i.Parameters {
+			sb.WriteString("    ")
+			sb.WriteString(PrintParameter(param, j == len(i.Parameters)-1))
+			sb.WriteString("\n")
+		}
+		sb.WriteString(")")
+	}
+	sb.WriteString(";\n")
+	indentedBody := ""
+	if strings.TrimSpace(i.Body) != "" {
+		for _, line := range strings.Split(i.Body, "\n") {
+			if strings.TrimSpace(line) != "" {
+				indentedBody += "    " + line + "\n"
+			}
+		}
+	}
+	sb.WriteString(indentedBody)
+	sb.WriteString("endinterface\n")
+	return sb.String()
+}
+
 // PrintClass converts a Class object to its Verilog string representation.
 func PrintClass(c *Class) string {
 	var sb strings.Builder
@@ -383,8 +410,8 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) {
 			nodeType[name] = "struct"
 		} else if _, ok := vf.Classes[name]; ok {
 			nodeType[name] = "class"
-			// } else if _, ok := vf.Interfaces[name]; ok { // TODO
-			//     nodeType[name] = "interface"
+		} else if _, ok := vf.Interfaces[name]; ok {
+			nodeType[name] = "interface"
 		} else if _, ok := vf.Modules[name]; ok {
 			nodeType[name] = "module"
 		} else {
@@ -457,7 +484,7 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) {
 	}
 
 	// Check if all defined nodes were sorted
-	definedNodeCount := len(vf.Structs) + len(vf.Classes) + len(vf.Modules) // + len(vf.Interfaces)
+	definedNodeCount := len(vf.Structs) + len(vf.Classes) + len(vf.Modules) + len(vf.Interfaces)
 	if len(sortedList) != definedNodeCount {
 		// This indicates a cycle among the defined elements, or an issue with dependency tracking.
 		logger.Warn(
@@ -478,14 +505,16 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) {
 				isSorted[name] = true
 			}
 		}
-		for name := range vf.Structs {
+		for name := range vf.Structs { // Structs first
 			appendIfMissing(name)
 		}
-		for name := range vf.Classes {
+		for name := range vf.Interfaces { // Then Interfaces
 			appendIfMissing(name)
 		}
-		// for name := range vf.Interfaces { appendIfMissing(name) } // TODO
-		for name := range vf.Modules {
+		for name := range vf.Classes { // Then Classes
+			appendIfMissing(name)
+		}
+		for name := range vf.Modules { // Finally Modules
 			appendIfMissing(name)
 		}
 	}
@@ -508,19 +537,23 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) {
 		)
 	}
 	if len(sortedNames) == 0 &&
-		(len(vf.Structs) > 0 || len(vf.Classes) > 0 || len(vf.Modules) > 0) {
+		(len(vf.Structs) > 0 || len(vf.Classes) > 0 || len(vf.Interfaces) > 0 || len(vf.Modules) > 0) {
 		// If sortedNames is empty but there are items, it means getPrintOrder had a major issue or no deps were found.
 		// Fallback to a default order.
 		logger.Warn(
-			"Print order is empty, falling back to default printing order (Structs, Classes, Modules).",
+			"Print order is empty, falling back to default printing order (Structs, Interfaces, Classes, Modules).",
 		)
+		// Clear sortedNames to rebuild it in the desired fallback order
+		sortedNames = []string{}
 		for _, s := range vf.Structs {
 			sortedNames = append(sortedNames, s.Name)
+		}
+		for _, i := range vf.Interfaces {
+			sortedNames = append(sortedNames, i.Name)
 		}
 		for _, c := range vf.Classes {
 			sortedNames = append(sortedNames, c.Name)
 		}
-		// for _, i := range vf.Interfaces { sortedNames = append(sortedNames, i.Name) } // TODO
 		for _, m := range vf.Modules {
 			sortedNames = append(sortedNames, m.Name)
 		}
@@ -528,67 +561,81 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) {
 
 	printed := make(map[string]bool)
 
+	// Print items from sortedNames in strict categorical order: Structs, Interfaces, Classes, Modules
+	// Pass 1: Print Structs from sortedNames
 	for _, name := range sortedNames {
-		if printed[name] {
-			continue
-		}
-		if s, ok := vf.Structs[name]; ok {
+		if s, ok := vf.Structs[name]; ok && !printed[name] {
 			sb.WriteString(PrintStruct(s))
 			sb.WriteString("\n")
 			printed[name] = true
-		} else if c, ok := vf.Classes[name]; ok {
+		}
+	}
+
+	// Pass 2: Print Interfaces from sortedNames
+	for _, name := range sortedNames {
+		if i, ok := vf.Interfaces[name]; ok && !printed[name] {
+			sb.WriteString(PrintInterface(i))
+			sb.WriteString("\n")
+			printed[name] = true
+		}
+	}
+
+	// Pass 3: Print Classes from sortedNames
+	for _, name := range sortedNames {
+		if c, ok := vf.Classes[name]; ok && !printed[name] {
 			sb.WriteString(PrintClass(c))
 			sb.WriteString("\n")
 			printed[name] = true
-			// } else if i, ok := vf.Interfaces[name]; ok { // TODO: Implement PrintInterface if needed
-			// 	sb.WriteString(PrintInterface(i)) // Assuming PrintInterface exists
-			// 	sb.WriteString("\n")
-			//  printed[name] = true
-		} else if m, ok := vf.Modules[name]; ok {
+		}
+	}
+
+	// Pass 4: Print Modules from sortedNames
+	for _, name := range sortedNames {
+		if m, ok := vf.Modules[name]; ok && !printed[name] {
 			sb.WriteString(PrintModule(m))
 			sb.WriteString("\n")
 			printed[name] = true
 		}
 	}
 
-	// Ensure everything gets printed, even if not in sortedNames (e.g., if dependency map was incomplete)
-	printRemaining := func(collectionType string) {
-		switch collectionType {
-		case "struct":
-			for name, s := range vf.Structs {
-				if !printed[name] {
-					sb.WriteString(PrintStruct(s))
-					sb.WriteString("\n")
-					printed[name] = true
-					logger.Debug("Printed remaining struct: %s\n", name)
-				}
-			}
-		case "class":
-			for name, c := range vf.Classes {
-				if !printed[name] {
-					sb.WriteString(PrintClass(c))
-					sb.WriteString("\n")
-					printed[name] = true
-					logger.Debug("Printed remaining class: %s\n", name)
-				}
-			}
-		// case "interface":
-		// for name, i := range vf.Interfaces { if !printed[name] { sb.WriteString(PrintInterface(i)); sb.WriteString("\n"); printed[name] = true } }
-		case "module":
-			for name, m := range vf.Modules {
-				if !printed[name] {
-					sb.WriteString(PrintModule(m))
-					sb.WriteString("\n")
-					printed[name] = true
-					logger.Debug("Printed remaining module: %s\n", name)
-				}
-			}
+	// Ensure everything gets printed, even if not in sortedNames (e.g., if dependency map was incomplete or getPrintOrder missed something)
+	// Iterate through all known items in the desired final order.
+	// Print remaining Structs
+	for name, s := range vf.Structs {
+		if !printed[name] {
+			sb.WriteString(PrintStruct(s))
+			sb.WriteString("\n")
+			printed[name] = true
+			logger.Debug("Printed remaining (unsorted/missed) struct: %s\n", name)
 		}
 	}
-	printRemaining("struct")
-	printRemaining("class")
-	// printRemaining("interface")
-	printRemaining("module")
+	// Print remaining Interfaces
+	for name, i := range vf.Interfaces {
+		if !printed[name] {
+			sb.WriteString(PrintInterface(i))
+			sb.WriteString("\n")
+			printed[name] = true
+			logger.Debug("Printed remaining (unsorted/missed) interface: %s\n", name)
+		}
+	}
+	// Print remaining Classes
+	for name, c := range vf.Classes {
+		if !printed[name] {
+			sb.WriteString(PrintClass(c))
+			sb.WriteString("\n")
+			printed[name] = true
+			logger.Debug("Printed remaining (unsorted/missed) class: %s\n", name)
+		}
+	}
+	// Print remaining Modules
+	for name, m := range vf.Modules {
+		if !printed[name] {
+			sb.WriteString(PrintModule(m))
+			sb.WriteString("\n")
+			printed[name] = true
+			logger.Debug("Printed remaining (unsorted/missed) module: %s\n", name)
+		}
+	}
 
 	return sb.String(), nil
 }
