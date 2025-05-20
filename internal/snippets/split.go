@@ -1,6 +1,7 @@
 package snippets
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/toby-bro/pfuzz/internal/verilog"
@@ -9,10 +10,10 @@ import (
 
 func (s *Snippet) writeSnippetToFile() error {
 	if s.Module == nil {
-		return fmt.Errorf("module is nil")
+		return errors.New("module is nil")
 	}
 	if s.ParentFile == nil {
-		return fmt.Errorf("parent file is nil")
+		return errors.New("parent file is nil")
 	}
 
 	baseName := s.ParentFile.Name
@@ -48,7 +49,7 @@ func (s *Snippet) writeSnippetToFile() error {
 
 func splitVerilogFile(svFile *verilog.VerilogFile) ([]*Snippet, error) {
 	if svFile == nil {
-		return nil, fmt.Errorf("Verilog file is nil")
+		return nil, errors.New("Verilog file is nil")
 	}
 	snippets := []*Snippet{}
 	for _, module := range svFile.Modules {
