@@ -81,8 +81,8 @@ func main() {
 		*numTests = 1
 	}
 
-	// Create and setup fuzzer using the new package structure
-	fuzzer := fuzz.NewFuzzer(
+	// Create and setup scheduler using the new package structure
+	scheduler := fuzz.NewScheduler(
 		*strategy,
 		*workers,
 		verboseLevel,
@@ -91,12 +91,12 @@ func main() {
 		*maxAttempts,
 	)
 
-	if err := fuzzer.Setup(); err != nil {
+	if err := scheduler.Setup(); err != nil {
 		logger.Fatal("Setup failed: ", err)
 	}
 
 	// Run fuzzing
-	if err := fuzzer.Run(*numTests); err != nil {
+	if err := scheduler.Run(*numTests); err != nil {
 		os.Exit(1)
 	}
 }

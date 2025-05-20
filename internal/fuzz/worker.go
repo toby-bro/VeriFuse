@@ -19,25 +19,25 @@ const (
 	VL_PREFIX = "vl_"
 )
 
-func (f *Fuzzer) setupWorker(workerID string) (string, func(), error) {
+func (sch *Scheduler) setupWorker(workerID string) (string, func(), error) {
 	workerDir := filepath.Join(utils.TMP_DIR, workerID)
-	f.debug.Debug("[%s] Creating worker directory at %s", workerID, workerDir)
+	sch.debug.Debug("[%s] Creating worker directory at %s", workerID, workerDir)
 	if err := os.MkdirAll(workerDir, 0o755); err != nil {
 		return "", nil, fmt.Errorf("failed to create worker directory %s: %w", workerDir, err)
 	}
 	cleanup := func() {
 		if err := os.RemoveAll(workerDir); err != nil {
-			f.debug.Warn("Failed to clean up worker directory %s: %v", workerDir, err)
+			sch.debug.Warn("Failed to clean up worker directory %s: %v", workerDir, err)
 		}
-		f.debug.Debug("Cleaned up worker directory: %s", workerDir)
+		sch.debug.Debug("Cleaned up worker directory: %s", workerDir)
 	}
 	return workerDir, cleanup, nil
 }
 
-func (f *Fuzzer) copyWorkerFiles(workerID, workerDir, verilogFileName string) error {
+func (sch *Scheduler) copyWorkerFiles(workerID, workerDir, verilogFileName string) error {
 	srcPath := filepath.Join(utils.TMP_DIR, verilogFileName)
 	dstPath := filepath.Join(workerDir, verilogFileName)
-	f.debug.Debug(
+	sch.debug.Debug(
 		"[%s] Copying Verilog source file `%s` to `%s`",
 		workerID,
 		srcPath,
@@ -57,7 +57,7 @@ func (f *Fuzzer) copyWorkerFiles(workerID, workerDir, verilogFileName string) er
 		return fmt.Errorf("[%s] Verilog file %s not copied correctly, size: %d, error: %v",
 			workerID, dstPath, fileSize, err)
 	}
-	f.debug.Debug("[%s] Successfully copied %s", workerID, verilogFileName)
+	sch.debug.Debug("[%s] Successfully copied %s", workerID, verilogFileName)
 	return nil
 }
 
@@ -65,13 +65,13 @@ func (f *Fuzzer) copyWorkerFiles(workerID, workerDir, verilogFileName string) er
 // It returns true if the setup was successful and test processing started, along with any error from setup.
 // If setup was successful, the error returned is nil.
 // If setup failed, it returns false and the setup error.
-func (f *Fuzzer) performWorkerAttempt(
+func (sch *Scheduler) performWorkerAttempt(
 	workerID string,
 	testCases <-chan int,
 	workerModule *verilog.Module,
 	strategy Strategy,
 ) (setupSuccessful bool, err error) {
-	workerDir, cleanupFunc, setupErr := f.setupWorker(workerID)
+	workerDir, cleanupFunc, setupErr := sch.setupWorker(workerID)
 	if setupErr != nil {
 		return false, fmt.Errorf("worker setup failed for %s: %w", workerID, setupErr)
 	}
@@ -79,41 +79,41 @@ func (f *Fuzzer) performWorkerAttempt(
 	attemptCompletelySuccessful := false
 	defer func() {
 		if cleanupFunc != nil {
-			if (f.verbose > 2 && !attemptCompletelySuccessful) || f.verbose > 3 {
-				f.debug.Debug(
+			if (sch.verbose > 2 && !attemptCompletelySuccessful) || sch.verbose > 3 {
+				sch.debug.Debug(
 					"[%s] Preserving worker directory %s (verbose = %d). Attempt success: %t",
 					workerID,
 					workerDir,
-					f.verbose,
+					sch.verbose,
 					attemptCompletelySuccessful,
 				)
 			} else {
-				f.debug.Debug("[%s] Cleaning up worker directory %s. Attempt success: %t", workerID, workerDir, attemptCompletelySuccessful)
+				sch.debug.Debug("[%s] Cleaning up worker directory %s. Attempt success: %t", workerID, workerDir, attemptCompletelySuccessful)
 				cleanupFunc()
 			}
 		}
 	}()
 
-	if err := f.copyWorkerFiles(workerID, workerDir, f.svFile.Name); err != nil {
+	if err := sch.copyWorkerFiles(workerID, workerDir, sch.svFile.Name); err != nil {
 		return false, fmt.Errorf("failed to copy files for worker %s: %w", workerID, err)
 	}
 
-	workerVerilogPath := filepath.Join(workerDir, f.svFile.Name)
+	workerVerilogPath := filepath.Join(workerDir, sch.svFile.Name)
 	var svFile *verilog.VerilogFile
-	if f.operation == OpFuzz {
-		f.debug.Debug("[%s] Attempting mutation on %s", workerID, workerVerilogPath)
-		if svFile, err = MutateFile(f.svFile, workerVerilogPath, f.verbose); err != nil {
+	if sch.operation == OpFuzz {
+		sch.debug.Debug("[%s] Attempting mutation on %s", workerID, workerVerilogPath)
+		if svFile, err = MutateFile(sch.svFile, workerVerilogPath, sch.verbose); err != nil {
 			return false, fmt.Errorf("[%s] mutation failed: %w", workerID, err)
 		}
-		f.debug.Debug("[%s] Mutation applied. Proceeding.", workerID)
+		sch.debug.Debug("[%s] Mutation applied. Proceeding.", workerID)
 	} else {
-		f.debug.Debug("[%s] Mutation not requested. Proceeding with original file.", workerID)
+		sch.debug.Debug("[%s] Mutation not requested. Proceeding with original file.", workerID)
 		fileContent, err := utils.ReadFileContent(workerVerilogPath)
 		if err != nil {
 			return false, fmt.Errorf("[%s] failed to read Verilog file: %w", workerID, err)
 		}
-		svFile, err = verilog.ParseVerilog(fileContent, f.verbose)
-		svFile.Name = f.svFile.Name
+		svFile, err = verilog.ParseVerilog(fileContent, sch.verbose)
+		svFile.Name = sch.svFile.Name
 		if err != nil {
 			return false, fmt.Errorf("[%s] failed to parse Verilog file: %w", workerID, err)
 		}
@@ -122,14 +122,14 @@ func (f *Fuzzer) performWorkerAttempt(
 	if err != nil {
 		return false, fmt.Errorf("[%s] failed to parse mutated Verilog: %w", workerID, err)
 	}
-	f.debug.Debug(
+	sch.debug.Debug(
 		"[%s] Parsed %d modules from file %s.",
 		workerID,
 		len(svFile.Modules),
 		svFile.Name,
 	)
 
-	f.debug.Debug(
+	sch.debug.Debug(
 		"[%s] Generating testbenches for module %s in %s",
 		workerID,
 		workerModule.Name,
@@ -139,14 +139,14 @@ func (f *Fuzzer) performWorkerAttempt(
 	if err := gen.GenerateTestbenchesInDir(workerDir); err != nil {
 		return false, fmt.Errorf("[%s] failed to generate testbenches: %w", workerID, err)
 	}
-	f.debug.Debug("[%s] Testbenches generated.", workerID)
+	sch.debug.Debug("[%s] Testbenches generated.", workerID)
 
-	ivsim, vlsim, err := f.setupSimulators(workerID, workerDir, workerModule.Name)
+	ivsim, vlsim, err := sch.setupSimulators(workerID, workerDir, workerModule.Name)
 	if err != nil {
 		if strings.Contains(err.Error(), "One of the compilations failed") {
-			if f.operation == OpFuzz {
-				f.handleCompilationMismatch(workerID, workerModule, err)
-				f.stats.AddMismatch(nil)
+			if sch.operation == OpFuzz {
+				sch.handleCompilationMismatch(workerID, workerModule, err)
+				sch.stats.AddMismatch(nil)
 			}
 			return false, fmt.Errorf(
 				"[%s] One of the verilator compilations failed: %w",
@@ -157,8 +157,8 @@ func (f *Fuzzer) performWorkerAttempt(
 		return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
 	}
 
-	f.debug.Debug("[%s] Simulators set up successfully.", workerID)
-	f.debug.Debug(
+	sch.debug.Debug("[%s] Simulators set up successfully.", workerID)
+	sch.debug.Debug(
 		"[%s] Starting test case processing for module %s\n    %d test cases\n    %s strategy",
 		workerID,
 		workerModule.Name,
@@ -166,7 +166,7 @@ func (f *Fuzzer) performWorkerAttempt(
 		strategy.Name(),
 	)
 
-	errorMap := f.processTestCases(
+	errorMap := sch.processTestCases(
 		workerID,
 		workerDir,
 		ivsim,
@@ -186,30 +186,30 @@ func (f *Fuzzer) performWorkerAttempt(
 	return true, nil
 }
 
-func (f *Fuzzer) setupSimulators(
+func (sch *Scheduler) setupSimulators(
 	workerID, workerDir, workerModuleName string,
 ) (simulator.Simulator, simulator.Simulator, error) {
-	f.debug.Debug("[%s] Creating simulators for module %s", workerID, workerModuleName)
+	sch.debug.Debug("[%s] Creating simulators for module %s", workerID, workerModuleName)
 	// ivsim := simulator.NewIVerilogSimulator(workerDir, f.verbose)
 	vlsim3 := simulator.NewVerilatorSimulator(
 		workerDir+"/O3",
-		f.svFile,
+		sch.svFile,
 		workerModuleName,
 		true,
-		f.verbose,
+		sch.verbose,
 	)
 	vlsim0 := simulator.NewVerilatorSimulator(
 		workerDir+"/O0",
-		f.svFile,
+		sch.svFile,
 		workerModuleName,
 		false,
-		f.verbose,
+		sch.verbose,
 	)
-	f.debug.Debug("[%s] Compiling IVerilog simulator", workerID)
+	sch.debug.Debug("[%s] Compiling IVerilog simulator", workerID)
 	// if err := ivsim.Compile(); err != nil {
 	//	return nil, nil, fmt.Errorf("failed to compile IVerilog in worker %s: %w", workerID, err)
 	//}
-	f.debug.Debug("[%s] Compiling Verilator simulator", workerID)
+	sch.debug.Debug("[%s] Compiling Verilator simulator", workerID)
 	vl0err := vlsim0.Compile()
 	vl3err := vlsim3.Compile()
 	if vl0err != nil && vl3err != nil {
@@ -230,7 +230,7 @@ func (f *Fuzzer) setupSimulators(
 			err = vl3err
 			opt = "O3"
 		}
-		f.debug.Warn(
+		sch.debug.Warn(
 			"[%s] One of the Verilator compilations failed, %v, %s",
 			workerID,
 			err,
@@ -245,7 +245,7 @@ func (f *Fuzzer) setupSimulators(
 	return vlsim0, vlsim3, nil
 }
 
-func (f *Fuzzer) worker(
+func (sch *Scheduler) worker(
 	testCases <-chan int,
 	moduleToTest *verilog.Module,
 	workerNum int,
@@ -253,50 +253,55 @@ func (f *Fuzzer) worker(
 	var lastSetupError error
 	workerID := fmt.Sprintf("worker_%d_%d", workerNum, time.Now().UnixNano())
 	var strategy Strategy
-	switch f.strategyName {
+	switch sch.strategyName {
 	case "random":
 		strategy = &RandomStrategy{}
 	case "smart":
 		strategy = &SmartStrategy{}
 	default:
-		return fmt.Errorf("Unknown strategy: %s", f.strategyName)
+		return fmt.Errorf("Unknown strategy: %s", sch.strategyName)
 	}
 
 	strategy.SetModule(moduleToTest)
 
-	for attempt := 0; attempt < f.maxAttempts; attempt++ {
+	for attempt := 0; attempt < sch.maxAttempts; attempt++ {
 		workerCompleteID := fmt.Sprintf(
 			"%s_%d",
 			workerID,
 			attempt,
 		)
-		f.debug.Debug(
+		sch.debug.Debug(
 			"[%s] Starting worker attempt %d/%d",
 			workerCompleteID,
 			attempt+1,
-			f.maxAttempts,
+			sch.maxAttempts,
 		)
 
-		setupOk, err := f.performWorkerAttempt(workerCompleteID, testCases, moduleToTest, strategy)
+		setupOk, err := sch.performWorkerAttempt(
+			workerCompleteID,
+			testCases,
+			moduleToTest,
+			strategy,
+		)
 
 		if setupOk {
-			f.debug.Info("[%s] Worker completed its tasks.", workerID)
+			sch.debug.Info("[%s] Worker completed its tasks.", workerID)
 			return nil
 		}
 
 		// Setup failed for this attempt
 		lastSetupError = err
-		f.debug.Warn(
+		sch.debug.Warn(
 			"[%s] Worker attempt %d/%d failed setup for module %s from file %s",
 			workerCompleteID,
 			attempt+1,
-			f.maxAttempts,
+			sch.maxAttempts,
 			moduleToTest.Name,
-			f.svFile.Name,
+			sch.svFile.Name,
 		)
 
-		if attempt < f.maxAttempts-1 {
-			f.debug.Info(
+		if attempt < sch.maxAttempts-1 {
+			sch.debug.Info(
 				"[%s] Retrying worker initialization after a short delay...",
 				workerCompleteID,
 			)
@@ -307,12 +312,12 @@ func (f *Fuzzer) worker(
 	return fmt.Errorf(
 		"[%s] Worker failed to initialize after %d attempts: %v",
 		workerID,
-		f.maxAttempts,
+		sch.maxAttempts,
 		lastSetupError,
 	)
 }
 
-func (f *Fuzzer) processTestCases(
+func (sch *Scheduler) processTestCases(
 	workerID, workerDir string,
 	ivsim, vlsim simulator.Simulator,
 	workerModule *verilog.Module,
@@ -321,7 +326,7 @@ func (f *Fuzzer) processTestCases(
 ) []error {
 	errorMap := []error{}
 	for i := range testCases {
-		err := f.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, i, strategy)
+		err := sch.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, i, strategy)
 		if err != nil {
 			errorMap = append(errorMap, err)
 		}
@@ -329,7 +334,7 @@ func (f *Fuzzer) processTestCases(
 	return errorMap
 }
 
-func (f *Fuzzer) runSingleTest(
+func (sch *Scheduler) runSingleTest(
 	workerID, workerDir string,
 	ivsim, vlsim simulator.Simulator,
 	workerModule *verilog.Module,
@@ -337,14 +342,14 @@ func (f *Fuzzer) runSingleTest(
 	strategy Strategy,
 ) error {
 	testCase := strategy.GenerateTestCase(testIndex)
-	f.stats.AddTest()
+	sch.stats.AddTest()
 
 	for _, port := range workerModule.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			if _, exists := testCase[port.Name]; !exists {
 				defaultValue := strings.Repeat("0", port.Width)
 				testCase[port.Name] = defaultValue
-				f.debug.Debug("[%s] Test %d: Added default value '%s' for new input port '%s'",
+				sch.debug.Debug("[%s] Test %d: Added default value '%s' for new input port '%s'",
 					workerID, testIndex, defaultValue, port.Name)
 			}
 		}
@@ -375,8 +380,8 @@ func (f *Fuzzer) runSingleTest(
 		return fmt.Errorf("[%s] Failed to write inputs for test %d: %v", workerID, testIndex, err)
 	}
 
-	ivResult, ivErr := f.runSimulator("iverilog", ivsim, testDir, workerModule)
-	vlResult, vlErr := f.runSimulator("verilator", vlsim, testDir, workerModule)
+	ivResult, ivErr := sch.runSimulator("iverilog", ivsim, testDir, workerModule)
+	vlResult, vlErr := sch.runSimulator("verilator", vlsim, testDir, workerModule)
 
 	if ivErr != nil && vlErr != nil {
 		mismatch = true
@@ -390,9 +395,9 @@ func (f *Fuzzer) runSingleTest(
 		)
 	}
 
-	mismatch, mismatchDetails := f.compareSimulationResults(ivResult, vlResult)
-	if mismatch && f.operation == OpFuzz {
-		f.handleMismatch(testIndex, testDir, testCase, mismatchDetails, workerModule)
+	mismatch, mismatchDetails := sch.compareSimulationResults(ivResult, vlResult)
+	if mismatch && sch.operation == OpFuzz {
+		sch.handleMismatch(testIndex, testDir, testCase, mismatchDetails, workerModule)
 	}
 	return nil
 }
@@ -407,7 +412,7 @@ func writeTestInputs(testDir string, testCase map[string]string) error {
 	return nil
 }
 
-func (f *Fuzzer) runSimulator(
+func (sch *Scheduler) runSimulator(
 	simName string,
 	sim simulator.Simulator,
 	testDir string,
@@ -433,7 +438,7 @@ func (f *Fuzzer) runSimulator(
 	}
 
 	if len(outputPaths) == 0 {
-		f.debug.Debug(
+		sch.debug.Debug(
 			"Warning: No output ports found for module %s in runSimulator (%s)",
 			module.Name,
 			simName,

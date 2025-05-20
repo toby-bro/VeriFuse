@@ -22,7 +22,7 @@ const (
 	OpRewriteValid
 )
 
-type Fuzzer struct {
+type Scheduler struct {
 	stats        *Stats
 	strategyName string
 	workers      int
@@ -33,15 +33,15 @@ type Fuzzer struct {
 	maxAttempts  int
 }
 
-func NewFuzzer(
+func NewScheduler(
 	strategy string,
 	workers int,
 	verbose int,
 	fileName string,
 	operation Operation,
 	maxAttempts int,
-) *Fuzzer {
-	fuzzer := &Fuzzer{
+) *Scheduler {
+	scheduler := &Scheduler{
 		stats:        NewStats(),
 		workers:      workers,
 		verbose:      verbose,
@@ -51,31 +51,31 @@ func NewFuzzer(
 		strategyName: strategy,
 	}
 
-	fuzzer.svFile = &verilog.VerilogFile{
+	scheduler.svFile = &verilog.VerilogFile{
 		Name: fileName,
 	}
-	return fuzzer
+	return scheduler
 }
 
-func (f *Fuzzer) Setup() error {
+func (sch *Scheduler) Setup() error {
 	if err := utils.EnsureDirs(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
 
-	fileName := f.svFile.Name
+	fileName := sch.svFile.Name
 
 	fileContent, err := utils.ReadFileContent(fileName)
 	if err != nil {
-		f.debug.Fatal("Failed to read file %s: %v", fileName, err)
+		sch.debug.Fatal("Failed to read file %s: %v", fileName, err)
 	}
-	f.svFile, err = verilog.ParseVerilog(fileContent, f.verbose)
+	sch.svFile, err = verilog.ParseVerilog(fileContent, sch.verbose)
 	if err != nil {
-		f.debug.Fatal("Failed to parse file %s: %v", fileName, err)
+		sch.debug.Fatal("Failed to parse file %s: %v", fileName, err)
 	}
-	f.svFile.Name = filepath.Base(fileName)
+	sch.svFile.Name = filepath.Base(fileName)
 
 	verilogPath := filepath.Join(utils.TMP_DIR, filepath.Base(fileName))
-	f.debug.Debug("Copying original Verilog file `%s` to `%s`", fileName, verilogPath)
+	sch.debug.Debug("Copying original Verilog file `%s` to `%s`", fileName, verilogPath)
 
 	if err := utils.CopyFile(fileName, verilogPath); err != nil {
 		return fmt.Errorf("failed to copy original Verilog file: %v", err)
@@ -88,52 +88,52 @@ func (f *Fuzzer) Setup() error {
 	if err := simulator.TestIVerilogTool(); err != nil {
 		return fmt.Errorf("iverilog tool check failed: %v", err)
 	}
-	f.debug.Debug("IVerilog tool found.")
+	sch.debug.Debug("IVerilog tool found.")
 	if err := simulator.TestVerilatorTool(); err != nil {
 		return fmt.Errorf("verilator tool check failed: %v", err)
 	}
 	if err := simulator.TestCXXRTLTool(); err != nil {
 		return fmt.Errorf("cxxrtl tool check failed: %v", err)
 	}
-	f.debug.Debug("Verilator tool found.")
+	sch.debug.Debug("Verilator tool found.")
 	return nil
 }
 
-func (f *Fuzzer) Run(numTests int) error {
-	f.debug.Info("Starting fuzzing with %d test cases using strategy: %s",
-		numTests, f.strategyName)
-	f.debug.Info("Target file: %s with %d modules", f.svFile.Name, len(f.svFile.Modules))
+func (sch *Scheduler) Run(numTests int) error {
+	sch.debug.Info("Starting fuzzing with %d test cases using strategy: %s",
+		numTests, sch.strategyName)
+	sch.debug.Info("Target file: %s with %d modules", sch.svFile.Name, len(sch.svFile.Modules))
 
-	if len(f.svFile.Modules) == 0 {
+	if len(sch.svFile.Modules) == 0 {
 		return errors.New("no modules found in the provided Verilog file")
 	}
 
 	var wg sync.WaitGroup
-	testCases := make(chan int, f.workers)
-	errChan := make(chan error, max(f.workers, len(f.svFile.Modules)))
+	testCases := make(chan int, sch.workers)
+	errChan := make(chan error, max(sch.workers, len(sch.svFile.Modules)))
 
-	if f.operation == OpFuzz {
-		progressTracker := NewProgressTracker(numTests, f.stats, &wg)
+	if sch.operation == OpFuzz {
+		progressTracker := NewProgressTracker(numTests, sch.stats, &wg)
 		progressTracker.Start()
 		defer progressTracker.Stop()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	workerSlots := make(chan int, f.workers)
-	for i := 0; i < f.workers; i++ {
+	workerSlots := make(chan int, sch.workers)
+	for i := 0; i < sch.workers; i++ {
 		workerSlots <- i
 	}
 
-	f.debug.Debug(
+	sch.debug.Debug(
 		"Starting %d workers for %d modules so looping %d times",
-		f.workers,
-		len(f.svFile.Modules),
-		f.workers/len(f.svFile.Modules),
+		sch.workers,
+		len(sch.svFile.Modules),
+		sch.workers/len(sch.svFile.Modules),
 	)
 
-	for range max(f.workers/len(f.svFile.Modules), 1) {
-		for _, module := range f.svFile.Modules {
+	for range max(sch.workers/len(sch.svFile.Modules), 1) {
+		for _, module := range sch.svFile.Modules {
 			wg.Add(1)
 			currentModule := module
 
@@ -142,16 +142,16 @@ func (f *Fuzzer) Run(numTests int) error {
 
 				slotIdx := <-workerSlots
 				defer func() { workerSlots <- slotIdx }()
-				f.debug.Info("Worker %d started for module %s", slotIdx, mod.Name)
+				sch.debug.Info("Worker %d started for module %s", slotIdx, mod.Name)
 
-				if err := f.worker(testCases, mod, slotIdx); err != nil {
+				if err := sch.worker(testCases, mod, slotIdx); err != nil {
 					errChan <- fmt.Errorf("worker (slot %d) for module %s error: %w", slotIdx, mod.Name, err)
 				}
 			}(currentModule)
 		}
 	}
 
-	f.debug.Debug("Feeding %d test cases to %d workers", numTests, f.workers)
+	sch.debug.Debug("Feeding %d test cases to %d workers", numTests, sch.workers)
 
 	var feedingWg sync.WaitGroup
 	feedingWg.Add(1)
@@ -163,7 +163,7 @@ func (f *Fuzzer) Run(numTests int) error {
 			select {
 			case testCases <- i:
 			case <-ctx.Done():
-				f.debug.Info(
+				sch.debug.Info(
 					"Test case feeding cancelled after %d/%d tests (workers finished/terminated or main context cancelled).",
 					i,
 					numTests,
@@ -172,9 +172,9 @@ func (f *Fuzzer) Run(numTests int) error {
 			}
 		}
 		if numTests == 1 {
-			f.debug.Info("Successfully fed 1 test case to the channel.")
+			sch.debug.Info("Successfully fed 1 test case to the channel.")
 		} else {
-			f.debug.Info("Successfully fed all %d test cases to the channel.", numTests)
+			sch.debug.Info("Successfully fed all %d test cases to the channel.", numTests)
 		}
 	}()
 
@@ -188,49 +188,53 @@ func (f *Fuzzer) Run(numTests int) error {
 		allWorkerErrors = append(allWorkerErrors, err)
 	}
 	if len(allWorkerErrors) > 0 {
-		f.debug.Error("Fuzzing completed with %d worker error(s):", len(allWorkerErrors))
+		sch.debug.Error("Fuzzing completed with %d worker error(s):", len(allWorkerErrors))
 		for _, we := range allWorkerErrors {
-			f.debug.Error("%s", we)
+			sch.debug.Error("%s", we)
 		}
 	} else {
-		switch f.operation {
+		switch sch.operation {
 		case OpCheckFile:
-			fmt.Printf("%s[+] File `%s` checked successfully, modules seem valid.%s\n", utils.ColorGreen, f.svFile.Name, utils.ColorReset)
+			fmt.Printf("%s[+] File `%s` checked successfully, modules seem valid.%s\n", utils.ColorGreen, sch.svFile.Name, utils.ColorReset)
 		case OpRewriteValid:
-			err := snippets.WriteFileAsSnippets(f.svFile)
+			err := snippets.WriteFileAsSnippets(sch.svFile)
 			if err != nil {
-				f.debug.Error("failed to write snippets to file: %v", err)
+				sch.debug.Error("failed to write snippets to file: %v", err)
 				return fmt.Errorf("failed to write snippets to file: %v", err)
 			}
-			f.debug.Info("Snippets written to file successfully.")
+			sch.debug.Info("Snippets written to file successfully.")
 		case OpFuzz:
-			f.debug.Info("Fuzzing completed successfully.")
+			sch.debug.Info("Fuzzing completed successfully.")
 		}
 	}
 
-	if f.operation == OpFuzz {
-		f.stats.PrintSummary()
+	if sch.operation == OpFuzz {
+		sch.stats.PrintSummary()
 	}
 
-	if numTests > 0 && f.stats.TotalTests == 0 {
-		f.debug.Warn("Fuzzing completed, but no test cases were successfully executed.")
-		f.debug.Warn("Out of %d test cases requested, %d were run.", numTests, f.stats.TotalTests)
-		f.debug.Warn(
+	if numTests > 0 && sch.stats.TotalTests == 0 {
+		sch.debug.Warn("Fuzzing completed, but no test cases were successfully executed.")
+		sch.debug.Warn(
+			"Out of %d test cases requested, %d were run.",
+			numTests,
+			sch.stats.TotalTests,
+		)
+		sch.debug.Warn(
 			"This often indicates a persistent problem in the test case generation or worker setup phase for all workers.",
 		)
-		f.debug.Warn(
+		sch.debug.Warn(
 			"Common causes include: missing resources required by the fuzzing strategy, or other strategy-specific initialization failures leading to simulator compilation errors.",
 		)
-		f.debug.Warn("Please review logs for worker-specific error messages.")
+		sch.debug.Warn("Please review logs for worker-specific error messages.")
 		return fmt.Errorf(
 			"fuzzing finished but no tests were executed out of %d requested; check logs for worker setup or test generation errors",
 			numTests,
 		)
 	}
 
-	if f.stats.Mismatches > 0 && f.operation == OpFuzz {
-		f.debug.Info("Found %d mismatches between iverilog and verilator!", f.stats.Mismatches)
-		return fmt.Errorf("%d mismatches found", f.stats.Mismatches)
+	if sch.stats.Mismatches > 0 && sch.operation == OpFuzz {
+		sch.debug.Info("Found %d mismatches between iverilog and verilator!", sch.stats.Mismatches)
+		return fmt.Errorf("%d mismatches found", sch.stats.Mismatches)
 	}
 
 	if len(allWorkerErrors) > 0 {
@@ -240,8 +244,8 @@ func (f *Fuzzer) Run(numTests int) error {
 			allWorkerErrors[0],
 		)
 	}
-	if f.operation == OpFuzz {
-		f.debug.Info("No mismatches found after %d tests.\n", numTests)
+	if sch.operation == OpFuzz {
+		sch.debug.Info("No mismatches found after %d tests.\n", numTests)
 	}
 	return nil
 }
