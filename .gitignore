@@ -18,6 +18,7 @@ backups
 
 *.tmp
 *.bak
+*.log
 
 __debug_bin*
 

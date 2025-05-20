@@ -28,7 +28,7 @@ func findSnippetFiles() ([]string, error) {
 		return nil, fmt.Errorf("failed to find repository root: %w", err)
 	}
 
-	snippetsDir := filepath.Join(repoRoot, "snippets")
+	snippetsDir := filepath.Join(repoRoot, "isolated")
 
 	if _, err := os.Stat(snippetsDir); os.IsNotExist(err) {
 		return nil, fmt.Errorf("snippets directory '%s' does not exist", snippetsDir)
@@ -36,7 +36,7 @@ func findSnippetFiles() ([]string, error) {
 		return nil, fmt.Errorf("failed to access snippets directory '%s': %w", snippetsDir, err)
 	}
 
-	sourceFiles, err := filepath.Glob(filepath.Join(snippetsDir, "*.sv"))
+	sourceFiles, err := filepath.Glob(filepath.Join(snippetsDir, "**/*.sv"))
 	logger.Debug("Loading snippets from directory: %s", snippetsDir)
 	if err != nil {
 		return nil, err
