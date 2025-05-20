@@ -1,8 +1,3 @@
-typedef struct packed {
-    logic [7:0] byte1;
-    logic [7:0] byte2;
-} my_packed_struct_t;
-
 module packed_struct_module (
     input wire [15:0] in_packed_data,
     output wire [7:0] out_byte

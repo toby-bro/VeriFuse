@@ -14,9 +14,3 @@ module module_struct (
       end
 endmodule
 
-typedef struct packed {
-    logic [7:0] part2;
-    logic [3:0] part3;
-    logic [3:0] part1;
-} my_packed_struct_t;
-

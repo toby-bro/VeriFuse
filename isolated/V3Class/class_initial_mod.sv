@@ -1,13 +1,3 @@
-class InitialClass;
-        int instance_var;
-        function new(int seed_val);
-          instance_var = seed_val;
-        endfunction
-        function int get_instance_var();
-          return instance_var;
-        endfunction
-endclass
-
 module class_initial_mod (
     input int input_seed,
     output int instance_init_val_o

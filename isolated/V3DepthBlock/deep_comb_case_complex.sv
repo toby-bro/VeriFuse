@@ -1,8 +1,8 @@
 module deep_comb_case_complex (
-    input wire [3:0] dccc_mode,
-    input wire [7:0] dccc_op1,
     input wire [7:0] dccc_op2,
-    output logic [7:0] dccc_output_val
+    output logic [7:0] dccc_output_val,
+    input wire [3:0] dccc_mode,
+    input wire [7:0] dccc_op1
 );
     always_comb begin
     logic [7:0] case_res = 8'd0;

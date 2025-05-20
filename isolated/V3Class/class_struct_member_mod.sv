@@ -1,8 +1,12 @@
-typedef struct packed {
+module class_struct_member_mod (
+    output logic [7:0] struct_f1_out,
+    input logic [15:0] struct_in
+);
+    typedef struct packed {
     logic [7:0] f1;
     logic [7:0] f2;
-} my_inner_struct_t;
-class ClassWithStruct;
+      } my_inner_struct_t;
+      class ClassWithStruct;
     my_inner_struct_t member_struct;
     function new();
       member_struct.f1 = 8'h00;
@@ -14,12 +18,7 @@ class ClassWithStruct;
     function logic [7:0] get_f1();
       return member_struct.f1;
     endfunction
-endclass
-
-module class_struct_member_mod (
-    input logic [15:0] struct_in,
-    output logic [7:0] struct_f1_out
-);
+      endclass
       ClassWithStruct inst;
       logic [7:0] temp_f1;
       always_comb begin

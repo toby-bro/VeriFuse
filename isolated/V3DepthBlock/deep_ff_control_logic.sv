@@ -1,10 +1,10 @@
 module deep_ff_control_logic (
+    input wire [15:0] dffcl_data_in1,
     input wire [15:0] dffcl_data_in2,
     output logic [15:0] dffcl_data_out,
     input wire dffcl_clk,
     input wire dffcl_rst_n,
-    input wire [3:0] dffcl_ctrl_mode,
-    input wire [15:0] dffcl_data_in1
+    input wire [3:0] dffcl_ctrl_mode
 );
     always_ff @(posedge dffcl_clk or negedge dffcl_rst_n) begin
     if (!dffcl_rst_n) begin

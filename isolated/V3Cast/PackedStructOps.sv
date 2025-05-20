@@ -16,8 +16,3 @@ module PackedStructOps (
     assign packed_out[7:0] = data_pair.low + byte_val;
 endmodule
 
-typedef struct packed {
-    logic [7:0] low;
-    logic [7:0] high;
-} pair_t;
-

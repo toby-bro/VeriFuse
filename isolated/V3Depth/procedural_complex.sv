@@ -1,9 +1,9 @@
 module procedural_complex (
-    input logic sel,
     input logic [15:0] in1,
     input logic [15:0] in2,
     output logic [15:0] out1,
-    output logic [15:0] out2
+    output logic [15:0] out2,
+    input logic sel
 );
     logic [15:0] temp1;
       logic [15:0] temp2;

@@ -1,8 +1,8 @@
 module deep_comb_if_nested (
-    input wire [7:0] dcin_a,
     input wire [7:0] dcin_b,
     input wire [3:0] dc_select,
-    output logic [7:0] dcout_result
+    output logic [7:0] dcout_result,
+    input wire [7:0] dcin_a
 );
     always_comb begin
     logic [7:0] temp_result = 8'd0;
