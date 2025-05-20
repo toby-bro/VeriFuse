@@ -1,8 +1,20 @@
+class MySvData;
+      logic [7:0] byte_field;
+      integer counter;
+      function new(logic [7:0] init_byte, integer init_count);
+        byte_field = init_byte;
+        counter = init_count;
+      endfunction
+      function void increment_counter();
+        counter = counter + 1;
+      endfunction
+endclass
+
 module ModuleClassInstantiation (
-    input int in_data,
     output int out_data,
     input logic clk,
-    input logic reset
+    input logic reset,
+    input int in_data
 );
     MySvData my_object; 
       logic [7:0] byte_field_reg;
@@ -24,16 +36,4 @@ module ModuleClassInstantiation (
       end
       assign out_data = counter_reg + byte_field_reg;
 endmodule
-
-class MySvData;
-      logic [7:0] byte_field;
-      integer counter;
-      function new(logic [7:0] init_byte, integer init_count);
-        byte_field = init_byte;
-        counter = init_count;
-      endfunction
-      function void increment_counter();
-        counter = counter + 1;
-      endfunction
-endclass
 
