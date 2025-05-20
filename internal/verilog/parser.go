@@ -1066,7 +1066,7 @@ func (v *VerilogFile) ParseStructs(
 // Probably overengineered and should only see if the name of a class or a struct just happens to be there but too late I already wrote it
 func (v *VerilogFile) typeDependenciesParser() error {
 	for _, class := range v.Classes {
-		if class.isVirtual {
+		if class.extends != "" {
 			v.DependancyMap[class.Name].DependsOn = append(
 				v.DependancyMap[class.Name].DependsOn,
 				class.extends,
