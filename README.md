@@ -5,7 +5,9 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
 ## Example usage
 
 ```bash
-make
+make build-fuzzer
+./pfuzz -check-file -file isolated/V3SchedTiming/mod_automatic_task.sv # To check a file 
+./pfuzz -n 160 -strategy smart -mutate -file testfiles/sv/ok/sequential_logic.sv -vv # To fuzz a file by injecting snippets in it's modules
 ```
 
 ## Inject snippet - expected behavior
