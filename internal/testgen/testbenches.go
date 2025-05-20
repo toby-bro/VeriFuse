@@ -42,31 +42,31 @@ module top;
     end
 endmodule`
 
-// cppTestbenchTemplate is the template for C++ testbenches
+// cxxrtlTestbenchTemplate is the template for C++ testbenches
 // Parameters:
-// 1. Module name
-// 2. Module name
-// 3. Module name (repeated)
+// 1. Module name (for include directive, e.g., "my_module")
+// 2. Module name (for CXXRTL class name, e.g., "my_module" -> cxxrtl_design::p_my_module)
+// 3. Module instance name (e.g., "my_module_i")
 // 4. Input declarations
 // 5. Input reads
 // 6. Input application
-// 7. Clock handling code
+// 7. Clock handling and evaluation code
 // 8. Output writes
-const cppTestbenchTemplate = `// filepath: testbench.cpp
-#include <verilated.h>
-#include "V%s.h"
+const cxxrtlTestbenchTemplate = `// filepath: cxxrtl_testbench.cpp
+#include "%s.h" // CXXRTL generated header for the module
+// You might need a common CXXRTL include, e.g.:
+// #include "cxxrtl_lib.h" 
+
 #include <fstream>
 #include <iostream>
 #include <iomanip>
 #include <cstdint>
 #include <string>
 
+// Assuming the CXXRTL-generated code uses a 'cxxrtl_design' namespace 
+// and prefixes the module class with 'p_'. Adjust if your CXXRTL setup differs.
 int main(int argc, char** argv) {
-    // Create context and module
-    VerilatedContext* contextp = new VerilatedContext;
-    contextp->commandArgs(argc, argv);
-    
-    V%s* dut = new V%s{contextp};
+    cxxrtl_design::p_%s %s_i; // DUT instance: cxxrtl_design::p_MODULE_NAME instance_name_i;
 
     // Declare input variables
 %s
@@ -74,18 +74,16 @@ int main(int argc, char** argv) {
     // Read input values
 %s
     
-    // Apply inputs
+    // Apply inputs to DUT
 %s
     
-    // Handle clock toggling and evaluation
+    // Handle reset, clock toggling, and evaluation
 %s
     
-    // Write outputs
+    // Write outputs from DUT
 %s
     
-    // Clean up
-    delete dut;
-    delete contextp;
+    // CXXRTL objects on the stack are cleaned up automatically
     return 0;
 }
 `
