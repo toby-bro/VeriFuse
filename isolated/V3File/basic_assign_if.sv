@@ -1,7 +1,7 @@
 module basic_assign_if (
+    input logic in_a,
     input logic in_b,
-    output logic out_c,
-    input logic in_a
+    output logic out_c
 );
     logic intermediate_wire;
       assign intermediate_wire = in_a & in_b;
