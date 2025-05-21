@@ -337,17 +337,68 @@ func (sch *Scheduler) setupSimulators(
 		cxxrtlOriginalVerilogBaseName,
 		workerModuleName,
 		includeDir,
-		false,
+		false, // optimized
+		false, // useSlang
 		sch.verbose,
 	)
 	sch.debug.Debug("[%s] Compiling CXXRTL simulator in %s", workerID, cxxrtlWorkDir)
-	if err := cxsim.Compile(); err != nil {
-		sch.debug.Warn("[%s] Failed to compile CXXRTL: %v", workerID, err)
-		setupErrors = append(setupErrors, fmt.Sprintf("cxxrtl: %v", err))
-		// sch.handleGenericCompilationFailure(workerID, workerModuleName, "cxxrtl", err, baseWorkerDir)
+	// Attempt to compile CXXRTL
+	if err := os.MkdirAll(cxxrtlWorkDir, 0o755); err != nil {
+		setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL mkdir error: %v", err))
+		sch.debug.Error(
+			"[%s] Failed to create CXXRTL work directory %s: %v",
+			workerID,
+			cxxrtlWorkDir,
+			err,
+		)
 	} else {
-		sch.debug.Debug("[%s] CXXRTL compiled successfully.", workerID)
-		compiledSims = append(compiledSims, &SimInstance{Name: "cxxrtl", Simulator: cxsim, Prefix: "cxx_"})
+		if err := cxsim.Compile(); err != nil {
+			sch.debug.Warn("[%s] CXXRTL compilation failed in %s: %v", workerID, cxxrtlWorkDir, err)
+			// sch.handleCompilationFailure(workerID, "CXXRTL", cxxrtlWorkDir, err, svFileToCompile.Name, workerModuleName)
+			setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL compile error: %v", err))
+		} else {
+			sch.debug.Info("[%s] Successfully compiled CXXRTL simulator in %s.", workerID, cxxrtlWorkDir)
+			compiledSims = append(compiledSims, &SimInstance{Name: "CXXRTL", Simulator: cxsim, Prefix: "cxx_vanilla_"})
+		}
+	}
+
+	// 5. CXXRTL with Slang
+	cxxrtlSlangWorkDir := filepath.Join(baseWorkerDir, "cxxrtl_slang_sim")
+	// Ensure CXXRTL include directory is available from scheduler config (same as above)
+	// includeDir is already defined
+	cxxrtlSlangOriginalVerilogBaseName := svFileToCompile.Name // Use the same potentially mutated Verilog file
+	cxSlangSim := simulator.NewCXXRTLSimulator(
+		cxxrtlSlangWorkDir,
+		cxxrtlSlangOriginalVerilogBaseName,
+		workerModuleName,
+		includeDir,
+		false, // optimized
+		true,  // useSlang
+		sch.verbose,
+	)
+	sch.debug.Debug(
+		"[%s] Compiling CXXRTL simulator with Slang in %s",
+		workerID,
+		cxxrtlSlangWorkDir,
+	)
+	// Attempt to compile CXXRTL with Slang
+	if err := os.MkdirAll(cxxrtlSlangWorkDir, 0o755); err != nil {
+		setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL (Slang) mkdir error: %v", err))
+		sch.debug.Error(
+			"[%s] Failed to create CXXRTL (Slang) work directory %s: %v",
+			workerID,
+			cxxrtlSlangWorkDir,
+			err,
+		)
+	} else {
+		if err := cxSlangSim.Compile(); err != nil {
+			sch.debug.Warn("[%s] CXXRTL (Slang) compilation failed in %s: %v", workerID, cxxrtlSlangWorkDir, err)
+			// sch.handleCompilationFailure(workerID, "CXXRTL_SLANG", cxxrtlSlangWorkDir, err, svFileToCompile.Name, workerModuleName)
+			setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL (Slang) compile error: %v", err))
+		} else {
+			sch.debug.Info("[%s] Successfully compiled CXXRTL (Slang) simulator in %s.", workerID, cxxrtlSlangWorkDir)
+			compiledSims = append(compiledSims, &SimInstance{Name: "CXXRTL_SLANG", Simulator: cxSlangSim, Prefix: "cxx_slang_"})
+		}
 	}
 
 	if len(compiledSims) == 0 {
