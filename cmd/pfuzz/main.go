@@ -78,7 +78,9 @@ func main() {
 		case false:
 			operation = fuzz.OpCheckFile
 		}
-		*numTests = 1
+		if *numTests == 1000 {
+			*numTests = *workers
+		}
 	}
 	cxxrtlIncludeDir, err := utils.GetRootDir()
 	if err != nil {

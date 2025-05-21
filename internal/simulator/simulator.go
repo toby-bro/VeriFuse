@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -64,37 +63,6 @@ func ReadOutputFiles(filePaths map[string]string) (map[string]string, error) {
 	if errorFound {
 		return nil, firstError
 	}
-	return results, nil
-}
-
-// CompareOutputFiles compares the contents of output files for specified ports
-func CompareOutputFiles(ivDir, vlDir string, portNames []string) (map[string]bool, error) {
-	results := make(map[string]bool)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
-	for _, portName := range portNames {
-		wg.Add(1)
-		go func(port string) {
-			defer wg.Done()
-
-			ivPath := filepath.Join(ivDir, fmt.Sprintf("iv_%s.hex", port))
-			vlPath := filepath.Join(vlDir, fmt.Sprintf("vl_%s.hex", port))
-
-			ivContent, err1 := ReadOutputFile(ivPath)
-			vlContent, err2 := ReadOutputFile(vlPath)
-
-			if err1 != nil || err2 != nil {
-				return
-			}
-
-			mu.Lock()
-			results[port] = (ivContent == vlContent)
-			mu.Unlock()
-		}(portName)
-	}
-
-	wg.Wait()
 	return results, nil
 }
 

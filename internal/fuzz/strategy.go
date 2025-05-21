@@ -1,6 +1,7 @@
 package fuzz
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"strconv"
@@ -45,95 +46,150 @@ func (s *RandomStrategy) GenerateTestCase(_ int) map[string]string {
 	return inputs
 }
 
+// Helper to generate a random hex string for a given bit width
+func randomHex(width int) string {
+	if width <= 0 {
+		return "0" // Return "0" for non-positive widths
+	}
+	numHexChars := (width + 3) / 4
+	var sb strings.Builder
+	for i := 0; i < numHexChars; i++ {
+		nibble := rand.Intn(16)
+		if i == 0 && width%4 != 0 { // Mask the first nibble if width is not a multiple of 4
+			mask := (1 << (width % 4)) - 1
+			nibble &= mask
+		}
+		sb.WriteString(fmt.Sprintf("%x", nibble))
+	}
+	return sb.String()
+}
+
+// Helper to generate max hex string (all 1s) for a given bit width
+func maxHex(width int) string {
+	if width <= 0 {
+		return "0"
+	}
+	numHexChars := (width + 3) / 4
+	var sb strings.Builder
+
+	// Handle the first nibble if width is not a multiple of 4
+	if width%4 != 0 {
+		mask := (1 << (width % 4)) - 1
+		sb.WriteString(fmt.Sprintf("%x", mask))
+	}
+
+	// Fill remaining full nibbles with 'f'
+	startNibble := 0
+	if width%4 != 0 {
+		startNibble = 1
+	}
+	for i := startNibble; i < numHexChars; i++ {
+		sb.WriteString("f")
+	}
+
+	// If the width was a multiple of 4, the above loop for width%4!=0 didn't run.
+	// Fill all nibbles with 'f' in that case.
+	if width%4 == 0 {
+		sb.Reset() // Clear anything that might have been added (should be empty)
+		for i := 0; i < numHexChars; i++ {
+			sb.WriteString("f")
+		}
+	}
+
+	if sb.Len() == 0 { // Should only happen if width was 0, handled at the start
+		return "0"
+	}
+
+	return sb.String()
+}
+
 func generateRandomValue(portType verilog.PortType, width int, isSigned bool) string {
 	switch portType {
 	case verilog.REG, verilog.WIRE, verilog.LOGIC, verilog.BIT:
 		effectiveWidth := width
-		if effectiveWidth <= 0 { // Treat 0 or negative width as 1 for scalar
+		if effectiveWidth <= 0 {
 			effectiveWidth = 1
 		}
-
-		if effectiveWidth == 1 {
-			return strconv.Itoa(rand.Intn(2)) // "0" or "1"
-		}
-
-		var sb strings.Builder
-		sb.WriteString(strconv.Itoa(effectiveWidth))
-		sb.WriteString("'b")
-		for i := 0; i < effectiveWidth; i++ {
-			sb.WriteString(strconv.Itoa(rand.Intn(2)))
-		}
-		return sb.String()
+		return randomHex(effectiveWidth)
 
 	case verilog.INTEGER: // Verilog integer: 32-bit signed
-		val := rand.Int31()
-		if rand.Intn(2) == 1 { // 50% chance of being negative
+		var val int32
+		val = rand.Int31()
+		if rand.Intn(2) == 1 {
 			val = -val
 		}
-		return strconv.Itoa(int(val))
+		return fmt.Sprintf("%x", val) // Let Sprintf handle signed int to hex
 
 	case verilog.INT: // SystemVerilog int: 32-bit signed
-		val := rand.Int31()
-		if rand.Intn(2) == 1 { // 50% chance of being negative
+		var val int32
+		val = rand.Int31()
+		if rand.Intn(2) == 1 {
 			val = -val
 		}
-		return strconv.Itoa(int(val))
+		return fmt.Sprintf("%x", val) // Let Sprintf handle signed int to hex
 
 	case verilog.BYTE: // 8-bit
 		if isSigned {
-			return strconv.Itoa(int(int8(rand.Intn(1 << 8))))
+			val := int8(rand.Intn(1 << 8)) // Generate a random int8 value
+			return fmt.Sprintf(
+				"%x",
+				val,
+			) // Produces 1 or 2 hex chars e.g. "80" for -128, "ff" for -1
+		} else {
+			return fmt.Sprintf("%x", uint8(rand.Intn(1<<8)))
 		}
-		return strconv.Itoa(rand.Intn(1 << 8)) // 0 to 255
 
 	case verilog.SHORTINT: // 16-bit
 		if isSigned {
-			return strconv.Itoa(int(int16(rand.Intn(1 << 16))))
+			val := int16(rand.Intn(1 << 16))
+			return fmt.Sprintf("%x", val)
+		} else {
+			return fmt.Sprintf("%x", uint16(rand.Intn(1<<16)))
 		}
-		return strconv.Itoa(rand.Intn(1 << 16)) // 0 to 65535
 
 	case verilog.LONGINT: // 64-bit
 		if isSigned {
-			return strconv.FormatInt(int64(rand.Uint64()), 10)
+			val := int64(rand.Uint64()) // Full range for int64
+			return fmt.Sprintf("%x", val)
+		} else {
+			return fmt.Sprintf("%x", rand.Uint64())
 		}
-		return strconv.FormatUint(rand.Uint64(), 10)
 
 	case verilog.TIME: // 64-bit unsigned
-		return strconv.FormatUint(rand.Uint64(), 10)
+		return fmt.Sprintf("%x", rand.Uint64())
 
-	case verilog.REAL, verilog.REALTIME: // double precision floating point
+	// Floating point and string types remain unchanged as they are not typically represented as raw hex numbers in this context.
+	case verilog.REAL, verilog.REALTIME:
 		return strconv.FormatFloat(rand.Float64(), 'g', -1, 64)
 
-	case verilog.SHORTREAL: // single precision floating point
+	case verilog.SHORTREAL:
 		return strconv.FormatFloat(float64(rand.Float32()), 'g', -1, 32)
 
 	case verilog.STRING:
-
 		length := 5 + rand.Intn(16)
-
 		charSet := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_ "
 		runes := make([]rune, length)
 		for i := range runes {
 			runes[i] = rune(charSet[rand.Intn(len(charSet))])
 		}
-		return "\"" + string(runes) + "\"" // Strings in Verilog are usually quoted
+		return "\\\"" + string(runes) + "\\\""
 
 	case verilog.ENUM, verilog.STRUCT, verilog.USERDEFINED, verilog.VOID, verilog.UNKNOWN:
-
 		effectiveWidth := width
 		if effectiveWidth <= 0 {
 			effectiveWidth = 1
 		}
-		if effectiveWidth > 1 {
-			return strconv.Itoa(effectiveWidth) + "'bx" // e.g., 8'bx
+		numHexChars := (effectiveWidth + 3) / 4
+		if numHexChars <= 0 {
+			numHexChars = 1
 		}
-		return "'x" // For scalar unknown/complex types or void
+		return strings.Repeat("x", numHexChars)
 
-	case verilog.TYPE: // Only for parameters
+	case verilog.TYPE:
 		return ""
 
 	default:
-
-		return "'x" // Default to 'x for safety
+		return "x"
 	}
 }
 
@@ -187,76 +243,64 @@ func generateEdgeCaseValue( // nolint:gocyclo
 		if effectiveWidth <= 0 {
 			effectiveWidth = 1
 		}
-		if effectiveWidth == 1 {
-			if pickMin {
-				return "0"
-			}
-			return "1"
+		if pickMin {
+			return "0"
 		}
-		var sb strings.Builder
-		sb.WriteString(strconv.Itoa(effectiveWidth))
-		sb.WriteString("'b")
-		digit := "0"
-		if !pickMin { // Max value
-			digit = "1"
-		}
-		for i := 0; i < effectiveWidth; i++ {
-			sb.WriteString(digit)
-		}
-		return sb.String()
+		return maxHex(effectiveWidth)
 
 	case verilog.INTEGER, verilog.INT: // 32-bit signed
 		if pickMin {
-			return strconv.Itoa(math.MinInt32)
+			return fmt.Sprintf("%x", int32(math.MinInt32))
 		}
-		return strconv.Itoa(math.MaxInt32)
+		return fmt.Sprintf("%x", int32(math.MaxInt32))
 
 	case verilog.BYTE: // 8-bit
 		if isSigned {
 			if pickMin {
-				return strconv.Itoa(math.MinInt8)
+				return fmt.Sprintf("%x", int8(math.MinInt8))
 			}
-			return strconv.Itoa(math.MaxInt8)
+			return fmt.Sprintf("%x", int8(math.MaxInt8))
 		}
-
+		// Unsigned
 		if pickMin {
 			return "0"
 		}
-		return strconv.Itoa(math.MaxUint8)
+		return fmt.Sprintf("%x", uint8(math.MaxUint8))
 
 	case verilog.SHORTINT: // 16-bit
 		if isSigned {
 			if pickMin {
-				return strconv.Itoa(math.MinInt16)
+				return fmt.Sprintf("%x", int16(math.MinInt16))
 			}
-			return strconv.Itoa(math.MaxInt16)
+			return fmt.Sprintf("%x", int16(math.MaxInt16))
 		}
-
+		// Unsigned
 		if pickMin {
 			return "0"
 		}
-		return strconv.Itoa(math.MaxUint16)
+		return fmt.Sprintf("%x", uint16(math.MaxUint16))
 
 	case verilog.LONGINT: // 64-bit
 		if isSigned {
 			if pickMin {
-				return strconv.FormatInt(math.MinInt64, 10)
+				return fmt.Sprintf("%x", int64(math.MinInt64))
 			}
-			return strconv.FormatInt(math.MaxInt64, 10)
+			return fmt.Sprintf("%x", int64(math.MaxInt64))
 		}
-
+		// Unsigned
 		if pickMin {
 			return "0"
 		}
-		return strconv.FormatUint(math.MaxUint64, 10)
+		return fmt.Sprintf("%x", uint64(math.MaxUint64))
 
 	case verilog.TIME: // 64-bit unsigned
 		if pickMin {
 			return "0"
 		}
-		return strconv.FormatUint(math.MaxUint64, 10)
+		return fmt.Sprintf("%x", uint64(math.MaxUint64))
 
-	case verilog.REAL, verilog.REALTIME: // double precision
+	// Floating point and string types remain unchanged
+	case verilog.REAL, verilog.REALTIME:
 		if pickMin {
 			if rand.Intn(2) == 0 {
 				return "0.0"
@@ -265,7 +309,7 @@ func generateEdgeCaseValue( // nolint:gocyclo
 		}
 		return strconv.FormatFloat(math.MaxFloat64, 'g', -1, 64)
 
-	case verilog.SHORTREAL: // single precision
+	case verilog.SHORTREAL:
 		if pickMin {
 			if rand.Intn(2) == 0 {
 				return "0.0"
@@ -276,9 +320,8 @@ func generateEdgeCaseValue( // nolint:gocyclo
 
 	case verilog.STRING:
 		if pickMin {
-			return "\"\"" // Empty string
+			return "\"\""
 		}
-
 		return "\"" + strings.Repeat("A", 20) + "\""
 
 	case verilog.ENUM, verilog.STRUCT, verilog.USERDEFINED, verilog.VOID, verilog.UNKNOWN:
@@ -286,15 +329,16 @@ func generateEdgeCaseValue( // nolint:gocyclo
 		if effectiveWidth <= 0 {
 			effectiveWidth = 1
 		}
-		if effectiveWidth > 1 {
-			return strconv.Itoa(effectiveWidth) + "'bx"
+		numHexChars := (effectiveWidth + 3) / 4
+		if numHexChars <= 0 {
+			numHexChars = 1
 		}
-		return "'x"
+		return strings.Repeat("x", numHexChars)
 
 	case verilog.TYPE:
 		return ""
 
 	default:
-		return "'x"
+		return "x"
 	}
 }

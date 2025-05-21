@@ -53,12 +53,33 @@ func (g *Generator) GenerateTestbenchesInDir(outputDir string) error {
 func (g *Generator) generateSVPortDeclarations() string {
 	var declarations strings.Builder
 	for _, port := range g.module.Ports {
-		typeDecl := verilog.LOGIC.String() + " "
-		if port.Width > 1 {
-			typeDecl += fmt.Sprintf(" [%d:0] ", port.Width-1)
-		}
 		portName := strings.TrimSpace(port.Name)
-		declarations.WriteString(fmt.Sprintf("    %s%s;\n", typeDecl, portName))
+		var finalDeclarationString string
+
+		// Determine the target width for the port
+		targetWidth := port.Width // Start with the width from the parser
+
+		// If the parsed width is 0 or 1, it might not be the full width for certain types.
+		// We consult GetWidthForType to get a default width for the Verilog type.
+		if targetWidth <= 1 {
+			// Assuming verilog.GetWidthForType is available as per the user's context.
+			// This function provides default widths (e.g., INT=32, BYTE=8, LOGIC=1).
+			defaultWidthForType := verilog.GetWidthForType(port.Type)
+			if defaultWidthForType > targetWidth {
+				targetWidth = defaultWidthForType
+			}
+		}
+
+		// Generate the SystemVerilog declaration string
+		if targetWidth > 1 {
+			finalDeclarationString = fmt.Sprintf("logic [%d:0] %s;", targetWidth-1, portName)
+		} else {
+			// Handles targetWidth == 1 (e.g. for single bit logic, reg, or byte with width 1 if GetWidthForType returned 1)
+			// Also handles targetWidth == 0 as a fallback (e.g. for UNKNOWN type if port.Width was also 0)
+			finalDeclarationString = fmt.Sprintf("logic %s;", portName)
+		}
+
+		declarations.WriteString(fmt.Sprintf("    %s\n", finalDeclarationString))
 	}
 	return declarations.String()
 }
@@ -205,13 +226,9 @@ func (g *Generator) generateSVInputReads(clockPorts []string, resetPort string) 
         status = $fgets(line, fd);
         `, fileName, fileName))
 
-			if port.Width > 1 {
-				inputReads.WriteString(
-					fmt.Sprintf("status = $sscanf(line, \"%%h\", %s);\n", portName),
-				)
-			} else {
-				inputReads.WriteString(fmt.Sprintf("status = $sscanf(line, \"%%b\", %s);\n", portName))
-			}
+			inputReads.WriteString(
+				fmt.Sprintf("status = $sscanf(line, \"%%h\", %s);\n", portName),
+			)
 
 			inputReads.WriteString("        $fclose(fd);\n")
 		}
@@ -282,11 +299,7 @@ func (g *Generator) generateSVOutputWrites() (string, int) {
         fd = $fopen("%s", "w");
         `, fileName))
 
-			if port.Width > 1 {
-				outputWrites.WriteString(fmt.Sprintf("$fwrite(fd, \"%%h\", %s);\n", portName))
-			} else {
-				outputWrites.WriteString(fmt.Sprintf("$fwrite(fd, \"%%0b\", %s);\n", portName))
-			}
+			outputWrites.WriteString(fmt.Sprintf("$fwrite(fd, \"%%h\", %s);\n", portName))
 
 			outputWrites.WriteString("        $fclose(fd);\n")
 		}

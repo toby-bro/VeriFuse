@@ -61,7 +61,8 @@ func (sch *Scheduler) generateAndPrepareInputs(
 	for _, port := range workerModule.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			if _, exists := testCase[port.Name]; !exists {
-				defaultValue := strings.Repeat("0", port.Width)
+				// defaultValue := strings.Repeat("0", port.Width) // Old binary string
+				defaultValue := "0" // New: "0" is a valid hex representation of zero for any width
 				testCase[port.Name] = defaultValue
 				sch.debug.Debug("[%s] Test %d: Added default value '%s' for new input port '%s'",
 					workerID, testIndex, defaultValue, port.Name)
@@ -87,6 +88,8 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 	var resultsMu sync.Mutex
 	var wg sync.WaitGroup
 
+	sch.debug.Debug("[%s] Test %d: Running simulators concurrently", workerID, testIndex)
+
 	for _, simInstance := range sims {
 		wg.Add(1)
 		go func(si *SimInstance) {
@@ -106,7 +109,6 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 				si.Simulator,
 				testSpecificDir,
 				currentSimOutputPaths,
-				workerModule,
 			)
 			resultsMu.Lock()
 			if err != nil {
@@ -272,6 +274,8 @@ func (sch *Scheduler) runSingleTest(
 		}
 	}()
 
+	sch.debug.Debug("[%s] Test %d: Inputs prepared. Running simulators...", workerID, testIndex)
+
 	// Step 2: Execute Simulators Concurrently
 	simResults, simErrors := sch.executeSimulatorsConcurrently(
 		workerID,
@@ -319,7 +323,6 @@ func (sch *Scheduler) runSimulator(
 	sim simulator.Simulator,
 	testSpecificDir string, // e.g., worker_XYZ/test_0
 	outputPathsForSim map[string]string, // map portName to final prefixed path in testSpecificDir
-	module *verilog.Module,
 ) (map[string]string, error) {
 	// sim.RunTest expects inputDir (where input_N.hex are) and outputPaths (where to put prefixed_output_N.hex)
 	// Both should be relative to testSpecificDir or absolute paths within it.
