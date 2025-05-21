@@ -19,6 +19,7 @@ type CXXRTLSimulator struct {
 	moduleName                  string // Top module name, e.g., my_module
 	cxxrtlIncludeDir            string // Path to CXXRTL runtime include directory
 	optimized                   bool
+	useSlang                    bool // Whether to use Slang with Yosys
 	logger                      *utils.DebugLogger
 }
 
@@ -77,6 +78,7 @@ func NewCXXRTLSimulator(
 	moduleName string,
 	cxxrtlIncludeDir string,
 	optimized bool,
+	useSlang bool, // Added useSlang parameter
 	verbose int,
 ) *CXXRTLSimulator {
 	return &CXXRTLSimulator{
@@ -86,6 +88,7 @@ func NewCXXRTLSimulator(
 		moduleName:                  moduleName,
 		cxxrtlIncludeDir:            cxxrtlIncludeDir,
 		optimized:                   optimized,
+		useSlang:                    useSlang, // Store useSlang
 		logger:                      utils.NewDebugLogger(verbose),
 	}
 }
@@ -93,21 +96,41 @@ func NewCXXRTLSimulator(
 // Compile converts the Verilog design to C++ using Yosys, then compiles
 // it with the CXXRTL testbench using g++.
 func (sim *CXXRTLSimulator) Compile() error {
-	sim.logger.Debug("Starting CXXRTL compilation in %s for module %s", sim.workDir, sim.moduleName)
+	sim.logger.Debug(
+		"Starting CXXRTL compilation in %s for module %s (UseSlang: %t)",
+		sim.workDir,
+		sim.moduleName,
+		sim.useSlang,
+	)
 
 	// --- Step 1: Yosys - Convert Verilog to CXXRTL C++ ---
 	yosysInputFile := filepath.Join("..", sim.originalVerilogFileBaseName) // Relative to workDir
 	yosysOutputCCFile := sim.moduleName + ".cc"                            // Output in workDir
 
-	yosysScript := fmt.Sprintf("read_verilog -sv %s; prep -top %s; write_cxxrtl %s",
-		yosysInputFile, sim.moduleName, yosysOutputCCFile)
+	var yosysScript string
+	var cmdYosys *exec.Cmd
+	if sim.useSlang {
+		yosysScript = fmt.Sprintf("read_slang -sv %s; prep -top %s", yosysInputFile, sim.moduleName)
+	} else {
+		yosysScript = fmt.Sprintf("read_verilog -sv %s; prep -top %s", yosysInputFile, sim.moduleName)
+	}
+
+	if sim.optimized {
+		yosysScript += "; proc; opt; fsm; opt; memory; opt; techmap; opt"
+	}
+	yosysScript += fmt.Sprintf("; write_cxxrtl %s", yosysOutputCCFile)
+
+	if sim.useSlang {
+		cmdYosys = exec.Command("yosys", "-m", "slang", "-p", yosysScript)
+	} else {
+		cmdYosys = exec.Command("yosys", "-p", yosysScript)
+	}
 
 	sim.logger.Debug(
 		"Running Yosys command: yosys -p \"%s\" in directory %s",
 		yosysScript,
 		sim.workDir,
 	)
-	cmdYosys := exec.Command("yosys", "-p", yosysScript)
 	cmdYosys.Dir = sim.workDir
 	var stderrYosys bytes.Buffer
 	cmdYosys.Stderr = &stderrYosys
