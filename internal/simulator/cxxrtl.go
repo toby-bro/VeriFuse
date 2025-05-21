@@ -119,12 +119,8 @@ func (sim *CXXRTLSimulator) Compile() error {
 
 	// Verify Yosys output (.cc and .h files)
 	generatedCCPath := filepath.Join(sim.workDir, yosysOutputCCFile)
-	generatedHPath := filepath.Join(sim.workDir, sim.moduleName+".h")
 	if _, err := os.Stat(generatedCCPath); os.IsNotExist(err) {
 		return fmt.Errorf("yosys did not generate .cc file: %s", generatedCCPath)
-	}
-	if _, err := os.Stat(generatedHPath); os.IsNotExist(err) {
-		sim.logger.Warn("yosys did not generate .h file: %s", generatedHPath)
 	}
 
 	// --- Step 2: g++ - Compile CXXRTL C++ code with testbench ---
@@ -141,7 +137,7 @@ func (sim *CXXRTLSimulator) Compile() error {
 	gxxArgs = append(gxxArgs, "-Wall", "-Wextra") // Common warning flags
 	gxxArgs = append(gxxArgs, "-I"+sim.cxxrtlIncludeDir)
 	gxxArgs = append(gxxArgs, "-I.") // For <moduleName>.h in workDir
-	gxxArgs = append(gxxArgs, yosysOutputCCFile, testbenchCppFile, "-o", executableName)
+	gxxArgs = append(gxxArgs, testbenchCppFile, "-o", executableName)
 
 	sim.logger.Debug(
 		"Running g++ command: g++ %s in directory %s",

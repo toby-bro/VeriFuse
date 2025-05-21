@@ -31,6 +31,7 @@ type Scheduler struct {
 	svFile       *verilog.VerilogFile
 	operation    Operation
 	maxAttempts  int
+	cxxrtlIncludeDir string // Added for CXXRTL configuration
 }
 
 func NewScheduler(
@@ -40,6 +41,7 @@ func NewScheduler(
 	fileName string,
 	operation Operation,
 	maxAttempts int,
+	cxxrtlIncludeDir string, // Added parameter
 ) *Scheduler {
 	scheduler := &Scheduler{
 		stats:        NewStats(),
@@ -49,6 +51,7 @@ func NewScheduler(
 		operation:    operation,
 		maxAttempts:  maxAttempts,
 		strategyName: strategy,
+		cxxrtlIncludeDir: cxxrtlIncludeDir, // Store it
 	}
 
 	scheduler.svFile = &verilog.VerilogFile{

@@ -80,7 +80,11 @@ func main() {
 		}
 		*numTests = 1
 	}
-
+	cxxrtlIncludeDir, err := utils.GetRootDir()
+	if err != nil {
+		logger.Fatal("Error: Unable to find CXXRTL include directory: ", err)
+	}
+	cxxrtlIncludeDir += "/../yosys/backends/cxxrtl/runtime"
 	// Create and setup scheduler using the new package structure
 	scheduler := fuzz.NewScheduler(
 		*strategy,
@@ -89,6 +93,7 @@ func main() {
 		*verilogFile,
 		operation,
 		*maxAttempts,
+		cxxrtlIncludeDir,
 	)
 
 	if err := scheduler.Setup(); err != nil {

@@ -1,11 +1,11 @@
 package fuzz
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
@@ -17,13 +17,21 @@ import (
 const (
 	IV_PREFIX = "iv_"
 	VL_PREFIX = "vl_"
+	CX_PREFIX = "cx_" // Prefix for CXXRTL
 )
+
+// SimInstance holds a name and a compiled simulator interface.
+type SimInstance struct {
+	Name      string
+	Simulator simulator.Simulator
+}
 
 func (sch *Scheduler) setupWorker(workerID string) (string, func(), error) {
 	workerDir := filepath.Join(utils.TMP_DIR, workerID)
 	sch.debug.Debug("[%s] Creating worker directory at %s", workerID, workerDir)
 	if err := os.MkdirAll(workerDir, 0o755); err != nil {
-		return "", nil, fmt.Errorf("failed to create worker directory %s: %w", workerDir, err)
+		sch.debug.Error("[%s] Failed to create worker directory %s: %v", workerID, workerDir, err)
+		return "", nil, err
 	}
 	cleanup := func() {
 		if err := os.RemoveAll(workerDir); err != nil {
@@ -113,136 +121,251 @@ func (sch *Scheduler) performWorkerAttempt(
 			return false, fmt.Errorf("[%s] failed to read Verilog file: %w", workerID, err)
 		}
 		svFile, err = verilog.ParseVerilog(fileContent, sch.verbose)
-		svFile.Name = sch.svFile.Name
 		if err != nil {
 			return false, fmt.Errorf("[%s] failed to parse Verilog file: %w", workerID, err)
 		}
+		svFile.Name = sch.svFile.Name // Ensure basename is correct
 	}
 
-	if err != nil {
-		return false, fmt.Errorf("[%s] failed to parse mutated Verilog: %w", workerID, err)
+	// svFile now represents the Verilog content for this attempt, located at workerVerilogPath.
+	// Its svFile.Name is the base name (e.g., "design.v").
+
+	if err != nil { // This check seems redundant now as errors are handled above.
+		return false, fmt.Errorf(
+			"[%s] failed to parse (potentially mutated) Verilog: %w",
+			workerID,
+			err,
+		)
 	}
 	sch.debug.Debug(
-		"[%s] Parsed %d modules from file %s.",
+		"[%s] Parsed %d modules from file %s (path: %s).",
 		workerID,
 		len(svFile.Modules),
 		svFile.Name,
+		workerVerilogPath,
 	)
+
+	// Ensure workerModule is from the current svFile
+	currentWorkerModule, ok := svFile.Modules[workerModule.Name]
+	if !ok {
+		return false, fmt.Errorf(
+			"[%s] worker module %s not found in parsed file %s for current attempt",
+			workerID,
+			workerModule.Name,
+			svFile.Name,
+		)
+	}
 
 	sch.debug.Debug(
 		"[%s] Generating testbenches for module %s in %s",
 		workerID,
-		workerModule.Name,
+		currentWorkerModule.Name,
 		workerDir,
 	)
-	gen := testgen.NewGenerator(workerModule, svFile.Name)
-	if err := gen.GenerateTestbenchesInDir(workerDir); err != nil {
-		return false, fmt.Errorf("[%s] failed to generate testbenches: %w", workerID, err)
+	gen := testgen.NewGenerator(
+		currentWorkerModule,
+		svFile.Name,
+	) // Use current (mutated) svFile.Name
+	if err := gen.GenerateSVTestbench(workerDir); err != nil { // Generates testbench.sv in workerDir
+		return false, fmt.Errorf(
+			"[%s] failed to generate SystemVerilog testbenches: %w",
+			workerID,
+			err,
+		)
+	}
+
+	// Check if CXXRTL is intended to be used and generate its testbench
+	cxxrtlSimDir := filepath.Join(workerDir, "cxxrtl_sim")
+	if err := os.MkdirAll(cxxrtlSimDir, 0o755); err != nil {
+		return false, fmt.Errorf("[%s] failed to create cxxrtl_sim dir: %w", workerID, err)
+	}
+	if err := gen.GenerateCXXRTLTestbench(cxxrtlSimDir); err != nil { // Pass cxxrtlSimDir
+		return false, fmt.Errorf("[%s] failed to generate CXXRTL testbench: %w", workerID, err)
 	}
 	sch.debug.Debug("[%s] Testbenches generated.", workerID)
 
-	ivsim, vlsim, err := sch.setupSimulators(workerID, workerDir, workerModule.Name)
+	sims, err := sch.setupSimulators(
+		workerID,
+		workerDir,
+		currentWorkerModule.Name,
+		svFile,
+	) // Pass current svFile
 	if err != nil {
-		if strings.Contains(err.Error(), "One of the compilations failed") {
-			if sch.operation == OpFuzz {
-				sch.handleCompilationMismatch(workerID, workerModule, err)
-				sch.stats.AddMismatch(nil)
-			}
-			return false, fmt.Errorf(
-				"[%s] One of the verilator compilations failed: %w",
-				workerID,
-				err,
-			)
-		}
+		// If setupSimulators returns an error, it means no simulators could be compiled.
+		// Specific compilation errors for individual simulators are logged within setupSimulators.
+		// We might want to call handleGenericCompilationFailure here if *all* fail.
 		return false, fmt.Errorf("simulator setup failed for worker %s: %w", workerID, err)
 	}
 
-	sch.debug.Debug("[%s] Simulators set up successfully.", workerID)
 	sch.debug.Debug(
-		"[%s] Starting test case processing for module %s\n    %d test cases\n    %s strategy",
+		"[%s] Simulators set up successfully: %d simulators ready.",
 		workerID,
-		workerModule.Name,
-		len(testCases),
+		len(sims),
+	)
+	sch.debug.Debug(
+		"[%s] Starting test case processing for module %s. Strategy: %s",
+		workerID,
+		currentWorkerModule.Name,
 		strategy.Name(),
 	)
 
-	errorMap := sch.processTestCases(
+	errorList := sch.processTestCases(
 		workerID,
-		workerDir,
-		ivsim,
-		vlsim,
-		workerModule,
+		workerDir, // This is the base directory for the worker attempt
+		sims,      // Pass the slice of SimInstance
+		currentWorkerModule,
 		testCases,
 		strategy,
 	)
-	if len(errorMap) != 0 {
-		errStr := errors.New("")
-		for _, err := range errorMap {
-			errStr = fmt.Errorf("%s\n%s", errStr, err)
+	if len(errorList) > 0 {
+		var errBuilder strings.Builder
+		for i, e := range errorList {
+			if i > 0 {
+				errBuilder.WriteString("; ")
+			}
+			errBuilder.WriteString(e.Error())
 		}
-		return false, errStr
+		return false, fmt.Errorf(
+			"[%s] test case processing failed with %d errors: %s",
+			workerID,
+			len(errorList),
+			errBuilder.String(),
+		)
 	}
 	attemptCompletelySuccessful = true // Mark as successful for cleanup logic
 	return true, nil
 }
 
 func (sch *Scheduler) setupSimulators(
-	workerID, workerDir, workerModuleName string,
-) (simulator.Simulator, simulator.Simulator, error) {
-	sch.debug.Debug("[%s] Creating simulators for module %s", workerID, workerModuleName)
-	// ivsim := simulator.NewIVerilogSimulator(workerDir, f.verbose)
-	vlsim3 := simulator.NewVerilatorSimulator(
-		workerDir+"/O3",
-		sch.svFile,
+	workerID, baseWorkerDir, workerModuleName string,
+	svFileToCompile *verilog.VerilogFile, // svFileToCompile is the (potentially mutated) one
+) ([]*SimInstance, error) {
+	sch.debug.Debug(
+		"[%s] Setting up simulators for module %s in %s",
+		workerID,
 		workerModuleName,
-		true,
-		sch.verbose,
+		baseWorkerDir,
 	)
-	vlsim0 := simulator.NewVerilatorSimulator(
-		workerDir+"/O0",
-		sch.svFile,
+	var compiledSims []*SimInstance
+	var setupErrors []string
+
+	// 1. Icarus Verilog
+	ivWorkDir := baseWorkerDir // Icarus compiles in the base worker dir
+	ivsim := simulator.NewIVerilogSimulator(ivWorkDir, sch.verbose)
+	sch.debug.Debug("[%s] Compiling IVerilog simulator in %s", workerID, ivWorkDir)
+	if err := ivsim.Compile(); err != nil {
+		sch.debug.Warn("[%s] Failed to compile IVerilog: %v", workerID, err)
+		setupErrors = append(setupErrors, fmt.Sprintf("iverilog: %v", err))
+		// sch.handleGenericCompilationFailure(workerID, workerModuleName, "iverilog", err, baseWorkerDir)
+	} else {
+		sch.debug.Debug("[%s] IVerilog compiled successfully.", workerID)
+		compiledSims = append(compiledSims, &SimInstance{Name: "iverilog", Simulator: ivsim})
+	}
+
+	// 2. Verilator O0
+	vlO0WorkDir := filepath.Join(baseWorkerDir, "vl_O0")
+	if err := os.MkdirAll(vlO0WorkDir, 0o755); err != nil {
+		sch.debug.Warn(
+			"[%s] Failed to create Verilator O0 directory %s: %v",
+			workerID,
+			vlO0WorkDir,
+			err,
+		)
+		setupErrors = append(setupErrors, fmt.Sprintf("verilator_O0_mkdir: %v", err))
+	} else {
+		vlsim0 := simulator.NewVerilatorSimulator(vlO0WorkDir, svFileToCompile, workerModuleName, false, sch.verbose)
+		sch.debug.Debug("[%s] Compiling Verilator O0 simulator in %s", workerID, vlO0WorkDir)
+		if err := vlsim0.Compile(); err != nil {
+			sch.debug.Warn("[%s] Failed to compile Verilator O0: %v", workerID, err)
+			setupErrors = append(setupErrors, fmt.Sprintf("verilator_O0: %v", err))
+			// sch.handleGenericCompilationFailure(workerID, workerModuleName, "verilator_O0", err, baseWorkerDir)
+		} else {
+			sch.debug.Debug("[%s] Verilator O0 compiled successfully.", workerID)
+			compiledSims = append(compiledSims, &SimInstance{Name: "verilator_O0", Simulator: vlsim0})
+		}
+	}
+
+	// 3. Verilator O3
+	vlO3WorkDir := filepath.Join(baseWorkerDir, "vl_O3")
+	if err := os.MkdirAll(vlO3WorkDir, 0o755); err != nil {
+		sch.debug.Warn(
+			"[%s] Failed to create Verilator O3 directory %s: %v",
+			workerID,
+			vlO3WorkDir,
+			err,
+		)
+		setupErrors = append(setupErrors, fmt.Sprintf("verilator_O3_mkdir: %v", err))
+	} else {
+		vlsim3 := simulator.NewVerilatorSimulator(vlO3WorkDir, svFileToCompile, workerModuleName, true, sch.verbose)
+		sch.debug.Debug("[%s] Compiling Verilator O3 simulator in %s", workerID, vlO3WorkDir)
+		if err := vlsim3.Compile(); err != nil {
+			sch.debug.Warn("[%s] Failed to compile Verilator O3: %v", workerID, err)
+			setupErrors = append(setupErrors, fmt.Sprintf("verilator_O3: %v", err))
+			// sch.handleGenericCompilationFailure(workerID, workerModuleName, "verilator_O3", err, baseWorkerDir)
+		} else {
+			sch.debug.Debug("[%s] Verilator O3 compiled successfully.", workerID)
+			compiledSims = append(compiledSims, &SimInstance{Name: "verilator_O3", Simulator: vlsim3})
+		}
+	}
+
+	// 4. CXXRTL
+	cxxrtlWorkDir := filepath.Join(
+		baseWorkerDir,
+		"cxxrtl_sim",
+	) // Matches dir used for testbench generation
+	// Ensure CXXRTL include directory is available from scheduler config
+	includeDir := sch.cxxrtlIncludeDir
+	if includeDir == "" {
+		// Attempt to find it or use a common default, warn if not found.
+		defaultPath := "/usr/local/share/cxxrtl/include"
+		if _, err := os.Stat(defaultPath); !os.IsNotExist(err) {
+			includeDir = defaultPath
+		} else {
+			defaultPath = "/usr/share/cxxrtl/include" // Another common path
+			if _, err2 := os.Stat(defaultPath); !os.IsNotExist(err2) {
+				includeDir = defaultPath
+			}
+		}
+		if includeDir == "" {
+			sch.debug.Error(
+				"[%s] CXXRTL_INCLUDE_DIR is not configured and common defaults not found. CXXRTL will likely fail.",
+				workerID,
+			)
+			// Do not skip compilation, let it try and fail to capture the error.
+		} else {
+			sch.debug.Debug("[%s] Using CXXRTL_INCLUDE_DIR: %s", workerID, includeDir)
+		}
+	}
+	// svFileToCompile.Name is the base name of the Verilog file (e.g., design.v)
+	cxxrtlOriginalVerilogBaseName := svFileToCompile.Name
+	cxsim := simulator.NewCXXRTLSimulator(
+		cxxrtlWorkDir,
+		cxxrtlOriginalVerilogBaseName,
 		workerModuleName,
+		includeDir,
 		false,
 		sch.verbose,
 	)
-	sch.debug.Debug("[%s] Compiling IVerilog simulator", workerID)
-	// if err := ivsim.Compile(); err != nil {
-	//	return nil, nil, fmt.Errorf("failed to compile IVerilog in worker %s: %w", workerID, err)
-	//}
-	sch.debug.Debug("[%s] Compiling Verilator simulator", workerID)
-	vl0err := vlsim0.Compile()
-	vl3err := vlsim3.Compile()
-	if vl0err != nil && vl3err != nil {
-		return nil, nil, fmt.Errorf(
-			"Both Verilator compilations failed in worker %s: %w, %w",
+	sch.debug.Debug("[%s] Compiling CXXRTL simulator in %s", workerID, cxxrtlWorkDir)
+	if err := cxsim.Compile(); err != nil {
+		sch.debug.Warn("[%s] Failed to compile CXXRTL: %v", workerID, err)
+		setupErrors = append(setupErrors, fmt.Sprintf("cxxrtl: %v", err))
+		// sch.handleGenericCompilationFailure(workerID, workerModuleName, "cxxrtl", err, baseWorkerDir)
+	} else {
+		sch.debug.Debug("[%s] CXXRTL compiled successfully.", workerID)
+		compiledSims = append(compiledSims, &SimInstance{Name: "cxxrtl", Simulator: cxsim})
+	}
+
+	if len(compiledSims) == 0 {
+		return nil, fmt.Errorf(
+			"[%s] no simulators compiled successfully. Errors: %s",
 			workerID,
-			vl0err,
-			vl3err,
+			strings.Join(setupErrors, "; "),
 		)
 	}
-	if vl0err != nil || vl3err != nil {
-		// define which is the error
-		var err error
-		opt := "O0"
-		if vl0err != nil {
-			err = vl0err
-		} else {
-			err = vl3err
-			opt = "O3"
-		}
-		sch.debug.Warn(
-			"[%s] One of the Verilator compilations failed, %v, %s",
-			workerID,
-			err,
-			opt,
-		)
-		return nil, nil, fmt.Errorf("[%s] One of the compilations failed: %w, %s",
-			workerID,
-			err,
-			opt,
-		)
-	}
-	return vlsim0, vlsim3, nil
+
+	sch.debug.Info("[%s] Successfully compiled %d simulators.", workerID, len(compiledSims))
+	return compiledSims, nil
 }
 
 func (sch *Scheduler) worker(
@@ -319,24 +442,44 @@ func (sch *Scheduler) worker(
 
 func (sch *Scheduler) processTestCases(
 	workerID, workerDir string,
-	ivsim, vlsim simulator.Simulator,
+	sims []*SimInstance, // Changed from ivsim, vlsim
 	workerModule *verilog.Module,
 	testCases <-chan int,
 	strategy Strategy,
 ) []error {
-	errorMap := []error{}
+	var errorCollector []error
+	var errorMu sync.Mutex
+
 	for i := range testCases {
-		err := sch.runSingleTest(workerID, workerDir, ivsim, vlsim, workerModule, i, strategy)
+		testSpecificDir := filepath.Join(workerDir, fmt.Sprintf("test_%d", i))
+		if err := os.MkdirAll(testSpecificDir, 0o755); err != nil {
+			err := fmt.Errorf(
+				"[%s] failed to create test directory %s: %w",
+				workerID,
+				testSpecificDir,
+				err,
+			)
+			sch.debug.Error(err.Error())
+			errorMu.Lock()
+			errorCollector = append(errorCollector, err)
+			errorMu.Unlock()
+			continue
+		}
+
+		err := sch.runSingleTest(workerID, testSpecificDir, sims, workerModule, i, strategy)
 		if err != nil {
-			errorMap = append(errorMap, err)
+			sch.debug.Error("[%s] Test %d failed: %v", workerID, i, err)
+			errorMu.Lock()
+			errorCollector = append(errorCollector, err)
+			errorMu.Unlock()
 		}
 	}
-	return errorMap
+	return errorCollector
 }
 
 func (sch *Scheduler) runSingleTest(
-	workerID, workerDir string,
-	ivsim, vlsim simulator.Simulator,
+	workerID, testSpecificDir string,
+	sims []*SimInstance, // Changed from ivsim, vlsim
 	workerModule *verilog.Module,
 	testIndex int,
 	strategy Strategy,
@@ -355,49 +498,183 @@ func (sch *Scheduler) runSingleTest(
 		}
 	}
 
-	relativeTestDir := filepath.Join(workerDir, fmt.Sprintf("test_%d", testIndex))
-	testDir, err := filepath.Abs(relativeTestDir)
-	if err != nil {
-		return fmt.Errorf(
-			"[%s] Failed to get absolute path for test directory %s: %v",
-			workerID,
-			relativeTestDir,
-			err,
-		)
+	if err := writeTestInputs(testSpecificDir, testCase); err != nil {
+		return fmt.Errorf("[%s] Test %d: Failed to write inputs: %w", workerID, testIndex, err)
 	}
 
-	if err := os.MkdirAll(testDir, 0o755); err != nil {
-		return fmt.Errorf("[%s] Failed to create test directory %s: %v", workerID, testDir, err)
-	}
-	mismatch := false
+	mismatchOccurred := false
 	defer func() {
-		if !mismatch {
-			os.RemoveAll(testDir)
+		if !mismatchOccurred && sch.operation == OpFuzz {
+			if sch.verbose <= 2 { // Keep if verbose enough
+				os.RemoveAll(testSpecificDir)
+			} else {
+				sch.debug.Debug("[%s] Test %d: Preserving test directory %s due to verbosity.", workerID, testIndex, testSpecificDir)
+			}
+		} else if mismatchOccurred {
+			sch.debug.Info("[%s] Test %d: Preserving test directory %s due to mismatch.", workerID, testIndex, testSpecificDir)
 		}
 	}()
 
-	if err := writeTestInputs(testDir, testCase); err != nil {
-		return fmt.Errorf("[%s] Failed to write inputs for test %d: %v", workerID, testIndex, err)
+	simResults := make(map[string]map[string]string) // simName -> {portName -> value}
+	simErrors := make(map[string]error)              // simName -> error
+	var resultsMu sync.Mutex
+	var wg sync.WaitGroup
+
+	for _, simInstance := range sims {
+		wg.Add(1)
+		go func(si *SimInstance) {
+			defer wg.Done()
+			sch.debug.Debug("[%s] Test %d: Running simulator %s", workerID, testIndex, si.Name)
+
+			currentSimOutputPaths := make(map[string]string)
+			for _, port := range workerModule.Ports {
+				if port.Direction == verilog.OUTPUT {
+					var prefix string
+					switch si.Name {
+					case "iverilog":
+						prefix = IV_PREFIX
+					case "verilator_O0", "verilator_O3":
+						prefix = VL_PREFIX
+					case "cxxrtl":
+						prefix = CX_PREFIX
+					default:
+						// Ensure the slice is safe and handle potential empty name
+						if len(si.Name) > 0 {
+							prefix = strings.ToLower(si.Name[:min(3, len(si.Name))]) + "_"
+						} else {
+							prefix = "unk_" // Fallback for empty simulator name
+						}
+					}
+					outputFile := fmt.Sprintf("%s%s.hex", prefix, port.Name)
+					currentSimOutputPaths[port.Name] = filepath.Join(testSpecificDir, outputFile)
+				}
+			}
+
+			results, err := sch.runSimulator(
+				si.Name,
+				si.Simulator,
+				testSpecificDir,
+				currentSimOutputPaths,
+				workerModule,
+			)
+			resultsMu.Lock()
+			if err != nil {
+				simErrors[si.Name] = err
+				sch.debug.Error(
+					"[%s] Test %d: Simulator %s failed: %v",
+					workerID,
+					testIndex,
+					si.Name,
+					err,
+				)
+			} else {
+				simResults[si.Name] = results
+				sch.debug.Debug("[%s] Test %d: Simulator %s completed.", workerID, testIndex, si.Name)
+			}
+			resultsMu.Unlock()
+		}(simInstance)
+	}
+	wg.Wait()
+
+	// --- Mismatch Detection and Handling ---
+	successfulSimNames := []string{}
+	for simName := range simResults {
+		if simErrors[simName] == nil {
+			successfulSimNames = append(successfulSimNames, simName)
+		}
 	}
 
-	ivResult, ivErr := sch.runSimulator("iverilog", ivsim, testDir, workerModule)
-	vlResult, vlErr := sch.runSimulator("verilator", vlsim, testDir, workerModule)
-
-	if ivErr != nil && vlErr != nil {
-		mismatch = true
-		return fmt.Errorf(
-			"[%s] Both simulations failed for test %d on module %s with errors : \n%s\n%s",
+	if len(successfulSimNames) < 2 && sch.operation == OpFuzz {
+		sch.debug.Debug(
+			"[%s] Test %d: Not enough successful simulator runs (%d) to perform mismatch comparison.",
 			workerID,
 			testIndex,
-			workerModule.Name,
-			ivErr,
-			vlErr,
+			len(successfulSimNames),
 		)
+		// If only one (or zero) sim succeeded, check if any sim at all failed.
+		if len(simErrors) > 0 {
+			var firstError error
+			var firstErrorSimName string
+			for name, e := range simErrors {
+				if e != nil {
+					firstError = e
+					firstErrorSimName = name
+					break
+				}
+			}
+			if firstError != nil {
+				return fmt.Errorf(
+					"[%s] Test %d: Only %d sims succeeded, first error from %s: %w",
+					workerID,
+					testIndex,
+					len(successfulSimNames),
+					firstErrorSimName,
+					firstError,
+				)
+			}
+		}
+		return nil // Not enough to compare, but no explicit error to return for the test itself unless all failed.
 	}
 
-	mismatch, mismatchDetails := sch.compareSimulationResults(ivResult, vlResult)
-	if mismatch && sch.operation == OpFuzz {
-		sch.handleMismatch(testIndex, testDir, testCase, mismatchDetails, workerModule)
+	if sch.operation == OpFuzz {
+		var referenceSimName string
+		// Prefer Icarus as reference
+		for _, name := range successfulSimNames {
+			if name == "iverilog" {
+				referenceSimName = name
+				break
+			}
+		}
+		if referenceSimName == "" && len(successfulSimNames) > 0 {
+			referenceSimName = successfulSimNames[0] // Fallback to the first successful one
+		}
+
+		if referenceSimName != "" {
+			referenceResults := simResults[referenceSimName]
+			for _, currentSimName := range successfulSimNames {
+				if currentSimName == referenceSimName {
+					continue
+				}
+				currentResults := simResults[currentSimName]
+				mismatchFoundThisPair, details := sch.comparePairResults(
+					referenceResults,
+					currentResults,
+					referenceSimName,
+					currentSimName,
+				)
+				if mismatchFoundThisPair {
+					mismatchOccurred = true
+					sch.handleMismatch(
+						testIndex,
+						testSpecificDir,
+						testCase,
+						details,
+						workerModule,
+						referenceSimName, // Pass sim names
+						currentSimName,
+					)
+					// sch.stats.AddMismatch(testCase) // Moved to handleMismatch
+					break // Report first mismatch pair and stop for this test case
+				}
+			}
+		} else if len(successfulSimNames) > 0 {
+			// This case should ideally not be hit if the above logic is correct
+			sch.debug.Warn("[%s] Test %d: Have successful sims but no reference sim selected.", workerID, testIndex)
+		}
+	}
+
+	// Check if ALL simulators failed
+	if len(successfulSimNames) == 0 && len(sims) > 0 {
+		var errorMessages []string
+		for name, err := range simErrors {
+			errorMessages = append(errorMessages, fmt.Sprintf("%s: %v", name, err))
+		}
+		return fmt.Errorf(
+			"[%s] Test %d: All simulators failed. Errors: %s",
+			workerID,
+			testIndex,
+			strings.Join(errorMessages, "; "),
+		)
 	}
 	return nil
 }
@@ -415,53 +692,25 @@ func writeTestInputs(testDir string, testCase map[string]string) error {
 func (sch *Scheduler) runSimulator(
 	simName string,
 	sim simulator.Simulator,
-	testDir string,
+	testSpecificDir string, // e.g., worker_XYZ/test_0
+	outputPathsForSim map[string]string, // map portName to final prefixed path in testSpecificDir
 	module *verilog.Module,
 ) (map[string]string, error) {
-	outputDir := filepath.Join(testDir, simName)
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to create output dir %s: %v", outputDir, err)
+	// sim.RunTest expects inputDir (where input_N.hex are) and outputPaths (where to put prefixed_output_N.hex)
+	// Both should be relative to testSpecificDir or absolute paths within it.
+	if err := sim.RunTest(testSpecificDir, outputPathsForSim); err != nil {
+		return nil, fmt.Errorf("simulator %s RunTest failed: %w", simName, err)
 	}
 
-	outputPaths := make(map[string]string)
-	for _, port := range module.Ports {
-		if port.Direction == verilog.OUTPUT {
-			var prefix string
-			if simName == "iverilog" {
-				prefix = IV_PREFIX
-			} else {
-				prefix = VL_PREFIX
-			}
-			outputFile := fmt.Sprintf("%s%s.hex", prefix, port.Name)
-			outputPaths[port.Name] = filepath.Join(testDir, outputFile)
+	if len(outputPathsForSim) > 0 {
+		if err := simulator.VerifyOutputFiles(outputPathsForSim); err != nil {
+			return nil, fmt.Errorf("output file verification failed for %s: %w", simName, err)
 		}
 	}
 
-	if len(outputPaths) == 0 {
-		sch.debug.Debug(
-			"Warning: No output ports found for module %s in runSimulator (%s)",
-			module.Name,
-			simName,
-		)
-	}
-
-	if err := sim.RunTest(testDir, outputPaths); err != nil {
-		return nil, fmt.Errorf("failed to run %s: %v", simName, err)
-	}
-
-	if len(outputPaths) > 0 {
-		if err := simulator.VerifyOutputFiles(outputPaths); err != nil {
-			return nil, fmt.Errorf(
-				"Output file verification failed for %s: %v",
-				simName,
-				err,
-			)
-		}
-	}
-
-	results, err := simulator.ReadOutputFiles(outputPaths)
+	results, err := simulator.ReadOutputFiles(outputPathsForSim)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read output files for %s: %v", simName, err)
+		return nil, fmt.Errorf("failed to read output files for %s: %w", simName, err)
 	}
 	return results, nil
 }
