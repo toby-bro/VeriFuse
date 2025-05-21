@@ -131,11 +131,23 @@ func (sch *Scheduler) handleMismatch(
 	if err := os.MkdirAll(mismatchDir, 0o755); err != nil {
 		sch.debug.Error("Failed to create mismatch directory %s: %v", mismatchDir, err)
 	} else {
-		// Copy all the files from the test directory to the mismatch directory
-		sch.debug.Debug("Copying test files to mismatch directory %s", mismatchDir)
-		if err := utils.CopyDir(testDir, mismatchDir); err != nil {
-			sch.debug.Error("Failed to copy test files to mismatch directory %s: %v", mismatchDir, err)
+		// Copy files from the test directory to the mismatch directory, excluding subdirectories
+		sch.debug.Debug("Copying files from test directory %s to mismatch directory %s", testDir, mismatchDir)
+		files, err := os.ReadDir(testDir)
+		if err != nil {
+			sch.debug.Error("Failed to read test directory %s: %v", testDir, err)
+		} else {
+			for _, file := range files {
+				if !file.IsDir() {
+					srcPath := filepath.Join(testDir, file.Name())
+					destPath := filepath.Join(mismatchDir, file.Name())
+					if err := utils.CopyFile(srcPath, destPath); err != nil {
+						sch.debug.Error("Failed to copy file %s to %s: %v", srcPath, destPath, err)
+					}
+				}
+			}
 		}
+
 		summaryPath := filepath.Join(mismatchDir, fmt.Sprintf("mismatch_%d_summary.txt", testIndex))
 		fileContent := fmt.Sprintf(
 			"Test case %d\n\nInputs:\n", testIndex)
@@ -147,83 +159,108 @@ func (sch *Scheduler) handleMismatch(
 			fileContent += fmt.Sprintf("  %s: %s\n", portName, detail)
 		}
 		sch.debug.Debug("Writing mismatch summary to %s", summaryPath)
-		err := utils.WriteFileContent(summaryPath, fileContent)
+		// err is already declared above, so use = instead of :=
+		err = utils.WriteFileContent(summaryPath, fileContent)
 		if err != nil {
 			sch.debug.Error("Failed to write mismatch summary to %s: %v", summaryPath, err)
 		}
 
-		// Copy relevant files using glob patterns, excluding 'obj_dir'
-		sch.debug.Info("Copying additional files from source tree to mismatch directory %s", mismatchDir)
-		globSrcDir := filepath.Join(testDir, "..")
-		patterns := []string{"*.sv", "*.cc", "*.hex"} // Assuming .hex for user's .:whex
-		excludeDirName := "obj_dir"
+		// Copy specific files relevant to the test case
+		sch.debug.Info("Copying specific files for mismatch in %s", mismatchDir)
 
-		walkErr := filepath.Walk(globSrcDir, func(currentPath string, info os.FileInfo, walkErrIn error) error {
-			if walkErrIn != nil {
-				// Error accessing path (e.g. permission denied), log and decide how to handle.
-				// Depending on the error, we might want to skip this path or stop the walk.
-				// For now, log and skip the problematic path.
-				sch.debug.Warn("Error accessing path %s during walk: %v. Skipping.", currentPath, walkErrIn)
-				if info != nil && info.IsDir() {
-					return filepath.SkipDir // If it's a directory we can't access, skip it.
+		// Base directory for source files (design, testbench, etc.)
+		// testDir is like .../work_dir/test_N. Its parent is work_dir.
+		baseSrcDir := filepath.Join(testDir, "..")
+
+		// 1. Copy the main SV file (original design file)
+		// Assuming sch.svFile.Name is the simple filename, e.g., "my_module.sv"
+		// Also assuming sch.svFile is a pointer and might be nil.
+		if sch.svFile != nil && sch.svFile.Name != "" {
+			originalSvFileName := sch.svFile.Name
+			sourceSvFilePath := filepath.Join(baseSrcDir, originalSvFileName)
+			destSvFilePath := filepath.Join(mismatchDir, originalSvFileName)
+
+			// Check if source file exists before attempting to copy
+			if _, statErr := os.Stat(sourceSvFilePath); statErr == nil {
+				if copyErr := utils.CopyFile(sourceSvFilePath, destSvFilePath); copyErr != nil {
+					sch.debug.Warn("Failed to copy original SV file %s to %s: %v", sourceSvFilePath, destSvFilePath, copyErr)
+				} else {
+					sch.debug.Debug("Copied original SV file %s to %s", sourceSvFilePath, destSvFilePath)
 				}
-				return nil // If it's a file or other error, just skip this entry.
+			} else if !os.IsNotExist(statErr) {
+				// Log if stat failed for a reason other than "not exist"
+				sch.debug.Warn("Error stating original SV file %s: %v. Skipping copy.", sourceSvFilePath, statErr)
+			} else {
+				// File does not exist, log as debug/info as it might be expected in some setups
+				sch.debug.Info("Original SV file %s not found. Skipping copy.", sourceSvFilePath)
+			}
+		} else {
+			sch.debug.Warn("sch.svFile or sch.svFile.Name is not set. Skipping copy of original SV file.")
+		}
+
+		// 2. Copy the main testbench.sv
+		sourceTestbenchPath := filepath.Join(baseSrcDir, "testbench.sv")
+		destTestbenchPath := filepath.Join(mismatchDir, "testbench.sv")
+		if _, statErr := os.Stat(sourceTestbenchPath); statErr == nil {
+			if copyErr := utils.CopyFile(sourceTestbenchPath, destTestbenchPath); copyErr != nil {
+				sch.debug.Warn("Failed to copy testbench.sv %s to %s: %v", sourceTestbenchPath, destTestbenchPath, copyErr)
+			} else {
+				sch.debug.Debug("Copied testbench.sv %s to %s", sourceTestbenchPath, destTestbenchPath)
+			}
+		} else if !os.IsNotExist(statErr) {
+			sch.debug.Warn("Error stating testbench.sv %s: %v. Skipping copy.", sourceTestbenchPath, statErr)
+		} else {
+			sch.debug.Debug("testbench.sv %s not found. Skipping copy.", sourceTestbenchPath)
+		}
+
+		// 3. Attempt to copy CXXRTL specific files if they exist.
+		// These are typically in a 'cxxrtl_sim' or 'cxxrtl_slang_sim' subdirectory within baseSrcDir.
+		cxxrtlDirNames := []string{"cxxrtl_sim", "cxxrtl_slang_sim"}
+
+		for _, dirName := range cxxrtlDirNames {
+			cxxrtlSimDir := filepath.Join(baseSrcDir, dirName)
+			// Check if this specific cxxrtl directory exists
+			if _, statErr := os.Stat(cxxrtlSimDir); os.IsNotExist(statErr) {
+				sch.debug.Debug("CXXRTL directory %s not found. Skipping.", cxxrtlSimDir)
+				continue // Try the next directory name
+			} else if statErr != nil {
+				sch.debug.Warn("Error stating CXXRTL directory %s: %v. Skipping.", cxxrtlSimDir, statErr)
+				continue // Try the next directory name
 			}
 
-			relPath, err := filepath.Rel(globSrcDir, currentPath)
-			if err != nil {
-				sch.debug.Error("Failed to get relative path for %s (base %s): %v", currentPath, globSrcDir, err)
-				return err // This is unexpected, propagate error.
-			}
+			sch.debug.Debug("Checking for CXXRTL files in %s", cxxrtlSimDir)
 
-			// Check if any part of the path contains the excluded directory name.
-			pathSegments := strings.Split(relPath, string(filepath.Separator))
-			for _, segment := range pathSegments {
-				if segment == excludeDirName {
-					if info.IsDir() {
-						sch.debug.Debug("Skipping excluded directory: %s", currentPath)
-						return filepath.SkipDir
+			// CXXRTL testbench.cpp
+			sourceCppTestbenchPath := filepath.Join(cxxrtlSimDir, "testbench.cpp")
+			destCppTestbenchPath := filepath.Join(mismatchDir, fmt.Sprintf("%s_testbench.cpp", dirName)) // Ensure unique names if both dirs exist
+			if _, statErr := os.Stat(sourceCppTestbenchPath); statErr == nil {                           // File exists
+				if copyErr := utils.CopyFile(sourceCppTestbenchPath, destCppTestbenchPath); copyErr != nil {
+					sch.debug.Error("Failed to copy CXXRTL testbench %s to %s: %v", sourceCppTestbenchPath, destCppTestbenchPath, copyErr)
+				} else {
+					sch.debug.Debug("Copied CXXRTL testbench.cpp %s to %s", sourceCppTestbenchPath, destCppTestbenchPath)
+				}
+			} else if !os.IsNotExist(statErr) {
+				sch.debug.Warn("Could not stat CXXRTL testbench %s: %v. Skipping copy.", sourceCppTestbenchPath, statErr)
+			} // If os.IsNotExist(statErr), do nothing - file is optional.
+
+			// CXXRTL module .cc file (e.g., <module_name>.cc)
+			if workerModule != nil && workerModule.Name != "" {
+				cxxrtlModuleCcFileName := fmt.Sprintf("%s.cc", workerModule.Name)
+				sourceModuleCcPath := filepath.Join(cxxrtlSimDir, cxxrtlModuleCcFileName)
+				destModuleCcPath := filepath.Join(mismatchDir, fmt.Sprintf("%s_%s", dirName, cxxrtlModuleCcFileName)) // Ensure unique names
+
+				if _, statErr := os.Stat(sourceModuleCcPath); statErr == nil { // File exists
+					if copyErr := utils.CopyFile(sourceModuleCcPath, destModuleCcPath); copyErr != nil {
+						sch.debug.Error("Failed to copy CXXRTL module .cc file %s to %s: %v", sourceModuleCcPath, destModuleCcPath, copyErr)
+					} else {
+						sch.debug.Debug("Copied CXXRTL module .cc file %s to %s", sourceModuleCcPath, destModuleCcPath)
 					}
-					// File is within an excluded directory's path.
-					sch.debug.Debug("Skipping file in excluded path: %s", currentPath)
-					return nil
-				}
+				} else if !os.IsNotExist(statErr) {
+					sch.debug.Warn("Could not stat CXXRTL module .cc file %s: %v. Skipping copy.", sourceModuleCcPath, statErr)
+				} // If os.IsNotExist(statErr), do nothing.
+			} else {
+				sch.debug.Warn("workerModule or workerModule.Name is not set. Skipping copy of CXXRTL module .cc file for %s.", dirName)
 			}
-
-			if info.IsDir() {
-				return nil // It's a directory, but not excluded. Continue walking.
-			}
-
-			// Check if the file matches any of the specified patterns.
-			matchedPattern := false
-			for _, pattern := range patterns {
-				if matched, _ := filepath.Match(pattern, filepath.Base(currentPath)); matched {
-					matchedPattern = true
-					break
-				}
-			}
-
-			if matchedPattern {
-				destPath := filepath.Join(mismatchDir, relPath)
-
-				// Ensure the destination directory structure exists.
-				if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
-					sch.debug.Error("Failed to create directory for %s: %v", destPath, err)
-					return nil // Continue with other files.
-				}
-
-				// Copy the file.
-				sch.debug.Debug("Copying matched file %s to %s", currentPath, destPath)
-				if err := utils.CopyFile(currentPath, destPath); err != nil {
-					sch.debug.Error("Failed to copy file %s to %s: %v", currentPath, destPath, err)
-					// Continue with other files.
-				}
-			}
-			return nil
-		})
-
-		if walkErr != nil {
-			sch.debug.Error("Error during glob-based file copying: %v", walkErr)
 		}
 	}
 
