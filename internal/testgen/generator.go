@@ -397,33 +397,10 @@ func (g *Generator) generateCXXRTLInputReads(outputDir string) string {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
 			fileName := fmt.Sprintf("input_%s.hex", portName) // Changed filename format
-			absFilePath, err := filepath.Abs(filepath.Join(outputDir, fileName))
-			if err != nil {
-				log.Fatalf("Failed to get absolute path for input file %s: %v", fileName, err)
-			}
-
-			// Ensure the directory exists
-			if err := os.MkdirAll(filepath.Dir(absFilePath), 0o755); err != nil {
-				log.Fatalf("Failed to create directory for input file: %v", err)
-			}
-			// Create an empty file if it doesn't exist, so the C++ testbench can open it.
-			if _, err := os.Stat(absFilePath); os.IsNotExist(err) {
-				f, err := os.Create(absFilePath)
-				if err != nil {
-					log.Fatalf("Failed to create empty input file %s: %v", absFilePath, err)
-				}
-				// Write a default value if it's a hex file, e.g., "0"
-				if strings.HasSuffix(fileName, ".hex") {
-					if _, wErr := f.WriteString("0\n"); wErr != nil {
-						log.Fatalf("Failed to write default content to %s: %v", absFilePath, wErr)
-					}
-				}
-				f.Close()
-			}
 
 			// Use the absolute path in the generated C++ code
 			// Escape backslashes for Windows paths in C++ string literals
-			cppFilePath := strings.ReplaceAll(absFilePath, "\\", "\\\\")
+			cppFilePath := strings.ReplaceAll(fileName, "\\", "\\\\")
 
 			inputReads.WriteString(
 				fmt.Sprintf("    std::ifstream %s_file(\"%s\");\n", portName, cppFilePath),
@@ -589,19 +566,15 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string, outputDir st
 		if port.Direction == verilog.OUTPUT {
 			portName := strings.TrimSpace(port.Name)
 			fileName := fmt.Sprintf("output_%s.hex", portName) // Changed filename format
-			absFilePath, err := filepath.Abs(filepath.Join(outputDir, fileName))
-			if err != nil {
-				log.Fatalf("Failed to get absolute path for output file %s: %v", fileName, err)
-			}
 
 			// Ensure the directory exists
-			if err := os.MkdirAll(filepath.Dir(absFilePath), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(fileName), 0o755); err != nil {
 				log.Fatalf("Failed to create directory for output file: %v", err)
 			}
 
 			// Use the absolute path in the generated C++ code
 			// Escape backslashes for Windows paths in C++ string literals
-			cppFilePath := strings.ReplaceAll(absFilePath, "\\", "\\\\")
+			cppFilePath := strings.ReplaceAll(fileName, "\\", "\\\\")
 
 			outputWrites.WriteString(
 				fmt.Sprintf("    std::ofstream %s_file(\"%s\");\n", portName, cppFilePath),
