@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort" // Added for sorting simulator names
 	"strings"
 	"time"
 
@@ -41,60 +42,87 @@ func compareOutputValues(ivValue, vlValue string) bool {
 	return false
 }
 
-// comparePairResults compares results from two simulators.
-func (sch *Scheduler) comparePairResults(
-	resultsA, resultsB map[string]string,
-	nameA, nameB string,
+func (sch *Scheduler) compareAllResults(
+	results map[string]map[string]string,
 ) (bool, map[string]string) {
-	mismatch := false
-	mismatchDetails := make(map[string]string) // portName -> "SimA=valA, SimB=valB"
+	mismatchFound := false
+	mismatchDetails := make(map[string]string)
 
-	processedPorts := make(map[string]bool)
+	simNames := make([]string, 0, len(results))
+	for simName := range results {
+		simNames = append(simNames, simName)
+	}
+	sort.Strings(simNames)
 
-	for portName, valA := range resultsA {
-		processedPorts[portName] = true
-		valB, existsB := resultsB[portName]
-		if !existsB {
-			mismatch = true
-			mismatchDetails[portName] = fmt.Sprintf("%s=%s, %s=MISSING", nameA, valA, nameB)
-			sch.debug.Warn(
-				"Mismatch: Port %s found in %s but MISSING in %s",
-				portName,
-				nameA,
-				nameB,
-			)
-			continue
-		}
-		if !compareOutputValues(valA, valB) { // Uses existing low-level compareOutputValues
-			mismatch = true
-			mismatchDetails[portName] = fmt.Sprintf(
-				"%s=%s, %s=%s",
-				nameA, valA,
-				nameB, valB,
-			)
-			sch.debug.Warn("Mismatch: Port %s, %s=%s, %s=%s", portName, nameA, valA, nameB, valB)
+	allPorts := make(map[string]bool)
+	for _, simResultMap := range results {
+		for portName := range simResultMap {
+			allPorts[portName] = true
 		}
 	}
 
-	for portName, valB := range resultsB {
-		if _, processed := processedPorts[portName]; processed {
-			continue // Already compared from resultsA's perspective
+	for portName := range allPorts {
+		portReportEntries := make(map[string]string)
+		actualValuesPresent := []string{}
+		simsHavingThePortCount := 0
+
+		for _, simName := range simNames {
+			simResultMap, simExists := results[simName]
+			if !simExists {
+				portReportEntries[simName] = "SIM_DATA_MISSING"
+				continue
+			}
+			if value, found := simResultMap[portName]; found {
+				portReportEntries[simName] = value
+				actualValuesPresent = append(actualValuesPresent, value)
+				simsHavingThePortCount++
+			} else {
+				portReportEntries[simName] = "MISSING"
+			}
 		}
-		// This port exists in B but not in A (or was not in resultsA map)
-		mismatch = true
-		mismatchDetails[portName] = fmt.Sprintf("%s=MISSING, %s=%s", nameA, nameB, valB)
-		sch.debug.Warn("Mismatch: Port %s MISSING in %s but found in %s", portName, nameA, nameB)
+
+		isThisPortMismatch := false
+		if simsHavingThePortCount > 0 && simsHavingThePortCount < len(simNames) {
+			isThisPortMismatch = true
+		} else if simsHavingThePortCount >= 2 {
+			refValue := actualValuesPresent[0]
+			for i := 1; i < len(actualValuesPresent); i++ {
+				if !compareOutputValues(refValue, actualValuesPresent[i]) {
+					isThisPortMismatch = true
+					break
+				}
+			}
+		}
+
+		if isThisPortMismatch {
+			mismatchFound = true
+			detailParts := make([]string, 0, len(simNames))
+			for _, simName := range simNames {
+				detailParts = append(
+					detailParts,
+					fmt.Sprintf("%s=%s", simName, portReportEntries[simName]),
+				)
+			}
+			mismatchDetails[portName] = strings.Join(detailParts, ", ")
+			sch.debug.Warn("Mismatch for port %s: %s", portName, mismatchDetails[portName])
+		}
 	}
 
-	if mismatch {
+	if mismatchFound {
+		var simNamesStr string
+		if len(simNames) > 0 {
+			simNamesStr = strings.Join(simNames, ", ")
+		} else {
+			sch.debug.Error("No simulator names found in results map")
+		}
 		sch.debug.Debug(
-			"Comparison between %s and %s found mismatches: %v",
-			nameA,
-			nameB,
+			"Comparison across %s found mismatches: %v",
+			simNamesStr,
 			mismatchDetails,
 		)
 	}
-	return mismatch, mismatchDetails
+
+	return mismatchFound, mismatchDetails
 }
 
 func (sch *Scheduler) handleMismatch(
@@ -103,16 +131,12 @@ func (sch *Scheduler) handleMismatch(
 	testCase map[string]string,
 	mismatchDetails map[string]string,
 	workerModule *verilog.Module,
-	simNameA string,
-	simNameB string,
 ) {
-	sch.stats.AddMismatch(testCase) // Moved here from runSingleTest
-	sch.debug.Error(                // Changed from Info to Error for more visibility
-		"[%s] Mismatch FOUND in test %d between %s and %s for module %s",
-		filepath.Base(testDir), // Use base name of testDir for brevity
+	sch.stats.AddMismatch(testCase)
+	sch.debug.Info(
+		"[%s] Mismatch FOUND in test %d for module %s%s",
+		filepath.Base(testDir),
 		testIndex,
-		simNameA,
-		simNameB,
 		workerModule.Name,
 	)
 	sch.debug.Info("Inputs for test %d:", testIndex)
@@ -124,8 +148,8 @@ func (sch *Scheduler) handleMismatch(
 		sch.debug.Info("  %s: %s", portName, detail)
 	}
 	// Create a unique directory for this mismatch instance
-	mismatchInstanceName := fmt.Sprintf("mismatch_%s_vs_%s_test_%d_time_%d",
-		simNameA, simNameB, testIndex, time.Now().UnixNano())
+	mismatchInstanceName := fmt.Sprintf("mismatch_test_%d_time_%d",
+		testIndex, time.Now().UnixNano())
 	mismatchDir := filepath.Join(utils.MISMATCHES_DIR, mismatchInstanceName)
 
 	if err := os.MkdirAll(mismatchDir, 0o755); err != nil {
