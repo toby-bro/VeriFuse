@@ -113,7 +113,7 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 			resultsMu.Lock()
 			if err != nil {
 				simErrors[si.Name] = err
-				sch.debug.Error(
+				sch.debug.Warn(
 					"[%s] Test %d: Simulator %s failed: %v",
 					workerID,
 					testIndex,
@@ -143,19 +143,19 @@ func (sch *Scheduler) detectAndHandleMismatches(
 	workerModule *verilog.Module,
 	testIndex int,
 ) (bool, error) {
-	successfulSimNames := []string{}
+	successfulSimResults := make(map[string]map[string]string)
 	for simName := range simResults {
 		if simErrors[simName] == nil {
-			successfulSimNames = append(successfulSimNames, simName)
+			successfulSimResults[simName] = simResults[simName]
 		}
 	}
 
-	if len(successfulSimNames) < 2 && sch.operation == OpFuzz {
+	if len(successfulSimResults) < 2 && sch.operation == OpFuzz {
 		sch.debug.Debug(
 			"[%s] Test %d: Not enough successful simulator runs (%d) to perform mismatch comparison.",
 			workerID,
 			testIndex,
-			len(successfulSimNames),
+			len(successfulSimResults),
 		)
 		if len(simErrors) > 0 {
 			var firstError error
@@ -170,61 +170,32 @@ func (sch *Scheduler) detectAndHandleMismatches(
 			if firstError != nil {
 				return false, fmt.Errorf(
 					"only %d sims succeeded, first error from %s: %w",
-					len(successfulSimNames),
+					len(successfulSimResults),
 					firstErrorSimName,
 					firstError,
 				)
 			}
 		}
-		return false, nil // Not enough to compare, but no explicit error for the test itself unless all failed.
+		return false, nil
 	}
 
 	mismatchFoundThisTest := false
-	if sch.operation == OpFuzz {
-		var referenceSimName string
-		for _, name := range successfulSimNames {
-			if name == "iverilog" { // Prefer Icarus as reference
-				referenceSimName = name
-				break
-			}
-		}
-		if referenceSimName == "" && len(successfulSimNames) > 0 {
-			referenceSimName = successfulSimNames[0] // Fallback
-		}
 
-		if referenceSimName != "" {
-			referenceResults := simResults[referenceSimName]
-			for _, currentSimName := range successfulSimNames {
-				if currentSimName == referenceSimName {
-					continue
-				}
-				currentResults := simResults[currentSimName]
-				mismatchFoundThisPair, details := sch.comparePairResults(
-					referenceResults,
-					currentResults,
-					referenceSimName,
-					currentSimName,
-				)
-				if mismatchFoundThisPair {
-					mismatchFoundThisTest = true
-					sch.handleMismatch(
-						testIndex,
-						testSpecificDir,
-						testCase,
-						details,
-						workerModule,
-						referenceSimName,
-						currentSimName,
-					)
-					break // Report first mismatch pair
-				}
-			}
-		} else if len(successfulSimNames) > 0 {
-			sch.debug.Warn("[%s] Test %d: Have successful sims but no reference sim selected.", workerID, testIndex)
+	if sch.operation == OpFuzz {
+		mismatchFoundThisTest, details := sch.compareAllResults(successfulSimResults)
+
+		if mismatchFoundThisTest {
+			sch.handleMismatch(
+				testIndex,
+				testSpecificDir,
+				testCase,
+				details,
+				workerModule,
+			)
 		}
 	}
 
-	if len(successfulSimNames) == 0 && len(sims) > 0 {
+	if len(successfulSimResults) == 0 && len(sims) > 0 {
 		var errorMessages []string
 		for name, err := range simErrors {
 			errorMessages = append(errorMessages, fmt.Sprintf("%s: %v", name, err))
