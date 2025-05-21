@@ -162,96 +162,16 @@ func (sch *Scheduler) handleMismatch(
 			sch.debug.Error("Failed to copy testbench file %s to mismatch directory %s: %v", testbenchPath, mismatchDir, err)
 		}
 		// If using CXXRTL, copy the CXXRTL testbench as well
-		sourceCppTestbenchPath := filepath.Join(testDir, "../testbench.cpp")
+		sourceCppTestbenchPath := filepath.Join(testDir, "../cxxrtl_sim/testbench.cpp")
 		if err := utils.CopyFile(sourceCppTestbenchPath, mismatchDir+"/testbench.cpp"); err != nil {
 			sch.debug.Error("Failed to copy CXXRTL testbench %s to %s: %v", sourceCppTestbenchPath, mismatchDir, err)
+		}
+		// Copy any .cc file
+		sourceCCFilePath := filepath.Join(testDir, fmt.Sprintf("../cxxrtl_sim/%s.cc", workerModule.Name))
+		if err := utils.CopyFile(sourceCCFilePath, mismatchDir+"/"); err != nil {
+			sch.debug.Error("Failed to copy CXXRTL .cc file %s to %s: %v", sourceCCFilePath, mismatchDir, err)
 		}
 	}
 
 	sch.debug.Debug("Mismatch artifacts for test %d saved to %s", testIndex, mismatchDir)
-}
-
-func (sch *Scheduler) handleCompilationMismatch(
-	workerID string, // This is the workerCompleteID from performWorkerAttempt
-	workerModule *verilog.Module,
-	compilationErr error,
-) {
-	sch.debug.Error(
-		"[%s] Handling compilation mismatch for module %s: %v",
-		workerID,
-		workerModule.Name,
-		compilationErr,
-	)
-
-	// Reconstruct workerDir from workerID, as workerID is the identifier used when setting up the worker's directory.
-	workerDir := filepath.Join(utils.TMP_DIR, workerID)
-
-	// Sanitize module name and workerID for use in directory/file names
-	safeModuleName := strings.ReplaceAll(workerModule.Name, "/", "_")
-	safeModuleName = strings.ReplaceAll(safeModuleName, ".", "_")
-	safeWorkerID := strings.ReplaceAll(workerID, "/", "_")
-	safeWorkerID = strings.ReplaceAll(safeWorkerID, ".", "_")
-
-	mismatchDirName := fmt.Sprintf("comp_mismatch_%s_%s", safeModuleName, safeWorkerID)
-	mismatchDir := filepath.Join(utils.MISMATCHES_DIR, mismatchDirName)
-
-	if err := os.MkdirAll(mismatchDir, 0o755); err != nil {
-		sch.debug.Error(
-			"[%s] Failed to create compilation mismatch directory %s: %v",
-			workerID,
-			mismatchDir,
-			err,
-		)
-		// If directory creation fails, we can't save files, but still record the stat.
-	} else {
-		sch.debug.Info("[%s] Saving compilation failure artifacts to %s", workerID, mismatchDir)
-
-		// 1. Copy the Verilog source file that failed compilation.
-		// This file is located in workerDir (e.g., utils.TMP_DIR/worker_XYZ/f.svFile.Name).
-		srcVerilogFile := filepath.Join(workerDir, sch.svFile.Name)
-		destVerilogFile := filepath.Join(mismatchDir, sch.svFile.Name)
-		if err := utils.CopyFile(srcVerilogFile, destVerilogFile); err != nil {
-			sch.debug.Error("[%s] Failed to copy Verilog file %s to %s: %v", workerID, srcVerilogFile, mismatchDir, err)
-		} else {
-			sch.debug.Debug("[%s] Copied Verilog file %s to %s", workerID, srcVerilogFile, mismatchDir)
-		}
-
-		// 2. Copy the testbench file.
-		// Testbenches are generated in workerDir before the compilation attempt.
-		// Assuming "testbench.sv" is the standard name, as implied by handleMismatch.
-		srcTestbenchFile := filepath.Join(workerDir, "testbench.sv")
-		if _, statErr := os.Stat(srcTestbenchFile); statErr == nil { // Check if testbench file exists
-			destTestbenchFile := filepath.Join(mismatchDir, "testbench.sv")
-			if err := utils.CopyFile(srcTestbenchFile, destTestbenchFile); err != nil {
-				sch.debug.Error("[%s] Failed to copy testbench file %s to %s: %v", workerID, srcTestbenchFile, mismatchDir, err)
-			} else {
-				sch.debug.Debug("[%s] Copied testbench file %s to %s", workerID, srcTestbenchFile, mismatchDir)
-			}
-		} else {
-			sch.debug.Warn("[%s] Testbench file %s not found in %s (error: %v), skipping copy.", workerID, "testbench.sv", workerDir, statErr)
-		}
-
-		// 3. Write a summary file with the error details.
-		summaryFileName := fmt.Sprintf("summary_comp_mismatch_%s_%s.txt", safeModuleName, safeWorkerID)
-		summaryPath := filepath.Join(mismatchDir, summaryFileName)
-		summaryContent := fmt.Sprintf(
-			"Compilation Mismatch Report\n\n"+
-				"Worker ID: %s\n"+
-				"Module: %s\n"+
-				"Verilog File Base Name: %s\n\n"+ // This is the f.svFile.Name, which was copied to workerDir and compiled
-				"Error Details:\n%s\n",
-			workerID,
-			workerModule.Name,
-			sch.svFile.Name,
-			compilationErr.Error(),
-		)
-
-		if err := utils.WriteFileContent(summaryPath, summaryContent); err != nil {
-			sch.debug.Error("[%s] Failed to write compilation mismatch summary to %s: %v", workerID, summaryPath, err)
-		} else {
-			sch.debug.Debug("[%s] Compilation mismatch summary written to %s", workerID, summaryPath)
-		}
-	}
-
-	sch.stats.AddCompilationMismatch()
 }
