@@ -151,25 +151,79 @@ func (sch *Scheduler) handleMismatch(
 		if err != nil {
 			sch.debug.Error("Failed to write mismatch summary to %s: %v", summaryPath, err)
 		}
-		// also copy the file that was tested and the testbench
-		testFilePath := filepath.Join(testDir, "../")
-		testFilePath = filepath.Join(testFilePath, sch.svFile.Name)
-		if err := utils.CopyFile(testFilePath, mismatchDir+"/"+sch.svFile.Name); err != nil {
-			sch.debug.Error("Failed to copy test file %s to mismatch directory %s: %v", testFilePath, mismatchDir, err)
-		}
-		testbenchPath := filepath.Join(testDir, "../testbench.sv")
-		if err := utils.CopyFile(testbenchPath, mismatchDir+"/testbench.sv"); err != nil {
-			sch.debug.Error("Failed to copy testbench file %s to mismatch directory %s: %v", testbenchPath, mismatchDir, err)
-		}
-		// If using CXXRTL, copy the CXXRTL testbench as well
-		sourceCppTestbenchPath := filepath.Join(testDir, "../cxxrtl_sim/testbench.cpp")
-		if err := utils.CopyFile(sourceCppTestbenchPath, mismatchDir+"/testbench.cpp"); err != nil {
-			sch.debug.Error("Failed to copy CXXRTL testbench %s to %s: %v", sourceCppTestbenchPath, mismatchDir, err)
-		}
-		// Copy any .cc file
-		sourceCCFilePath := filepath.Join(testDir, fmt.Sprintf("../cxxrtl_sim/%s.cc", workerModule.Name))
-		if err := utils.CopyFile(sourceCCFilePath, mismatchDir+"/"); err != nil {
-			sch.debug.Error("Failed to copy CXXRTL .cc file %s to %s: %v", sourceCCFilePath, mismatchDir, err)
+
+		// Copy relevant files using glob patterns, excluding 'obj_dir'
+		sch.debug.Info("Copying additional files from source tree to mismatch directory %s", mismatchDir)
+		globSrcDir := filepath.Join(testDir, "..")
+		patterns := []string{"*.sv", "*.cc", "*.hex"} // Assuming .hex for user's .:whex
+		excludeDirName := "obj_dir"
+
+		walkErr := filepath.Walk(globSrcDir, func(currentPath string, info os.FileInfo, walkErrIn error) error {
+			if walkErrIn != nil {
+				// Error accessing path (e.g. permission denied), log and decide how to handle.
+				// Depending on the error, we might want to skip this path or stop the walk.
+				// For now, log and skip the problematic path.
+				sch.debug.Warn("Error accessing path %s during walk: %v. Skipping.", currentPath, walkErrIn)
+				if info != nil && info.IsDir() {
+					return filepath.SkipDir // If it's a directory we can't access, skip it.
+				}
+				return nil // If it's a file or other error, just skip this entry.
+			}
+
+			relPath, err := filepath.Rel(globSrcDir, currentPath)
+			if err != nil {
+				sch.debug.Error("Failed to get relative path for %s (base %s): %v", currentPath, globSrcDir, err)
+				return err // This is unexpected, propagate error.
+			}
+
+			// Check if any part of the path contains the excluded directory name.
+			pathSegments := strings.Split(relPath, string(filepath.Separator))
+			for _, segment := range pathSegments {
+				if segment == excludeDirName {
+					if info.IsDir() {
+						sch.debug.Debug("Skipping excluded directory: %s", currentPath)
+						return filepath.SkipDir
+					}
+					// File is within an excluded directory's path.
+					sch.debug.Debug("Skipping file in excluded path: %s", currentPath)
+					return nil
+				}
+			}
+
+			if info.IsDir() {
+				return nil // It's a directory, but not excluded. Continue walking.
+			}
+
+			// Check if the file matches any of the specified patterns.
+			matchedPattern := false
+			for _, pattern := range patterns {
+				if matched, _ := filepath.Match(pattern, filepath.Base(currentPath)); matched {
+					matchedPattern = true
+					break
+				}
+			}
+
+			if matchedPattern {
+				destPath := filepath.Join(mismatchDir, relPath)
+
+				// Ensure the destination directory structure exists.
+				if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+					sch.debug.Error("Failed to create directory for %s: %v", destPath, err)
+					return nil // Continue with other files.
+				}
+
+				// Copy the file.
+				sch.debug.Debug("Copying matched file %s to %s", currentPath, destPath)
+				if err := utils.CopyFile(currentPath, destPath); err != nil {
+					sch.debug.Error("Failed to copy file %s to %s: %v", currentPath, destPath, err)
+					// Continue with other files.
+				}
+			}
+			return nil
+		})
+
+		if walkErr != nil {
+			sch.debug.Error("Error during glob-based file copying: %v", walkErr)
 		}
 	}
 
