@@ -176,6 +176,17 @@ func (sch *Scheduler) performWorkerAttempt(
 	if err := gen.GenerateCXXRTLTestbench(cxxrtlSimDir); err != nil { // Pass cxxrtlSimDir
 		return false, fmt.Errorf("[%s] failed to generate CXXRTL testbench: %w", workerID, err)
 	}
+	cxxrtlSimDir = filepath.Join(workerDir, "cxxrtl_slang_sim")
+	if err := os.MkdirAll(cxxrtlSimDir, 0o755); err != nil {
+		return false, fmt.Errorf("[%s] failed to create cxxrtl_slang_sim dir: %w", workerID, err)
+	}
+	if err := gen.GenerateCXXRTLTestbench(cxxrtlSimDir); err != nil { // Pass cxxrtlSimDir
+		return false, fmt.Errorf(
+			"[%s] failed to generate CXXRTL slang testbench: %w",
+			workerID,
+			err,
+		)
+	}
 	sch.debug.Debug("[%s] Testbenches generated.", workerID)
 
 	sims, err := sch.setupSimulators(
