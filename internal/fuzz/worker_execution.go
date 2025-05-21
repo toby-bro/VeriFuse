@@ -1,0 +1,341 @@
+package fuzz
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"github.com/toby-bro/pfuzz/internal/simulator"
+	"github.com/toby-bro/pfuzz/internal/verilog"
+)
+
+func (sch *Scheduler) processTestCases(
+	workerID, workerDir string,
+	sims []*SimInstance, // Changed from ivsim, vlsim
+	workerModule *verilog.Module,
+	testCases <-chan int,
+	strategy Strategy,
+) []error {
+	var errorCollector []error
+	var errorMu sync.Mutex
+
+	for i := range testCases {
+		testSpecificDir := filepath.Join(workerDir, fmt.Sprintf("test_%d", i))
+		if err := os.MkdirAll(testSpecificDir, 0o755); err != nil {
+			err := fmt.Errorf(
+				"[%s] failed to create test directory %s: %w",
+				workerID,
+				testSpecificDir,
+				err,
+			)
+			sch.debug.Error(err.Error())
+			errorMu.Lock()
+			errorCollector = append(errorCollector, err)
+			errorMu.Unlock()
+			continue
+		}
+
+		err := sch.runSingleTest(workerID, testSpecificDir, sims, workerModule, i, strategy)
+		if err != nil {
+			sch.debug.Error("[%s] Test %d failed: %v", workerID, i, err)
+			errorMu.Lock()
+			errorCollector = append(errorCollector, err)
+			errorMu.Unlock()
+		}
+	}
+	return errorCollector
+}
+
+// generateAndPrepareInputs handles test case generation and writing input files.
+func (sch *Scheduler) generateAndPrepareInputs(
+	workerID, testSpecificDir string,
+	workerModule *verilog.Module,
+	testIndex int,
+	strategy Strategy,
+) (map[string]string, error) {
+	testCase := strategy.GenerateTestCase(testIndex)
+	sch.stats.AddTest()
+
+	for _, port := range workerModule.Ports {
+		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
+			if _, exists := testCase[port.Name]; !exists {
+				defaultValue := strings.Repeat("0", port.Width)
+				testCase[port.Name] = defaultValue
+				sch.debug.Debug("[%s] Test %d: Added default value '%s' for new input port '%s'",
+					workerID, testIndex, defaultValue, port.Name)
+			}
+		}
+	}
+
+	if err := writeTestInputs(testSpecificDir, testCase); err != nil {
+		return nil, fmt.Errorf("failed to write inputs: %w", err)
+	}
+	return testCase, nil
+}
+
+// executeSimulatorsConcurrently manages the concurrent execution of different simulators.
+func (sch *Scheduler) executeSimulatorsConcurrently(
+	workerID, testSpecificDir string,
+	sims []*SimInstance,
+	workerModule *verilog.Module,
+	testIndex int,
+) (map[string]map[string]string, map[string]error) {
+	simResults := make(map[string]map[string]string) // simName -> {portName -> value}
+	simErrors := make(map[string]error)              // simName -> error
+	var resultsMu sync.Mutex
+	var wg sync.WaitGroup
+
+	for _, simInstance := range sims {
+		wg.Add(1)
+		go func(si *SimInstance) {
+			defer wg.Done()
+			sch.debug.Debug("[%s] Test %d: Running simulator %s", workerID, testIndex, si.Name)
+
+			currentSimOutputPaths := make(map[string]string)
+			for _, port := range workerModule.Ports {
+				if port.Direction == verilog.OUTPUT {
+					outputFile := fmt.Sprintf("%s%s.hex", si.Prefix, port.Name)
+					currentSimOutputPaths[port.Name] = filepath.Join(testSpecificDir, outputFile)
+				}
+			}
+
+			results, err := sch.runSimulator(
+				si.Name,
+				si.Simulator,
+				testSpecificDir,
+				currentSimOutputPaths,
+				workerModule,
+			)
+			resultsMu.Lock()
+			if err != nil {
+				simErrors[si.Name] = err
+				sch.debug.Error(
+					"[%s] Test %d: Simulator %s failed: %v",
+					workerID,
+					testIndex,
+					si.Name,
+					err,
+				)
+			} else {
+				simResults[si.Name] = results
+				sch.debug.Debug("[%s] Test %d: Simulator %s completed.", workerID, testIndex, si.Name)
+			}
+			resultsMu.Unlock()
+		}(simInstance)
+	}
+	wg.Wait()
+	return simResults, simErrors
+}
+
+// detectAndHandleMismatches compares simulator outputs and handles any discrepancies.
+// It returns true if a mismatch was detected and handled, false otherwise.
+// An error is returned for critical issues during mismatch processing or if all simulators failed.
+func (sch *Scheduler) detectAndHandleMismatches(
+	workerID, testSpecificDir string,
+	testCase map[string]string,
+	sims []*SimInstance,
+	simResults map[string]map[string]string,
+	simErrors map[string]error,
+	workerModule *verilog.Module,
+	testIndex int,
+) (bool, error) {
+	successfulSimNames := []string{}
+	for simName := range simResults {
+		if simErrors[simName] == nil {
+			successfulSimNames = append(successfulSimNames, simName)
+		}
+	}
+
+	if len(successfulSimNames) < 2 && sch.operation == OpFuzz {
+		sch.debug.Debug(
+			"[%s] Test %d: Not enough successful simulator runs (%d) to perform mismatch comparison.",
+			workerID,
+			testIndex,
+			len(successfulSimNames),
+		)
+		if len(simErrors) > 0 {
+			var firstError error
+			var firstErrorSimName string
+			for name, e := range simErrors {
+				if e != nil {
+					firstError = e
+					firstErrorSimName = name
+					break
+				}
+			}
+			if firstError != nil {
+				return false, fmt.Errorf(
+					"only %d sims succeeded, first error from %s: %w",
+					len(successfulSimNames),
+					firstErrorSimName,
+					firstError,
+				)
+			}
+		}
+		return false, nil // Not enough to compare, but no explicit error for the test itself unless all failed.
+	}
+
+	mismatchFoundThisTest := false
+	if sch.operation == OpFuzz {
+		var referenceSimName string
+		for _, name := range successfulSimNames {
+			if name == "iverilog" { // Prefer Icarus as reference
+				referenceSimName = name
+				break
+			}
+		}
+		if referenceSimName == "" && len(successfulSimNames) > 0 {
+			referenceSimName = successfulSimNames[0] // Fallback
+		}
+
+		if referenceSimName != "" {
+			referenceResults := simResults[referenceSimName]
+			for _, currentSimName := range successfulSimNames {
+				if currentSimName == referenceSimName {
+					continue
+				}
+				currentResults := simResults[currentSimName]
+				mismatchFoundThisPair, details := sch.comparePairResults(
+					referenceResults,
+					currentResults,
+					referenceSimName,
+					currentSimName,
+				)
+				if mismatchFoundThisPair {
+					mismatchFoundThisTest = true
+					sch.handleMismatch(
+						testIndex,
+						testSpecificDir,
+						testCase,
+						details,
+						workerModule,
+						referenceSimName,
+						currentSimName,
+					)
+					break // Report first mismatch pair
+				}
+			}
+		} else if len(successfulSimNames) > 0 {
+			sch.debug.Warn("[%s] Test %d: Have successful sims but no reference sim selected.", workerID, testIndex)
+		}
+	}
+
+	if len(successfulSimNames) == 0 && len(sims) > 0 {
+		var errorMessages []string
+		for name, err := range simErrors {
+			errorMessages = append(errorMessages, fmt.Sprintf("%s: %v", name, err))
+		}
+		return false, fmt.Errorf(
+			"all simulators failed. Errors: %s",
+			strings.Join(errorMessages, "; "),
+		)
+	}
+	return mismatchFoundThisTest, nil
+}
+
+func (sch *Scheduler) runSingleTest(
+	workerID, testSpecificDir string,
+	sims []*SimInstance,
+	workerModule *verilog.Module,
+	testIndex int,
+	strategy Strategy,
+) error {
+	// Step 1: Generate Test Case and Prepare Inputs
+	testCase, err := sch.generateAndPrepareInputs(
+		workerID,
+		testSpecificDir,
+		workerModule,
+		testIndex,
+		strategy,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"[%s] Test %d: Failed to generate and prepare inputs: %w",
+			workerID,
+			testIndex,
+			err,
+		)
+	}
+
+	var mismatchOccurredDuringTest bool
+	defer func() {
+		if !mismatchOccurredDuringTest && sch.operation == OpFuzz {
+			if sch.verbose <= 2 {
+				os.RemoveAll(testSpecificDir)
+			} else {
+				sch.debug.Debug("[%s] Test %d: Preserving test directory %s due to verbosity.", workerID, testIndex, testSpecificDir)
+			}
+		} else if mismatchOccurredDuringTest {
+			sch.debug.Info("[%s] Test %d: Preserving test directory %s due to mismatch.", workerID, testIndex, testSpecificDir)
+		}
+	}()
+
+	// Step 2: Execute Simulators Concurrently
+	simResults, simErrors := sch.executeSimulatorsConcurrently(
+		workerID,
+		testSpecificDir,
+		sims,
+		workerModule,
+		testIndex,
+	)
+
+	// Step 3: Detect Mismatches and Handle Them
+	mismatchFoundThisTest, errHandlingMismatches := sch.detectAndHandleMismatches(
+		workerID,
+		testSpecificDir,
+		testCase,
+		sims,
+		simResults,
+		simErrors,
+		workerModule,
+		testIndex,
+	)
+	if mismatchFoundThisTest {
+		mismatchOccurredDuringTest = true
+	}
+
+	if errHandlingMismatches != nil {
+		// Prefix error messages from detectAndHandleMismatches with context
+		return fmt.Errorf("[%s] Test %d: %w", workerID, testIndex, errHandlingMismatches)
+	}
+
+	return nil
+}
+
+func writeTestInputs(testDir string, testCase map[string]string) error {
+	for portName, value := range testCase {
+		inputPath := filepath.Join(testDir, fmt.Sprintf("input_%s.hex", portName))
+		if err := os.WriteFile(inputPath, []byte(value), 0o644); err != nil {
+			return fmt.Errorf("failed to write input file %s: %v", inputPath, err)
+		}
+	}
+	return nil
+}
+
+func (sch *Scheduler) runSimulator(
+	simName string,
+	sim simulator.Simulator,
+	testSpecificDir string, // e.g., worker_XYZ/test_0
+	outputPathsForSim map[string]string, // map portName to final prefixed path in testSpecificDir
+	module *verilog.Module,
+) (map[string]string, error) {
+	// sim.RunTest expects inputDir (where input_N.hex are) and outputPaths (where to put prefixed_output_N.hex)
+	// Both should be relative to testSpecificDir or absolute paths within it.
+	if err := sim.RunTest(testSpecificDir, outputPathsForSim); err != nil {
+		return nil, fmt.Errorf("simulator %s RunTest failed: %w", simName, err)
+	}
+
+	if len(outputPathsForSim) > 0 {
+		if err := simulator.VerifyOutputFiles(outputPathsForSim); err != nil {
+			return nil, fmt.Errorf("output file verification failed for %s: %w", simName, err)
+		}
+	}
+
+	results, err := simulator.ReadOutputFiles(outputPathsForSim)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read output files for %s: %w", simName, err)
+	}
+	return results, nil
+}
