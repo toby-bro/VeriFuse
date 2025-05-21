@@ -14,7 +14,7 @@ import (
 // IVerilogSimulator represents the IVerilog simulator
 type IVerilogSimulator struct {
 	execPath string
-	workDir  string
+	workDir  string // This will be the dedicated subdirectory, e.g., baseWorkDir/iverilog_run
 	debug    *utils.DebugLogger
 }
 
@@ -39,10 +39,11 @@ func TestIVerilogTool() error {
 }
 
 // NewIVerilogSimulator creates a new IVerilog simulator instance
-func NewIVerilogSimulator(workDir string, verbose int) *IVerilogSimulator {
+func NewIVerilogSimulator(baseWorkDir string, verbose int) *IVerilogSimulator {
+	actualWorkDir := filepath.Join(baseWorkDir, "iverilog_run")
 	return &IVerilogSimulator{
-		execPath: filepath.Join(workDir, "module_sim_iv"),
-		workDir:  workDir,
+		execPath: filepath.Join(actualWorkDir, "module_sim_iv"),
+		workDir:  actualWorkDir,
 		debug:    utils.NewDebugLogger(verbose),
 	}
 }
@@ -54,10 +55,24 @@ func (sim *IVerilogSimulator) Compile() error {
 
 // CompileSpecific compiles only the specified files (or all .sv files if nil)
 func (sim *IVerilogSimulator) CompileSpecific() error {
+	sim.debug.Debug("Ensuring IVerilog simulation directory exists: %s", sim.workDir)
+	if err := os.MkdirAll(sim.workDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create iverilog work dir %s: %v", sim.workDir, err)
+	}
+
 	sim.debug.Debug("Starting IVerilog compile in %s", sim.workDir)
 
+	// Assuming testbench.sv is in the parent directory of sim.workDir
+	sourceTestbenchFile := filepath.Join("..", "testbench.sv")
+
 	// Compile directly in the work directory
-	cmdArgs := []string{"-o", "module_sim_iv", "-g2012", "-gsupported-assertions", "testbench.sv"}
+	cmdArgs := []string{
+		"-o",
+		"module_sim_iv",
+		"-g2012",
+		"-gsupported-assertions",
+		sourceTestbenchFile,
+	}
 	sim.debug.Debug("Running iverilog command: iverilog %s in directory %s",
 		strings.Join(cmdArgs, " "), sim.workDir)
 
@@ -77,10 +92,9 @@ func (sim *IVerilogSimulator) CompileSpecific() error {
 		sim.debug.Debug("iverilog stdout: %s", stdout.String())
 	}
 
-	// Check if executable was created
-	execPath := filepath.Join(sim.workDir, "module_sim_iv")
-	sim.debug.Debug("Checking for compiled executable at %s", execPath)
-	_, err := os.Stat(execPath)
+	// Check if executable was created using sim.execPath
+	sim.debug.Debug("Checking for compiled executable at %s", sim.execPath)
+	_, err := os.Stat(sim.execPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// List the directory contents to debug
@@ -92,15 +106,15 @@ func (sim *IVerilogSimulator) CompileSpecific() error {
 			sim.debug.Debug("Directory contents: %v", fileList)
 			return fmt.Errorf(
 				"executable not created at: %s (directory exists: %v)",
-				execPath,
-				true,
+				sim.execPath,
+				true, // Assuming sim.workDir (parent of execPath) was created
 			)
 		}
 		return fmt.Errorf("error checking executable: %v", err)
 	}
 
 	// Make sure the executable has the right permissions
-	if err := os.Chmod(execPath, 0o755); err != nil {
+	if err := os.Chmod(sim.execPath, 0o755); err != nil {
 		return fmt.Errorf("failed to set executable permissions: %v", err)
 	}
 
@@ -109,7 +123,7 @@ func (sim *IVerilogSimulator) CompileSpecific() error {
 
 // RunTest runs the simulator with the provided input directory and output paths
 func (sim *IVerilogSimulator) RunTest(inputDir string, outputPaths map[string]string) error {
-	// Make sure input and output directories exist
+	// Make sure input directory and files exist (inputDir is the original source of inputs)
 	if _, err := os.Stat(inputDir); os.IsNotExist(err) {
 		return fmt.Errorf("input directory does not exist: %s", inputDir)
 	}
@@ -120,7 +134,7 @@ func (sim *IVerilogSimulator) RunTest(inputDir string, outputPaths map[string]st
 		return fmt.Errorf("no input files found in: %s", inputDir)
 	}
 
-	// Copy input files to work directory
+	// Copy input files to work directory (sim.workDir is now the iverilog_run subdir)
 	for _, inputFile := range inputFiles {
 		filename := filepath.Base(inputFile)
 		destPath := filepath.Join(sim.workDir, filename)
@@ -129,15 +143,16 @@ func (sim *IVerilogSimulator) RunTest(inputDir string, outputPaths map[string]st
 		}
 	}
 
-	// Verify that the executable exists
+	// Verify that the executable exists (sim.execPath points into sim.workDir)
 	if _, err := os.Stat(sim.execPath); os.IsNotExist(err) {
 		return fmt.Errorf("iverilog executable not found at: %s", sim.execPath)
 	}
 
-	// Run the simulation
+	// Run the simulation from within sim.workDir
+	// relExecPath will be "module_sim_iv"
 	relExecPath := filepath.Base(sim.execPath)
 	cmd := exec.Command("vvp", relExecPath)
-	cmd.Dir = sim.workDir
+	cmd.Dir = sim.workDir // Execute from the iverilog_run subdirectory
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer
 	cmd.Stderr = &stderr
@@ -155,11 +170,11 @@ func (sim *IVerilogSimulator) RunTest(inputDir string, outputPaths map[string]st
 	// Wait to ensure file system has completed writing
 	// time.Sleep(50 * time.Millisecond)
 
-	// Copy output files to their expected paths with the iv_ prefix
+	// Copy output files from sim.workDir to their expected paths
 	for portName, outputPath := range outputPaths {
 		srcPath := filepath.Join(sim.workDir, fmt.Sprintf("output_%s.hex", portName))
 		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
-			return fmt.Errorf("output file not created for port %s", portName)
+			return fmt.Errorf("output file not created for port %s in %s", portName, sim.workDir)
 		}
 
 		if err := utils.CopyFile(srcPath, outputPath); err != nil {

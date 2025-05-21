@@ -167,7 +167,7 @@ func (sch *Scheduler) Run(numTests int) error {
 			case testCases <- i:
 			case <-ctx.Done():
 				sch.debug.Info(
-					"Test case feeding cancelled after %d/%d tests (workers finished/terminated or main context cancelled).",
+					"Scheduler: Test case feeding cancelled after %d/%d tests (workers finished/terminated or main context cancelled).",
 					i,
 					numTests,
 				)
