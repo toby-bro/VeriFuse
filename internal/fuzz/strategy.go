@@ -118,7 +118,7 @@ func generateRandomValue(portType verilog.PortType, width int, isSigned bool) st
 		if rand.Intn(2) == 1 {
 			val = -val
 		}
-		return fmt.Sprintf("%x", val) // Let Sprintf handle signed int to hex
+		return fmt.Sprintf("%x", uint32(val)) // Cast to uint32
 
 	case verilog.INT: // SystemVerilog int: 32-bit signed
 		var val int32
@@ -126,23 +126,23 @@ func generateRandomValue(portType verilog.PortType, width int, isSigned bool) st
 		if rand.Intn(2) == 1 {
 			val = -val
 		}
-		return fmt.Sprintf("%x", val) // Let Sprintf handle signed int to hex
+		return fmt.Sprintf("%x", uint32(val)) // Cast to uint32
 
 	case verilog.BYTE: // 8-bit
 		if isSigned {
-			val := int8(rand.Intn(1 << 8)) // Generate a random int8 value
-			return fmt.Sprintf(
-				"%x",
-				val,
-			) // Produces 1 or 2 hex chars e.g. "80" for -128, "ff" for -1
+			// Generate a random int8 value, then cast to uint8 for hex representation
+			randBits := rand.Intn(1 << 8)
+			val := int8(randBits)
+			return fmt.Sprintf("%x", uint8(val))
 		} else {
 			return fmt.Sprintf("%x", uint8(rand.Intn(1<<8)))
 		}
 
 	case verilog.SHORTINT: // 16-bit
 		if isSigned {
-			val := int16(rand.Intn(1 << 16))
-			return fmt.Sprintf("%x", val)
+			randBits := rand.Intn(1 << 16)
+			val := int16(randBits)
+			return fmt.Sprintf("%x", uint16(val))
 		} else {
 			return fmt.Sprintf("%x", uint16(rand.Intn(1<<16)))
 		}
@@ -150,7 +150,7 @@ func generateRandomValue(portType verilog.PortType, width int, isSigned bool) st
 	case verilog.LONGINT: // 64-bit
 		if isSigned {
 			val := int64(rand.Uint64()) // Full range for int64
-			return fmt.Sprintf("%x", val)
+			return fmt.Sprintf("%x", uint64(val))
 		} else {
 			return fmt.Sprintf("%x", rand.Uint64())
 		}
@@ -250,16 +250,20 @@ func generateEdgeCaseValue( // nolint:gocyclo
 
 	case verilog.INTEGER, verilog.INT: // 32-bit signed
 		if pickMin {
-			return fmt.Sprintf("%x", int32(math.MinInt32))
+			minInt32Val := int32(math.MinInt32)
+			return fmt.Sprintf("%x", uint32(minInt32Val))
 		}
-		return fmt.Sprintf("%x", int32(math.MaxInt32))
+		maxInt32Val := int32(math.MaxInt32)
+		return fmt.Sprintf("%x", uint32(maxInt32Val))
 
 	case verilog.BYTE: // 8-bit
 		if isSigned {
 			if pickMin {
-				return fmt.Sprintf("%x", int8(math.MinInt8))
+				val := int8(math.MinInt8)
+				return fmt.Sprintf("%x", uint8(val))
 			}
-			return fmt.Sprintf("%x", int8(math.MaxInt8))
+			val := int8(math.MaxInt8)
+			return fmt.Sprintf("%x", uint8(val))
 		}
 		// Unsigned
 		if pickMin {
@@ -270,9 +274,11 @@ func generateEdgeCaseValue( // nolint:gocyclo
 	case verilog.SHORTINT: // 16-bit
 		if isSigned {
 			if pickMin {
-				return fmt.Sprintf("%x", int16(math.MinInt16))
+				val := int16(math.MinInt16)
+				return fmt.Sprintf("%x", uint16(val))
 			}
-			return fmt.Sprintf("%x", int16(math.MaxInt16))
+			val := int16(math.MaxInt16)
+			return fmt.Sprintf("%x", uint16(val))
 		}
 		// Unsigned
 		if pickMin {
@@ -283,9 +289,11 @@ func generateEdgeCaseValue( // nolint:gocyclo
 	case verilog.LONGINT: // 64-bit
 		if isSigned {
 			if pickMin {
-				return fmt.Sprintf("%x", int64(math.MinInt64))
+				val := int64(math.MinInt64)
+				return fmt.Sprintf("%x", uint64(val))
 			}
-			return fmt.Sprintf("%x", int64(math.MaxInt64))
+			val := int64(math.MaxInt64)
+			return fmt.Sprintf("%x", uint64(val))
 		}
 		// Unsigned
 		if pickMin {
