@@ -2,6 +2,7 @@ package testgen
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,16 @@ import (
 	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
+
+// cxxrtlMangleIdentifier replaces single underscores with double underscores.
+func cxxrtlMangleIdentifier(name string) string {
+	return strings.ReplaceAll(name, "_", "__")
+}
+
+// cxxrtlManglePortName creates the CXXRTL mangled version of a Verilog port name (e.g., i_val -> p_i__val).
+func cxxrtlManglePortName(verilogPortName string) string {
+	return "p_" + cxxrtlMangleIdentifier(verilogPortName)
+}
 
 // Generator handles testbench generation
 type Generator struct {
@@ -317,7 +328,29 @@ func (g *Generator) GenerateSVTestbench(outputDir string) error {
 }
 
 // getCXXRTLPortType returns a string representation of the C++ type for CXXRTL port access.
-func getCXXRTLPortType(width int) string {
+// It now takes the whole port to infer width for types like 'int'.
+func getCXXRTLPortType(port *verilog.Port) string {
+	width := port.Width
+
+	// Correct width for specific Verilog types if parser defaults width to 0 or an incorrect value.
+	// Assuming verilog.Port has a 'Type' field of type verilog.PrimType (e.g., verilog.INT, verilog.LOGIC)
+	// This part is crucial and depends on the actual structure of your verilog.Port
+	if port.Type == verilog.INT ||
+		port.Type == verilog.INTEGER { // Check if port.Type is comparable to these constants
+		width = 32
+	} else if (port.Type == verilog.LOGIC || port.Type == verilog.BIT || port.Type == verilog.REG || port.Type == verilog.WIRE) && width == 0 {
+		width = 1 // Default for single-bit types if width was not specified or parsed as 0
+	} else if width == 0 {
+		// Fallback for other types if width is 0. This might indicate a parser issue for those types.
+		// Defaulting to 32 here is a guess; ideally, the parser provides correct widths.
+		// Or, this could be an error condition.
+		// For now, to solve the 'int' issue primarily:
+		// If not an int and width is 0, it's likely a single bit if it's a common type.
+		// If it's some other complex type with width 0, that's a deeper parser issue.
+		// Let's assume for now that if it's not 'int' and width is 0, it's probably meant to be 1.
+		width = 1 // Cautious default for non-int, zero-width to bool/uint8_t if it falls through
+	}
+
 	if width == 1 {
 		return "bool"
 	}
@@ -338,13 +371,7 @@ func (g *Generator) generateCXXRTLInputDeclarations() string {
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
-			// cppType := getCXXRTLPortType(port.Width) // Not directly needed for declaration type
-			varDeclType := getCXXRTLPortType(port.Width)
-			if port.Width > 1 && port.Width <= 64 && port.Width != 8 && port.Width != 16 &&
-				port.Width != 32 &&
-				port.Width != 64 {
-				varDeclType = fmt.Sprintf("uint%d_t", nextPowerOfTwo(port.Width))
-			}
+			varDeclType := getCXXRTLPortType(&port) // Pass pointer to port
 			inputDecls.WriteString(fmt.Sprintf("    %s %s;\n", varDeclType, portName))
 		}
 	}
@@ -356,25 +383,72 @@ func (g *Generator) generateCXXRTLInputReads(outputDir string) string {
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
-			fileName := fmt.Sprintf("input_%s.hex", portName)
-
-			inputReads.WriteString(fmt.Sprintf(`    std::ifstream %s_file("%s/%s");
-    if (!%s_file.is_open()) {
-        std::cerr << "Error opening file: %s" << std::endl;
-        return 1;
-    }
-`, portName, outputDir, fileName, portName, fileName))
-
-			if port.Width > 1 {
-				inputReads.WriteString(fmt.Sprintf("    %s_file >> std::hex >> %s;\n",
-					portName, portName))
-			} else {
-				inputReads.WriteString(fmt.Sprintf(`    char %s_char_val;
-    %s_file >> %s_char_val;
-    %s = (%s_char_val == '1'); // Assign bool directly
-`, portName, portName, portName, portName, portName))
+			fileName := fmt.Sprintf("input_%s.hex", portName) // Changed filename format
+			absFilePath, err := filepath.Abs(filepath.Join(outputDir, fileName))
+			if err != nil {
+				log.Fatalf("Failed to get absolute path for input file %s: %v", fileName, err)
 			}
-			inputReads.WriteString(fmt.Sprintf("    %s_file.close();\n", portName))
+
+			// Ensure the directory exists
+			if err := os.MkdirAll(filepath.Dir(absFilePath), 0o755); err != nil {
+				log.Fatalf("Failed to create directory for input file: %v", err)
+			}
+			// Create an empty file if it doesn't exist, so the C++ testbench can open it.
+			if _, err := os.Stat(absFilePath); os.IsNotExist(err) {
+				f, err := os.Create(absFilePath)
+				if err != nil {
+					log.Fatalf("Failed to create empty input file %s: %v", absFilePath, err)
+				}
+				// Write a default value if it's a hex file, e.g., "0"
+				if strings.HasSuffix(fileName, ".hex") {
+					if _, wErr := f.WriteString("0\n"); wErr != nil {
+						log.Fatalf("Failed to write default content to %s: %v", absFilePath, wErr)
+					}
+				}
+				f.Close()
+			}
+
+			// Use the absolute path in the generated C++ code
+			// Escape backslashes for Windows paths in C++ string literals
+			cppFilePath := strings.ReplaceAll(absFilePath, "\\", "\\\\")
+
+			inputReads.WriteString(
+				fmt.Sprintf("    std::ifstream %s_file(\"%s\");\n", portName, cppFilePath),
+			)
+			inputReads.WriteString(fmt.Sprintf("    if (!%s_file.is_open()) {\n", portName))
+			// In the C++ error message, also use the escaped path for clarity if it ever prints
+			inputReads.WriteString(
+				fmt.Sprintf(
+					"        std::cerr << \"Failed to open input file for %s: %s\" << std::endl;\n",
+					portName,
+					cppFilePath,
+				),
+			)
+			inputReads.WriteString(fmt.Sprintf("        return 1;\n"))
+			inputReads.WriteString(fmt.Sprintf("    }\n"))
+
+			// Determine the width for reading logic
+			effectiveWidth := port.Width
+			if port.Type == verilog.INT || port.Type == verilog.INTEGER {
+				effectiveWidth = 32
+			} else if effectiveWidth == 0 {
+				effectiveWidth = 1 // Default for 0-width (likely single bit)
+			}
+
+			if effectiveWidth > 1 {
+				inputReads.WriteString(fmt.Sprintf("    std::string %s_hex_str;\n", portName))
+				inputReads.WriteString(
+					fmt.Sprintf("    %s_file >> %s_hex_str;\n", portName, portName),
+				)
+				inputReads.WriteString(fmt.Sprintf("    std::stringstream ss_%s;\n", portName))
+				inputReads.WriteString(
+					fmt.Sprintf("    ss_%s << std::hex << %s_hex_str;\n", portName, portName),
+				)
+				inputReads.WriteString(fmt.Sprintf("    ss_%s >> %s;\n", portName, portName))
+			} else {
+				inputReads.WriteString(fmt.Sprintf("    %s_file >> %s;\n", portName, portName))
+			}
+			inputReads.WriteString(fmt.Sprintf("    %s_file.close();\n\n", portName))
 		}
 	}
 	return inputReads.String()
@@ -385,12 +459,13 @@ func (g *Generator) generateCXXRTLInputApply(instanceName string) string {
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
-			cppType := getCXXRTLPortType(port.Width)
+			cppType := getCXXRTLPortType(&port) // Pass pointer to port
+			mangledPortName := cxxrtlManglePortName(portName)
 			inputApply.WriteString(
 				fmt.Sprintf(
-					"    %s.p_%s.set<%s>(%s);\n",
+					"    %s.%s.set<%s>(%s);\n",
 					instanceName,
-					portName,
+					mangledPortName,
 					cppType,
 					portName,
 				),
@@ -412,19 +487,20 @@ func (g *Generator) generateCXXRTLResetLogic(
 		return ""
 	}
 	var resetLogic strings.Builder
-	resetLogic.WriteString(fmt.Sprintf("\n    // Toggle reset signal p_%s\n", resetPortName))
-	resetSignalType := getCXXRTLPortType(1) // Reset is typically single bit
+	mangledResetPortName := cxxrtlManglePortName(resetPortName)
+	resetLogic.WriteString(fmt.Sprintf("\n    // Toggle reset signal %s\n", mangledResetPortName))
+	const resetSignalType = "bool" // Reset is single bit
 	if isActiveHigh {
 		resetLogic.WriteString(
 			fmt.Sprintf(
-				"    %s.p_%s.set<%s>(true); // Assert reset (active high)\n",
+				"    %s.%s.set<%s>(true); // Assert reset (active high)\n",
 				instanceName,
-				resetPortName,
+				mangledResetPortName,
 				resetSignalType,
 			),
 		)
 	} else {
-		resetLogic.WriteString(fmt.Sprintf("    %s.p_%s.set<%s>(false); // Assert reset (active low)\n", instanceName, resetPortName, resetSignalType))
+		resetLogic.WriteString(fmt.Sprintf("    %s.%s.set<%s>(false); // Assert reset (active low)\n", instanceName, mangledResetPortName, resetSignalType))
 	}
 	resetLogic.WriteString(
 		fmt.Sprintf("    %s.step(); // Step to propagate reset assertion\n", instanceName),
@@ -433,14 +509,14 @@ func (g *Generator) generateCXXRTLResetLogic(
 	if isActiveHigh {
 		resetLogic.WriteString(
 			fmt.Sprintf(
-				"    %s.p_%s.set<%s>(false); // De-assert reset\n",
+				"    %s.%s.set<%s>(false); // De-assert reset\n",
 				instanceName,
-				resetPortName,
+				mangledResetPortName,
 				resetSignalType,
 			),
 		)
 	} else {
-		resetLogic.WriteString(fmt.Sprintf("    %s.p_%s.set<%s>(true); // De-assert reset\n", instanceName, resetPortName, resetSignalType))
+		resetLogic.WriteString(fmt.Sprintf("    %s.%s.set<%s>(true); // De-assert reset\n", instanceName, mangledResetPortName, resetSignalType))
 	}
 	resetLogic.WriteString(
 		fmt.Sprintf("    %s.step(); // Step to propagate reset de-assertion\n", instanceName),
@@ -466,25 +542,27 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 
 	var clockLogic strings.Builder
 	clockLogic.WriteString("\n    // Clock toggling\n")
-	clockSignalType := getCXXRTLPortType(1) // Clock is typically single bit
+	const clockSignalType = "bool" // Clock is single bit
 	clockLogic.WriteString("    for (int cycle = 0; cycle < 10; cycle++) {\n")
 	for _, clockPort := range clockPortNames {
+		mangledClockPortName := cxxrtlManglePortName(clockPort)
 		clockLogic.WriteString(
 			fmt.Sprintf(
-				"        %s.p_%s.set<%s>(false);\n",
+				"        %s.%s.set<%s>(false);\n",
 				instanceName,
-				clockPort,
+				mangledClockPortName,
 				clockSignalType,
 			),
 		)
 	}
 	clockLogic.WriteString(fmt.Sprintf("        %s.step(); // clock low\n", instanceName))
 	for _, clockPort := range clockPortNames {
+		mangledClockPortName := cxxrtlManglePortName(clockPort)
 		clockLogic.WriteString(
 			fmt.Sprintf(
-				"        %s.p_%s.set<%s>(true);\n",
+				"        %s.%s.set<%s>(true);\n",
 				instanceName,
-				clockPort,
+				mangledClockPortName,
 				clockSignalType,
 			),
 		)
@@ -499,26 +577,64 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string, outputDir st
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.OUTPUT {
 			portName := strings.TrimSpace(port.Name)
-			fileName := fmt.Sprintf("output_%s.hex", portName)
-			cppType := getCXXRTLPortType(port.Width)
+			fileName := fmt.Sprintf("output_%s.hex", portName) // Changed filename format
+			absFilePath, err := filepath.Abs(filepath.Join(outputDir, fileName))
+			if err != nil {
+				log.Fatalf("Failed to get absolute path for output file %s: %v", fileName, err)
+			}
 
-			outputWrites.WriteString(fmt.Sprintf(`    std::ofstream %s_file("%s/%s");
-    if (!%s_file.is_open()) {
-        std::cerr << "Error opening output file: %s" << std::endl;
-        return 1;
-    }
-`, portName, outputDir, fileName, portName, fileName))
+			// Ensure the directory exists
+			if err := os.MkdirAll(filepath.Dir(absFilePath), 0o755); err != nil {
+				log.Fatalf("Failed to create directory for output file: %v", err)
+			}
 
-			if port.Width > 1 {
+			// Use the absolute path in the generated C++ code
+			// Escape backslashes for Windows paths in C++ string literals
+			cppFilePath := strings.ReplaceAll(absFilePath, "\\", "\\\\")
+
+			outputWrites.WriteString(
+				fmt.Sprintf("    std::ofstream %s_file(\"%s\");\n", portName, cppFilePath),
+			)
+			outputWrites.WriteString(fmt.Sprintf("    if (!%s_file.is_open()) {\n", portName))
+			// In the C++ error message, also use the escaped path for clarity if it ever prints
+			outputWrites.WriteString(
+				fmt.Sprintf(
+					"        std::cerr << \"Failed to open output file for %s: %s\" << std::endl;\n",
+					portName,
+					cppFilePath,
+				),
+			)
+			outputWrites.WriteString(fmt.Sprintf("        return 1;\n"))
+			outputWrites.WriteString(fmt.Sprintf("    }\n"))
+
+			// Determine the width for writing logic
+			effectiveWidth := port.Width
+			cppType := getCXXRTLPortType(&port) // Pass pointer to port
+			mangledPortName := cxxrtlManglePortName(portName)
+
+			if port.Type == verilog.INT || port.Type == verilog.INTEGER {
+				effectiveWidth = 32
+			} else if effectiveWidth == 0 {
+				effectiveWidth = 1 // Default for 0-width (likely single bit)
+			}
+
+			if effectiveWidth > 1 {
+				hexWidth := (effectiveWidth + 3) / 4 // Calculate number of hex digits
 				outputWrites.WriteString(
-					fmt.Sprintf("    %s_file << std::hex << %s.p_%s.get<%s>();\n",
-						portName, instanceName, portName, cppType),
+					fmt.Sprintf(
+						"    %s_file << std::hex << std::setw(%d) << std::setfill('0') << %s.%s.get<%s>();\n",
+						portName,
+						hexWidth,
+						instanceName,
+						mangledPortName,
+						cppType,
+					),
 				)
 			} else {
-				outputWrites.WriteString(fmt.Sprintf("    %s_file << (%s.p_%s.get<%s>() ? '1' : '0');\n",
-					portName, instanceName, portName, cppType))
+				outputWrites.WriteString(fmt.Sprintf("    %s_file << (%s.%s.get<%s>() ? 1 : 0);\n",
+					portName, instanceName, mangledPortName, cppType))
 			}
-			outputWrites.WriteString(fmt.Sprintf("    %s_file.close();\n", portName))
+			outputWrites.WriteString(fmt.Sprintf("    %s_file.close();\n\n", portName))
 		}
 	}
 	return outputWrites.String()
@@ -526,24 +642,21 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string, outputDir st
 
 // GenerateCXXRTLTestbench creates the C++ testbench for CXXRTL in the specified directory
 func (g *Generator) GenerateCXXRTLTestbench(outputDir string) error {
-	instanceName := g.module.Name + "_i" // e.g., my_module_i
+	moduleNameForInclude := g.module.Name
+	cxxrtlMangledModuleNameForClass := cxxrtlMangleIdentifier(g.module.Name)
+	baseModuleNameForInstance := g.module.Name
+	instanceName := baseModuleNameForInstance + "_i"
 
 	inputDeclsStr := g.generateCXXRTLInputDeclarations()
-	inputReadsStr := g.generateCXXRTLInputReads(outputDir)
+	inputReadsStr := g.generateCXXRTLInputReads(
+		outputDir,
+	) // outputDir is for generator context, not hardcoded paths
 	inputApplyStr := g.generateCXXRTLInputApply(instanceName)
 
-	// Identify clock and reset ports
-	// Note: identifyClockAndResetPorts is from the SV part, but its logic is generic enough.
-	// We can reuse it here.
 	svClockPorts, svResetPort, svIsActiveHigh := g.identifyClockAndResetPorts()
 
-	// For CXXRTL, we might need to adapt how we use these.
-	// The reset identification logic is similar.
 	var cxxrtlResetName string
 	var cxxrtlIsActiveHigh bool
-	// Re-iterate for reset specifically for CXXRTL if different logic is ever needed,
-	// or directly use svResetPort and svIsActiveHigh if the identification is identical.
-	// For now, let's assume the SV identification is sufficient.
 	if svResetPort != "" {
 		cxxrtlResetName = svResetPort
 		cxxrtlIsActiveHigh = svIsActiveHigh
@@ -551,62 +664,36 @@ func (g *Generator) GenerateCXXRTLTestbench(outputDir string) error {
 
 	resetLogicStr := g.generateCXXRTLResetLogic(instanceName, cxxrtlResetName, cxxrtlIsActiveHigh)
 
-	// Identify clock ports for CXXRTL by filtering svClockPorts to exclude the reset port.
 	var cxxrtlClockPortNames []string
 	for _, clkPort := range svClockPorts {
-		if clkPort == cxxrtlResetName { // Skip if the clock port is also the identified reset port
+		if clkPort == cxxrtlResetName {
 			continue
 		}
 		cxxrtlClockPortNames = append(cxxrtlClockPortNames, clkPort)
 	}
-
-	// If cxxrtlClockPortNames is empty after filtering, it means all ports identified by
-	// svClockPorts might have been the reset port, or no clocks were found initially.
-	// The generateCXXRTLClockLogic function already handles the case of empty clockPortNames.
 
 	clockLogicStr := g.generateCXXRTLClockLogic(instanceName, cxxrtlClockPortNames)
 
 	var clockAndResetHandling strings.Builder
 	clockAndResetHandling.WriteString(resetLogicStr)
 	clockAndResetHandling.WriteString(clockLogicStr)
+	outputWritesStr := g.generateCXXRTLOutputWrites(
+		instanceName,
+		outputDir,
+	) // outputDir is for generator context
 
-	outputWritesStr := g.generateCXXRTLOutputWrites(instanceName, outputDir)
-
-	// Apply the generated code to the template
+	// Ensure the template uses "%s.h" for the include directive
+	// This change should be in testbenches.go, but we ensure moduleNameForInclude is just the name.
 	testbench := fmt.Sprintf(cxxrtlTestbenchTemplate,
-		g.module.Name,                  // 1. For #include "%s.h"
-		g.module.Name,                  // 2. For cxxrtl_design::p_%s
-		instanceName,                   // 3. For instance name %s_i
-		inputDeclsStr,                  // 4.
-		inputReadsStr,                  // 5.
-		inputApplyStr,                  // 6.
-		clockAndResetHandling.String(), // 7.
-		outputWritesStr)                // 8.
+		moduleNameForInclude,            // 1. For #include "%s.h" (template should have .h)
+		cxxrtlMangledModuleNameForClass, // 2. For cxxrtl_design::p_%s
+		baseModuleNameForInstance,       // 3. For instance name %s_i (template adds _i)
+		inputDeclsStr,                   // 4.
+		inputReadsStr,                   // 5.
+		inputApplyStr,                   // 6.
+		clockAndResetHandling.String(),  // 7.
+		outputWritesStr)                 // 8.
 
-	// Write to the specified output directory
 	cppTestbenchPath := filepath.Join(outputDir, "testbench.cpp")
 	return utils.WriteFileContent(cppTestbenchPath, testbench)
-}
-
-// Helper function to find the smallest standard integer size (8, 16, 32, 64)
-// that can accommodate n bits. (This function is still useful for declarations)
-func nextPowerOfTwo(n int) int {
-	if n <= 0 {
-		// Default to 8 for non-positive or zero widths
-		return 8
-	}
-	size := 8
-	// Use a loop to find the smallest standard size (8, 16, 32, 64)
-	// that is greater than or equal to n.
-	// Keep doubling the size as long as it's smaller than n
-	// and the size itself hasn't reached the maximum standard size (64).
-	for size < n && size < 64 {
-		size *= 2 // Double the size
-	}
-
-	// At this point, either size >= n, or size has reached 64.
-	// If n was greater than 64, the loop stopped because size hit 64.
-	// In either case, 'size' holds the appropriate standard C++ integer bit width (up to 64).
-	// We return 64 for any n > 32.
-	return size
 }

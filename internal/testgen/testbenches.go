@@ -53,35 +53,36 @@ endmodule`
 // 7. Clock handling and evaluation code
 // 8. Output writes
 const cxxrtlTestbenchTemplate = `// filepath: cxxrtl_testbench.cpp
-#include "%s.h" // CXXRTL generated header for the module
+#include "%s.cc" // CXXRTL generated header for the module
 // You might need a common CXXRTL include, e.g.:
 // #include "cxxrtl_lib.h" 
 
 #include <fstream>
 #include <iostream>
-#include <iomanip>
+#include <iomanip> // Required for std::setw and std::setfill
 #include <cstdint>
 #include <string>
+#include <sstream> // Required for std::hex and std::stringstream
 
 // Assuming the CXXRTL-generated code uses a 'cxxrtl_design' namespace 
 // and prefixes the module class with 'p_'. Adjust if your CXXRTL setup differs.
 int main(int argc, char** argv) {
-    cxxrtl_design::p_%s %s_i; // DUT instance: cxxrtl_design::p_MODULE_NAME instance_name_i;
+    cxxrtl_design::p_%s %s_i; // DUT instance: cxxrtl_design::p_ (2. cxxrtlMangledModuleName) (3. baseModuleNameForInstance)_i;
 
     // Declare input variables
-%s
+%s // 4. Input declarations
     
     // Read input values
-%s
+%s // 5. Input reads
     
     // Apply inputs to DUT
-%s
+%s // 6. Input application
     
     // Handle reset, clock toggling, and evaluation
-%s
+%s // 7. Clock handling and evaluation code
     
     // Write outputs from DUT
-%s
+%s // 8. Output writes
     
     // CXXRTL objects on the stack are cleaned up automatically
     return 0;
