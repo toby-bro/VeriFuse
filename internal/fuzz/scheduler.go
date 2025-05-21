@@ -236,7 +236,7 @@ func (sch *Scheduler) Run(numTests int) error {
 	}
 
 	if sch.stats.Mismatches > 0 && sch.operation == OpFuzz {
-		sch.debug.Info("Found %d mismatches between iverilog and verilator!", sch.stats.Mismatches)
+		sch.debug.Info("Found %d mismatches !", sch.stats.Mismatches)
 		return fmt.Errorf("%d mismatches found", sch.stats.Mismatches)
 	}
 
