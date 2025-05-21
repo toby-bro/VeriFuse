@@ -424,8 +424,8 @@ func (g *Generator) generateCXXRTLInputReads(outputDir string) string {
 					cppFilePath,
 				),
 			)
-			inputReads.WriteString(fmt.Sprintf("        return 1;\n"))
-			inputReads.WriteString(fmt.Sprintf("    }\n"))
+			inputReads.WriteString("        return 1;\n")
+			inputReads.WriteString("    }\n")
 
 			// Determine the width for reading logic
 			effectiveWidth := port.Width
@@ -531,9 +531,7 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 	if len(clockPortNames) == 0 {
 		var noClockLogic strings.Builder
 		noClockLogic.WriteString(
-			fmt.Sprintf(
-				"\n    // No clock found, performing a few steps for combinational logic to settle\n",
-			),
+			"\n    // No clock found, performing a few steps for combinational logic to settle\n",
 		)
 		noClockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
 		noClockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
@@ -604,8 +602,8 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string, outputDir st
 					cppFilePath,
 				),
 			)
-			outputWrites.WriteString(fmt.Sprintf("        return 1;\n"))
-			outputWrites.WriteString(fmt.Sprintf("    }\n"))
+			outputWrites.WriteString("        return 1;\n")
+			outputWrites.WriteString("    }\n")
 
 			// Determine the width for writing logic
 			effectiveWidth := port.Width

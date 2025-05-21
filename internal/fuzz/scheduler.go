@@ -23,14 +23,14 @@ const (
 )
 
 type Scheduler struct {
-	stats        *Stats
-	strategyName string
-	workers      int
-	verbose      int
-	debug        *utils.DebugLogger
-	svFile       *verilog.VerilogFile
-	operation    Operation
-	maxAttempts  int
+	stats            *Stats
+	strategyName     string
+	workers          int
+	verbose          int
+	debug            *utils.DebugLogger
+	svFile           *verilog.VerilogFile
+	operation        Operation
+	maxAttempts      int
 	cxxrtlIncludeDir string // Added for CXXRTL configuration
 }
 
@@ -44,13 +44,13 @@ func NewScheduler(
 	cxxrtlIncludeDir string, // Added parameter
 ) *Scheduler {
 	scheduler := &Scheduler{
-		stats:        NewStats(),
-		workers:      workers,
-		verbose:      verbose,
-		debug:        utils.NewDebugLogger(verbose),
-		operation:    operation,
-		maxAttempts:  maxAttempts,
-		strategyName: strategy,
+		stats:            NewStats(),
+		workers:          workers,
+		verbose:          verbose,
+		debug:            utils.NewDebugLogger(verbose),
+		operation:        operation,
+		maxAttempts:      maxAttempts,
+		strategyName:     strategy,
 		cxxrtlIncludeDir: cxxrtlIncludeDir, // Store it
 	}
 
