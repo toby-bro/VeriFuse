@@ -63,6 +63,9 @@ func loadSnippets() error {
 			if module.Name == "" {
 				return fmt.Errorf("module name is empty in file %s", snippetFile)
 			}
+			if module.Name == "top" {
+				module.Name = "topi"
+			}
 			snippets = append(snippets, &Snippet{
 				Name:       module.Name,
 				Module:     module,
