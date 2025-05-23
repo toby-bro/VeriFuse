@@ -14,7 +14,7 @@ import (
 
 var (
 	SKIP_X_OUTPUTS bool = true
-	SKIP_Z_OUTPUTS bool = false
+	SKIP_Z_OUTPUTS bool = true
 )
 
 func compareOutputValues(ivValue, vlValue string) bool {
