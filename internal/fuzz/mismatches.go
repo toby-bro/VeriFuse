@@ -12,9 +12,22 @@ import (
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
+var (
+	SKIP_X_OUTPUTS bool = true
+	SKIP_Z_OUTPUTS bool = false
+)
+
 func compareOutputValues(ivValue, vlValue string) bool {
 	ivNorm := strings.TrimSpace(strings.ToLower(ivValue))
 	vlNorm := strings.TrimSpace(strings.ToLower(vlValue))
+	if SKIP_X_OUTPUTS && (strings.Contains(ivNorm, "x") ||
+		strings.Contains(vlNorm, "x")) {
+		return true
+	}
+	if SKIP_Z_OUTPUTS && (strings.Contains(ivNorm, "z") ||
+		strings.Contains(vlNorm, "z")) {
+		return true
+	}
 	if ivNorm == vlNorm {
 		return true
 	}
@@ -42,11 +55,33 @@ func compareOutputValues(ivValue, vlValue string) bool {
 	return false
 }
 
+func replaceXandZwithZero(value string) string {
+	// Replace 'x' and 'z' with '0'
+	value = strings.ReplaceAll(value, "x", "0")
+	value = strings.ReplaceAll(value, "z", "0")
+	// Replace 'X' and 'Z' with '0'
+	value = strings.ReplaceAll(value, "X", "0")
+	value = strings.ReplaceAll(value, "Z", "0")
+	return value
+}
+
+func cleanAllOutputValues(results map[string]map[string]string) {
+	for simName, simResultMap := range results {
+		for portName, value := range simResultMap {
+			results[simName][portName] = replaceXandZwithZero(value)
+		}
+	}
+}
+
 func (sch *Scheduler) compareAllResults(
 	results map[string]map[string]string,
 ) (bool, map[string]string) {
 	mismatchFound := false
 	mismatchDetails := make(map[string]string)
+
+	if !SKIP_X_OUTPUTS && !SKIP_Z_OUTPUTS {
+		cleanAllOutputValues(results)
+	}
 
 	simNames := make([]string, 0, len(results))
 	for simName := range results {

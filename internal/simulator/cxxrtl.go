@@ -135,7 +135,7 @@ func (sim *CXXRTLSimulator) Compile() error {
 	var stderrYosys bytes.Buffer
 	cmdYosys.Stderr = &stderrYosys
 	if err := cmdYosys.Run(); err != nil {
-		sim.logger.Error("Yosys command failed: %v\nStderr: %s", err, stderrYosys.String())
+		sim.logger.Warn("Yosys command failed: %v\nStderr: %s", err, stderrYosys.String())
 		return fmt.Errorf("yosys conversion failed: %v - %s", err, stderrYosys.String())
 	}
 	sim.logger.Debug("Yosys conversion successful. Output: %s", yosysOutputCCFile)
@@ -172,7 +172,7 @@ func (sim *CXXRTLSimulator) Compile() error {
 	var stderrGXX bytes.Buffer
 	cmdGXX.Stderr = &stderrGXX
 	if err := cmdGXX.Run(); err != nil {
-		sim.logger.Error("g++ compilation failed: %v\nStderr: %s", err, stderrGXX.String())
+		sim.logger.Warn("g++ compilation failed: %v\nStderr: %s", err, stderrGXX.String())
 		return fmt.Errorf("g++ compilation failed: %v - %s", err, stderrGXX.String())
 	}
 
