@@ -1,8 +1,10 @@
 package fuzz
 
 import (
+	"bytes" // Added for command output
 	"fmt"
 	"os"
+	"os/exec" // Added for running yosys-config
 	"path/filepath"
 	"strings"
 	"time"
@@ -319,28 +321,41 @@ func (sch *Scheduler) setupSimulators(
 		"cxxrtl_sim",
 	) // Matches dir used for testbench generation
 	// Ensure CXXRTL include directory is available from scheduler config
-	includeDir := sch.cxxrtlIncludeDir
-	if includeDir == "" {
-		// Attempt to find it or use a common default, warn if not found.
-		defaultPath := "/usr/local/share/cxxrtl/include"
-		if _, err := os.Stat(defaultPath); !os.IsNotExist(err) {
-			includeDir = defaultPath
-		} else {
-			defaultPath = "/usr/share/cxxrtl/include" // Another common path
-			if _, err2 := os.Stat(defaultPath); !os.IsNotExist(err2) {
-				includeDir = defaultPath
-			}
-		}
-		if includeDir == "" {
-			sch.debug.Error(
-				"[%s] CXXRTL_INCLUDE_DIR is not configured and common defaults not found. CXXRTL will likely fail.",
+	// Attempt to use yosys-config to find the CXXRTL runtime include directory
+	yosysCmd := exec.Command("yosys-config", "--datdir")
+	var yosysOut bytes.Buffer
+	var yosysErr bytes.Buffer
+	yosysCmd.Stdout = &yosysOut
+	yosysCmd.Stderr = &yosysErr
+
+	var includeDir string
+
+	if err := yosysCmd.Run(); err == nil {
+		yosysDatDir := strings.TrimSpace(yosysOut.String())
+		// Construct path based on yosys datdir and known structure for cxxrtl runtime
+		potentialPath := filepath.Join(
+			yosysDatDir,
+			"include",
+			"backends",
+			"cxxrtl",
+			"runtime",
+		)
+
+		if _, statErr := os.Stat(potentialPath); statErr == nil {
+			includeDir = potentialPath
+			sch.debug.Debug(
+				"[%s] Using CXXRTL_INCLUDE_DIR (runtime) from yosys-config: %s",
 				workerID,
+				includeDir,
 			)
-			// Do not skip compilation, let it try and fail to capture the error.
 		} else {
-			sch.debug.Debug("[%s] Using CXXRTL_INCLUDE_DIR: %s", workerID, includeDir)
+			sch.debug.Debug("[%s] yosys-config derived CXXRTL runtime path %s not found (stat error: %v). Will try defaults.", workerID, potentialPath, statErr)
 		}
+	} else {
+		errMsg := strings.TrimSpace(yosysErr.String())
+		sch.debug.Warn("[%s] 'yosys-config --datdir' command failed: %v. Stderr: '%s'. Will try default CXXRTL include paths.", workerID, err, errMsg)
 	}
+
 	// svFileToCompile.Name is the base name of the Verilog file (e.g., design.v)
 	cxxrtlOriginalVerilogBaseName := svFileToCompile.Name
 	cxsim := simulator.NewCXXRTLSimulator(
