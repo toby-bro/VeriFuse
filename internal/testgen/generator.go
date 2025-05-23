@@ -297,9 +297,36 @@ func (g *Generator) generateSVOutputWrites() (string, int) {
 
 			outputWrites.WriteString(fmt.Sprintf(`
         fd = $fopen("%s", "w");
-        `, fileName))
+        if (fd == 0) begin
+            $display("Error: Unable to open output file '%s' for port '%s'.", "%s", "%s");
+            $finish;
+        end
+`, fileName, fileName, portName, fileName, portName)) // Corrected $display arguments
 
-			outputWrites.WriteString(fmt.Sprintf("$fwrite(fd, \"%%h\", %s);\n", portName))
+			effectiveWidth := port.Width
+			// Consistent with CXXRTL and SV input declaration width logic for types like int
+			if port.Type == verilog.INT || port.Type == verilog.INTEGER {
+				effectiveWidth = 32
+			} else if effectiveWidth == 0 { // Default for 0-width (e.g. 'logic my_signal;') which is 1-bit
+				effectiveWidth = 1
+			}
+
+			if effectiveWidth > 1 {
+				// For multi-bit ports, write each bit from MSB to LSB
+				outputWrites.WriteString(
+					fmt.Sprintf("        for (int i = %d; i >= 0; i--) begin\n", effectiveWidth-1),
+				)
+				outputWrites.WriteString(
+					fmt.Sprintf("            $fwrite(fd, \"%%b\", %s[i]);\n", portName),
+				)
+				outputWrites.WriteString("        end\n")
+				outputWrites.WriteString(
+					"        $fwrite(fd, \"\\n\"); // Add a newline at the end of the bit string\n",
+				)
+			} else { // effectiveWidth is 1
+				// For single-bit ports, write the bit followed by a newline
+				outputWrites.WriteString(fmt.Sprintf("        $fwrite(fd, \"%%b\\n\", %s);\n", portName))
+			}
 
 			outputWrites.WriteString("        $fclose(fd);\n")
 		}
@@ -396,17 +423,21 @@ func (g *Generator) generateCXXRTLInputReads(outputDir string) string {
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
-			fileName := fmt.Sprintf("input_%s.hex", portName) // Changed filename format
-
-			// Use the absolute path in the generated C++ code
-			// Escape backslashes for Windows paths in C++ string literals
-			cppFilePath := strings.ReplaceAll(fileName, "\\", "\\\\")
+			fileName := fmt.Sprintf("input_%s.hex", portName)
+			// Escape backslashes for Windows paths in C++ string literals if necessary, though for Linux/macOS this is fine.
+			cppFilePath := strings.ReplaceAll(
+				fileName,
+				"\\",
+				"\\\\",
+			) // Corrected for Go string literal
+			varDeclType := getCXXRTLPortType(
+				&port,
+			) // Get the C++ type for the port
 
 			inputReads.WriteString(
 				fmt.Sprintf("    std::ifstream %s_file(\"%s\");\n", portName, cppFilePath),
 			)
 			inputReads.WriteString(fmt.Sprintf("    if (!%s_file.is_open()) {\n", portName))
-			// In the C++ error message, also use the escaped path for clarity if it ever prints
 			inputReads.WriteString(
 				fmt.Sprintf(
 					"        std::cerr << \"Failed to open input file for %s: %s\" << std::endl;\n",
@@ -417,27 +448,65 @@ func (g *Generator) generateCXXRTLInputReads(outputDir string) string {
 			inputReads.WriteString("        return 1;\n")
 			inputReads.WriteString("    }\n")
 
-			// Determine the width for reading logic
-			effectiveWidth := port.Width
-			if port.Type == verilog.INT || port.Type == verilog.INTEGER {
-				effectiveWidth = 32
-			} else if effectiveWidth == 0 {
-				effectiveWidth = 1 // Default for 0-width (likely single bit)
+			// Always read as string first
+			inputReads.WriteString(fmt.Sprintf("    std::string %s_hex_str;\n", portName))
+			inputReads.WriteString(fmt.Sprintf("    %s_file >> %s_hex_str;\n", portName, portName))
+			inputReads.WriteString(fmt.Sprintf("    std::stringstream ss_%s;\n", portName))
+			inputReads.WriteString(
+				fmt.Sprintf("    ss_%s << std::hex << %s_hex_str;\n", portName, portName),
+			)
+
+			// If the type is uint8_t or bool, parse into an intermediate unsigned int first
+			// to avoid direct char interpretation, then cast.
+			if varDeclType == "uint8_t" || varDeclType == "bool" {
+				inputReads.WriteString(fmt.Sprintf("    unsigned int temp_%s;\n", portName))
+				inputReads.WriteString(
+					fmt.Sprintf("    if (!(ss_%s >> temp_%s)) {\n", portName, portName),
+				)
+				inputReads.WriteString(
+					fmt.Sprintf(
+						"        std::cerr << \"Failed to parse hex value for %s: \" << %s_hex_str << std::endl;\n",
+						portName,
+						portName,
+					),
+				)
+				inputReads.WriteString("        return 1;\n")
+				inputReads.WriteString("    }\n")
+				// Check for potential overflow before casting to smaller types like uint8_t
+				if varDeclType == "uint8_t" {
+					inputReads.WriteString(fmt.Sprintf("    if (temp_%s > 0xFF) {\n", portName))
+					inputReads.WriteString(
+						fmt.Sprintf(
+							"        std::cerr << \"Hex value out of range for %s (uint8_t): \" << %s_hex_str << std::endl;\n",
+							portName,
+							portName,
+						),
+					)
+					inputReads.WriteString("        return 1;\n")
+					inputReads.WriteString("    }\n")
+				} // No specific overflow check for bool needed here as any non-zero uint becomes true.
+				inputReads.WriteString(
+					fmt.Sprintf(
+						"    %s = static_cast<%s>(temp_%s);\n",
+						portName,
+						varDeclType,
+						portName,
+					),
+				)
+			} else {
+				// For other types (uint16_t, uint32_t, uint64_t), parse directly.
+				inputReads.WriteString(fmt.Sprintf("    if (!(ss_%s >> %s)) {\n", portName, portName))
+				inputReads.WriteString(
+					fmt.Sprintf(
+						"        std::cerr << \"Failed to parse hex value for %s: \" << %s_hex_str << std::endl;\n",
+						portName,
+						portName,
+					),
+				)
+				inputReads.WriteString("        return 1;\n")
+				inputReads.WriteString("    }\n")
 			}
 
-			if effectiveWidth > 1 {
-				inputReads.WriteString(fmt.Sprintf("    std::string %s_hex_str;\n", portName))
-				inputReads.WriteString(
-					fmt.Sprintf("    %s_file >> %s_hex_str;\n", portName, portName),
-				)
-				inputReads.WriteString(fmt.Sprintf("    std::stringstream ss_%s;\n", portName))
-				inputReads.WriteString(
-					fmt.Sprintf("    ss_%s << std::hex << %s_hex_str;\n", portName, portName),
-				)
-				inputReads.WriteString(fmt.Sprintf("    ss_%s >> %s;\n", portName, portName))
-			} else {
-				inputReads.WriteString(fmt.Sprintf("    %s_file >> %s;\n", portName, portName))
-			}
 			inputReads.WriteString(fmt.Sprintf("    %s_file.close();\n\n", portName))
 		}
 	}
@@ -565,7 +634,10 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string, outputDir st
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.OUTPUT {
 			portName := strings.TrimSpace(port.Name)
-			fileName := fmt.Sprintf("output_%s.hex", portName) // Changed filename format
+			fileName := fmt.Sprintf(
+				"output_%s.hex",
+				portName,
+			) // Filename remains .hex, content changes
 
 			// Ensure the directory exists
 			if err := os.MkdirAll(filepath.Dir(fileName), 0o755); err != nil {
@@ -603,19 +675,33 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string, outputDir st
 			}
 
 			if effectiveWidth > 1 {
-				hexWidth := (effectiveWidth + 3) / 4 // Calculate number of hex digits
+				// For multi-bit ports, get the value then write each bit from MSB to LSB
 				outputWrites.WriteString(
 					fmt.Sprintf(
-						"    %s_file << std::hex << std::setw(%d) << std::setfill('0') << %s.%s.get<%s>();\n",
+						"    %s value_%s = %s.%s.get<%s>();\n",
+						cppType,
 						portName,
-						hexWidth,
 						instanceName,
 						mangledPortName,
 						cppType,
 					),
 				)
-			} else {
-				outputWrites.WriteString(fmt.Sprintf("    %s_file << (%s.%s.get<%s>() ? 1 : 0);\n",
+				outputWrites.WriteString(
+					fmt.Sprintf("    for (int i = %d; i >= 0; i--) {\n", effectiveWidth-1),
+				)
+				outputWrites.WriteString(
+					fmt.Sprintf("        %s_file << ((value_%s >> i) & 1);\n", portName, portName),
+				)
+				outputWrites.WriteString("    }\n")
+				outputWrites.WriteString(
+					fmt.Sprintf(
+						"    %s_file << std::endl; // Add a newline at the end of the bit string\n",
+						portName,
+					),
+				)
+			} else { // effectiveWidth is 1
+				// For single-bit ports, write the bit followed by a newline
+				outputWrites.WriteString(fmt.Sprintf("    %s_file << (%s.%s.get<%s>() ? 1 : 0) << std::endl;\n",
 					portName, instanceName, mangledPortName, cppType))
 			}
 			outputWrites.WriteString(fmt.Sprintf("    %s_file.close();\n\n", portName))
