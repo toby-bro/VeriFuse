@@ -5,8 +5,9 @@ func (m *Module) DeepCopy() *Module {
 		return nil
 	}
 	copiedModule := &Module{
-		Name: m.Name,
-		Body: m.Body,
+		Name:      m.Name,
+		Body:      m.Body,
+		AnsiStyle: m.AnsiStyle,
 	}
 
 	if m.Ports != nil {

@@ -893,6 +893,8 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 		}
 	}
 
+	module.AnsiStyle = len(parsedPortsMap) == 0
+
 	// Merge header and body scan information
 	module.Ports = mergePortInfo(headerPorts, parsedPortsMap)
 

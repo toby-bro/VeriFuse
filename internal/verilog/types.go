@@ -58,6 +58,7 @@ type Module struct {
 	Ports      []Port
 	Parameters []Parameter
 	Body       string
+	AnsiStyle  bool
 }
 
 type Variable struct {
