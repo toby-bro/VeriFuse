@@ -95,10 +95,11 @@ func (sch *Scheduler) Setup() error {
 	if err := simulator.TestVerilatorTool(); err != nil {
 		return fmt.Errorf("verilator tool check failed: %v", err)
 	}
+	sch.debug.Debug("Verilator tool found.")
 	if err := simulator.TestCXXRTLTool(); err != nil {
 		return fmt.Errorf("cxxrtl tool check failed: %v", err)
 	}
-	sch.debug.Debug("Verilator tool found.")
+	sch.debug.Debug("CXXRTL tool found.")
 	return nil
 }
 
