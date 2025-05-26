@@ -83,7 +83,8 @@ func (sch *Scheduler) performWorkerAttempt(
 	attemptCompletelySuccessful := false
 	defer func() {
 		if cleanupFunc != nil {
-			if (sch.verbose > 2 && !attemptCompletelySuccessful) || sch.verbose > 3 {
+			if (sch.verbose > 2 && !attemptCompletelySuccessful) || sch.verbose > 3 ||
+				sch.keepFiles {
 				sch.debug.Debug(
 					"[%s] Preserving worker directory %s (verbose = %d). Attempt success: %t",
 					workerID,

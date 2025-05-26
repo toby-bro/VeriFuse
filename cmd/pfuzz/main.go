@@ -25,6 +25,11 @@ func main() {
 		"Verbose output (level 2). Higher level (-vvv) takes precedence.",
 	)
 	vvvFlag := flag.Bool("vvv", false, "Verbose output (level 3).")
+	keepFiles := flag.Bool(
+		"keep-files",
+		false,
+		"Keep generated files after fuzzing (default: false)",
+	)
 	verilogFile := flag.String("file", "", "Path to Verilog file to fuzz (required)")
 	mutate := flag.Bool("mutate", false, "Mutate enums and structs in the testbench")
 	maxAttempts := flag.Int("max-attempts", -1, "Maximum attempts to create a valid file")
@@ -91,6 +96,7 @@ func main() {
 		*verilogFile,
 		operation,
 		*maxAttempts,
+		*keepFiles,
 	)
 
 	if err := scheduler.Setup(); err != nil {

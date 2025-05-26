@@ -235,7 +235,7 @@ func (sch *Scheduler) runSingleTest(
 	var mismatchOccurredDuringTest bool
 	defer func() {
 		if !mismatchOccurredDuringTest && sch.operation == OpFuzz {
-			if sch.verbose <= 2 {
+			if sch.verbose <= 2 && !sch.keepFiles {
 				os.RemoveAll(testSpecificDir)
 			} else {
 				sch.debug.Debug("[%s] Test %d: Preserving test directory %s due to verbosity.", workerID, testIndex, testSpecificDir)
