@@ -48,6 +48,13 @@ func injectSnippetInModule(targetModule *verilog.Module, snippet *snippets.Snipp
 		return fmt.Errorf("failed to match variables to snippet ports: %v", err)
 	}
 
+	logger.Debug(
+		"Matched ports for snippet %s in module %s: %v",
+		snippet.Name,
+		targetModule.Name,
+		portConnections,
+	)
+
 	err = ensureOutputPortForSnippet(targetModule, snippet, portConnections)
 	if err != nil {
 		return fmt.Errorf("failed to ensure output port for snippet: %v", err)
@@ -157,14 +164,23 @@ func matchVariablesToSnippetPorts(
 		if !foundMatch {
 			newSignalName := fmt.Sprintf("inj_%s_%d", strings.ToLower(port.Name), rand.Intn(1000))
 			newSignalObj := verilog.Port{
-				Name:      newSignalName,
-				Type:      port.Type,
-				Width:     port.Width,
-				IsSigned:  port.IsSigned,
-				Direction: verilog.INTERNAL,
+				Name:            newSignalName,
+				Type:            port.Type,
+				Width:           port.Width,
+				IsSigned:        port.IsSigned,
+				Direction:       port.Direction,
+				AlreadyDeclared: !module.AnsiStyle,
 			}
 			newDeclarations = append(newDeclarations, newSignalObj)
 			portConnections[port.Name] = newSignalName
+			// module.Ports = append(module.Ports, newSignalObj)
+			logger.Debug(
+				"Created new signal %s for port %s in snippet %s and AnsiStyle %t",
+				newSignalName,
+				port.Name,
+				snippet.Name,
+				module.AnsiStyle,
+			)
 			// Newly created signals are unique by generation and don't need to be added to overallAssignedModuleVarNames
 		}
 	}
@@ -290,7 +306,15 @@ func generateSignalDeclaration(port verilog.Port, signalName string) string {
 	if port.IsSigned {
 		signedStr = "signed "
 	}
-	return fmt.Sprintf("logic %s%s%s;", signedStr, widthStr, signalName)
+	directionStr := ""
+	if port.Direction == verilog.INPUT {
+		directionStr = "input "
+	} else if port.Direction == verilog.OUTPUT {
+		directionStr = "output "
+	} else if port.Direction == verilog.INOUT {
+		directionStr = "inout "
+	}
+	return fmt.Sprintf("%slogic %s%s%s;", directionStr, signedStr, widthStr, signalName)
 }
 
 func ensureOutputPortForSnippet(
@@ -353,10 +377,15 @@ func insertSnippetIntoModule(
 	}
 
 	var contentToInsert []string
-	for i := len(newDeclarations) - 1; i >= 0; i-- {
-		portToDeclare := newDeclarations[i]
-		declarationString := generateSignalDeclaration(portToDeclare, portToDeclare.Name)
-		contentToInsert = append([]string{declarationString}, contentToInsert...)
+	if !module.AnsiStyle {
+		for i := len(newDeclarations) - 1; i >= 0; i-- {
+			portToDeclare := newDeclarations[i]
+			declarationString := generateSignalDeclaration(portToDeclare, portToDeclare.Name)
+			contentToInsert = append([]string{declarationString}, contentToInsert...)
+		}
+	}
+	for _, portToDeclare := range newDeclarations {
+		module.Ports = append(module.Ports, portToDeclare)
 	}
 	contentToInsert = append(contentToInsert, instantiation)
 
@@ -492,7 +521,8 @@ func MutateFile(
 		}
 
 		logger.Debug(
-			"Attempting InjectSnippet mutation for module %s in file %s...",
+			"Attempting to inject snippet %s in module %s from file %s...",
+			snippet.Name,
 			moduleToMutate.Name,
 			fileName,
 		)

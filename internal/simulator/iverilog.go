@@ -84,8 +84,6 @@ func (sim *IVerilogSimulator) CompileSpecific() error {
 	cmd.Stdout = &stdout
 
 	if err := cmd.Run(); err != nil {
-		sim.debug.Debug("iverilog command failed: %v", err)
-		sim.debug.Debug("stderr: %s", stderr.String())
 		return fmt.Errorf("iverilog compilation failed: %v - %s", err, stderr.String())
 	}
 	if stdout.Len() > 0 {
