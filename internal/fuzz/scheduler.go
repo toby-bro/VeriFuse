@@ -116,11 +116,6 @@ func (sch *Scheduler) Run(numTests int) error {
 	testCases := make(chan int, sch.workers)
 	errChan := make(chan error, max(sch.workers, len(sch.svFile.Modules)))
 
-	if sch.operation == OpFuzz {
-		progressTracker := NewProgressTracker(numTests, sch.stats, &wg)
-		progressTracker.Start()
-		defer progressTracker.Stop()
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -181,6 +176,12 @@ func (sch *Scheduler) Run(numTests int) error {
 			sch.debug.Info("Successfully fed all %d test cases to the channel.", numTests)
 		}
 	}()
+
+	if sch.operation == OpFuzz {
+		progressTracker := NewProgressTracker(numTests, sch.stats, &wg)
+		progressTracker.Start()
+		defer progressTracker.Stop()
+	}
 
 	wg.Wait()
 	cancel()
