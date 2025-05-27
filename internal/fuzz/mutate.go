@@ -21,7 +21,11 @@ func loadLogger(v int) {
 }
 
 func injectSnippetInModule(targetModule *verilog.Module, snippet *snippets.Snippet) error {
-	_, scopeTree, err := verilog.ParseVariables(snippet.ParentFile, targetModule.Body)
+	_, scopeTree, err := verilog.ParseVariables(
+		snippet.ParentFile,
+		targetModule.Body,
+		targetModule.Parameters,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to extract variables from module: %v", err)
 	}

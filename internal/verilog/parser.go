@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
+	"golang.org/x/exp/maps"
 )
 
 var logger *utils.DebugLogger
@@ -926,7 +927,9 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 // TODO: #16 support arrays which will break the current width checking
 func ParseVariables(v *VerilogFile,
 	content string,
+	scopeParams []Parameter,
 ) (map[string]*Variable, *ScopeNode, error) {
+	scopeParamsMap := parametersToMap(scopeParams)
 	allMatchedVariables := MatchAllVariablesFromString(content)
 	variablesMap := make(map[string]*Variable)
 	scopeTree := &ScopeNode{
@@ -943,7 +946,7 @@ func ParseVariables(v *VerilogFile,
 		indent := len(strings.ReplaceAll(matchedVariable[1], "\t", "    ")) / 4
 		varType := GetType(matchedVariable[2])
 		widthStr := matchedVariable[3]
-		width, err := ParseRange(widthStr, nil)
+		width, err := ParseRange(widthStr, scopeParamsMap)
 		if err != nil {
 			if width != 0 {
 				logger.Warn(
@@ -1045,7 +1048,7 @@ func (v *VerilogFile) ParseStructs(
 			}
 			v.Structs[structName] = s
 		} else {
-			variablesMap, _, err := ParseVariables(v, varList)
+			variablesMap, _, err := ParseVariables(v, varList, nil) // TODO: check that we don't have params that need to be sent as args here
 			if err != nil {
 				return fmt.Errorf("failed to parse variables in struct '%s': %v", structName, err)
 			}

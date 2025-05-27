@@ -524,7 +524,7 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) {
 
 // PrintVerilogFile converts a VerilogFile object to its string representation.
 // It attempts to print definitions in a dependency-aware order.
-func PrintVerilogFile(vf *VerilogFile) (string, error) {
+func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	var sb strings.Builder
 
 	sortedNames, err := getPrintOrder(vf)

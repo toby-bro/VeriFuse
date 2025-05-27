@@ -214,7 +214,7 @@ endmodule
 		ParentFile: snippetFile,
 	}
 
-	_, scopeTree, err := verilog.ParseVariables(verilogFile, module.Body)
+	_, scopeTree, err := verilog.ParseVariables(verilogFile, module.Body, nil)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
@@ -359,7 +359,7 @@ endmodule
 		t.Fatalf("Module 'TestModule' not found in parsed file")
 	}
 
-	variables, _, err := verilog.ParseVariables(verilogFile, module.Body)
+	variables, _, err := verilog.ParseVariables(verilogFile, module.Body, nil)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
@@ -424,7 +424,7 @@ func TestGenerateSignalDeclaration(t *testing.T) {
 	signalName := "inj_output1"
 
 	declaration := generateSignalDeclaration(port, signalName)
-	expected := "logic signed [7:0] inj_output1;"
+	expected := "input logic signed [7:0] inj_output1;"
 
 	if declaration != expected {
 		t.Errorf("Expected '%s', got '%s'", expected, declaration)
@@ -434,7 +434,7 @@ func TestGenerateSignalDeclaration(t *testing.T) {
 	signalNameScalar := "inj_output2"
 
 	declarationScalar := generateSignalDeclaration(portScalar, signalNameScalar)
-	expectedScalar := "logic inj_output2;"
+	expectedScalar := "input logic inj_output2;"
 
 	if declarationScalar != expectedScalar {
 		t.Errorf("Expected '%s', got '%s'", expectedScalar, declarationScalar)
