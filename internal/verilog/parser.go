@@ -163,7 +163,7 @@ var generalVariableRegex = regexp.MustCompile(
 	),
 )
 
-var scopeChangeRegex = regexp.MustCompile(`(function|task|always)`)
+var scopeChangeRegex = regexp.MustCompile(`(function|task|always|class)`)
 
 func MatchAllModulesFromString(content string) [][]string {
 	return generalModuleRegex.FindAllStringSubmatch(content, -1)
@@ -528,28 +528,33 @@ func extractNonANSIPortDeclarations(
 	content string,
 	parameters map[string]Parameter,
 ) (map[string]Port, error) {
+	paramList := []Parameter{}
+	for _, param := range parameters {
+		paramList = append(paramList, param)
+	}
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	parsedPortsMap := make(map[string]Port)
 
-	parsedVariables, _, err := ParseVariables(nil, content)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing variables: %v", err)
-	}
+	parsedVariables := make(map[string]*Variable)
 
 	for scanner.Scan() {
 		trimmedLine := strings.TrimSpace(scanner.Text())
 		if trimmedLine == "" {
 			continue
 		}
-
-		// Attempt to parse the line as a port declaration
+		if matched := scopeChangeRegex.MatchString(trimmedLine); matched {
+			break
+		}
+		newParsedVariables, _, err := ParseVariables(nil, trimmedLine, paramList)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing variables: %v", err)
+		}
+		maps.Copy(parsedVariables, newParsedVariables)
 		port, ok := parsePortDeclaration(trimmedLine, parameters, parsedVariables)
 		if ok {
 			if _, exists := parsedPortsMap[port.Name]; !exists {
 				parsedPortsMap[port.Name] = *port
 			}
-		} else if matched := scopeChangeRegex.MatchString(trimmedLine); matched {
-			break
 		}
 	}
 
