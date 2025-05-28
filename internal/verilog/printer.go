@@ -336,7 +336,6 @@ func PrintClass(c *Class) string {
 
 // PrintModule converts a Module object to its Verilog string representation.
 func PrintModule(m *Module) string {
-	logger.Warn("Printing module: %s with AnsiStyle %v", m.Name, m.AnsiStyle)
 	var sb strings.Builder
 	sb.WriteString("module ")
 	sb.WriteString(m.Name)

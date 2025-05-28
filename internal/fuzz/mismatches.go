@@ -209,7 +209,11 @@ func (sch *Scheduler) handleMismatch(
 		}
 		fileContent += "\nMismatched outputs:\n"
 		for portName, detail := range mismatchDetails {
-			fileContent += fmt.Sprintf("  %s: %s\n", portName, detail)
+			fileContent += fmt.Sprintf("  %s:\n", portName)
+			detailsSplit := strings.Split(detail, ", ")
+			for _, part := range detailsSplit {
+				fileContent += fmt.Sprintf("    %s\n", part)
+			}
 		}
 		sch.debug.Debug("Writing mismatch summary to %s", summaryPath)
 		// err is already declared above, so use = instead of :=
