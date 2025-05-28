@@ -171,9 +171,9 @@ func PrintParameter(param Parameter, isLast bool) string {
 }
 
 // PrintPort formats a Port for module headers.
-func PrintPort(port Port, isLast bool) string {
+func PrintPort(port Port, isLast bool, ansiStyle bool) string {
 	var sb strings.Builder
-	if !port.AlreadyDeclared {
+	if !port.AlreadyDeclared && ansiStyle {
 		if port.Direction != INTERNAL {
 			sb.WriteString(PortDirectionToString(port.Direction))
 			sb.WriteString(" ")
@@ -336,6 +336,7 @@ func PrintClass(c *Class) string {
 
 // PrintModule converts a Module object to its Verilog string representation.
 func PrintModule(m *Module) string {
+	logger.Warn("Printing module: %s with AnsiStyle %v", m.Name, m.AnsiStyle)
 	var sb strings.Builder
 	sb.WriteString("module ")
 	sb.WriteString(m.Name)
@@ -354,7 +355,7 @@ func PrintModule(m *Module) string {
 		sb.WriteString(" (\n")
 		for i, port := range m.Ports {
 			sb.WriteString("    ")
-			sb.WriteString(PrintPort(port, i == len(m.Ports)-1))
+			sb.WriteString(PrintPort(port, i == len(m.Ports)-1, m.AnsiStyle))
 			sb.WriteString("\n")
 		}
 		sb.WriteString(");\n")
