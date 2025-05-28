@@ -2,7 +2,6 @@ package testgen
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -373,37 +372,30 @@ func getCXXRTLPortType(port *verilog.Port) string {
 	width := port.Width
 
 	// Correct width for specific Verilog types if parser defaults width to 0 or an incorrect value.
-	// Assuming verilog.Port has a 'Type' field of type verilog.PrimType (e.g., verilog.INT, verilog.LOGIC)
-	// This part is crucial and depends on the actual structure of your verilog.Port
 	if port.Type == verilog.INT ||
-		port.Type == verilog.INTEGER { // Check if port.Type is comparable to these constants
+		port.Type == verilog.INTEGER {
 		width = 32
 	} else if (port.Type == verilog.LOGIC || port.Type == verilog.BIT || port.Type == verilog.REG || port.Type == verilog.WIRE) && width == 0 {
-		width = 1 // Default for single-bit types if width was not specified or parsed as 0
+		width = 1
 	} else if width == 0 {
-		// Fallback for other types if width is 0. This might indicate a parser issue for those types.
-		// Defaulting to 32 here is a guess; ideally, the parser provides correct widths.
-		// Or, this could be an error condition.
-		// For now, to solve the 'int' issue primarily:
-		// If not an int and width is 0, it's likely a single bit if it's a common type.
-		// If it's some other complex type with width 0, that's a deeper parser issue.
-		// Let's assume for now that if it's not 'int' and width is 0, it's probably meant to be 1.
-		width = 1 // Cautious default for non-int, zero-width to bool/uint8_t if it falls through
+		width = 1
 	}
 
 	if width == 1 {
 		return "bool"
 	}
-	// For multi-bit ports, CXXRTL's set/get are templated.
-	// Standard integer types are suitable.
+	// For multi-bit ports, use CXXRTL value types for wide signals
 	if width <= 8 {
 		return "uint8_t"
 	} else if width <= 16 {
 		return "uint16_t"
 	} else if width <= 32 {
 		return "uint32_t"
+	} else if width <= 64 {
+		return "uint64_t"
 	}
-	return "uint64_t" // Default for wider ports
+	// For very wide signals, use CXXRTL value type
+	return fmt.Sprintf("cxxrtl::value<%d>", width)
 }
 
 func (g *Generator) generateCXXRTLInputDeclarations() string {
@@ -424,15 +416,16 @@ func (g *Generator) generateCXXRTLInputReads(outputDir string) string {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
 			fileName := fmt.Sprintf("input_%s.hex", portName)
-			// Escape backslashes for Windows paths in C++ string literals if necessary, though for Linux/macOS this is fine.
-			cppFilePath := strings.ReplaceAll(
-				fileName,
-				"\\",
-				"\\\\",
-			) // Corrected for Go string literal
-			varDeclType := getCXXRTLPortType(
-				&port,
-			) // Get the C++ type for the port
+			cppFilePath := strings.ReplaceAll(fileName, "\\", "\\\\")
+			varDeclType := getCXXRTLPortType(&port)
+
+			// Determine effective width
+			width := port.Width
+			if port.Type == verilog.INT || port.Type == verilog.INTEGER {
+				width = 32
+			} else if width == 0 {
+				width = 1
+			}
 
 			inputReads.WriteString(
 				fmt.Sprintf("    std::ifstream %s_file(\"%s\");\n", portName, cppFilePath),
@@ -448,63 +441,142 @@ func (g *Generator) generateCXXRTLInputReads(outputDir string) string {
 			inputReads.WriteString("        return 1;\n")
 			inputReads.WriteString("    }\n")
 
-			// Always read as string first
 			inputReads.WriteString(fmt.Sprintf("    std::string %s_hex_str;\n", portName))
 			inputReads.WriteString(fmt.Sprintf("    %s_file >> %s_hex_str;\n", portName, portName))
-			inputReads.WriteString(fmt.Sprintf("    std::stringstream ss_%s;\n", portName))
-			inputReads.WriteString(
-				fmt.Sprintf("    ss_%s << std::hex << %s_hex_str;\n", portName, portName),
-			)
 
-			// If the type is uint8_t or bool, parse into an intermediate unsigned int first
-			// to avoid direct char interpretation, then cast.
-			if varDeclType == "uint8_t" || varDeclType == "bool" {
-				inputReads.WriteString(fmt.Sprintf("    unsigned int temp_%s;\n", portName))
+			// Add error checking for file read
+			inputReads.WriteString(
+				fmt.Sprintf("    if (%s_file.fail() && !%s_file.eof()) {\n", portName, portName),
+			)
+			inputReads.WriteString(
+				fmt.Sprintf(
+					"        std::cerr << \"Failed to read hex string for %s from input file: %s\" << std::endl;\n",
+					portName,
+					cppFilePath,
+				),
+			)
+			inputReads.WriteString(fmt.Sprintf("        %s_file.close();\n", portName))
+			inputReads.WriteString("        return 1;\n")
+			inputReads.WriteString("    }\n")
+
+			// Handle different width cases
+			if strings.HasPrefix(varDeclType, "cxxrtl::value<") {
+				// Wide signal - parse using chunk-based method
 				inputReads.WriteString(
-					fmt.Sprintf("    if (!(ss_%s >> temp_%s)) {\n", portName, portName),
+					fmt.Sprintf("    // Parse %s_hex_str into %s.data\n", portName, portName),
 				)
 				inputReads.WriteString(
 					fmt.Sprintf(
-						"        std::cerr << \"Failed to parse hex value for %s: \" << %s_hex_str << std::endl;\n",
-						portName,
-						portName,
-					),
-				)
-				inputReads.WriteString("        return 1;\n")
-				inputReads.WriteString("    }\n")
-				// Check for potential overflow before casting to smaller types like uint8_t
-				if varDeclType == "uint8_t" {
-					inputReads.WriteString(fmt.Sprintf("    if (temp_%s > 0xFF) {\n", portName))
-					inputReads.WriteString(
-						fmt.Sprintf(
-							"        std::cerr << \"Hex value out of range for %s (uint8_t): \" << %s_hex_str << std::endl;\n",
-							portName,
-							portName,
-						),
-					)
-					inputReads.WriteString("        return 1;\n")
-					inputReads.WriteString("    }\n")
-				} // No specific overflow check for bool needed here as any non-zero uint becomes true.
-				inputReads.WriteString(
-					fmt.Sprintf(
-						"    %s = static_cast<%s>(temp_%s);\n",
+						"    // %s is %s. Chunks = %d (assuming 64-bit chunks). Bits per chunk = 64. Hex chars per chunk = 16.\n",
 						portName,
 						varDeclType,
-						portName,
+						(width+63)/64,
 					),
 				)
-			} else {
-				// For other types (uint16_t, uint32_t, uint64_t), parse directly.
-				inputReads.WriteString(fmt.Sprintf("    if (!(ss_%s >> %s)) {\n", portName, portName))
+				inputReads.WriteString(
+					fmt.Sprintf("    // Total hex chars for %d bits = %d.\n", width, (width+3)/4),
+				)
+				inputReads.WriteString(
+					"    // Hex string is MSB first. CXXRTL data array is LSB first (data[0] is LSB chunk).\n",
+				)
+				inputReads.WriteString(
+					fmt.Sprintf("    size_t total_hex_chars_for_%s = %d / 4;\n", portName, width),
+				)
 				inputReads.WriteString(
 					fmt.Sprintf(
-						"        std::cerr << \"Failed to parse hex value for %s: \" << %s_hex_str << std::endl;\n",
+						"    if (%s_hex_str.length() < total_hex_chars_for_%s) {\n",
 						portName,
 						portName,
 					),
 				)
-				inputReads.WriteString("        return 1;\n")
+				inputReads.WriteString(
+					fmt.Sprintf(
+						"        %s_hex_str.insert(0, total_hex_chars_for_%s - %s_hex_str.length(), '0');\n",
+						portName,
+						portName,
+						portName,
+					),
+				)
+				inputReads.WriteString(
+					fmt.Sprintf(
+						"    } else if (%s_hex_str.length() > total_hex_chars_for_%s) {\n",
+						portName,
+						portName,
+					),
+				)
+				inputReads.WriteString(
+					fmt.Sprintf(
+						"        %s_hex_str = %s_hex_str.substr(%s_hex_str.length() - total_hex_chars_for_%s);\n",
+						portName,
+						portName,
+						portName,
+						portName,
+					),
+				)
+				inputReads.WriteString("    }\n\n")
+
+				inputReads.WriteString(
+					fmt.Sprintf(
+						"    const size_t num_chunks_for_%s = %s::chunks;\n",
+						portName,
+						varDeclType,
+					),
+				)
+				inputReads.WriteString(
+					fmt.Sprintf(
+						"    const size_t hex_chars_per_chunk_for_%s = %s::chunk::bits / 4;\n",
+						portName,
+						varDeclType,
+					),
+				)
+				inputReads.WriteString("\n")
+				inputReads.WriteString(
+					fmt.Sprintf("    for (size_t i = 0; i < num_chunks_for_%s; ++i) {\n", portName),
+				)
+				inputReads.WriteString(
+					"        size_t data_idx = i; // LSB chunk for data is data[0]\n",
+				)
+				inputReads.WriteString(
+					fmt.Sprintf(
+						"        size_t str_offset = (num_chunks_for_%s - 1 - i) * hex_chars_per_chunk_for_%s; // Corresponding part in MSB-first hex string\n",
+						portName,
+						portName,
+					),
+				)
+				inputReads.WriteString(
+					fmt.Sprintf(
+						"        std::string chunk_hex_str = %s_hex_str.substr(str_offset, hex_chars_per_chunk_for_%s);\n",
+						portName,
+						portName,
+					),
+				)
+				inputReads.WriteString(
+					fmt.Sprintf(
+						"        %s.data[data_idx] = std::stoull(chunk_hex_str, nullptr, 16);\n",
+						portName,
+					),
+				)
 				inputReads.WriteString("    }\n")
+			} else {
+				// Standard integer types
+				inputReads.WriteString(fmt.Sprintf("    std::stringstream ss_%s;\n", portName))
+				inputReads.WriteString(fmt.Sprintf("    ss_%s << std::hex << %s_hex_str;\n", portName, portName))
+
+				if varDeclType == "uint8_t" || varDeclType == "bool" {
+					inputReads.WriteString(fmt.Sprintf("    unsigned int temp_%s;\n", portName))
+					inputReads.WriteString(fmt.Sprintf("    if (!(ss_%s >> temp_%s)) {\n", portName, portName))
+					inputReads.WriteString(fmt.Sprintf("        std::cerr << \"Failed to parse hex value for %s: \" << %s_hex_str << std::endl;\n", portName, portName))
+					inputReads.WriteString(fmt.Sprintf("        %s_file.close();\n", portName))
+					inputReads.WriteString("        return 1;\n")
+					inputReads.WriteString("    }\n")
+					inputReads.WriteString(fmt.Sprintf("    %s = static_cast<%s>(temp_%s);\n", portName, varDeclType, portName))
+				} else {
+					inputReads.WriteString(fmt.Sprintf("    if (!(ss_%s >> %s)) {\n", portName, portName))
+					inputReads.WriteString(fmt.Sprintf("        std::cerr << \"Failed to parse hex value for %s: \" << %s_hex_str << std::endl;\n", portName, portName))
+					inputReads.WriteString(fmt.Sprintf("        %s_file.close();\n", portName))
+					inputReads.WriteString("        return 1;\n")
+					inputReads.WriteString("    }\n")
+				}
 			}
 
 			inputReads.WriteString(fmt.Sprintf("    %s_file.close();\n\n", portName))
@@ -518,22 +590,21 @@ func (g *Generator) generateCXXRTLInputApply(instanceName string) string {
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
-			cppType := getCXXRTLPortType(&port) // Pass pointer to port
+			cppType := getCXXRTLPortType(&port)
 			mangledPortName := cxxrtlManglePortName(portName)
-			inputApply.WriteString(
-				fmt.Sprintf(
-					"    %s.%s.set<%s>(%s);\n",
-					instanceName,
-					mangledPortName,
-					cppType,
-					portName,
-				),
-			)
+
+			if strings.HasPrefix(cppType, "cxxrtl::value<") {
+				// Wide signal - use direct assignment
+				inputApply.WriteString(
+					fmt.Sprintf("    %s.%s = %s;\n", instanceName, mangledPortName, portName),
+				)
+			} else {
+				// Standard types - use set method
+				inputApply.WriteString(fmt.Sprintf("    %s.%s.set<%s>(%s);\n", instanceName, mangledPortName, cppType, portName))
+			}
 		}
 	}
-	inputApply.WriteString(
-		fmt.Sprintf("    %s.step(); // Initial step after applying all inputs\n", instanceName),
-	)
+	inputApply.WriteString(" // 6. Input application\n")
 	return inputApply.String()
 }
 
@@ -599,30 +670,59 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 
 	var clockLogic strings.Builder
 	clockLogic.WriteString("\n    // Clock toggling\n")
-	const clockSignalType = "bool" // Clock is single bit
 	clockLogic.WriteString("    for (int cycle = 0; cycle < 10; cycle++) {\n")
+
 	for _, clockPort := range clockPortNames {
 		mangledClockPortName := cxxrtlManglePortName(clockPort)
-		clockLogic.WriteString(
-			fmt.Sprintf(
-				"        %s.%s.set<%s>(false);\n",
-				instanceName,
-				mangledClockPortName,
-				clockSignalType,
-			),
-		)
+		// Find the actual port to get its type
+		var clockPortType string = "bool" // default
+		for _, port := range g.module.Ports {
+			if strings.TrimSpace(port.Name) == clockPort {
+				clockPortType = getCXXRTLPortType(&port)
+				break
+			}
+		}
+
+		if strings.HasPrefix(clockPortType, "cxxrtl::value<") {
+			// Wide clock signal - use value assignment
+			clockLogic.WriteString(
+				fmt.Sprintf(
+					"        %s.%s = %s{0u};\n",
+					instanceName,
+					mangledClockPortName,
+					clockPortType,
+				),
+			)
+		} else {
+			clockLogic.WriteString(fmt.Sprintf("        %s.%s.set<%s>(false);\n", instanceName, mangledClockPortName, clockPortType))
+		}
 	}
 	clockLogic.WriteString(fmt.Sprintf("        %s.step(); // clock low\n", instanceName))
+
 	for _, clockPort := range clockPortNames {
 		mangledClockPortName := cxxrtlManglePortName(clockPort)
-		clockLogic.WriteString(
-			fmt.Sprintf(
-				"        %s.%s.set<%s>(true);\n",
-				instanceName,
-				mangledClockPortName,
-				clockSignalType,
-			),
-		)
+		// Find the actual port to get its type
+		var clockPortType string = "bool" // default
+		for _, port := range g.module.Ports {
+			if strings.TrimSpace(port.Name) == clockPort {
+				clockPortType = getCXXRTLPortType(&port)
+				break
+			}
+		}
+
+		if strings.HasPrefix(clockPortType, "cxxrtl::value<") {
+			// Wide clock signal - use value assignment
+			clockLogic.WriteString(
+				fmt.Sprintf(
+					"        %s.%s = %s{1u};\n",
+					instanceName,
+					mangledClockPortName,
+					clockPortType,
+				),
+			)
+		} else {
+			clockLogic.WriteString(fmt.Sprintf("        %s.%s.set<%s>(true);\n", instanceName, mangledClockPortName, clockPortType))
+		}
 	}
 	clockLogic.WriteString(fmt.Sprintf("        %s.step(); // clock high\n", instanceName))
 	clockLogic.WriteString("    }\n")
@@ -634,25 +734,13 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string, outputDir st
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.OUTPUT {
 			portName := strings.TrimSpace(port.Name)
-			fileName := fmt.Sprintf(
-				"output_%s.hex",
-				portName,
-			) // Filename remains .hex, content changes
-
-			// Ensure the directory exists
-			if err := os.MkdirAll(filepath.Dir(fileName), 0o755); err != nil {
-				log.Fatalf("Failed to create directory for output file: %v", err)
-			}
-
-			// Use the absolute path in the generated C++ code
-			// Escape backslashes for Windows paths in C++ string literals
+			fileName := fmt.Sprintf("output_%s.hex", portName)
 			cppFilePath := strings.ReplaceAll(fileName, "\\", "\\\\")
 
 			outputWrites.WriteString(
 				fmt.Sprintf("    std::ofstream %s_file(\"%s\");\n", portName, cppFilePath),
 			)
 			outputWrites.WriteString(fmt.Sprintf("    if (!%s_file.is_open()) {\n", portName))
-			// In the C++ error message, also use the escaped path for clarity if it ever prints
 			outputWrites.WriteString(
 				fmt.Sprintf(
 					"        std::cerr << \"Failed to open output file for %s: %s\" << std::endl;\n",
@@ -665,44 +753,40 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string, outputDir st
 
 			// Determine the width for writing logic
 			effectiveWidth := port.Width
-			cppType := getCXXRTLPortType(&port) // Pass pointer to port
+			cppType := getCXXRTLPortType(&port)
 			mangledPortName := cxxrtlManglePortName(portName)
 
 			if port.Type == verilog.INT || port.Type == verilog.INTEGER {
 				effectiveWidth = 32
 			} else if effectiveWidth == 0 {
-				effectiveWidth = 1 // Default for 0-width (likely single bit)
+				effectiveWidth = 1
 			}
 
-			if effectiveWidth > 1 {
-				// For multi-bit ports, get the value then write each bit from MSB to LSB
+			if strings.HasPrefix(cppType, "cxxrtl::value<") {
+				// Wide signal - access the port directly, write MSB to LSB to match other simulators
+				outputWrites.WriteString(
+					fmt.Sprintf("    for (int i = %d; i >= 0; --i) {\n", effectiveWidth-1),
+				)
 				outputWrites.WriteString(
 					fmt.Sprintf(
-						"    %s value_%s = %s.%s.get<%s>();\n",
-						cppType,
+						"        %s_file << (%s.%s.bit(i) ? '1' : '0');\n",
 						portName,
 						instanceName,
 						mangledPortName,
-						cppType,
 					),
-				)
-				outputWrites.WriteString(
-					fmt.Sprintf("    for (int i = %d; i >= 0; i--) {\n", effectiveWidth-1),
-				)
-				outputWrites.WriteString(
-					fmt.Sprintf("        %s_file << ((value_%s >> i) & 1);\n", portName, portName),
 				)
 				outputWrites.WriteString("    }\n")
-				outputWrites.WriteString(
-					fmt.Sprintf(
-						"    %s_file << std::endl; // Add a newline at the end of the bit string\n",
-						portName,
-					),
-				)
-			} else { // effectiveWidth is 1
-				// For single-bit ports, write the bit followed by a newline
-				outputWrites.WriteString(fmt.Sprintf("    %s_file << (%s.%s.get<%s>() ? 1 : 0) << std::endl;\n",
-					portName, instanceName, mangledPortName, cppType))
+				outputWrites.WriteString(fmt.Sprintf("    %s_file << std::endl;\n", portName))
+			} else if effectiveWidth > 1 {
+				// Multi-bit standard types
+				outputWrites.WriteString(fmt.Sprintf("    %s value_%s = %s.%s.get<%s>();\n", cppType, portName, instanceName, mangledPortName, cppType))
+				outputWrites.WriteString(fmt.Sprintf("    for (int i = %d; i >= 0; i--) {\n", effectiveWidth-1))
+				outputWrites.WriteString(fmt.Sprintf("        %s_file << ((value_%s >> i) & 1);\n", portName, portName))
+				outputWrites.WriteString("    }\n")
+				outputWrites.WriteString(fmt.Sprintf("    %s_file << std::endl; // Add a newline at the end of the bit string\n", portName))
+			} else {
+				// Single-bit ports
+				outputWrites.WriteString(fmt.Sprintf("    %s_file << (%s.%s.get<%s>() ? 1 : 0) << std::endl;\n", portName, instanceName, mangledPortName, cppType))
 			}
 			outputWrites.WriteString(fmt.Sprintf("    %s_file.close();\n\n", portName))
 		}
