@@ -1997,6 +1997,183 @@ func TestParseParameters(t *testing.T) {
 	}
 }
 
+func TestParseNonANSIParameterDeclarations(t *testing.T) {
+	testCases := []struct {
+		name           string
+		content        string
+		expectedModule *Module
+		expectError    bool
+	}{
+		{
+			name: "Non-ANSI parameter declarations in module body",
+			content: `
+module non_ansi_params (
+    input clk,
+    input rst,
+    output [WIDTH-1:0] data_out
+);
+    parameter WIDTH = 8;
+    parameter DEPTH = 16;
+    parameter logic [3:0] CONTROL = 4'b1010;
+    localparam ADDR_WIDTH = $clog2(DEPTH);
+    
+    reg [WIDTH-1:0] internal_reg;
+    always @(posedge clk) begin
+        internal_reg <= internal_reg + 1;
+    end
+    assign data_out = internal_reg;
+endmodule
+`,
+			expectedModule: &Module{
+				Name: "non_ansi_params",
+				Ports: []Port{
+					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+					{Name: "rst", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+					{Name: "data_out", Direction: OUTPUT, Type: LOGIC, Width: 8, IsSigned: false},
+				},
+				Parameters: []Parameter{
+					{Name: "WIDTH", Type: INTEGER, DefaultValue: "8"},
+					{Name: "DEPTH", Type: INTEGER, DefaultValue: "16"},
+					{Name: "CONTROL", Type: LOGIC, DefaultValue: "4'b1010", Width: 4},
+					{
+						Name:         "ADDR_WIDTH",
+						Type:         UNKNOWN,
+						DefaultValue: "$clog2(DEPTH)",
+						Localparam:   true,
+					},
+				},
+				Body:      "\n    parameter WIDTH = 8;\n    parameter DEPTH = 16;\n    parameter logic [3:0] CONTROL = 4'b1010;\n    localparam ADDR_WIDTH = $clog2(DEPTH);\n    \n    reg [WIDTH-1:0] internal_reg;\n    always @(posedge clk) begin\n        internal_reg <= internal_reg + 1;\n    end\n    assign data_out = internal_reg;\n",
+				AnsiStyle: false,
+			},
+			expectError: false,
+		},
+		{
+			name: "Mixed ANSI and non-ANSI parameters",
+			content: `
+module mixed_params #(
+    parameter INIT_VALUE = 0
+) (
+    input clk,
+    output [DATA_WIDTH-1:0] result
+);
+    parameter DATA_WIDTH = 32;
+    localparam MAX_COUNT = 2**DATA_WIDTH - 1;
+    
+    reg [DATA_WIDTH-1:0] counter;
+    assign result = counter;
+endmodule
+`,
+			expectedModule: &Module{
+				Name: "mixed_params",
+				Ports: []Port{
+					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+					{Name: "result", Direction: OUTPUT, Type: LOGIC, Width: 32, IsSigned: false},
+				},
+				Parameters: []Parameter{
+					{Name: "INIT_VALUE", Type: INTEGER, DefaultValue: "0"},
+					{Name: "DATA_WIDTH", Type: INTEGER, DefaultValue: "32"},
+					{
+						Name:         "MAX_COUNT",
+						Type:         UNKNOWN,
+						DefaultValue: "2**DATA_WIDTH - 1",
+						Localparam:   true,
+					},
+				},
+				Body:      "\n    parameter DATA_WIDTH = 32;\n    localparam MAX_COUNT = 2**DATA_WIDTH - 1;\n    \n    reg [DATA_WIDTH-1:0] counter;\n    assign result = counter;\n",
+				AnsiStyle: false,
+			},
+			expectError: false,
+		},
+		{
+			name: "Only non-ANSI parameters with types",
+			content: `
+module typed_params (
+    input enable,
+    output valid
+);
+    parameter integer TIMEOUT = 1000;
+    parameter real FREQUENCY = 100.5;
+    parameter string MODE = "FAST";
+    parameter time DELAY = 10ns;
+    
+    assign valid = enable;
+endmodule
+`,
+			expectedModule: &Module{
+				Name: "typed_params",
+				Ports: []Port{
+					{Name: "enable", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+					{Name: "valid", Direction: OUTPUT, Type: LOGIC, Width: 0, IsSigned: false},
+				},
+				Parameters: []Parameter{
+					{Name: "TIMEOUT", Type: INTEGER, DefaultValue: "1000"},
+					{Name: "FREQUENCY", Type: REAL, DefaultValue: "100.5"},
+					{Name: "MODE", Type: STRING, DefaultValue: `"FAST"`},
+					{Name: "DELAY", Type: TIME, DefaultValue: "10ns"},
+				},
+				Body:      "\n    parameter integer TIMEOUT = 1000;\n    parameter real FREQUENCY = 100.5;\n    parameter string MODE = \"FAST\";\n    parameter time DELAY = 10ns;\n    \n    assign valid = enable;\n",
+				AnsiStyle: false,
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vfile, err := ParseVerilog(tc.content, 0)
+
+			hasError := (err != nil)
+			if hasError != tc.expectError {
+				t.Fatalf("ParseVerilog() error = %v, expectError %v", err, tc.expectError)
+			}
+
+			if tc.expectError {
+				return
+			}
+
+			if vfile == nil {
+				t.Fatalf("ParseVerilog() returned nil VerilogFile, expected non-nil")
+			}
+
+			parsedModule, ok := vfile.Modules[tc.expectedModule.Name]
+			if !ok {
+				t.Fatalf(
+					"Module '%s' not found in parsed VerilogFile.Modules. Found: %+v",
+					tc.expectedModule.Name,
+					vfile.Modules,
+				)
+			}
+
+			// Compare parameters
+			if !reflect.DeepEqual(parsedModule.Parameters, tc.expectedModule.Parameters) {
+				t.Errorf(
+					"Parameters mismatch:\nGot: %+v\nWant: %+v",
+					parsedModule.Parameters,
+					tc.expectedModule.Parameters,
+				)
+			}
+
+			// Compare ports (simplified check)
+			if len(parsedModule.Ports) != len(tc.expectedModule.Ports) {
+				t.Errorf(
+					"Port count mismatch: got %d, want %d",
+					len(parsedModule.Ports),
+					len(tc.expectedModule.Ports),
+				)
+			}
+
+			// Check that module is marked as non-ANSI style
+			if parsedModule.AnsiStyle != tc.expectedModule.AnsiStyle {
+				t.Errorf(
+					"AnsiStyle mismatch: got %v, want %v",
+					parsedModule.AnsiStyle,
+					tc.expectedModule.AnsiStyle,
+				)
+			}
+		})
+	}
+}
+
 func TestParseTransFuzzFile(t *testing.T) {
 	// skip this test
 	t.Skip("Skipping local only test")
@@ -2006,12 +2183,10 @@ func TestParseTransFuzzFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get root directory: %v", err)
 	}
-	snippetsDir := filepath.Join(
+	filename := filepath.Join(
 		rootDir,
-		"snippets",
+		"isolated/V3Unknown/HandleOutOfBoundsWrite.sv",
 	)
-	filename := "V3Param.sv"
-	filename = filepath.Join(snippetsDir, filename)
 	fileContent, err := utils.ReadFileContent(filename)
 	if err != nil {
 		t.Fatalf("Failed to read file content from %s", filename)
