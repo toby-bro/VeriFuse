@@ -383,8 +383,9 @@ endmodule
 					{Name: "b", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
 					{Name: "sum", Direction: OUTPUT, Type: LOGIC, Width: 9, IsSigned: false},
 				},
-				Body:       "\n    assign sum = a + b;\n", // Expected body after parsing
+				Body:       "\n    assign sum = a + b;\n",
 				Parameters: []Parameter{},
+				AnsiStyle:  true,
 			},
 			expectError: false,
 		},
@@ -404,8 +405,22 @@ endmodule
 			expectedModule: &Module{
 				Name: "parameterized_module",
 				Ports: []Port{
-					{Name: "in", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
-					{Name: "out", Direction: OUTPUT, Type: LOGIC, Width: 8, IsSigned: false},
+					{
+						Name:            "in",
+						Direction:       INPUT,
+						Type:            LOGIC,
+						Width:           8,
+						IsSigned:        false,
+						AlreadyDeclared: false,
+					},
+					{
+						Name:            "out",
+						Direction:       OUTPUT,
+						Type:            LOGIC,
+						Width:           8,
+						IsSigned:        false,
+						AlreadyDeclared: false,
+					},
 				},
 				Parameters: []Parameter{
 					{
@@ -414,7 +429,8 @@ endmodule
 						DefaultValue: "8",
 					},
 				},
-				Body: "\n    assign out = in;\n", // Expected body after parsing
+				Body:      "\n    assign out = in;\n",
+				AnsiStyle: true,
 			},
 			expectError: false,
 		},

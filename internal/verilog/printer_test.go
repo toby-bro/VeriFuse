@@ -219,7 +219,7 @@ func TestPrintPort(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := PrintPort(tt.port, tt.isLast); got != tt.want {
+			if got := PrintPort(tt.port, tt.isLast, true); got != tt.want {
 				// Normalizing whitespace for comparison as subtle differences can occur
 				if normalizeSpace(got) != normalizeSpace(tt.want) {
 					t.Errorf("PrintPort() =\n%q\nwant\n%q", got, tt.want)
@@ -396,7 +396,8 @@ endmodule
 					{Name: "b", Direction: INPUT, Type: LOGIC, Width: 8},
 					{Name: "sum", Direction: OUTPUT, Type: LOGIC, Width: 8},
 				},
-				Body: "  assign sum = a + b;\n",
+				Body:      "  assign sum = a + b;\n",
+				AnsiStyle: true,
 			},
 			want: `module adder (
   input logic [7:0] a,
@@ -433,7 +434,8 @@ endmodule
 						Width:     0, /* Placeholder for DATA_W */
 					},
 				},
-				Body: "// FIFO logic here\n",
+				Body:      "// FIFO logic here\n",
+				AnsiStyle: true,
 			},
 			// Note: The PrintPort for data_in/out will use Width 0 -> "" if not dynamically set.
 			// For a more accurate test, PrintModule would need to resolve parameter-dependent widths.
@@ -492,7 +494,12 @@ endmodule
 
 			got := PrintModule(tt.m)
 			if normalizeSpace(got) != normalizeSpace(tt.want) {
-				t.Errorf("PrintModule() for %s =\n%q\nwant\n%q", tt.name, got, tt.want)
+				t.Errorf(
+					"PrintModule() for %s =\n%q\nwant\n%q",
+					tt.name,
+					normalizeSpace(got),
+					normalizeSpace(tt.want),
+				)
 			}
 		})
 	}
@@ -620,6 +627,7 @@ func TestPrintVerilogFile(t *testing.T) {
 							{Name: "data_in", Direction: INPUT, Type: LOGIC, Width: 8},
 							{Name: "data_out", Direction: OUTPUT, Type: LOGIC, Width: 8},
 						},
+						AnsiStyle: true,
 					},
 				},
 			},
@@ -651,9 +659,10 @@ endmodule
 				},
 				Modules: map[string]*Module{
 					"processor": {
-						Name:  "processor",
-						Body:  "  my_data_t data_bus;\n",
-						Ports: []Port{{Name: "clk", Direction: INPUT, Type: LOGIC}},
+						Name:      "processor",
+						Body:      "  my_data_t data_bus;\n",
+						Ports:     []Port{{Name: "clk", Direction: INPUT, Type: LOGIC}},
+						AnsiStyle: true,
 					},
 				},
 				DependancyMap: map[string]*DependencyNode{
@@ -721,6 +730,29 @@ endmodule
 `, // Actual content of struct/class/module body is empty here
 			wantErr: false,
 		},
+		{
+			name: "NonAnsiStyleModule",
+			vf: &VerilogFile{
+				Modules: map[string]*Module{
+					"nonAnsiModule": {
+						Name:      "nonAnsiModule",
+						Body:      "  input logic clk;\n  initial $display(\"Non-ANSI Module\");\n",
+						Ports:     []Port{{Name: "clk", Direction: INPUT, Type: LOGIC}},
+						AnsiStyle: false, // Non-ANSI style
+					},
+				},
+				DependancyMap: map[string]*DependencyNode{
+					"nonAnsiModule": {Name: "nonAnsiModule", DependsOn: []string{}},
+				},
+			},
+			want: `module nonAnsiModule (
+clk
+);
+  input logic clk;
+  initial $display("Non-ANSI Module");
+endmodule`,
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -739,7 +771,12 @@ endmodule
 				return
 			}
 			if normalizeSpaceFile(got) != normalizeSpaceFile(tt.want) {
-				t.Errorf("PrintVerilogFile() for %s =\nGOT:\n%s\nWANT:\n%s", tt.name, got, tt.want)
+				t.Errorf(
+					"PrintVerilogFile() for %s =\nGOT:\n%s\nWANT:\n%s",
+					tt.name,
+					normalizeSpaceFile(got),     // Use normalizeSpaceFile here
+					normalizeSpaceFile(tt.want), // And here
+				)
 			}
 		})
 	}
