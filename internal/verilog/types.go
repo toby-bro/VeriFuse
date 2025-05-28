@@ -41,6 +41,7 @@ type Parameter struct {
 	DefaultValue string
 	Localparam   bool
 	Width        int
+	AnsiStyle    bool
 }
 
 type Port struct {

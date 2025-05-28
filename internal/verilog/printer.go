@@ -340,11 +340,19 @@ func PrintModule(m *Module) string {
 	sb.WriteString("module ")
 	sb.WriteString(m.Name)
 
-	if len(m.Parameters) > 0 {
+	// Only print ANSI-style parameters in the header
+	ansiParams := []Parameter{}
+	for _, param := range m.Parameters {
+		if param.AnsiStyle {
+			ansiParams = append(ansiParams, param)
+		}
+	}
+
+	if len(ansiParams) > 0 {
 		sb.WriteString(" #(\n")
-		for i, param := range m.Parameters {
+		for i, param := range ansiParams {
 			sb.WriteString("    ")
-			sb.WriteString(PrintParameter(param, i == len(m.Parameters)-1))
+			sb.WriteString(PrintParameter(param, i == len(ansiParams)-1))
 			sb.WriteString("\n")
 		}
 		sb.WriteString(")")
