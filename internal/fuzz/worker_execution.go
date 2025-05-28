@@ -150,7 +150,7 @@ func (sch *Scheduler) detectAndHandleMismatches(
 		}
 	}
 
-	if len(successfulSimResults) < 2 && sch.operation == OpFuzz {
+	if len(successfulSimResults) < 2 && sch.operation >= OpFuzz {
 		sch.debug.Debug(
 			"[%s] Test %d: Not enough successful simulator runs (%d) to perform mismatch comparison.",
 			workerID,
@@ -181,7 +181,7 @@ func (sch *Scheduler) detectAndHandleMismatches(
 
 	mismatchFoundThisTest := false
 
-	if sch.operation == OpFuzz {
+	if sch.operation >= OpFuzz {
 		mismatchFoundThisTest, details := sch.compareAllResults(successfulSimResults)
 
 		if mismatchFoundThisTest {
@@ -234,7 +234,7 @@ func (sch *Scheduler) runSingleTest(
 
 	var mismatchOccurredDuringTest bool
 	defer func() {
-		if !mismatchOccurredDuringTest && sch.operation == OpFuzz {
+		if !mismatchOccurredDuringTest && sch.operation >= OpFuzz {
 			if sch.verbose <= 2 && !sch.keepFiles {
 				os.RemoveAll(testSpecificDir)
 			} else {

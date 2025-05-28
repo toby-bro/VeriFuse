@@ -17,9 +17,10 @@ import (
 type Operation int
 
 const (
-	OpFuzz Operation = iota
-	OpCheckFile
+	OpCheckFile Operation = iota
 	OpRewriteValid
+	OpFuzz
+	OpMutate
 )
 
 type Scheduler struct {
@@ -177,7 +178,7 @@ func (sch *Scheduler) Run(numTests int) error {
 		}
 	}()
 
-	if sch.operation == OpFuzz {
+	if sch.operation >= OpFuzz {
 		progressTracker := NewProgressTracker(numTests, sch.stats, &wg)
 		progressTracker.Start()
 		defer progressTracker.Stop()
@@ -208,12 +209,12 @@ func (sch *Scheduler) Run(numTests int) error {
 				return fmt.Errorf("failed to write snippets to file: %v", err)
 			}
 			sch.debug.Info("Snippets written to file successfully.")
-		case OpFuzz:
+		case OpFuzz, OpMutate:
 			sch.debug.Info("Fuzzing completed successfully.")
 		}
 	}
 
-	if sch.operation == OpFuzz {
+	if sch.operation >= OpFuzz {
 		sch.stats.PrintSummary()
 	}
 
@@ -237,7 +238,7 @@ func (sch *Scheduler) Run(numTests int) error {
 		)
 	}
 
-	if sch.stats.Mismatches > 0 && sch.operation == OpFuzz {
+	if sch.stats.Mismatches > 0 && sch.operation >= OpFuzz {
 		sch.debug.Info("Found %d mismatches !", sch.stats.Mismatches)
 		return fmt.Errorf("%d mismatches found", sch.stats.Mismatches)
 	}
@@ -249,7 +250,7 @@ func (sch *Scheduler) Run(numTests int) error {
 			allWorkerErrors[0],
 		)
 	}
-	if sch.operation == OpFuzz {
+	if sch.operation >= OpFuzz {
 		sch.debug.Info("No mismatches found after %d tests.\n", numTests)
 	}
 	return nil

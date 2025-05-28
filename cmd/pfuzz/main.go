@@ -64,9 +64,9 @@ func main() {
 	}
 	logger := utils.NewDebugLogger(verboseLevel)
 
-	var operation fuzz.Operation
+	operation := fuzz.OpFuzz
 	if *mutate {
-		operation = fuzz.OpFuzz
+		operation = fuzz.OpMutate
 	}
 
 	// Check if Verilog file is provided
