@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
@@ -120,10 +121,19 @@ func (sch *Scheduler) Run(numTests int) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// CPU-bound execution slots to prevent system overload
+	numCPUs := runtime.NumCPU()
+	cpuSlots := make(chan struct{}, numCPUs)
+	for i := 0; i < numCPUs; i++ {
+		cpuSlots <- struct{}{}
+	}
+
 	workerSlots := make(chan int, sch.workers)
 	for i := 0; i < sch.workers; i++ {
 		workerSlots <- i
 	}
+
+	sch.debug.Info("Using %d CPU cores for concurrent execution limiting", numCPUs)
 
 	sch.debug.Debug(
 		"Starting %d workers for %d modules so looping %d times",
@@ -143,6 +153,9 @@ func (sch *Scheduler) Run(numTests int) error {
 				slotIdx := <-workerSlots
 				defer func() { workerSlots <- slotIdx }()
 				sch.debug.Info("Worker %d started for module %s", slotIdx, mod.Name)
+
+				<-cpuSlots
+				defer func() { cpuSlots <- struct{}{} }()
 
 				if err := sch.worker(testCases, mod, slotIdx); err != nil {
 					errChan <- fmt.Errorf("worker (slot %d) for module %s error: %w", slotIdx, mod.Name, err)
