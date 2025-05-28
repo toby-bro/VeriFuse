@@ -318,7 +318,13 @@ func generateSignalDeclaration(port verilog.Port, signalName string) string {
 	} else if port.Direction == verilog.INOUT {
 		directionStr = "inout "
 	}
-	return fmt.Sprintf("%slogic %s%s%s;", directionStr, signedStr, widthStr, signalName)
+
+	typeStr := port.Type.String()
+	if typeStr == "" {
+		typeStr = "logic" // fallback
+	}
+
+	return fmt.Sprintf("%s%s %s%s%s;", directionStr, typeStr, signedStr, widthStr, signalName)
 }
 
 func ensureOutputPortForSnippet(
