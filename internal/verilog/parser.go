@@ -128,7 +128,7 @@ var generalParameterRegex = regexp.MustCompile(
 		fmt.Sprintf(`(?:\s*(%s)\s+)?`, widthRegex) +
 		`(?:(?:unsigned|signed)\s+)?` +
 		`(\w+)` +
-		`(?:\s*(=)\s*(.+))?` +
+		`(?:\s*(=)\s*([^;,]+))?` +
 		`\s*(?:,|;)?$`,
 )
 
@@ -657,6 +657,93 @@ func mergePortInfo(
 	return finalPorts
 }
 
+// extractNonANSIParameterDeclarations scans the provided content for non-ANSI parameter declarations in the module body
+func extractNonANSIParameterDeclarations(
+	content string,
+) ([]Parameter, error) {
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	var bodyParameters []Parameter
+
+	for scanner.Scan() {
+		trimmedLine := strings.TrimSpace(scanner.Text())
+		if trimmedLine == "" {
+			continue
+		}
+		// Stop parsing when we hit a scope change (function, task, always, etc.)
+		if matched := scopeChangeRegex.MatchString(trimmedLine); matched {
+			break
+		}
+
+		// Check if line contains parameter or localparam declaration
+		if strings.Contains(trimmedLine, "parameter") ||
+			strings.Contains(trimmedLine, "localparam") {
+			params, err := parseParameters(trimmedLine, false)
+			if err != nil {
+				logger.Warn("Failed to parse parameter line '%s': %v", trimmedLine, err)
+				continue
+			}
+			bodyParameters = append(bodyParameters, params...)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error scanning content for parameters: %v", err)
+	}
+
+	return bodyParameters, nil
+}
+
+// mergeParameterInfo combines parameters from header (ANSI style) and body (non-ANSI style)
+// Header parameters are marked as AnsiStyle=true, body parameters as AnsiStyle=false
+// If a parameter exists in both places, the body declaration takes precedence for the value
+func mergeParameterInfo(headerParams []Parameter, bodyParams []Parameter) []Parameter {
+	paramMap := make(map[string]Parameter)
+	var finalParams []Parameter
+
+	// First, add all header parameters
+	for _, param := range headerParams {
+		param.AnsiStyle = true
+		paramMap[param.Name] = param
+	}
+
+	// Then, merge/override with body parameters
+	for _, bodyParam := range bodyParams {
+		bodyParam.AnsiStyle = false
+		if headerParam, exists := paramMap[bodyParam.Name]; exists {
+			// Parameter exists in both, merge information
+			// Keep header type if body type is unknown, otherwise use body
+			if bodyParam.Type == UNKNOWN && headerParam.Type != UNKNOWN {
+				bodyParam.Type = headerParam.Type
+			}
+			// Body parameter value takes precedence
+			paramMap[bodyParam.Name] = bodyParam
+		} else {
+			// Parameter only exists in body
+			paramMap[bodyParam.Name] = bodyParam
+		}
+	}
+
+	// Convert map back to slice, maintaining order (header first, then body-only)
+	addedParams := make(map[string]bool)
+
+	// First add header parameters (maintaining original order)
+	for _, param := range headerParams {
+		if finalParam, exists := paramMap[param.Name]; exists {
+			finalParams = append(finalParams, finalParam)
+			addedParams[param.Name] = true
+		}
+	}
+
+	// Then add body-only parameters
+	for _, param := range bodyParams {
+		if !addedParams[param.Name] {
+			finalParams = append(finalParams, paramMap[param.Name])
+		}
+	}
+
+	return finalParams
+}
+
 // Helper function to convert slice of Parameters to a map for easy lookup
 func parametersToMap(params []Parameter) map[string]Parameter {
 	paramMap := make(map[string]Parameter)
@@ -686,11 +773,23 @@ func (v *VerilogFile) ParseModules(moduleText string) error {
 			Parameters: []Parameter{},
 			Body:       matchedModule[4],
 		}
-		parameters, err := parseParameters(paramListStr)
+
+		// Parse header parameters (ANSI style)
+		headerParameters, err := parseParameters(paramListStr, true)
 		if err != nil {
-			return fmt.Errorf("failed to parse parameters: %v", err)
+			return fmt.Errorf("failed to parse header parameters: %v", err)
 		}
-		module.Parameters = parameters
+
+		// Parse body parameters (non-ANSI style)
+		bodyParameters, err := extractNonANSIParameterDeclarations(module.Body)
+		if err != nil {
+			logger.Warn("Error parsing body parameters for module %s: %v", moduleName, err)
+			bodyParameters = []Parameter{} // Continue with empty body parameters
+		}
+
+		// Merge header and body parameters
+		module.Parameters = mergeParameterInfo(headerParameters, bodyParameters)
+
 		err = parsePortsAndUpdateModule(portListStr, module)
 		if err != nil {
 			logger.Warn("Skipping %s as failed to parse ports: %v", moduleName, err)
@@ -713,7 +812,7 @@ func (v *VerilogFile) ParseClasses(classText string) error {
 		extends := matchedClass[3]
 		paramListStr := matchedClass[4]
 		content := matchedClass[5]
-		parameters, err := parseParameters(paramListStr)
+		parameters, err := parseParameters(paramListStr, true)
 		if err != nil {
 			return fmt.Errorf("failed to parse parameters: %v", err)
 		}
@@ -793,7 +892,7 @@ func inferTypeFromDefaultValue(defaultValue string) PortType {
 	return UNKNOWN
 }
 
-func parseParameters(parameterListString string) ([]Parameter, error) {
+func parseParameters(parameterListString string, ansiStyle bool) ([]Parameter, error) {
 	params := strings.Split(parameterListString, ",")
 	parametersList := []Parameter{}
 
@@ -869,6 +968,7 @@ func parseParameters(parameterListString string) ([]Parameter, error) {
 				DefaultValue: paramValue,
 				Localparam:   paramLocality,
 				Width:        paramWidth,
+				AnsiStyle:    ansiStyle,
 			})
 		} else {
 			logger.Warn(
