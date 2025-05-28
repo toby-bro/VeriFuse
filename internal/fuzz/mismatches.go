@@ -31,12 +31,6 @@ func compareOutputValues(ivValue, vlValue string) bool {
 	if ivNorm == vlNorm {
 		return true
 	}
-	if (ivNorm == "00" && vlNorm == "xx") || (ivNorm == "xx" && vlNorm == "00") {
-		return true
-	}
-	if (ivNorm == "0" && vlNorm == "x") || (ivNorm == "x" && vlNorm == "0") {
-		return true
-	}
 	if len(ivNorm) == len(vlNorm) && ivNorm != vlNorm {
 		if strings.Contains(ivNorm, "x") || strings.Contains(vlNorm, "x") {
 			equivalent := true
@@ -169,7 +163,7 @@ func (sch *Scheduler) handleMismatch(
 ) {
 	sch.stats.AddMismatch(testCase)
 	sch.debug.Info(
-		"[%s] Mismatch FOUND in test %d for module %s%s",
+		"[%s] Mismatch FOUND in test %d for module %s",
 		filepath.Base(testDir),
 		testIndex,
 		workerModule.Name,
