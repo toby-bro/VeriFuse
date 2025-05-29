@@ -661,8 +661,10 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 	if len(clockPortNames) == 0 {
 		var noClockLogic strings.Builder
 		noClockLogic.WriteString(
-			"\n    // No clock found, performing a few steps for combinational logic to settle\n",
+			"\n    // No clock found, performing multiple steps for combinational logic to settle\n",
 		)
+		noClockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
+		noClockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
 		noClockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
 		noClockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
 		return noClockLogic.String()
@@ -726,6 +728,13 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 	}
 	clockLogic.WriteString(fmt.Sprintf("        %s.step(); // clock high\n", instanceName))
 	clockLogic.WriteString("    }\n")
+
+	// Add extra evaluation steps to ensure all logic settles
+	clockLogic.WriteString("\n    // Extra evaluation steps to ensure all logic settles\n")
+	clockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
+	clockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
+	clockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
+
 	return clockLogic.String()
 }
 
