@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
 	"github.com/toby-bro/pfuzz/internal/snippets"
@@ -24,6 +25,22 @@ const (
 	OpMutate
 )
 
+// TimeoutConfig holds timeout configurations for different operations
+type TimeoutConfig struct {
+	CompilationTimeout time.Duration // Timeout for simulator compilation
+	TestTimeout        time.Duration // Timeout for individual test execution
+	OverallTimeout     time.Duration // Overall timeout for the entire fuzzing session
+}
+
+// DefaultTimeoutConfig returns sensible default timeout values
+func DefaultTimeoutConfig() TimeoutConfig {
+	return TimeoutConfig{
+		CompilationTimeout: 5 * time.Minute,  // 5 minutes for compilation
+		TestTimeout:        30 * time.Second, // 30 seconds per test
+		OverallTimeout:     1 * time.Hour,    // 1 hour overall
+	}
+}
+
 type Scheduler struct {
 	stats        *Stats
 	strategyName string
@@ -34,6 +51,7 @@ type Scheduler struct {
 	operation    Operation
 	maxAttempts  int
 	keepFiles    bool
+	timeouts     TimeoutConfig
 }
 
 func NewScheduler(
@@ -54,6 +72,7 @@ func NewScheduler(
 		maxAttempts:  maxAttempts,
 		strategyName: strategy,
 		keepFiles:    keepFiles,
+		timeouts:     DefaultTimeoutConfig(),
 	}
 
 	scheduler.svFile = &verilog.VerilogFile{
@@ -118,8 +137,11 @@ func (sch *Scheduler) Run(numTests int) error {
 	testCases := make(chan int, sch.workers)
 	errChan := make(chan error, max(sch.workers, len(sch.svFile.Modules)))
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// Create main context with overall timeout
+	ctx, cancel := context.WithTimeout(context.Background(), sch.timeouts.OverallTimeout)
 	defer cancel()
+	
+	sch.debug.Info("Fuzzing session timeout set to %v", sch.timeouts.OverallTimeout)
 
 	// CPU-bound execution slots to prevent system overload
 	numCPUs := runtime.NumCPU()

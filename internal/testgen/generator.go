@@ -10,6 +10,28 @@ import (
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
+// TestbenchConfig holds configuration for safe testbench generation
+type TestbenchConfig struct {
+	MaxClockCycles    int     // Maximum number of clock cycles to prevent infinite loops
+	MaxCombLoopChecks int     // Maximum combinational evaluation steps
+	MaxEvaluationTime int     // Maximum evaluation time in time units
+	ClockPeriod       int     // Clock period in time units
+	SettlingTime      int     // Time to allow for signal settling
+	TimeoutMultiplier float64 // Multiplier for timeout calculation
+}
+
+// DefaultTestbenchConfig returns safe default configuration values
+func DefaultTestbenchConfig() *TestbenchConfig {
+	return &TestbenchConfig{
+		MaxClockCycles:    50,   // Increased from 10 for more comprehensive testing, but still bounded
+		MaxCombLoopChecks: 20,   // Maximum steps for combinational logic to settle
+		MaxEvaluationTime: 1000, // Maximum simulation time in time units
+		ClockPeriod:       10,   // Clock period (5 low + 5 high)
+		SettlingTime:      20,   // Additional settling time
+		TimeoutMultiplier: 1.5,  // 50% safety margin on timeouts
+	}
+}
+
 // cxxrtlMangleIdentifier replaces single underscores with double underscores.
 func cxxrtlMangleIdentifier(name string) string {
 	return strings.ReplaceAll(name, "_", "__")
@@ -24,6 +46,7 @@ func cxxrtlManglePortName(verilogPortName string) string {
 type Generator struct {
 	module   *verilog.Module
 	fileName string
+	config   *TestbenchConfig
 }
 
 // NewGenerator creates a new testbench generator
@@ -32,6 +55,7 @@ func NewGenerator(module *verilog.Module, fileName string) *Generator {
 	return &Generator{
 		module:   module,
 		fileName: fileName,
+		config:   DefaultTestbenchConfig(),
 	}
 }
 
@@ -258,28 +282,60 @@ func (g *Generator) generateSVResetToggling(resetPort string, isActiveHigh bool)
 	return resetToggle.String()
 }
 
-// generateSVClockToggling generates code to toggle clock signals
+// generateSVClockToggling generates code to toggle clock signals with safeguards
 func (g *Generator) generateSVClockToggling(clockPorts []string) string {
 	if len(clockPorts) == 0 {
 		// If no clock ports, just add a delay
-		return "\n        // Allow module to process\n        #10;\n"
+		return fmt.Sprintf(
+			"\n        // Allow module to process\n        #%d;\n",
+			g.config.SettlingTime,
+		)
 	}
 
 	var clockToggle strings.Builder
-	clockToggle.WriteString("\n        // Toggle clocks for several cycles\n")
-	clockToggle.WriteString("        repeat (10) begin\n")
+	clockToggle.WriteString(
+		"\n        // Toggle clocks for several cycles with timeout protection\n",
+	)
+
+	// Add simulation timeout based on configuration
+	maxSimTime := g.config.MaxClockCycles*g.config.ClockPeriod + g.config.SettlingTime
+	timeoutTime := int(float64(maxSimTime) * g.config.TimeoutMultiplier)
+
+	clockToggle.WriteString(
+		fmt.Sprintf("        // Set simulation timeout to prevent infinite loops\n"),
+	)
+	clockToggle.WriteString(fmt.Sprintf("        fork\n"))
+	clockToggle.WriteString(fmt.Sprintf("            begin\n"))
+	clockToggle.WriteString(fmt.Sprintf("                #%d;\n", timeoutTime))
+	clockToggle.WriteString(
+		fmt.Sprintf(
+			"                $display(\"ERROR: Simulation timeout after %d time units\");\n",
+			timeoutTime,
+		),
+	)
+	clockToggle.WriteString(fmt.Sprintf("                $finish;\n"))
+	clockToggle.WriteString(fmt.Sprintf("            end\n"))
+	clockToggle.WriteString(fmt.Sprintf("            begin\n"))
+
+	clockToggle.WriteString(
+		fmt.Sprintf("                repeat (%d) begin\n", g.config.MaxClockCycles),
+	)
 
 	for _, clockPort := range clockPorts {
-		clockToggle.WriteString(fmt.Sprintf("            %s = 0;\n", clockPort))
+		clockToggle.WriteString(fmt.Sprintf("                    %s = 0;\n", clockPort))
 	}
-	clockToggle.WriteString("            #5;\n")
+	clockToggle.WriteString(fmt.Sprintf("                    #%d;\n", g.config.ClockPeriod/2))
 
 	for _, clockPort := range clockPorts {
-		clockToggle.WriteString(fmt.Sprintf("            %s = 1;\n", clockPort))
+		clockToggle.WriteString(fmt.Sprintf("                    %s = 1;\n", clockPort))
 	}
-	clockToggle.WriteString("            #5;\n")
+	clockToggle.WriteString(fmt.Sprintf("                    #%d;\n", g.config.ClockPeriod/2))
 
-	clockToggle.WriteString("        end\n")
+	clockToggle.WriteString("                end\n")
+	clockToggle.WriteString("            end\n")
+	clockToggle.WriteString("        join_any\n")
+	clockToggle.WriteString("        disable fork; // Kill timeout process\n")
+
 	return clockToggle.String()
 }
 
@@ -661,18 +717,27 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 	if len(clockPortNames) == 0 {
 		var noClockLogic strings.Builder
 		noClockLogic.WriteString(
-			"\n    // No clock found, performing multiple steps for combinational logic to settle\n",
+			"\n    // No clock found, performing bounded steps for combinational logic to settle\n",
 		)
-		noClockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
-		noClockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
-		noClockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
-		noClockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
+		// Use bounded loop for combinational settling to prevent infinite loops
+		noClockLogic.WriteString(
+			fmt.Sprintf(
+				"    for (int settle_step = 0; settle_step < %d; settle_step++) {\n",
+				g.config.MaxCombLoopChecks,
+			),
+		)
+		noClockLogic.WriteString(fmt.Sprintf("        %s.step();\n", instanceName))
+		noClockLogic.WriteString("    }\n")
 		return noClockLogic.String()
 	}
 
 	var clockLogic strings.Builder
-	clockLogic.WriteString("\n    // Clock toggling\n")
-	clockLogic.WriteString("    for (int cycle = 0; cycle < 10; cycle++) {\n")
+	clockLogic.WriteString(
+		"\n    // Clock toggling with bounded cycles to prevent infinite loops\n",
+	)
+	clockLogic.WriteString(
+		fmt.Sprintf("    for (int cycle = 0; cycle < %d; cycle++) {\n", g.config.MaxClockCycles),
+	)
 
 	for _, clockPort := range clockPortNames {
 		mangledClockPortName := cxxrtlManglePortName(clockPort)
@@ -729,11 +794,21 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 	clockLogic.WriteString(fmt.Sprintf("        %s.step(); // clock high\n", instanceName))
 	clockLogic.WriteString("    }\n")
 
-	// Add extra evaluation steps to ensure all logic settles
-	clockLogic.WriteString("\n    // Extra evaluation steps to ensure all logic settles\n")
-	clockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
-	clockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
-	clockLogic.WriteString(fmt.Sprintf("    %s.step();\n", instanceName))
+	// Add bounded evaluation steps to ensure all logic settles
+	clockLogic.WriteString(
+		fmt.Sprintf(
+			"\n    // Bounded evaluation steps to ensure all logic settles (max %d steps)\n",
+			g.config.MaxCombLoopChecks,
+		),
+	)
+	clockLogic.WriteString(
+		fmt.Sprintf(
+			"    for (int settle_step = 0; settle_step < %d; settle_step++) {\n",
+			g.config.MaxCombLoopChecks,
+		),
+	)
+	clockLogic.WriteString(fmt.Sprintf("        %s.step();\n", instanceName))
+	clockLogic.WriteString("    }\n")
 
 	return clockLogic.String()
 }

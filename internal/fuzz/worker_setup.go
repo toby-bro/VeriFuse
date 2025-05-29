@@ -266,7 +266,12 @@ func (sch *Scheduler) setupSimulators(
 	ivWorkDir := baseWorkerDir // Icarus compiles in the base worker dir
 	ivsim := simulator.NewIVerilogSimulator(ivWorkDir, sch.verbose)
 	sch.debug.Debug("[%s] Compiling IVerilog simulator in %s", workerID, ivWorkDir)
-	if err := ivsim.Compile(ctx); err != nil {
+	
+	// Create compilation context with timeout
+	compileCtx, compileCancel := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
+	defer compileCancel()
+	
+	if err := ivsim.Compile(compileCtx); err != nil {
 		sch.debug.Warn("[%s] Failed to compile IVerilog: %v", workerID, err)
 		setupErrors = append(setupErrors, fmt.Sprintf("iverilog: %v", err))
 		// sch.handleGenericCompilationFailure(workerID, workerModuleName, "iverilog", err, baseWorkerDir)
@@ -288,7 +293,12 @@ func (sch *Scheduler) setupSimulators(
 	} else {
 		vlsim0 := simulator.NewVerilatorSimulator(vlO0WorkDir, svFileToCompile, workerModuleName, false, sch.verbose)
 		sch.debug.Debug("[%s] Compiling Verilator O0 simulator in %s", workerID, vlO0WorkDir)
-		if err := vlsim0.Compile(ctx); err != nil {
+		
+		// Create compilation context with timeout for Verilator O0
+		compileCtx0, compileCancel0 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
+		defer compileCancel0()
+		
+		if err := vlsim0.Compile(compileCtx0); err != nil {
 			sch.debug.Warn("[%s] Failed to compile Verilator O0: %v", workerID, err)
 			setupErrors = append(setupErrors, fmt.Sprintf("verilator_O0: %v", err))
 			// sch.handleGenericCompilationFailure(workerID, workerModuleName, "verilator_O0", err, baseWorkerDir)
@@ -311,7 +321,12 @@ func (sch *Scheduler) setupSimulators(
 	} else {
 		vlsim3 := simulator.NewVerilatorSimulator(vlO3WorkDir, svFileToCompile, workerModuleName, true, sch.verbose)
 		sch.debug.Debug("[%s] Compiling Verilator O3 simulator in %s", workerID, vlO3WorkDir)
-		if err := vlsim3.Compile(ctx); err != nil {
+		
+		// Create compilation context with timeout for Verilator O3
+		compileCtx3, compileCancel3 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
+		defer compileCancel3()
+		
+		if err := vlsim3.Compile(compileCtx3); err != nil {
 			sch.debug.Warn("[%s] Failed to compile Verilator O3: %v", workerID, err)
 			setupErrors = append(setupErrors, fmt.Sprintf("verilator_O3: %v", err))
 			// sch.handleGenericCompilationFailure(workerID, workerModuleName, "verilator_O3", err, baseWorkerDir)
@@ -384,7 +399,11 @@ func (sch *Scheduler) setupSimulators(
 			err,
 		)
 	} else {
-		if err := cxsim.Compile(ctx); err != nil {
+		// Create compilation context with timeout for CXXRTL
+		compileCtxCXX, compileCancelCXX := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
+		defer compileCancelCXX()
+		
+		if err := cxsim.Compile(compileCtxCXX); err != nil {
 			sch.debug.Warn("[%s] CXXRTL compilation failed in %s: %v", workerID, cxxrtlWorkDir, err)
 			// sch.handleCompilationFailure(workerID, "CXXRTL", cxxrtlWorkDir, err, svFileToCompile.Name, workerModuleName)
 			setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL compile error: %v", err))
@@ -423,7 +442,11 @@ func (sch *Scheduler) setupSimulators(
 			err,
 		)
 	} else {
-		if err := cxSlangSim.Compile(ctx); err != nil {
+		// Create compilation context with timeout for CXXRTL with Slang
+		compileCtxSlang, compileCancelSlang := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
+		defer compileCancelSlang()
+		
+		if err := cxSlangSim.Compile(compileCtxSlang); err != nil {
 			sch.debug.Warn("[%s] CXXRTL (Slang) compilation failed in %s: %v", workerID, cxxrtlSlangWorkDir, err)
 			// sch.handleCompilationFailure(workerID, "CXXRTL_SLANG", cxxrtlSlangWorkDir, err, svFileToCompile.Name, workerModuleName)
 			setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL (Slang) compile error: %v", err))
