@@ -157,7 +157,7 @@ func (sch *Scheduler) Run(numTests int) error {
 				<-cpuSlots
 				defer func() { cpuSlots <- struct{}{} }()
 
-				if err := sch.worker(testCases, mod, slotIdx); err != nil {
+				if err := sch.worker(ctx, testCases, mod, slotIdx); err != nil {
 					errChan <- fmt.Errorf("worker (slot %d) for module %s error: %w", slotIdx, mod.Name, err)
 				}
 			}(currentModule)

@@ -1,7 +1,8 @@
 package fuzz
 
 import (
-	"bytes" // Added for command output
+	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec" // Added for running yosys-config
@@ -70,6 +71,7 @@ func (sch *Scheduler) copyWorkerFiles(workerID, workerDir, verilogFileName strin
 // If setup was successful, the error returned is nil.
 // If setup failed, it returns false and the setup error.
 func (sch *Scheduler) performWorkerAttempt(
+	ctx context.Context,
 	workerID string,
 	testCases <-chan int,
 	workerModule *verilog.Module,
@@ -193,6 +195,7 @@ func (sch *Scheduler) performWorkerAttempt(
 	sch.debug.Debug("[%s] Testbenches generated.", workerID)
 
 	sims, err := sch.setupSimulators(
+		ctx,
 		workerID,
 		workerDir,
 		currentWorkerModule.Name,
@@ -218,6 +221,7 @@ func (sch *Scheduler) performWorkerAttempt(
 	)
 
 	errorList := sch.processTestCases(
+		ctx,
 		workerID,
 		workerDir, // This is the base directory for the worker attempt
 		sims,      // Pass the slice of SimInstance
@@ -245,6 +249,7 @@ func (sch *Scheduler) performWorkerAttempt(
 }
 
 func (sch *Scheduler) setupSimulators(
+	ctx context.Context,
 	workerID, baseWorkerDir, workerModuleName string,
 	svFileToCompile *verilog.VerilogFile, // svFileToCompile is the (potentially mutated) one
 ) ([]*SimInstance, error) {
@@ -261,7 +266,7 @@ func (sch *Scheduler) setupSimulators(
 	ivWorkDir := baseWorkerDir // Icarus compiles in the base worker dir
 	ivsim := simulator.NewIVerilogSimulator(ivWorkDir, sch.verbose)
 	sch.debug.Debug("[%s] Compiling IVerilog simulator in %s", workerID, ivWorkDir)
-	if err := ivsim.Compile(); err != nil {
+	if err := ivsim.Compile(ctx); err != nil {
 		sch.debug.Warn("[%s] Failed to compile IVerilog: %v", workerID, err)
 		setupErrors = append(setupErrors, fmt.Sprintf("iverilog: %v", err))
 		// sch.handleGenericCompilationFailure(workerID, workerModuleName, "iverilog", err, baseWorkerDir)
@@ -283,13 +288,13 @@ func (sch *Scheduler) setupSimulators(
 	} else {
 		vlsim0 := simulator.NewVerilatorSimulator(vlO0WorkDir, svFileToCompile, workerModuleName, false, sch.verbose)
 		sch.debug.Debug("[%s] Compiling Verilator O0 simulator in %s", workerID, vlO0WorkDir)
-		if err := vlsim0.Compile(); err != nil {
+		if err := vlsim0.Compile(ctx); err != nil {
 			sch.debug.Warn("[%s] Failed to compile Verilator O0: %v", workerID, err)
 			setupErrors = append(setupErrors, fmt.Sprintf("verilator_O0: %v", err))
 			// sch.handleGenericCompilationFailure(workerID, workerModuleName, "verilator_O0", err, baseWorkerDir)
 		} else {
 			sch.debug.Debug("[%s] Verilator O0 compiled successfully.", workerID)
-			compiledSims = append(compiledSims, &SimInstance{Name: "verilator_O0", Simulator: vlsim0, Prefix: "vlO0_"})
+			compiledSims = append(compiledSims, &SimInstance{Name: "vtorO0", Simulator: vlsim0, Prefix: "vlO0_"})
 		}
 	}
 
@@ -306,13 +311,13 @@ func (sch *Scheduler) setupSimulators(
 	} else {
 		vlsim3 := simulator.NewVerilatorSimulator(vlO3WorkDir, svFileToCompile, workerModuleName, true, sch.verbose)
 		sch.debug.Debug("[%s] Compiling Verilator O3 simulator in %s", workerID, vlO3WorkDir)
-		if err := vlsim3.Compile(); err != nil {
+		if err := vlsim3.Compile(ctx); err != nil {
 			sch.debug.Warn("[%s] Failed to compile Verilator O3: %v", workerID, err)
 			setupErrors = append(setupErrors, fmt.Sprintf("verilator_O3: %v", err))
 			// sch.handleGenericCompilationFailure(workerID, workerModuleName, "verilator_O3", err, baseWorkerDir)
 		} else {
 			sch.debug.Debug("[%s] Verilator O3 compiled successfully.", workerID)
-			compiledSims = append(compiledSims, &SimInstance{Name: "verilator_O3", Simulator: vlsim3, Prefix: "vlO3_"})
+			compiledSims = append(compiledSims, &SimInstance{Name: "vtorO3", Simulator: vlsim3, Prefix: "vlO3_"})
 		}
 	}
 
@@ -379,7 +384,7 @@ func (sch *Scheduler) setupSimulators(
 			err,
 		)
 	} else {
-		if err := cxsim.Compile(); err != nil {
+		if err := cxsim.Compile(ctx); err != nil {
 			sch.debug.Warn("[%s] CXXRTL compilation failed in %s: %v", workerID, cxxrtlWorkDir, err)
 			// sch.handleCompilationFailure(workerID, "CXXRTL", cxxrtlWorkDir, err, svFileToCompile.Name, workerModuleName)
 			setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL compile error: %v", err))
@@ -418,13 +423,13 @@ func (sch *Scheduler) setupSimulators(
 			err,
 		)
 	} else {
-		if err := cxSlangSim.Compile(); err != nil {
+		if err := cxSlangSim.Compile(ctx); err != nil {
 			sch.debug.Warn("[%s] CXXRTL (Slang) compilation failed in %s: %v", workerID, cxxrtlSlangWorkDir, err)
 			// sch.handleCompilationFailure(workerID, "CXXRTL_SLANG", cxxrtlSlangWorkDir, err, svFileToCompile.Name, workerModuleName)
 			setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL (Slang) compile error: %v", err))
 		} else {
 			sch.debug.Info("[%s] Successfully compiled CXXRTL (Slang) simulator in %s.", workerID, cxxrtlSlangWorkDir)
-			compiledSims = append(compiledSims, &SimInstance{Name: "CXXRTL_SLANG", Simulator: cxSlangSim, Prefix: "cxx_slang_"})
+			compiledSims = append(compiledSims, &SimInstance{Name: "CXXSLG", Simulator: cxSlangSim, Prefix: "cxx_slang_"})
 		}
 	}
 
@@ -441,6 +446,7 @@ func (sch *Scheduler) setupSimulators(
 }
 
 func (sch *Scheduler) worker(
+	ctx context.Context,
 	testCases <-chan int,
 	moduleToTest *verilog.Module,
 	workerNum int,
@@ -473,6 +479,7 @@ func (sch *Scheduler) worker(
 		)
 
 		setupOk, err := sch.performWorkerAttempt(
+			ctx,
 			workerCompleteID,
 			testCases,
 			moduleToTest,

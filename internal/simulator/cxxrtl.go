@@ -2,6 +2,7 @@ package simulator
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -95,7 +96,7 @@ func NewCXXRTLSimulator(
 
 // Compile converts the Verilog design to C++ using Yosys, then compiles
 // it with the CXXRTL testbench using g++.
-func (sim *CXXRTLSimulator) Compile() error {
+func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	sim.logger.Debug(
 		"Starting CXXRTL compilation in %s for module %s (UseSlang: %t)",
 		sim.workDir,
@@ -134,9 +135,30 @@ func (sim *CXXRTLSimulator) Compile() error {
 	cmdYosys.Dir = sim.workDir
 	var stderrYosys bytes.Buffer
 	cmdYosys.Stderr = &stderrYosys
-	if err := cmdYosys.Run(); err != nil {
-		sim.logger.Warn("Yosys command failed: %v\nStderr: %s", err, stderrYosys.String())
-		return fmt.Errorf("yosys conversion failed: %v - %s", err, stderrYosys.String())
+
+	// Start Yosys command and wait for completion with context timeout
+	if err := cmdYosys.Start(); err != nil {
+		return fmt.Errorf("failed to start yosys: %v", err)
+	}
+
+	// Use a channel to signal command completion
+	done := make(chan error, 1)
+	go func() {
+		done <- cmdYosys.Wait()
+	}()
+
+	// Wait for either completion or context cancellation
+	select {
+	case err := <-done:
+		if err != nil {
+			sim.logger.Warn("Yosys command failed: %v\nStderr: %s", err, stderrYosys.String())
+			return fmt.Errorf("yosys conversion failed: %v - %s", err, stderrYosys.String())
+		}
+	case <-ctx.Done():
+		if cmdYosys.Process != nil {
+			cmdYosys.Process.Kill()
+		}
+		return fmt.Errorf("yosys conversion timed out: %v", ctx.Err())
 	}
 	sim.logger.Debug("Yosys conversion successful. Output: %s", yosysOutputCCFile)
 
@@ -171,9 +193,30 @@ func (sim *CXXRTLSimulator) Compile() error {
 	cmdGXX.Dir = sim.workDir
 	var stderrGXX bytes.Buffer
 	cmdGXX.Stderr = &stderrGXX
-	if err := cmdGXX.Run(); err != nil {
-		sim.logger.Warn("g++ compilation failed: %v\nStderr: %s", err, stderrGXX.String())
-		return fmt.Errorf("g++ compilation failed: %v - %s", err, stderrGXX.String())
+
+	// Start g++ command and wait for completion with context timeout
+	if err := cmdGXX.Start(); err != nil {
+		return fmt.Errorf("failed to start g++: %v", err)
+	}
+
+	// Use a channel to signal command completion
+	done2 := make(chan error, 1)
+	go func() {
+		done2 <- cmdGXX.Wait()
+	}()
+
+	// Wait for either completion or context cancellation
+	select {
+	case err := <-done2:
+		if err != nil {
+			sim.logger.Warn("g++ compilation failed: %v\nStderr: %s", err, stderrGXX.String())
+			return fmt.Errorf("g++ compilation failed: %v - %s", err, stderrGXX.String())
+		}
+	case <-ctx.Done():
+		if cmdGXX.Process != nil {
+			cmdGXX.Process.Kill()
+		}
+		return fmt.Errorf("g++ compilation timed out: %v", ctx.Err())
 	}
 
 	// Verify executable creation
@@ -193,7 +236,11 @@ func (sim *CXXRTLSimulator) Compile() error {
 // RunTest runs the compiled CXXRTL simulation.
 // inputDir: directory containing input files (input_<port>.hex).
 // outputPaths: map of port names to their expected output file paths.
-func (sim *CXXRTLSimulator) RunTest(inputDir string, outputPaths map[string]string) error {
+func (sim *CXXRTLSimulator) RunTest(
+	ctx context.Context,
+	inputDir string,
+	outputPaths map[string]string,
+) error {
 	sim.logger.Debug(
 		"Starting CXXRTL RunTest. Executable: %s, InputDir: %s",
 		sim.execPath,
@@ -237,19 +284,40 @@ func (sim *CXXRTLSimulator) RunTest(inputDir string, outputPaths map[string]stri
 	cmd.Stderr = &stderrSim
 
 	sim.logger.Debug("Executing CXXRTL simulation: %s in %s", cmd.String(), sim.workDir)
-	if err := cmd.Run(); err != nil {
-		sim.logger.Error(
-			"CXXRTL simulation execution failed: %v\nStdout: %s\nStderr: %s",
-			err,
-			stdoutSim.String(),
-			stderrSim.String(),
-		)
-		return fmt.Errorf(
-			"cxxrtl simulation execution failed: %v\nstdout: %s\nstderr: %s",
-			err,
-			stdoutSim.String(),
-			stderrSim.String(),
-		)
+
+	// Start the command and wait for completion with context timeout
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start cxxrtl simulation: %v", err)
+	}
+
+	// Use a channel to signal command completion
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	// Wait for either completion or context cancellation
+	select {
+	case err := <-done:
+		if err != nil {
+			sim.logger.Error(
+				"CXXRTL simulation execution failed: %v\nStdout: %s\nStderr: %s",
+				err,
+				stdoutSim.String(),
+				stderrSim.String(),
+			)
+			return fmt.Errorf(
+				"cxxrtl simulation execution failed: %v\nstdout: %s\nstderr: %s",
+				err,
+				stdoutSim.String(),
+				stderrSim.String(),
+			)
+		}
+	case <-ctx.Done():
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+		return fmt.Errorf("cxxrtl simulation execution timed out: %v", ctx.Err())
 	}
 	sim.logger.Debug("CXXRTL simulation execution successful.\nStdout: %s", stdoutSim.String())
 	if stderrSim.Len() > 0 {

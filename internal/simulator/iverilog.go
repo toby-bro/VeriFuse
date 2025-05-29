@@ -2,6 +2,7 @@ package simulator
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -49,12 +50,12 @@ func NewIVerilogSimulator(baseWorkDir string, verbose int) *IVerilogSimulator {
 }
 
 // Compile compiles the verilog files with IVerilog
-func (sim *IVerilogSimulator) Compile() error {
-	return sim.CompileSpecific()
+func (sim *IVerilogSimulator) Compile(ctx context.Context) error {
+	return sim.CompileSpecific(ctx)
 }
 
 // CompileSpecific compiles only the specified files (or all .sv files if nil)
-func (sim *IVerilogSimulator) CompileSpecific() error {
+func (sim *IVerilogSimulator) CompileSpecific(ctx context.Context) error {
 	sim.debug.Debug("Ensuring IVerilog simulation directory exists: %s", sim.workDir)
 	if err := os.MkdirAll(sim.workDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create iverilog work dir %s: %v", sim.workDir, err)
@@ -83,8 +84,28 @@ func (sim *IVerilogSimulator) CompileSpecific() error {
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("iverilog compilation failed: %v - %s", err, stderr.String())
+	// Run with context timeout
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("iverilog compilation failed to start: %v", err)
+	}
+
+	// Wait for command completion or context cancellation
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			return fmt.Errorf("iverilog compilation failed: %v - %s", err, stderr.String())
+		}
+	case <-ctx.Done():
+		// Context was cancelled (timeout or cancellation)
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+		return fmt.Errorf("iverilog compilation timed out or was cancelled: %v", ctx.Err())
 	}
 	if stdout.Len() > 0 {
 		sim.debug.Debug("iverilog stdout: %s", stdout.String())
@@ -120,7 +141,11 @@ func (sim *IVerilogSimulator) CompileSpecific() error {
 }
 
 // RunTest runs the simulator with the provided input directory and output paths
-func (sim *IVerilogSimulator) RunTest(inputDir string, outputPaths map[string]string) error {
+func (sim *IVerilogSimulator) RunTest(
+	ctx context.Context,
+	inputDir string,
+	outputPaths map[string]string,
+) error {
 	// Make sure input directory and files exist (inputDir is the original source of inputs)
 	if _, err := os.Stat(inputDir); os.IsNotExist(err) {
 		return fmt.Errorf("input directory does not exist: %s", inputDir)
@@ -156,11 +181,31 @@ func (sim *IVerilogSimulator) RunTest(inputDir string, outputPaths map[string]st
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
 
-	if err := cmd.Run(); err != nil {
-		sim.debug.Debug("vvp execution failed with error: %v", err)
-		sim.debug.Debug("stderr: %s", stderr.String())
-		sim.debug.Debug("stdout: %s", stdout.String())
-		return fmt.Errorf("iverilog execution failed: %v - %s", err, stderr.String())
+	// Run with context timeout
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("iverilog execution failed to start: %v", err)
+	}
+
+	// Wait for command completion or context cancellation
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			sim.debug.Debug("vvp execution failed with error: %v", err)
+			sim.debug.Debug("stderr: %s", stderr.String())
+			sim.debug.Debug("stdout: %s", stdout.String())
+			return fmt.Errorf("iverilog execution failed: %v - %s", err, stderr.String())
+		}
+	case <-ctx.Done():
+		// Context was cancelled (timeout or cancellation)
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+		return fmt.Errorf("iverilog execution timed out or was cancelled: %v", ctx.Err())
 	}
 
 	// sim.debug.Printf("Simulation completed successfully")

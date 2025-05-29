@@ -1,6 +1,7 @@
 package simulator
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -11,13 +12,13 @@ import (
 
 // Simulator defines the interface for RTL simulators
 type Simulator interface {
-	// Compile compiles the simulator from source files
-	Compile() error
+	// Compile compiles the simulator from source files with context for timeout
+	Compile(ctx context.Context) error
 
 	// RunTest runs the simulator with the provided input and output files
 	// inputDir is the directory containing input files
 	// outputPaths maps port names to output file paths
-	RunTest(inputDir string, outputPaths map[string]string) error
+	RunTest(ctx context.Context, inputDir string, outputPaths map[string]string) error
 }
 
 // OutputResult represents the results of a simulation run for any output port

@@ -2,6 +2,7 @@ package simulator
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -58,7 +59,7 @@ func NewVerilatorSimulator(
 }
 
 // Compile compiles the verilog files with Verilator
-func (sim *VerilatorSimulator) Compile() error {
+func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 	// Create the obj_dir in the worker directory
 	objDir := filepath.Join(sim.workDir, "obj_dir")
 	if err := os.MkdirAll(objDir, 0o755); err != nil {
@@ -115,20 +116,65 @@ func (sim *VerilatorSimulator) Compile() error {
 	 *sim.logger.Debug("Verilator command: %s", cmd.String())
 	 */
 
-	err := cmd.Run()
-	if err != nil {
-		// retry
-		sim.logger.Warn("[%s] Verilator compilation failed, retrying...", sim.workDir)
-		time.Sleep(10 * time.Millisecond)
-		err = cmd.Run()
+	// Start the command and wait for completion with context timeout
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("[%s] failed to start verilator: %v", sim.workDir, err)
+	}
+
+	// Use a channel to signal command completion
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	// Wait for either completion or context cancellation
+	select {
+	case err := <-done:
 		if err != nil {
-			return fmt.Errorf(
-				"[%s] verilator compilation failed: %v\n%s",
-				sim.workDir,
-				err,
-				stderr.String(),
-			)
+			// retry
+			sim.logger.Warn("[%s] Verilator compilation failed, retrying...", sim.workDir)
+			time.Sleep(10 * time.Millisecond)
+
+			// Retry with timeout
+			cmd = exec.Command("verilator", verilatorArgs...)
+			cmd.Dir = sim.workDir
+			cmd.Stderr = &stderr
+
+			if err := cmd.Start(); err != nil {
+				return fmt.Errorf("[%s] failed to start verilator retry: %v", sim.workDir, err)
+			}
+
+			done2 := make(chan error, 1)
+			go func() {
+				done2 <- cmd.Wait()
+			}()
+
+			select {
+			case retryErr := <-done2:
+				if retryErr != nil {
+					return fmt.Errorf(
+						"[%s] verilator compilation failed after retry: %v\n%s",
+						sim.workDir,
+						retryErr,
+						stderr.String(),
+					)
+				}
+			case <-ctx.Done():
+				if cmd.Process != nil {
+					cmd.Process.Kill()
+				}
+				return fmt.Errorf(
+					"[%s] verilator compilation retry timed out: %v",
+					sim.workDir,
+					ctx.Err(),
+				)
+			}
 		}
+	case <-ctx.Done():
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+		return fmt.Errorf("[%s] verilator compilation timed out: %v", sim.workDir, ctx.Err())
 	}
 
 	// Verify the executable was created
@@ -144,7 +190,11 @@ func (sim *VerilatorSimulator) Compile() error {
 }
 
 // RunTest runs the simulator with provided input directory and output paths
-func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]string) error {
+func (sim *VerilatorSimulator) RunTest(
+	ctx context.Context,
+	inputDir string,
+	outputPaths map[string]string,
+) error {
 	// 1. Check input directory and files
 	sim.logger.Debug("Verilator RunTest: Input directory: %s", inputDir)
 	if _, err := os.Stat(inputDir); os.IsNotExist(err) {
@@ -208,19 +258,39 @@ func (sim *VerilatorSimulator) RunTest(inputDir string, outputPaths map[string]s
 		cmd.Args,
 	)
 
-	if err := cmd.Run(); err != nil {
-		files, _ := os.ReadDir(sim.workDir)
-		fileList := make([]string, 0, len(files))
-		for _, f := range files {
-			fileList = append(fileList, f.Name())
+	// Start the command and wait for completion with context timeout
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start verilator simulation: %v", err)
+	}
+
+	// Use a channel to signal command completion
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	// Wait for either completion or context cancellation
+	select {
+	case err := <-done:
+		if err != nil {
+			files, _ := os.ReadDir(sim.workDir)
+			fileList := make([]string, 0, len(files))
+			for _, f := range files {
+				fileList = append(fileList, f.Name())
+			}
+			sim.logger.Debug("Work directory contents after failed run: %v", fileList)
+			return fmt.Errorf(
+				"verilator execution failed: %v\nstdout: %sstderr: %s",
+				err,
+				stdout.String(),
+				stderr.String(),
+			)
 		}
-		sim.logger.Debug("Work directory contents after failed run: %v", fileList)
-		return fmt.Errorf(
-			"verilator execution failed: %v\nstdout: %sstderr: %s",
-			err,
-			stdout.String(),
-			stderr.String(),
-		)
+	case <-ctx.Done():
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+		return fmt.Errorf("verilator execution timed out: %v", ctx.Err())
 	}
 	sim.logger.Debug("Verilator execution successful.")
 	sim.logger.Debug(
