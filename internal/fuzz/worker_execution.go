@@ -1,6 +1,7 @@
 package fuzz
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 )
 
 func (sch *Scheduler) processTestCases(
+	ctx context.Context,
 	workerID, workerDir string,
 	sims []*SimInstance, // Changed from ivsim, vlsim
 	workerModule *verilog.Module,
@@ -37,7 +39,7 @@ func (sch *Scheduler) processTestCases(
 			continue
 		}
 
-		err := sch.runSingleTest(workerID, testSpecificDir, sims, workerModule, i, strategy)
+		err := sch.runSingleTest(ctx, workerID, testSpecificDir, sims, workerModule, i, strategy)
 		if err != nil {
 			sch.debug.Error("[%s] Test %d failed: %v", workerID, i, err)
 			errorMu.Lock()
@@ -78,6 +80,7 @@ func (sch *Scheduler) generateAndPrepareInputs(
 
 // executeSimulatorsConcurrently manages the concurrent execution of different simulators.
 func (sch *Scheduler) executeSimulatorsConcurrently(
+	ctx context.Context,
 	workerID, testSpecificDir string,
 	sims []*SimInstance,
 	workerModule *verilog.Module,
@@ -105,6 +108,7 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 			}
 
 			results, err := sch.runSimulator(
+				ctx,
 				si.Name,
 				si.Simulator,
 				testSpecificDir,
@@ -209,6 +213,7 @@ func (sch *Scheduler) detectAndHandleMismatches(
 }
 
 func (sch *Scheduler) runSingleTest(
+	ctx context.Context,
 	workerID, testSpecificDir string,
 	sims []*SimInstance,
 	workerModule *verilog.Module,
@@ -249,6 +254,7 @@ func (sch *Scheduler) runSingleTest(
 
 	// Step 2: Execute Simulators Concurrently
 	simResults, simErrors := sch.executeSimulatorsConcurrently(
+		ctx,
 		workerID,
 		testSpecificDir,
 		sims,
@@ -290,6 +296,7 @@ func writeTestInputs(testDir string, testCase map[string]string) error {
 }
 
 func (sch *Scheduler) runSimulator(
+	ctx context.Context,
 	simName string,
 	sim simulator.Simulator,
 	testSpecificDir string, // e.g., worker_XYZ/test_0
@@ -297,7 +304,7 @@ func (sch *Scheduler) runSimulator(
 ) (map[string]string, error) {
 	// sim.RunTest expects inputDir (where input_N.hex are) and outputPaths (where to put prefixed_output_N.hex)
 	// Both should be relative to testSpecificDir or absolute paths within it.
-	if err := sim.RunTest(testSpecificDir, outputPathsForSim); err != nil {
+	if err := sim.RunTest(ctx, testSpecificDir, outputPathsForSim); err != nil {
 		return nil, fmt.Errorf("simulator %s RunTest failed: %w", simName, err)
 	}
 
