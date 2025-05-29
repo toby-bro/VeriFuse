@@ -33,8 +33,12 @@ module top;
         // Toggle clock signals
 %s
 
-        // Allow module to process
-        #1;
+        // Allow module to process and settle
+        #10; // Increased delay for settling
+        
+        // Additional clock cycles to ensure all sequential logic settles
+        #10;
+        #10;
 
         // Write %d output files
 %s
