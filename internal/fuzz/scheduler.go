@@ -140,7 +140,7 @@ func (sch *Scheduler) Run(numTests int) error {
 	// Create main context with overall timeout
 	ctx, cancel := context.WithTimeout(context.Background(), sch.timeouts.OverallTimeout)
 	defer cancel()
-	
+
 	sch.debug.Info("Fuzzing session timeout set to %v", sch.timeouts.OverallTimeout)
 
 	// CPU-bound execution slots to prevent system overload
