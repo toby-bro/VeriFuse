@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
@@ -94,6 +96,58 @@ func NewCXXRTLSimulator(
 	}
 }
 
+// killProcessGroup kills the process and its entire process group to ensure cleanup
+func killProcessGroup(cmd *exec.Cmd) error {
+	if cmd.Process == nil {
+		return fmt.Errorf("process is nil")
+	}
+	
+	// Kill the entire process group
+	pgid, err := syscall.Getpgid(cmd.Process.Pid)
+	if err != nil {
+		// Fallback to killing just the process
+		return cmd.Process.Kill()
+	}
+	
+	// Kill the process group with SIGTERM first
+	syscall.Kill(-pgid, syscall.SIGTERM)
+	
+	// Give it a moment to terminate gracefully
+	time.Sleep(100 * time.Millisecond)
+	
+	// Force kill if still running
+	syscall.Kill(-pgid, syscall.SIGKILL)
+	
+	return nil
+}
+
+// timeoutWithForceKill implements a more aggressive timeout mechanism
+func timeoutWithForceKill(ctx context.Context, cmd *exec.Cmd, operation string) error {
+	// Set process group ID for proper cleanup
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Setpgid = true
+	
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start %s: %v", operation, err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		// Use aggressive process group killing
+		killProcessGroup(cmd)
+		return fmt.Errorf("%s timed out: %v", operation, ctx.Err())
+	}
+}
+
 // Compile converts the Verilog design to C++ using Yosys, then compiles
 // it with the CXXRTL testbench using g++.
 func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
@@ -119,6 +173,9 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	if sim.optimized {
 		yosysScript += "; proc; opt; fsm; opt; memory; opt; techmap; opt"
 	}
+	
+	// Add combinational loop detection and breaking
+	yosysScript += "; check -assert"
 	yosysScript += fmt.Sprintf("; write_cxxrtl %s", yosysOutputCCFile)
 
 	if sim.useSlang {
@@ -136,29 +193,10 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	var stderrYosys bytes.Buffer
 	cmdYosys.Stderr = &stderrYosys
 
-	// Start Yosys command and wait for completion with context timeout
-	if err := cmdYosys.Start(); err != nil {
-		return fmt.Errorf("failed to start yosys: %v", err)
-	}
-
-	// Use a channel to signal command completion
-	done := make(chan error, 1)
-	go func() {
-		done <- cmdYosys.Wait()
-	}()
-
-	// Wait for either completion or context cancellation
-	select {
-	case err := <-done:
-		if err != nil {
-			sim.logger.Warn("Yosys command failed: %v\nStderr: %s", err, stderrYosys.String())
-			return fmt.Errorf("yosys conversion failed: %v - %s", err, stderrYosys.String())
-		}
-	case <-ctx.Done():
-		if cmdYosys.Process != nil {
-			cmdYosys.Process.Kill()
-		}
-		return fmt.Errorf("yosys conversion timed out: %v", ctx.Err())
+	// Use improved timeout mechanism
+	if err := timeoutWithForceKill(ctx, cmdYosys, "yosys conversion"); err != nil {
+		sim.logger.Warn("Yosys command failed: %v\nStderr: %s", err, stderrYosys.String())
+		return fmt.Errorf("yosys conversion failed: %v - %s", err, stderrYosys.String())
 	}
 	sim.logger.Debug("Yosys conversion successful. Output: %s", yosysOutputCCFile)
 
@@ -194,29 +232,10 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	var stderrGXX bytes.Buffer
 	cmdGXX.Stderr = &stderrGXX
 
-	// Start g++ command and wait for completion with context timeout
-	if err := cmdGXX.Start(); err != nil {
-		return fmt.Errorf("failed to start g++: %v", err)
-	}
-
-	// Use a channel to signal command completion
-	done2 := make(chan error, 1)
-	go func() {
-		done2 <- cmdGXX.Wait()
-	}()
-
-	// Wait for either completion or context cancellation
-	select {
-	case err := <-done2:
-		if err != nil {
-			sim.logger.Warn("g++ compilation failed: %v\nStderr: %s", err, stderrGXX.String())
-			return fmt.Errorf("g++ compilation failed: %v - %s", err, stderrGXX.String())
-		}
-	case <-ctx.Done():
-		if cmdGXX.Process != nil {
-			cmdGXX.Process.Kill()
-		}
-		return fmt.Errorf("g++ compilation timed out: %v", ctx.Err())
+	// Use improved timeout mechanism for g++
+	if err := timeoutWithForceKill(ctx, cmdGXX, "g++ compilation"); err != nil {
+		sim.logger.Warn("g++ compilation failed: %v\nStderr: %s", err, stderrGXX.String())
+		return fmt.Errorf("g++ compilation failed: %v - %s", err, stderrGXX.String())
 	}
 
 	// Verify executable creation
@@ -275,8 +294,7 @@ func (sim *CXXRTLSimulator) RunTest(
 		}
 	}
 
-	// Run the simulation executable
-	// The executable is run from within its directory (sim.workDir)
+	// Run the simulation executable with improved timeout handling
 	cmd := exec.Command("./" + filepath.Base(sim.execPath))
 	cmd.Dir = sim.workDir
 	var stdoutSim, stderrSim bytes.Buffer
@@ -285,40 +303,22 @@ func (sim *CXXRTLSimulator) RunTest(
 
 	sim.logger.Debug("Executing CXXRTL simulation: %s in %s", cmd.String(), sim.workDir)
 
-	// Start the command and wait for completion with context timeout
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start cxxrtl simulation: %v", err)
+	// Use improved timeout mechanism for simulation execution
+	if err := timeoutWithForceKill(ctx, cmd, "cxxrtl simulation execution"); err != nil {
+		sim.logger.Error(
+			"CXXRTL simulation execution failed: %v\nStdout: %s\nStderr: %s",
+			err,
+			stdoutSim.String(),
+			stderrSim.String(),
+		)
+		return fmt.Errorf(
+			"cxxrtl simulation execution failed: %v\nstdout: %s\nstderr: %s",
+			err,
+			stdoutSim.String(),
+			stderrSim.String(),
+		)
 	}
-
-	// Use a channel to signal command completion
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
-	// Wait for either completion or context cancellation
-	select {
-	case err := <-done:
-		if err != nil {
-			sim.logger.Error(
-				"CXXRTL simulation execution failed: %v\nStdout: %s\nStderr: %s",
-				err,
-				stdoutSim.String(),
-				stderrSim.String(),
-			)
-			return fmt.Errorf(
-				"cxxrtl simulation execution failed: %v\nstdout: %s\nstderr: %s",
-				err,
-				stdoutSim.String(),
-				stderrSim.String(),
-			)
-		}
-	case <-ctx.Done():
-		if cmd.Process != nil {
-			cmd.Process.Kill()
-		}
-		return fmt.Errorf("cxxrtl simulation execution timed out: %v", ctx.Err())
-	}
+	
 	sim.logger.Debug("CXXRTL simulation execution successful.\nStdout: %s", stdoutSim.String())
 	if stderrSim.Len() > 0 {
 		sim.logger.Warn("CXXRTL simulation stderr (non-fatal or warning):\n%s", stderrSim.String())
