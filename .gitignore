@@ -2,6 +2,7 @@ obj_dir/
 *.swp
 
 testbench.*
+!confirmed/**/testbench.*
 dist/
 pfuzz
 !cmd/pfuzz
