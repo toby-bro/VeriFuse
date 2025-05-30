@@ -26,3 +26,5 @@ backups
 
 __debug_bin*
 
+simulator.bin
+module_sim_iv
