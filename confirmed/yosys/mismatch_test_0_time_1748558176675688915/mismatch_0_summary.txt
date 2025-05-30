@@ -1,0 +1,13 @@
+Test case 0
+
+Inputs:
+  in_val_m2 = ff
+  sub_val_m2 = 11
+
+Mismatched outputs:
+  out_diff_m2:
+    CXXRTL=11101100
+    CXXSLG=11101101
+    icarus=11101110
+    vtorO0=11101110
+    vtorO3=11101110

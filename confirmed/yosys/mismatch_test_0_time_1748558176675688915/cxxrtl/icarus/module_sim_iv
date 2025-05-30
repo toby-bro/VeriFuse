@@ -1,0 +1,186 @@
+#! /home/jns/.local/bin/vvp
+:ivl_version "13.0 (devel)" "(s20250103-26-gb0c57ab17)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+:vpi_module "/home/jns/.local/lib/ivl/system.vpi";
+:vpi_module "/home/jns/.local/lib/ivl/vhdl_sys.vpi";
+:vpi_module "/home/jns/.local/lib/ivl/vhdl_textio.vpi";
+:vpi_module "/home/jns/.local/lib/ivl/v2005_math.vpi";
+:vpi_module "/home/jns/.local/lib/ivl/va_math.vpi";
+:vpi_module "/home/jns/.local/lib/ivl/v2009.vpi";
+S_0x562dee6eca40 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+S_0x562dee726620 .scope module, "top" "top" 3 5;
+ .timescale 0 0;
+v0x562dee74b110_0 .var "in_val_m2", 7 0;
+v0x562dee74b1f0_0 .net "out_diff_m2", 7 0, L_0x562dee75ba60;  1 drivers
+v0x562dee74b2c0_0 .var "sub_val_m2", 7 0;
+v0x562dee74b3c0_0 .net "var_out_m2", 7 0, L_0x562dee74b590;  1 drivers
+S_0x562dee7267b0 .scope begin, "$unm_blk_1" "$unm_blk_1" 3 19, 3 19 0, S_0x562dee726620;
+ .timescale 0 0;
+v0x562dee749f10_0 .var/2s "fd", 31 0;
+v0x562dee74a010_0 .var/str "line";
+v0x562dee74a0d0_0 .var/2s "status", 31 0;
+S_0x562dee6eaf20 .scope begin, "$ivl_for_loop0" "$ivl_for_loop0" 3 68, 3 68 0, S_0x562dee7267b0;
+ .timescale 0 0;
+v0x562dee719740_0 .var/2s "i", 31 0;
+S_0x562dee749cd0 .scope begin, "$ivl_for_loop1" "$ivl_for_loop1" 3 79, 3 79 0, S_0x562dee7267b0;
+ .timescale 0 0;
+v0x562dee7197e0_0 .var/2s "i", 31 0;
+S_0x562dee74a190 .scope module, "dut" "expr_postsub_comb" 3 11, 4 3 0, S_0x562dee726620;
+ .timescale 0 0;
+    .port_info 0 /INPUT 8 "in_val_m2";
+    .port_info 1 /INPUT 8 "sub_val_m2";
+    .port_info 2 /OUTPUT 8 "out_diff_m2";
+    .port_info 3 /OUTPUT 8 "var_out_m2";
+L_0x562dee7194d0 .functor BUFZ 8, L_0x562dee74b590, C4<00000000>, C4<00000000>, C4<00000000>;
+L_0x562dee719540 .functor BUFZ 8, L_0x562dee74b590, C4<00000000>, C4<00000000>, C4<00000000>;
+v0x562dee74a390_0 .net "_0_", 31 0, L_0x562dee75bc30;  1 drivers
+v0x562dee74a470_0 .net "_1_", 7 0, L_0x562dee75b940;  1 drivers
+v0x562dee74a550_0 .net *"_ivl_0", 23 0, L_0x562dee74b490;  1 drivers
+v0x562dee74a610_0 .net *"_ivl_11", 31 0, L_0x562dee75b7d0;  1 drivers
+L_0x7fdfba01a0a8 .functor BUFT 1, C4<00000001>, C4<0>, C4<0>, C4<0>;
+v0x562dee74a6f0_0 .net/2u *"_ivl_13", 7 0, L_0x7fdfba01a0a8;  1 drivers
+v0x562dee74a820_0 .net *"_ivl_23", 7 0, L_0x562dee7194d0;  1 drivers
+v0x562dee74a900_0 .net *"_ivl_5", 31 0, L_0x562dee74b680;  1 drivers
+L_0x7fdfba01a018 .functor BUFT 1, C4<000000000000000000000000>, C4<0>, C4<0>, C4<0>;
+v0x562dee74a9e0_0 .net *"_ivl_8", 23 0, L_0x7fdfba01a018;  1 drivers
+L_0x7fdfba01a060 .functor BUFT 1, C4<00000000000000000000000000000001>, C4<0>, C4<0>, C4<0>;
+v0x562dee74aac0_0 .net/2u *"_ivl_9", 31 0, L_0x7fdfba01a060;  1 drivers
+v0x562dee74ac30_0 .net "in_val_m2", 7 0, v0x562dee74b110_0;  1 drivers
+v0x562dee74ad10_0 .net "out_diff_m2", 7 0, L_0x562dee75ba60;  alias, 1 drivers
+v0x562dee74adf0_0 .net "sub_val_m2", 7 0, v0x562dee74b2c0_0;  1 drivers
+v0x562dee74aed0_0 .net "var_m2", 7 0, L_0x562dee719540;  1 drivers
+v0x562dee74afb0_0 .net "var_out_m2", 7 0, L_0x562dee74b590;  alias, 1 drivers
+L_0x562dee74b490 .part L_0x562dee75b7d0, 8, 24;
+L_0x562dee74b590 .part L_0x562dee75b7d0, 0, 8;
+L_0x562dee74b680 .concat [ 8 24 0 0], v0x562dee74b110_0, L_0x7fdfba01a018;
+L_0x562dee75b7d0 .arith/sub 32, L_0x562dee74b680, L_0x7fdfba01a060;
+L_0x562dee75b940 .arith/sub 8, L_0x562dee74b590, L_0x7fdfba01a0a8;
+L_0x562dee75ba60 .arith/sub 8, L_0x562dee75b940, v0x562dee74b2c0_0;
+L_0x562dee75bc30 .concat8 [ 8 24 0 0], L_0x562dee7194d0, L_0x562dee74b490;
+    .scope S_0x562dee726620;
+T_0 ;
+    %fork t_1, S_0x562dee7267b0;
+    %jmp t_0;
+    .scope S_0x562dee7267b0;
+t_1 ;
+    %vpi_func 3 26 "$fopen" 32, "input_sub_val_m2.hex", "r" {0 0 0};
+    %cast2;
+    %store/vec4 v0x562dee749f10_0, 0, 32;
+    %load/vec4 v0x562dee749f10_0;
+    %cmpi/e 0, 0, 32;
+    %jmp/0xz  T_0.0, 4;
+    %vpi_call/w 3 28 "$display", "Error: Unable to open input_sub_val_m2.hex" {0 0 0};
+    %vpi_call/w 3 29 "$finish" {0 0 0};
+T_0.0 ;
+    %vpi_func 3 31 "$fgets" 32, v0x562dee74a010_0, v0x562dee749f10_0 {0 0 0};
+    %cast2;
+    %store/vec4 v0x562dee74a0d0_0, 0, 32;
+    %vpi_func 3 32 "$sscanf" 32, v0x562dee74a010_0, "%h", v0x562dee74b2c0_0 {0 0 0};
+    %cast2;
+    %store/vec4 v0x562dee74a0d0_0, 0, 32;
+    %vpi_call/w 3 33 "$fclose", v0x562dee749f10_0 {0 0 0};
+    %vpi_func 3 35 "$fopen" 32, "input_in_val_m2.hex", "r" {0 0 0};
+    %cast2;
+    %store/vec4 v0x562dee749f10_0, 0, 32;
+    %load/vec4 v0x562dee749f10_0;
+    %cmpi/e 0, 0, 32;
+    %jmp/0xz  T_0.2, 4;
+    %vpi_call/w 3 37 "$display", "Error: Unable to open input_in_val_m2.hex" {0 0 0};
+    %vpi_call/w 3 38 "$finish" {0 0 0};
+T_0.2 ;
+    %vpi_func 3 40 "$fgets" 32, v0x562dee74a010_0, v0x562dee749f10_0 {0 0 0};
+    %cast2;
+    %store/vec4 v0x562dee74a0d0_0, 0, 32;
+    %vpi_func 3 41 "$sscanf" 32, v0x562dee74a010_0, "%h", v0x562dee74b110_0 {0 0 0};
+    %cast2;
+    %store/vec4 v0x562dee74a0d0_0, 0, 32;
+    %vpi_call/w 3 42 "$fclose", v0x562dee749f10_0 {0 0 0};
+    %delay 20, 0;
+    %delay 10, 0;
+    %delay 10, 0;
+    %delay 10, 0;
+    %vpi_func 3 63 "$fopen" 32, "output_out_diff_m2.hex", "w" {0 0 0};
+    %cast2;
+    %store/vec4 v0x562dee749f10_0, 0, 32;
+    %load/vec4 v0x562dee749f10_0;
+    %cmpi/e 0, 0, 32;
+    %jmp/0xz  T_0.4, 4;
+    %vpi_call/w 3 65 "$display", "Error: Unable to open output file 'output_out_diff_m2.hex' for port 'out_diff_m2'.", "output_out_diff_m2.hex", "out_diff_m2" {0 0 0};
+    %vpi_call/w 3 66 "$finish" {0 0 0};
+T_0.4 ;
+    %fork t_3, S_0x562dee6eaf20;
+    %jmp t_2;
+    .scope S_0x562dee6eaf20;
+t_3 ;
+    %pushi/vec4 7, 0, 32;
+    %store/vec4 v0x562dee719740_0, 0, 32;
+T_0.6 ; Top of for-loop
+    %load/vec4 v0x562dee719740_0;
+    %cmpi/s 0, 0, 32;
+    %flag_inv 5; GE is !LT
+	  %jmp/0xz T_0.7, 5;
+    %vpi_call/w 3 69 "$fwrite", v0x562dee749f10_0, "%b", &PV<v0x562dee74b1f0_0, v0x562dee719740_0, 1> {0 0 0};
+T_0.8 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed -= operand
+    %load/vec4 v0x562dee719740_0;
+    %pushi/vec4 1, 0, 32;
+    %sub;
+    %cast2;
+    %store/vec4 v0x562dee719740_0, 0, 32;
+    %jmp T_0.6;
+T_0.7 ; for-loop exit label
+    %end;
+    .scope S_0x562dee7267b0;
+t_2 %join;
+    %vpi_call/w 3 71 "$fwrite", v0x562dee749f10_0, "\012" {0 0 0};
+    %vpi_call/w 3 72 "$fclose", v0x562dee749f10_0 {0 0 0};
+    %vpi_func 3 74 "$fopen" 32, "output_var_out_m2.hex", "w" {0 0 0};
+    %cast2;
+    %store/vec4 v0x562dee749f10_0, 0, 32;
+    %load/vec4 v0x562dee749f10_0;
+    %cmpi/e 0, 0, 32;
+    %jmp/0xz  T_0.9, 4;
+    %vpi_call/w 3 76 "$display", "Error: Unable to open output file 'output_var_out_m2.hex' for port 'var_out_m2'.", "output_var_out_m2.hex", "var_out_m2" {0 0 0};
+    %vpi_call/w 3 77 "$finish" {0 0 0};
+T_0.9 ;
+    %fork t_5, S_0x562dee749cd0;
+    %jmp t_4;
+    .scope S_0x562dee749cd0;
+t_5 ;
+    %pushi/vec4 7, 0, 32;
+    %store/vec4 v0x562dee7197e0_0, 0, 32;
+T_0.11 ; Top of for-loop
+    %load/vec4 v0x562dee7197e0_0;
+    %cmpi/s 0, 0, 32;
+    %flag_inv 5; GE is !LT
+	  %jmp/0xz T_0.12, 5;
+    %vpi_call/w 3 80 "$fwrite", v0x562dee749f10_0, "%b", &PV<v0x562dee74b3c0_0, v0x562dee7197e0_0, 1> {0 0 0};
+T_0.13 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed -= operand
+    %load/vec4 v0x562dee7197e0_0;
+    %pushi/vec4 1, 0, 32;
+    %sub;
+    %cast2;
+    %store/vec4 v0x562dee7197e0_0, 0, 32;
+    %jmp T_0.11;
+T_0.12 ; for-loop exit label
+    %end;
+    .scope S_0x562dee7267b0;
+t_4 %join;
+    %vpi_call/w 3 82 "$fwrite", v0x562dee749f10_0, "\012" {0 0 0};
+    %vpi_call/w 3 83 "$fclose", v0x562dee749f10_0 {0 0 0};
+    %vpi_call/w 3 86 "$finish" {0 0 0};
+    %end;
+    .scope S_0x562dee726620;
+t_0 %join;
+    %end;
+    .thread T_0;
+# The file index is used to find the file name in the following table.
+:file_names 5;
+    "N/A";
+    "<interactive>";
+    "-";
+    "../testbench.sv";
+    "./../test3.sv";
