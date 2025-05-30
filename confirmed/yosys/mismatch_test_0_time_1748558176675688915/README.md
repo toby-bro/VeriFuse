@@ -1,6 +1,7 @@
 # Issue
 
 [yosys/issue](https://github.com/YosysHQ/yosys/issues/5151)
+[yosys-slang/issue](https://github.com/povik/yosys-slang/issues/161)
 
 This issue has been confirmed and was triggered by the following code:
 
