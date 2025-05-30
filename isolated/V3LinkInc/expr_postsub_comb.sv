@@ -5,10 +5,10 @@ module expr_postsub_comb (
     output logic [7:0] var_out_m2
 );
     logic [7:0] var_m2;
-      always_comb begin
-    var_m2 = in_val_m2;
-    out_diff_m2 = (var_m2--) - sub_val_m2;
-    var_out_m2 = var_m2;
-      end
+    always_comb begin
+      var_m2 = in_val_m2;
+      out_diff_m2 = (var_m2--) - sub_val_m2;
+      var_out_m2 = var_m2;
+    end
 endmodule
 

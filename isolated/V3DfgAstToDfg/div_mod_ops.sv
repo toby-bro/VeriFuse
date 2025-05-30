@@ -6,7 +6,7 @@ module div_mod_ops (
     input logic [15:0] dividend_mod,
     input logic [7:0] divisor_mod
 );
-    assign quotient = numerator / denominator;
-    assign remainder = dividend_mod % divisor_mod;
+    assign quotient = (denominator == 0) ? 16'hFFFF : (numerator / denominator); // or some error value
+    assign remainder = (divisor_mod == 0) ? 8'hFF : (dividend_mod % divisor_mod); // or some error value
 endmodule
 

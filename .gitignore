@@ -19,6 +19,9 @@ backups
 *.tmp
 *.bak
 *.log
+*.zip
+*.tar.gz
+*.vcd
 
 __debug_bin*
 
