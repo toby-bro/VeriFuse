@@ -1,0 +1,130 @@
+#! /home/jns/.local/bin/vvp
+:ivl_version "13.0 (devel)" "(s20250103-26-gb0c57ab17)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision + 0;
+:vpi_module "/home/jns/.local/lib/ivl/system.vpi";
+:vpi_module "/home/jns/.local/lib/ivl/vhdl_sys.vpi";
+:vpi_module "/home/jns/.local/lib/ivl/vhdl_textio.vpi";
+:vpi_module "/home/jns/.local/lib/ivl/v2005_math.vpi";
+:vpi_module "/home/jns/.local/lib/ivl/va_math.vpi";
+:vpi_module "/home/jns/.local/lib/ivl/v2009.vpi";
+S_0x556c3fa02a40 .scope package, "$unit" "$unit" 2 1;
+ .timescale 0 0;
+S_0x556c3fa3bb60 .scope module, "top" "top" 3 5;
+ .timescale 0 0;
+v0x556c3fa6c2f0_0 .var "condition_m6", 0 0;
+v0x556c3fa6c390_0 .var "in_val_m6", 7 0;
+v0x556c3fa6c430_0 .net "out_val_m6", 7 0, L_0x556c3fa30200;  1 drivers
+S_0x556c3fa3bcf0 .scope begin, "$unm_blk_1" "$unm_blk_1" 3 17, 3 17 0, S_0x556c3fa3bb60;
+ .timescale 0 0;
+v0x556c3fa30420_0 .var/2s "fd", 31 0;
+v0x556c3fa5b550_0 .var/str "line";
+v0x556c3fa5b610_0 .var/2s "status", 31 0;
+S_0x556c3fa010b0 .scope begin, "$ivl_for_loop0" "$ivl_for_loop0" 3 66, 3 66 0, S_0x556c3fa3bcf0;
+ .timescale 0 0;
+v0x556c3fa30380_0 .var/2s "i", 31 0;
+S_0x556c3fa5b6d0 .scope module, "dut" "stmt_if_task" 3 10, 4 5 0, S_0x556c3fa3bb60;
+ .timescale 0 0;
+    .port_info 0 /OUTPUT 8 "out_val_m6";
+    .port_info 1 /INPUT 8 "in_val_m6";
+    .port_info 2 /INPUT 1 "condition_m6";
+L_0x556c3fa30200 .functor BUFZ 8, v0x556c3fa6c390_0, C4<00000000>, C4<00000000>, C4<00000000>;
+L_0x556c3fa6c5a0 .functor BUFZ 8, v0x556c3fa6c390_0, C4<00000000>, C4<00000000>, C4<00000000>;
+v0x556c3fa6bc70_0 .net "condition_m6", 0 0, v0x556c3fa6c2f0_0;  1 drivers
+v0x556c3fa6bd70_0 .net "in_val_m6", 7 0, v0x556c3fa6c390_0;  1 drivers
+v0x556c3fa6be70_0 .net "out_val_m6", 7 0, L_0x556c3fa30200;  alias, 1 drivers
+L_0x7f9f11478018 .functor BUFT 1, C4<x>, C4<0>, C4<0>, C4<0>;
+v0x556c3fa6bf80_0 .net "update_conditional_m6$func$../stmt_if_task.sv:16$1.cond", 0 0, L_0x7f9f11478018;  1 drivers
+L_0x7f9f11478060 .functor BUFT 1, C4<xxxxxxxx>, C4<0>, C4<0>, C4<0>;
+v0x556c3fa6c040_0 .net "update_conditional_m6$func$../stmt_if_task.sv:16$1.val", 7 0, L_0x7f9f11478060;  1 drivers
+v0x556c3fa6c170_0 .net "var_m6", 7 0, L_0x556c3fa6c5a0;  1 drivers
+    .scope S_0x556c3fa3bb60;
+T_0 ;
+    %fork t_1, S_0x556c3fa3bcf0;
+    %jmp t_0;
+    .scope S_0x556c3fa3bcf0;
+t_1 ;
+    %vpi_func 3 24 "$fopen" 32, "input_in_val_m6.hex", "r" {0 0 0};
+    %cast2;
+    %store/vec4 v0x556c3fa30420_0, 0, 32;
+    %load/vec4 v0x556c3fa30420_0;
+    %cmpi/e 0, 0, 32;
+    %jmp/0xz  T_0.0, 4;
+    %vpi_call/w 3 26 "$display", "Error: Unable to open input_in_val_m6.hex" {0 0 0};
+    %vpi_call/w 3 27 "$finish" {0 0 0};
+T_0.0 ;
+    %vpi_func 3 29 "$fgets" 32, v0x556c3fa5b550_0, v0x556c3fa30420_0 {0 0 0};
+    %cast2;
+    %store/vec4 v0x556c3fa5b610_0, 0, 32;
+    %vpi_func 3 30 "$sscanf" 32, v0x556c3fa5b550_0, "%h", v0x556c3fa6c390_0 {0 0 0};
+    %cast2;
+    %store/vec4 v0x556c3fa5b610_0, 0, 32;
+    %vpi_call/w 3 31 "$fclose", v0x556c3fa30420_0 {0 0 0};
+    %vpi_func 3 33 "$fopen" 32, "input_condition_m6.hex", "r" {0 0 0};
+    %cast2;
+    %store/vec4 v0x556c3fa30420_0, 0, 32;
+    %load/vec4 v0x556c3fa30420_0;
+    %cmpi/e 0, 0, 32;
+    %jmp/0xz  T_0.2, 4;
+    %vpi_call/w 3 35 "$display", "Error: Unable to open input_condition_m6.hex" {0 0 0};
+    %vpi_call/w 3 36 "$finish" {0 0 0};
+T_0.2 ;
+    %vpi_func 3 38 "$fgets" 32, v0x556c3fa5b550_0, v0x556c3fa30420_0 {0 0 0};
+    %cast2;
+    %store/vec4 v0x556c3fa5b610_0, 0, 32;
+    %vpi_func 3 39 "$sscanf" 32, v0x556c3fa5b550_0, "%h", v0x556c3fa6c2f0_0 {0 0 0};
+    %cast2;
+    %store/vec4 v0x556c3fa5b610_0, 0, 32;
+    %vpi_call/w 3 40 "$fclose", v0x556c3fa30420_0 {0 0 0};
+    %delay 20, 0;
+    %delay 10, 0;
+    %delay 10, 0;
+    %delay 10, 0;
+    %vpi_func 3 61 "$fopen" 32, "output_out_val_m6.hex", "w" {0 0 0};
+    %cast2;
+    %store/vec4 v0x556c3fa30420_0, 0, 32;
+    %load/vec4 v0x556c3fa30420_0;
+    %cmpi/e 0, 0, 32;
+    %jmp/0xz  T_0.4, 4;
+    %vpi_call/w 3 63 "$display", "Error: Unable to open output file 'output_out_val_m6.hex' for port 'out_val_m6'.", "output_out_val_m6.hex", "out_val_m6" {0 0 0};
+    %vpi_call/w 3 64 "$finish" {0 0 0};
+T_0.4 ;
+    %fork t_3, S_0x556c3fa010b0;
+    %jmp t_2;
+    .scope S_0x556c3fa010b0;
+t_3 ;
+    %pushi/vec4 7, 0, 32;
+    %store/vec4 v0x556c3fa30380_0, 0, 32;
+T_0.6 ; Top of for-loop
+    %load/vec4 v0x556c3fa30380_0;
+    %cmpi/s 0, 0, 32;
+    %flag_inv 5; GE is !LT
+	  %jmp/0xz T_0.7, 5;
+    %vpi_call/w 3 67 "$fwrite", v0x556c3fa30420_0, "%b", &PV<v0x556c3fa6c430_0, v0x556c3fa30380_0, 1> {0 0 0};
+T_0.8 ; for-loop step statement
+    ; show_stmt_assign_vector: Get l-value for compressed -= operand
+    %load/vec4 v0x556c3fa30380_0;
+    %pushi/vec4 1, 0, 32;
+    %sub;
+    %cast2;
+    %store/vec4 v0x556c3fa30380_0, 0, 32;
+    %jmp T_0.6;
+T_0.7 ; for-loop exit label
+    %end;
+    .scope S_0x556c3fa3bcf0;
+t_2 %join;
+    %vpi_call/w 3 69 "$fwrite", v0x556c3fa30420_0, "\012" {0 0 0};
+    %vpi_call/w 3 70 "$fclose", v0x556c3fa30420_0 {0 0 0};
+    %vpi_call/w 3 73 "$finish" {0 0 0};
+    %end;
+    .scope S_0x556c3fa3bb60;
+t_0 %join;
+    %end;
+    .thread T_0;
+# The file index is used to find the file name in the following table.
+:file_names 5;
+    "N/A";
+    "<interactive>";
+    "-";
+    "../testbench.sv";
+    "./../stmt_if_task.sv";

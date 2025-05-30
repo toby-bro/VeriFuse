@@ -1,0 +1,12 @@
+Test case 0
+
+Inputs:
+  in_val_m6 = 79
+  condition_m6 = 0
+
+Mismatched outputs:
+  out_val_m6:
+    CXXRTL=01111001
+    icarus=01111000
+    vtorO0=01111000
+    vtorO3=01111000
