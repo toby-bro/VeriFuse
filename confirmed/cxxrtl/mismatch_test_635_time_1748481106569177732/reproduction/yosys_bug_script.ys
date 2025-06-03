@@ -1,0 +1,60 @@
+read_verilog -sv <<EOT
+// Yosys synthesis bug: negedge register with conflicting clock drivers
+module bug;
+    // Hardcoded values from test case 635
+    wire reset = 1'b0;  // No reset (bit 32 of clkin_data = 0)
+    wire [6:0] expected_data = 7'b0011111;  // Expected register value
+    
+    reg [6:0] reg_bug;
+    reg clk = 1;  // Initial value
+    
+    // THE BUG: negedge register fails to synthesize correctly
+    // when clock has both init value and procedural assignment
+    always_ff @(negedge clk, posedge reset)
+        if (reset)
+            reg_bug <= 7'h00;
+        else 
+            reg_bug <= expected_data;
+    
+    initial begin
+        #1 clk = 0;  // negedge trigger - creates conflicting clock driver
+        #1 $display("reg_bug=%b expected=0011111 %s", 
+                   reg_bug, reg_bug == 7'b0011111 ? "✓" : "✗");
+    end
+    
+    // Assertion to check the bug
+    initial begin
+        #2; // Wait for clock transition and register update
+        if (reg_bug != 7'b0011111) begin
+            $display("ERROR: Register did not update on negedge!");
+            $display("Expected: 0011111, Got: %b", reg_bug);
+        end else begin
+            $display("SUCCESS: Register updated correctly");
+        end
+    end
+endmodule
+EOT
+
+# Show the original design
+log "=== Original design ==="
+hierarchy -top bug
+proc
+dump
+
+# The bug manifests here: clock gets connected to constant instead of signal
+log ""
+log "=== BUG DEMONSTRATION ==="
+log "Look for the $adff cell - its CLK input should be connected to \\clk signal"
+log "but instead gets connected to constant 1'0, preventing clock edge detection"
+log ""
+
+# Show the problematic cell
+select -module bug t:$adff
+dump
+
+log ""
+log "=== EXPECTED vs ACTUAL ==="
+log "EXPECTED: connect \\CLK \\clk"  
+log "ACTUAL:   connect \\CLK 1'0"
+log ""
+log "This prevents the register from ever seeing a clock transition."

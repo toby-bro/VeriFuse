@@ -1,5 +1,11 @@
-// Ultra-minimal test case for CXXRTL negedge trigger bug
-// Bug: Register with negedge trigger + async reset fails to update in CXXRTL
+module module_with_params #(
+    parameter integer DATA_WIDTH = 8
+) (
+    input wire [7:0] param_in,
+    output wire [7:0] param_out
+);
+    assign param_out = param_in;
+endmodule
 
 module topi (
     clkin_data,
@@ -7,70 +13,89 @@ module topi (
     out_data,
     inj_param_out_547
 );
-    // *** THE PROBLEMATIC REGISTER - Core of the CXXRTL bug ***
-    reg [6:0] _11_;
-    
-    // Simple clock signal that transitions 1->0 to trigger negedge
-    reg simple_clock;
-    
-    // I/O ports (must preserve interface)
-    input [95:0] clkin_data;
-    input [191:0] in_data;
-    output [191:0] out_data;
+    wire _00_;
+      reg [11:0] _01_;
+      reg [4:0] _02_;
+      wire [6:0] _03_;
+      wire celloutsig_0_0z;
+      wire celloutsig_0_11z;
+      wire [3:0] celloutsig_0_12z;
+      wire [6:0] celloutsig_0_13z;
+      wire celloutsig_0_15z;
+      wire celloutsig_0_16z;
+      wire celloutsig_0_17z;
+      wire [5:0] celloutsig_0_19z;
+      wire celloutsig_0_25z;
+      wire celloutsig_0_26z;
+      wire celloutsig_0_2z;
+      wire celloutsig_0_3z;
+      wire celloutsig_0_4z;
+      wire celloutsig_0_6z;
+      wire [10:0] celloutsig_0_7z;
+      wire [7:0] celloutsig_0_8z;
+      wire [12:0] celloutsig_0_9z;
+      wire celloutsig_1_0z;
+      wire celloutsig_1_10z;
+      wire celloutsig_1_12z;
+      wire celloutsig_1_14z;
+      wire celloutsig_1_18z;
+      wire celloutsig_1_19z;
+      wire [3:0] celloutsig_1_1z;
+      wire [5:0] celloutsig_1_2z;
+      wire celloutsig_1_3z;
+      wire celloutsig_1_4z;
+      wire [11:0] celloutsig_1_9z;
+      input [95:0] clkin_data;
+      wire [95:0] clkin_data;
+      input [191:0] in_data;
+      wire [191:0] in_data;
+      output [191:0] out_data;
+      wire [191:0] out_data;
     output wire [7:0] inj_param_out_547;
-    
-    // Direct output from problematic register  
-    assign inj_param_out_547 = {1'b0, _11_};
-    assign out_data = 192'b0;
-    
-    // *** THE BUG: This negedge-triggered register with async reset ***
-    // Works in Verilator: Updates on negedge when reset is low
-    // Fails in CXXRTL: Stays stuck at reset value
-    always_ff @(negedge simple_clock, posedge clkin_data[32])
-        if (clkin_data[32]) 
-            _11_ <= 7'h00;  // Async reset to 0
-        else 
-            _11_ <= { in_data[48:43], (| in_data[84:76]) };  // Should update to {001111, 1} = 0011111
-    
-    // Simple clock generation: Start at 1, then go to 0 to create negedge
-    initial begin
-        simple_clock = 1'b1;  // Start high
-        #1;
-        simple_clock = 1'b0;  // Go low -> creates negedge trigger
-    end
-    
-    // Debug output
-    initial begin
-        $display("=== ULTRA-MINIMAL CXXRTL NEGEDGE BUG TEST ===");
-        $display("Reset (clkin_data[32]): %b", clkin_data[32]);
-        $display("Expected data: in_data[48:43]=%b, |in_data[84:76]=%b", 
-                 in_data[48:43], (| in_data[84:76]));
-        $display("Expected _11_ update: {%b, %b} = %b", 
-                 in_data[48:43], (| in_data[84:76]), {in_data[48:43], (| in_data[84:76])});
-        $display("Testing: always_ff @(negedge simple_clock, posedge reset)");
-    end
-    
-    always @(_11_) begin
-        $display("Time %0t: _11_ = %b (%s)", $time, _11_, 
-                 (_11_ == 7'b0000000) ? "STUCK AT RESET" : "UPDATED CORRECTLY");
-    end
-    
-    always @(simple_clock) begin
-        $display("Time %0t: simple_clock = %b %s", $time, simple_clock,
-                 simple_clock ? "" : "(negedge - should trigger _11_)");
-    end
-    
-    always @(clkin_data[32]) begin
-        $display("Time %0t: reset = %b", $time, clkin_data[32]);
-    end
-    
-    // Final check
-    always @(inj_param_out_547) begin
-        $display("Time %0t: inj_param_out_547 = %b", $time, inj_param_out_547);
-        if (inj_param_out_547 == 8'b00000000) begin
-            $display(">>> CXXRTL BUG: Register stuck at reset value!");
-        end else if (inj_param_out_547 == 8'b00011111) begin
-            $display(">>> CORRECT: Register updated on negedge!");
-        end
-    end
+    module_with_params module_with_params_inst_1000 (
+    .param_in(celloutsig_0_8z),
+    .param_out(inj_param_out_547)
+    );
+      assign celloutsig_0_15z = !(celloutsig_0_0z ? celloutsig_0_12z[1] : celloutsig_0_12z[1]);
+      assign celloutsig_0_2z = !(celloutsig_0_0z ? celloutsig_0_0z : in_data[47]);
+      assign celloutsig_0_11z = ~((celloutsig_0_9z[0] | in_data[8]) & celloutsig_0_7z[0]);
+      assign celloutsig_1_18z = celloutsig_1_12z | ~(celloutsig_1_0z);
+      assign celloutsig_1_14z = celloutsig_1_12z ^ celloutsig_1_4z;
+      assign celloutsig_1_0z = in_data[144] ^ in_data[107];
+      always_ff @(posedge clkin_data[0], negedge clkin_data[64])
+    if (!clkin_data[64]) _02_ <= 5'h00;
+    else _02_ <= { _01_[6:3], celloutsig_1_3z };
+      reg [6:0] _11_;
+      always_ff @(negedge celloutsig_1_19z, posedge clkin_data[32])
+    if (clkin_data[32]) _11_ <= 7'h00;
+    else _11_ <= { in_data[48:43], celloutsig_0_0z };
+      assign { _03_[6:2], _00_, _03_[0] } = _11_;
+      always_ff @(posedge clkin_data[0], posedge clkin_data[64])
+    if (clkin_data[64]) _01_ <= 12'h000;
+    else _01_ <= in_data[107:96];
+      assign celloutsig_0_9z = { in_data[26:21], _03_[6:2], _00_, _03_[0] } / { 1'h1, celloutsig_0_7z[5:3], celloutsig_0_8z, celloutsig_0_0z };
+      assign celloutsig_1_1z = { in_data[168:167], celloutsig_1_0z, celloutsig_1_0z } / { 1'h1, in_data[126:124] };
+      assign celloutsig_0_13z = in_data[30:24] / { 1'h1, celloutsig_0_7z[8:4], celloutsig_0_11z };
+      assign celloutsig_0_4z = { celloutsig_0_3z, celloutsig_0_2z, celloutsig_0_3z, celloutsig_0_3z, celloutsig_0_2z, celloutsig_0_0z, celloutsig_0_0z, celloutsig_0_2z, celloutsig_0_2z } === { celloutsig_0_2z, _03_[6:2], _00_, _03_[0], celloutsig_0_0z };
+      assign celloutsig_1_19z = _01_[11:8] === { in_data[168:166], celloutsig_1_14z };
+      assign celloutsig_0_26z = { celloutsig_0_19z[5:3], celloutsig_0_16z, celloutsig_0_17z } < celloutsig_0_8z[4:0];
+      assign celloutsig_0_16z = { celloutsig_0_7z[1:0], celloutsig_0_2z } != celloutsig_0_12z[2:0];
+      assign celloutsig_1_3z = { celloutsig_1_2z[2:0], celloutsig_1_0z } != in_data[174:171];
+      assign celloutsig_0_7z = in_data[84:74] | { _03_[6:2], _00_, _03_[0], celloutsig_0_2z, celloutsig_0_3z, celloutsig_0_3z, celloutsig_0_2z };
+      assign celloutsig_0_0z = | in_data[84:76];
+      assign celloutsig_1_10z = | { _01_[10:0], celloutsig_1_4z };
+      assign celloutsig_1_12z = | { celloutsig_1_9z[11:8], celloutsig_1_4z, celloutsig_1_10z, _02_ };
+      assign celloutsig_0_6z = | { _03_[5:2], _00_, _03_[0], celloutsig_0_3z, celloutsig_0_4z };
+      assign celloutsig_0_17z = | celloutsig_0_13z;
+      assign celloutsig_1_4z = | { celloutsig_1_2z[5:3], celloutsig_1_0z };
+      assign celloutsig_0_3z = | { _00_, celloutsig_0_2z, _03_[6:2], _03_[0], in_data[15:3] };
+      assign celloutsig_0_25z = | { celloutsig_0_19z[1:0], _00_, celloutsig_0_15z, celloutsig_0_2z, _03_[6:2], _03_[0], in_data[15:3] };
+      assign celloutsig_1_9z = { celloutsig_1_4z, celloutsig_1_1z, celloutsig_1_2z, celloutsig_1_0z } <<< in_data[130:119];
+      assign celloutsig_0_12z = { celloutsig_0_7z[7:5], celloutsig_0_6z } <<< in_data[81:78];
+      assign celloutsig_1_2z = { celloutsig_1_1z, celloutsig_1_0z, celloutsig_1_0z } <<< { in_data[97:96], celloutsig_1_1z };
+      assign celloutsig_0_8z = { celloutsig_0_4z, _03_[6:2], _00_, _03_[0] } ~^ { _03_[5:2], _00_, _03_[0], celloutsig_0_3z, celloutsig_0_3z };
+      assign celloutsig_0_19z = { celloutsig_0_13z[6:3], celloutsig_0_16z, celloutsig_0_0z } ~^ { in_data[45:41], celloutsig_0_16z };
+      assign _03_[1] = _00_;
+      assign { out_data[128], out_data[96], out_data[32], out_data[0] } = { celloutsig_1_18z, celloutsig_1_19z, celloutsig_0_25z, celloutsig_0_26z };
 endmodule
+
