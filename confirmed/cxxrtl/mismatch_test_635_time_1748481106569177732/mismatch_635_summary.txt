@@ -1,0 +1,11 @@
+Test case 635
+
+Inputs:
+  clkin_data = 54db9315d653dad07d6e9013
+  in_data = 680a2a388be283fac7098f9d7a7019a0b07c78b6853995a5
+
+Mismatched outputs:
+  inj_param_out_547:
+    CXXRTL=11111100
+    vtorO0=10011111
+    vtorO3=10011111
