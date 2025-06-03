@@ -1,0 +1,34 @@
+read_verilog -sv <<EOT
+module bug;
+    reg [6:0] reg_bug;
+    reg clk = 1;
+    
+    always_ff @(negedge clk)
+        reg_bug <= 7'b0011111;
+    
+    initial #1 clk = 0;
+    
+    // This assertion should pass if register updates correctly
+    // but fails due to the synthesis bug
+    always_comb assert(reg_bug == 7'b0011111);
+endmodule
+EOT
+
+hierarchy -top bug
+proc
+
+log "=== BUG DEMONSTRATION ==="
+log "The DFF clock is connected to constant 1'0 instead of the clk signal:"
+log "This means the register never sees a clock edge and never updates!"
+log ""
+select -module bug t:$dff
+dump
+
+log ""
+log "=== ASSERTION ==="
+log "The always_comb assert should verify reg_bug == 7'b0011111"
+log "but it will fail because the register stays at its initial value (0)"
+log "due to the clock being stuck at constant 0"
+log ""
+select -module bug t:$check
+dump

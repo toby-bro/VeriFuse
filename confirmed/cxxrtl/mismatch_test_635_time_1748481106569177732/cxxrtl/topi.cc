@@ -13,31 +13,87 @@ using namespace cxxrtl_yosys;
 
 namespace cxxrtl_design {
 
-// \keep: 1
 // \top: 1
-// \src: ../top_100.sv:4.1-76.10
+// \src: ../top_100.sv:10.1-100.10
 struct p_topi : public module {
-	// \src: ../top_100.sv:11.15-11.19
+	// \src: ../top_100.sv:17.18-17.22
+	wire<12> p___01__;
+	// \src: ../top_100.sv:18.17-18.21
+	wire<5> p___02__;
+	// \src: ../top_100.sv:68.17-68.21
 	wire<7> p___11__;
-	// \src: ../top_100.sv:17.18-17.28
+	// \src: ../top_100.sv:42.12-42.28
+	value<1> p_celloutsig__1__19z;
+	value<1> prev_p_celloutsig__1__19z;
+	bool negedge_p_celloutsig__1__19z() const {
+		return prev_p_celloutsig__1__19z.slice<0>().val() && !p_celloutsig__1__19z.slice<0>().val();
+	}
+	// \src: ../top_100.sv:48.20-48.30
 	/*input*/ value<96> p_clkin__data;
-	// \src: ../top_100.sv:18.19-18.26
+	value<96> prev_p_clkin__data;
+	bool posedge_p_clkin__data_0() const {
+		return !prev_p_clkin__data.slice<0>().val() && p_clkin__data.slice<0>().val();
+	}
+	// \src: ../top_100.sv:50.21-50.28
 	/*input*/ value<192> p_in__data;
-	// \src: ../top_100.sv:20.23-20.40
+	// \src: ../top_100.sv:54.23-54.40
 	/*output*/ value<8> p_inj__param__out__547;
-	// \src: ../top_100.sv:19.20-19.28
+	// \src: ../top_100.sv:52.22-52.30
 	/*output*/ value<192> p_out__data;
-	value<1> cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_44_24_22;
-	value<1> cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_45_24_23;
-	value<1> cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_46_24_24;
-	value<1> cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_48_24_26;
-	value<1> cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_50_24_29;
-	value<144> cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_54_24_4;
-	value<250> cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_59_24_9;
-	value<2> cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_64_24_13;
-	value<9> cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_69_24_15;
-	value<1> cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_71_24_17;
-	value<1> cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_73_24_19;
+	// \src: ../top_100.sv:20.12-20.27
+	/*outline*/ value<1> p_celloutsig__0__0z;
+	// \src: ../top_100.sv:21.12-21.28
+	/*outline*/ value<1> p_celloutsig__0__11z;
+	/*outline*/ value<3> p_celloutsig__0__12z;
+	// \src: ../top_100.sv:23.18-23.34
+	/*outline*/ value<7> p_celloutsig__0__13z;
+	// \src: ../top_100.sv:24.12-24.28
+	/*outline*/ value<1> p_celloutsig__0__15z;
+	// \src: ../top_100.sv:25.12-25.28
+	/*outline*/ value<1> p_celloutsig__0__16z;
+	// \src: ../top_100.sv:26.12-26.28
+	/*outline*/ value<1> p_celloutsig__0__17z;
+	// \src: ../top_100.sv:27.18-27.34
+	// \unused_bits: 2
+	/*outline*/ value<6> p_celloutsig__0__19z;
+	// \src: ../top_100.sv:28.12-28.28
+	/*outline*/ value<1> p_celloutsig__0__25z;
+	// \src: ../top_100.sv:29.12-29.28
+	/*outline*/ value<1> p_celloutsig__0__26z;
+	// \src: ../top_100.sv:30.12-30.27
+	/*outline*/ value<1> p_celloutsig__0__2z;
+	// \src: ../top_100.sv:31.12-31.27
+	/*outline*/ value<1> p_celloutsig__0__3z;
+	// \src: ../top_100.sv:32.12-32.27
+	/*outline*/ value<1> p_celloutsig__0__4z;
+	// \src: ../top_100.sv:33.12-33.27
+	/*outline*/ value<1> p_celloutsig__0__6z;
+	// \unused_bits: 2
+	/*outline*/ value<9> p_celloutsig__0__7z;
+	// \src: ../top_100.sv:35.18-35.33
+	/*outline*/ value<8> p_celloutsig__0__8z;
+	// \src: ../top_100.sv:36.19-36.34
+	// \unused_bits: 1 2 3 4 5 6 7 8 9 10 11 12
+	/*outline*/ value<13> p_celloutsig__0__9z;
+	// \src: ../top_100.sv:37.12-37.27
+	/*outline*/ value<1> p_celloutsig__1__0z;
+	// \src: ../top_100.sv:39.12-39.28
+	/*outline*/ value<1> p_celloutsig__1__12z;
+	// \src: ../top_100.sv:40.12-40.28
+	/*outline*/ value<1> p_celloutsig__1__14z;
+	// \src: ../top_100.sv:41.12-41.28
+	/*outline*/ value<1> p_celloutsig__1__18z;
+	// \src: ../top_100.sv:43.18-43.33
+	/*outline*/ value<4> p_celloutsig__1__1z;
+	// \src: ../top_100.sv:44.18-44.33
+	/*outline*/ value<6> p_celloutsig__1__2z;
+	// \src: ../top_100.sv:45.12-45.27
+	/*outline*/ value<1> p_celloutsig__1__3z;
+	// \src: ../top_100.sv:46.12-46.27
+	/*outline*/ value<1> p_celloutsig__1__4z;
+	// \src: ../top_100.sv:47.19-47.34
+	// \unused_bits: 0 1 2 3 4 5 6 7
+	/*outline*/ value<12> p_celloutsig__1__9z;
 	p_topi(interior) {}
 	p_topi() {
 		reset();
@@ -50,7 +106,11 @@ struct p_topi : public module {
 	template<class ObserverT>
 	bool commit(ObserverT &observer) {
 		bool changed = false;
+		if (p___01__.commit(observer)) changed = true;
+		if (p___02__.commit(observer)) changed = true;
 		if (p___11__.commit(observer)) changed = true;
+		prev_p_celloutsig__1__19z = p_celloutsig__1__19z;
+		prev_p_clkin__data = p_clkin__data;
 		return changed;
 	}
 
@@ -60,382 +120,194 @@ struct p_topi : public module {
 	}
 
 	void debug_eval();
+	debug_outline debug_eval_outline { std::bind(&p_topi::debug_eval, this) };
 
 	void debug_info(debug_items *items, debug_scopes *scopes, std::string path, metadata_map &&cell_attrs = {}) override;
 }; // struct p_topi
 
 void p_topi::reset() {
-	cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_44_24_22 = {};
-	cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_45_24_23 = {};
-	cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_46_24_24 = {};
-	cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_48_24_26 = {};
-	cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_50_24_29 = {};
-	cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_54_24_4 = {};
-	cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_59_24_9 = {};
-	cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_64_24_13 = {};
-	cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_69_24_15 = {};
-	cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_71_24_17 = {};
-	cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_73_24_19 = {};
 }
 
 bool p_topi::eval(performer *performer) {
 	bool converged = true;
-	// \src: ../top_100.sv:29.5-33.60
-	value<7> i_0_5c___11___5b_6_3a_0_5d_;
-	// \src: ../top_100.sv:55.18-55.79
-	value<136> i_auto_24_wreduce_2e_cc_3a_514_3a_run_24_41;
-	// \src: ../top_100.sv:70.13-70.45
-	value<1> i_eq_24__2e__2e__2f_top__100_2e_sv_3a_70_24_16__Y;
-	// \src: ../top_100.sv:70.13-70.45
-	// cell $eq$../top_100.sv:70$16
-	i_eq_24__2e__2e__2f_top__100_2e_sv_3a_70_24_16__Y = logic_not<1>(value<1>{0u}.concat(p___11__.curr).val());
-	// \src: ../top_100.sv:33.40-33.56
-	// cell $reduce_or$../top_100.sv:33$2
-	i_0_5c___11___5b_6_3a_0_5d_.slice<0>() = reduce_or<1>(p_in__data.slice<84,76>().val());
-	// connection
-	i_0_5c___11___5b_6_3a_0_5d_.slice<6,1>() = p_in__data.slice<48,43>().val();
-	// cells $ternary$../top_100.sv:55$7 $eq$../top_100.sv:55$5
-	i_auto_24_wreduce_2e_cc_3a_514_3a_run_24_41.slice<134,0>() = (logic_not<1>(p___11__.curr) ? value<135>{0x45534554u,0x41542052u,0x55434b20u,0x5354u,0u} : value<135>{0x43544c59u,0x4f525245u,0x45442043u,0x50444154u,0x55u});
-	// connection
-	i_auto_24_wreduce_2e_cc_3a_514_3a_run_24_41.slice<135>() = value<1>{0u};
+	bool negedge_p_celloutsig__1__19z = this->negedge_p_celloutsig__1__19z();
+	bool posedge_p_clkin__data_0 = this->posedge_p_clkin__data_0();
+	// \src: ../top_100.sv:20.12-20.27
+	value<1> p_celloutsig__0__0z;
+	value<3> p_celloutsig__0__12z;
+	// \src: ../top_100.sv:23.18-23.34
+	value<7> p_celloutsig__0__13z;
+	// \src: ../top_100.sv:25.12-25.28
+	value<1> p_celloutsig__0__16z;
+	// \src: ../top_100.sv:27.18-27.34
+	// \unused_bits: 2
+	value<6> p_celloutsig__0__19z;
+	// \src: ../top_100.sv:30.12-30.27
+	value<1> p_celloutsig__0__2z;
+	// \src: ../top_100.sv:31.12-31.27
+	value<1> p_celloutsig__0__3z;
+	// \src: ../top_100.sv:32.12-32.27
+	value<1> p_celloutsig__0__4z;
+	// \unused_bits: 2
+	value<9> p_celloutsig__0__7z;
+	// \src: ../top_100.sv:35.18-35.33
+	value<8> p_celloutsig__0__8z;
+	// \src: ../top_100.sv:37.12-37.27
+	value<1> p_celloutsig__1__0z;
+	// \src: ../top_100.sv:39.12-39.28
+	value<1> p_celloutsig__1__12z;
+	// \src: ../top_100.sv:43.18-43.33
+	value<4> p_celloutsig__1__1z;
+	// \src: ../top_100.sv:44.18-44.33
+	value<6> p_celloutsig__1__2z;
+	// \src: ../top_100.sv:46.12-46.27
+	value<1> p_celloutsig__1__4z;
+	// \src: ../top_100.sv:85.32-85.48
+	// cell $reduce_or$../top_100.sv:85$25
+	p_celloutsig__0__0z = reduce_or<1>(p_in__data.slice<84,76>().val());
+	// cells $logic_not$../top_100.sv:60$4 $ternary$../top_100.sv:60$3
+	p_celloutsig__0__2z = logic_not<1>((p_celloutsig__0__0z ? value<1>{0x1u} : p_in__data.slice<47>().val()));
+	// \src: ../top_100.sv:91.32-91.94
+	// cell $reduce_or$../top_100.sv:91$31
+	p_celloutsig__0__3z = reduce_or<1>(p___11__.curr.concat(p_in__data.slice<15,3>()).concat(p_celloutsig__0__2z).val());
+	// \src: ../top_100.sv:79.32-79.254
+	// cell $eqx$../top_100.sv:79$19
+	p_celloutsig__0__4z = eqx_uu<1>(p_celloutsig__0__3z.concat(p_celloutsig__0__2z).concat(p_celloutsig__0__3z.repeat<2>()).concat(p_celloutsig__0__2z).concat(p_celloutsig__0__0z.repeat<2>()).concat(p_celloutsig__0__2z.repeat<2>()).val(), p_celloutsig__0__2z.concat(p___11__.curr).concat(p_celloutsig__0__0z).val());
+	// \src: ../top_100.sv:64.32-64.59
+	// cell $xor$../top_100.sv:64$11
+	p_celloutsig__1__0z = xor_uu<1>(p_in__data.slice<144>().val(), p_in__data.slice<107>().val());
+	// \src: ../top_100.sv:96.32-96.143
+	// cell $xnor$../top_100.sv:96$36
+	p_celloutsig__0__8z = xnor_uu<8>(p_celloutsig__0__4z.concat(p___11__.curr).val(), p___11__.curr.slice<5,0>().concat(p_celloutsig__0__3z.repeat<2>()).val());
+	// \src: ../top_100.sv:84.32-84.145
+	// cell $or$../top_100.sv:84$24
+	p_celloutsig__0__7z = or_uu<9>(p_in__data.slice<82,74>().val(), p___11__.curr.slice<4,0>().concat(p_celloutsig__0__2z).concat(p_celloutsig__0__3z.repeat<2>()).concat(p_celloutsig__0__2z).val());
+	// \src: ../top_100.sv:77.32-77.115
+	// cell $div$../top_100.sv:77$17
+	p_celloutsig__1__1z = div_uu<4>(p_in__data.slice<168,167>().concat(p_celloutsig__1__0z.repeat<2>()).val(), value<1>{0x1u}.concat(p_in__data.slice<126,124>()).val());
+	// \src: ../top_100.sv:95.32-95.125
+	// cell $sshl$../top_100.sv:95$35
+	p_celloutsig__1__2z = sshl_uu<6>(p_celloutsig__1__1z.concat(p_celloutsig__1__0z.repeat<2>()).val(), p_in__data.slice<97,96>().concat(p_celloutsig__1__1z).val());
+	// \src: ../top_100.sv:90.32-90.75
+	// cell $reduce_or$../top_100.sv:90$30
+	p_celloutsig__1__4z = reduce_or<1>(p_celloutsig__1__2z.slice<5,3>().concat(p_celloutsig__1__0z).val());
+	// cells $sshl$../top_100.sv:94$34 $reduce_or$../top_100.sv:88$28
+	p_celloutsig__0__12z = sshl_uu<3>(p_celloutsig__0__7z.slice<7,5>().concat(reduce_or<1>(p___11__.curr.concat(p_in__data.slice<15,3>()).concat(p_celloutsig__0__4z).concat(p_celloutsig__0__2z).val())).val(), p_in__data.slice<81,78>().val());
+	// cells $reduce_or$../top_100.sv:87$27 $sshl$../top_100.sv:93$33
+	p_celloutsig__1__12z = reduce_or<1>(sshl_uu<12>(p_celloutsig__1__4z.concat(p_celloutsig__1__1z).concat(p_celloutsig__1__2z).concat(p_celloutsig__1__0z).val(), p_in__data.slice<130,119>().val()).slice<11,8>().concat(p_celloutsig__1__2z.slice<5,3>()).concat(p_celloutsig__1__0z).concat(p___02__.curr).concat(p___01__.curr.slice<10,0>()).val());
+	// \src: ../top_100.sv:82.33-82.99
+	// cell $ne$../top_100.sv:82$22
+	p_celloutsig__0__16z = ne_uu<1>(p_celloutsig__0__7z.slice<1,0>().concat(p_celloutsig__0__2z).val(), p_celloutsig__0__12z);
+	// cells $div$../top_100.sv:78$18 $not$../top_100.sv:61$7 $and$../top_100.sv:61$6 $or$../top_100.sv:61$5 $div$../top_100.sv:76$16
+	p_celloutsig__0__13z = div_uu<7>(p_in__data.slice<30,24>().val(), value<1>{0x1u}.concat(p_celloutsig__0__7z.slice<8,4>()).concat(not_u<1>(and_uu<1>(or_uu<1>(div_uu<13>(p_in__data.slice<26,21>().concat(p___11__.curr).val(), value<1>{0x1u}.concat(p_celloutsig__0__7z.slice<5,3>()).concat(p_celloutsig__0__8z).concat(p_celloutsig__0__0z).val()).slice<0>().val(), p_in__data.slice<8>().val()), p_celloutsig__0__7z.slice<0>().val()))).val());
+	// \src: ../top_100.sv:97.33-97.133
+	// cell $xnor$../top_100.sv:97$37
+	p_celloutsig__0__19z = xnor_uu<6>(p_celloutsig__0__13z.slice<6,3>().concat(p_celloutsig__0__16z).concat(p_celloutsig__0__0z).val(), p_in__data.slice<45,41>().concat(p_celloutsig__0__16z).val());
+	// cells $eqx$../top_100.sv:80$20 $xor$../top_100.sv:63$10
+	p_celloutsig__1__19z = eqx_uu<1>(p___01__.curr.slice<11,8>().val(), p_in__data.slice<168,166>().concat(xor_uu<1>(p_celloutsig__1__12z, p_celloutsig__1__4z)).val());
+	// cells $procdff$48 $ne$../top_100.sv:83$23
+	if (posedge_p_clkin__data_0) {
+		p___02__.next = p___01__.curr.slice<6,3>().concat(ne_uu<1>(p_celloutsig__1__2z.slice<2,0>().concat(p_celloutsig__1__0z).val(), p_in__data.slice<174,171>().val())).val();
+	}
+	if (p_clkin__data.slice<64>().val() == value<1> {0u}) {
+		p___02__.next = value<5>{0u};
+	}
 	// \always_ff: 1
-	// \src: ../top_100.sv:29.5-33.60
-	// cell $procdff$40
+	// \src: ../top_100.sv:69.7-71.54
+	// cell $procdff$43
+	if (negedge_p_celloutsig__1__19z) {
+		p___11__.next = p_in__data.slice<48,43>().concat(p_celloutsig__0__0z).val();
+	}
 	if (p_clkin__data.slice<32>().val() == value<1> {1u}) {
 		p___11__.next = value<7>{0u};
 	}
-	// cells $display$../top_100.sv:73$19 $procmux$33 $procmux$30 $eq$../top_100.sv:72$18
-	auto cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_73_24_19_next = (i_eq_24__2e__2e__2f_top__100_2e_sv_3a_70_24_16__Y ? value<1>{0u} : (eq_uu<1>(p___11__.curr, value<5>{0x1fu}) ? value<1>{0x1u} : value<1>{0u})).concat(value<0>()).val();
-	if (cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_73_24_19 != cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_73_24_19_next) {
-		if ((i_eq_24__2e__2e__2f_top__100_2e_sv_3a_70_24_16__Y ? value<1>{0u} : (eq_uu<1>(p___11__.curr, value<5>{0x1fu}) ? value<1>{0x1u} : value<1>{0u}))) {
-			struct : public lazy_fmt {
-				std::string operator() () const override {
-					std::string buf;
-					buf += fmt_part { fmt_part::LITERAL, ">>> CORRECT: Register updated on negedge!\012", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					return buf;
-				}
-				struct performer *performer;
-			} formatter;
-			formatter.performer = performer;
-			if (performer) {
-				static const metadata_map attributes = metadata_map({
-					{ "src", "../top_100.sv:73.13-73.67" },
-				});
-				performer->on_print(formatter, attributes);
-			} else {
-				std::cout << formatter();
-			}
-		}
-		cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_73_24_19 = cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_73_24_19_next;
+	// \always_ff: 1
+	// \src: ../top_100.sv:73.7-75.34
+	// cell $procdff$40
+	if (posedge_p_clkin__data_0) {
+		p___01__.next = p_in__data.slice<107,96>().val();
 	}
-	// cells $display$../top_100.sv:71$17 $procmux$36
-	auto cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_71_24_17_next = (i_eq_24__2e__2e__2f_top__100_2e_sv_3a_70_24_16__Y ? value<1>{0x1u} : value<1>{0u}).concat(value<0>()).val();
-	if (cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_71_24_17 != cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_71_24_17_next) {
-		if ((i_eq_24__2e__2e__2f_top__100_2e_sv_3a_70_24_16__Y ? value<1>{0x1u} : value<1>{0u})) {
-			struct : public lazy_fmt {
-				std::string operator() () const override {
-					std::string buf;
-					buf += fmt_part { fmt_part::LITERAL, ">>> CXXRTL BUG: Register stuck at reset value!\012", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					return buf;
-				}
-				struct performer *performer;
-			} formatter;
-			formatter.performer = performer;
-			if (performer) {
-				static const metadata_map attributes = metadata_map({
-					{ "src", "../top_100.sv:71.13-71.72" },
-				});
-				performer->on_print(formatter, attributes);
-			} else {
-				std::cout << formatter();
-			}
-		}
-		cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_71_24_17 = cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_71_24_17_next;
-	}
-	// \src: ../top_100.sv:69.9-69.80
-	// cell $display$../top_100.sv:69$15
-	auto cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_69_24_15_next = value<1>{0x1u}.concat(value<1>{0u}.concat(p___11__.curr).val()).val();
-	if (cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_69_24_15 != cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_69_24_15_next) {
-		if (value<1>{0x1u}) {
-			struct : public lazy_fmt {
-				std::string operator() () const override {
-					std::string buf;
-					buf += fmt_part { fmt_part::LITERAL, "Time ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::VLOG_TIME, "", fmt_part::NUMERIC, (char)48, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::LITERAL, ": inj_param_out_547 = ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::INTEGER, "", fmt_part::RIGHT, (char)48, 8, 2, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg0, performer);
-					buf += fmt_part { fmt_part::LITERAL, "\012", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					return buf;
-				}
-				struct performer *performer;
-				value<8> arg0;
-			} formatter;
-			formatter.performer = performer;
-			formatter.arg0 = value<1>{0u}.concat(p___11__.curr).val();
-			if (performer) {
-				static const metadata_map attributes = metadata_map({
-					{ "src", "../top_100.sv:69.9-69.80" },
-				});
-				performer->on_print(formatter, attributes);
-			} else {
-				std::cout << formatter();
-			}
-		}
-		cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_69_24_15 = cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_69_24_15_next;
-	}
-	// \src: ../top_100.sv:64.9-64.65
-	// cell $display$../top_100.sv:64$13
-	auto cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_64_24_13_next = value<1>{0x1u}.concat(p_clkin__data.slice<32>().val()).val();
-	if (cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_64_24_13 != cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_64_24_13_next) {
-		if (value<1>{0x1u}) {
-			struct : public lazy_fmt {
-				std::string operator() () const override {
-					std::string buf;
-					buf += fmt_part { fmt_part::LITERAL, "Time ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::VLOG_TIME, "", fmt_part::NUMERIC, (char)48, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::LITERAL, ": reset = ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::INTEGER, "", fmt_part::RIGHT, (char)48, 1, 2, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg0, performer);
-					buf += fmt_part { fmt_part::LITERAL, "\012", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					return buf;
-				}
-				struct performer *performer;
-				value<1> arg0;
-			} formatter;
-			formatter.performer = performer;
-			formatter.arg0 = p_clkin__data.slice<32>().val();
-			if (performer) {
-				static const metadata_map attributes = metadata_map({
-					{ "src", "../top_100.sv:64.9-64.65" },
-				});
-				performer->on_print(formatter, attributes);
-			} else {
-				std::cout << formatter();
-			}
-		}
-		cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_64_24_13 = cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_64_24_13_next;
-	}
-	// \src: ../top_100.sv:59.9-60.73
-	// cell $display$../top_100.sv:59$9
-	auto cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_59_24_9_next = value<1>{0x1u}.concat(value<249>{0x6262be52u,0xcae440beu,0xe4d2ceceu,0xd8c840e8u,0xe6d0deeau,0xca405a40u,0xcecac8ceu,0x50dccau}).val();
-	if (cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_59_24_9 != cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_59_24_9_next) {
-		if (value<1>{0x1u}) {
-			struct : public lazy_fmt {
-				std::string operator() () const override {
-					std::string buf;
-					buf += fmt_part { fmt_part::LITERAL, "Time ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::VLOG_TIME, "", fmt_part::NUMERIC, (char)48, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::LITERAL, ": simple_clock = ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::INTEGER, "", fmt_part::RIGHT, (char)48, 1, 2, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg0, performer);
-					buf += fmt_part { fmt_part::LITERAL, " ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::STRING, "", fmt_part::RIGHT, (char)32, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg1, performer);
-					buf += fmt_part { fmt_part::LITERAL, "\012", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					return buf;
-				}
-				struct performer *performer;
-				value<248> arg1;
-				value<1> arg0;
-			} formatter;
-			formatter.performer = performer;
-			formatter.arg1 = value<248>{0x31315f29u,0x6572205fu,0x72696767u,0x6c642074u,0x73686f75u,0x65202d20u,0x67656467u,0x286e65u};
-			formatter.arg0 = value<1>{0u};
-			if (performer) {
-				static const metadata_map attributes = metadata_map({
-					{ "src", "../top_100.sv:59.9-60.73" },
-				});
-				performer->on_print(formatter, attributes);
-			} else {
-				std::cout << formatter();
-			}
-		}
-		cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_59_24_9 = cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_59_24_9_next;
-	}
-	// \src: ../top_100.sv:54.9-55.81
-	// cell $display$../top_100.sv:54$4
-	auto cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_54_24_4_next = value<1>{0x1u}.concat(value<1>{0u}.concat(i_auto_24_wreduce_2e_cc_3a_514_3a_run_24_41.slice<134,0>()).concat(p___11__.curr).val()).val();
-	if (cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_54_24_4 != cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_54_24_4_next) {
-		if (value<1>{0x1u}) {
-			struct : public lazy_fmt {
-				std::string operator() () const override {
-					std::string buf;
-					buf += fmt_part { fmt_part::LITERAL, "Time ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::VLOG_TIME, "", fmt_part::NUMERIC, (char)48, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::LITERAL, ": _11_ = ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::INTEGER, "", fmt_part::RIGHT, (char)48, 7, 2, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg0, performer);
-					buf += fmt_part { fmt_part::LITERAL, " (", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::STRING, "", fmt_part::RIGHT, (char)32, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg1, performer);
-					buf += fmt_part { fmt_part::LITERAL, ")\012", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					return buf;
-				}
-				struct performer *performer;
-				value<136> arg1;
-				value<7> arg0;
-			} formatter;
-			formatter.performer = performer;
-			formatter.arg1 = value<1>{0u}.concat(i_auto_24_wreduce_2e_cc_3a_514_3a_run_24_41.slice<134,0>()).val();
-			formatter.arg0 = p___11__.curr;
-			if (performer) {
-				static const metadata_map attributes = metadata_map({
-					{ "src", "../top_100.sv:54.9-55.81" },
-				});
-				performer->on_print(formatter, attributes);
-			} else {
-				std::cout << formatter();
-			}
-		}
-		cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_54_24_4 = cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_54_24_4_next;
-	}
-	// \src: ../top_100.sv:50.9-50.79
-	// cell $display$../top_100.sv:50$29
-	if (!cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_50_24_29) {
-		if (value<1>{0x1u}) {
-			struct : public lazy_fmt {
-				std::string operator() () const override {
-					std::string buf;
-					buf += fmt_part { fmt_part::LITERAL, "Testing: always_ff @(negedge simple_clock, posedge reset)\012", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					return buf;
-				}
-				struct performer *performer;
-			} formatter;
-			formatter.performer = performer;
-			if (performer) {
-				static const metadata_map attributes = metadata_map({
-					{ "src", "../top_100.sv:50.9-50.79" },
-				});
-				performer->on_print(formatter, attributes);
-			} else {
-				std::cout << formatter();
-			}
-		}
-		cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_50_24_29 = value<1>{1u};
-	}
-	// \src: ../top_100.sv:48.9-49.92
-	// cell $display$../top_100.sv:48$26
-	if (!cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_48_24_26) {
-		if (value<1>{0x1u}) {
-			struct : public lazy_fmt {
-				std::string operator() () const override {
-					std::string buf;
-					buf += fmt_part { fmt_part::LITERAL, "Expected _11_ update: {", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::INTEGER, "", fmt_part::RIGHT, (char)48, 6, 2, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg0, performer);
-					buf += fmt_part { fmt_part::LITERAL, ", ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::INTEGER, "", fmt_part::RIGHT, (char)48, 1, 2, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg1, performer);
-					buf += fmt_part { fmt_part::LITERAL, "} = ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::INTEGER, "", fmt_part::RIGHT, (char)48, 7, 2, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg2, performer);
-					buf += fmt_part { fmt_part::LITERAL, "\012", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					return buf;
-				}
-				struct performer *performer;
-				value<7> arg2;
-				value<1> arg1;
-				value<6> arg0;
-			} formatter;
-			formatter.performer = performer;
-			formatter.arg2 = p_in__data.slice<48,43>().concat(i_0_5c___11___5b_6_3a_0_5d_.slice<0>()).val();
-			formatter.arg1 = i_0_5c___11___5b_6_3a_0_5d_.slice<0>().val();
-			formatter.arg0 = p_in__data.slice<48,43>().val();
-			if (performer) {
-				static const metadata_map attributes = metadata_map({
-					{ "src", "../top_100.sv:48.9-49.92" },
-				});
-				performer->on_print(formatter, attributes);
-			} else {
-				std::cout << formatter();
-			}
-		}
-		cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_48_24_26 = value<1>{1u};
-	}
-	// \src: ../top_100.sv:46.9-47.54
-	// cell $display$../top_100.sv:46$24
-	if (!cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_46_24_24) {
-		if (value<1>{0x1u}) {
-			struct : public lazy_fmt {
-				std::string operator() () const override {
-					std::string buf;
-					buf += fmt_part { fmt_part::LITERAL, "Expected data: in_data[48:43]=", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::INTEGER, "", fmt_part::RIGHT, (char)48, 6, 2, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg0, performer);
-					buf += fmt_part { fmt_part::LITERAL, ", |in_data[84:76]=", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::INTEGER, "", fmt_part::RIGHT, (char)48, 1, 2, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg1, performer);
-					buf += fmt_part { fmt_part::LITERAL, "\012", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					return buf;
-				}
-				struct performer *performer;
-				value<1> arg1;
-				value<6> arg0;
-			} formatter;
-			formatter.performer = performer;
-			formatter.arg1 = i_0_5c___11___5b_6_3a_0_5d_.slice<0>().val();
-			formatter.arg0 = p_in__data.slice<48,43>().val();
-			if (performer) {
-				static const metadata_map attributes = metadata_map({
-					{ "src", "../top_100.sv:46.9-47.54" },
-				});
-				performer->on_print(formatter, attributes);
-			} else {
-				std::cout << formatter();
-			}
-		}
-		cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_46_24_24 = value<1>{1u};
-	}
-	// \src: ../top_100.sv:45.9-45.64
-	// cell $display$../top_100.sv:45$23
-	if (!cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_45_24_23) {
-		if (value<1>{0x1u}) {
-			struct : public lazy_fmt {
-				std::string operator() () const override {
-					std::string buf;
-					buf += fmt_part { fmt_part::LITERAL, "Reset (clkin_data[32]): ", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					buf += fmt_part { fmt_part::INTEGER, "", fmt_part::RIGHT, (char)48, 1, 2, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(arg0, performer);
-					buf += fmt_part { fmt_part::LITERAL, "\012", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					return buf;
-				}
-				struct performer *performer;
-				value<1> arg0;
-			} formatter;
-			formatter.performer = performer;
-			formatter.arg0 = p_clkin__data.slice<32>().val();
-			if (performer) {
-				static const metadata_map attributes = metadata_map({
-					{ "src", "../top_100.sv:45.9-45.64" },
-				});
-				performer->on_print(formatter, attributes);
-			} else {
-				std::cout << formatter();
-			}
-		}
-		cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_45_24_23 = value<1>{1u};
-	}
-	// \src: ../top_100.sv:44.9-44.67
-	// cell $display$../top_100.sv:44$22
-	if (!cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_44_24_22) {
-		if (value<1>{0x1u}) {
-			struct : public lazy_fmt {
-				std::string operator() () const override {
-					std::string buf;
-					buf += fmt_part { fmt_part::LITERAL, "=== ULTRA-MINIMAL CXXRTL NEGEDGE BUG TEST ===\012", fmt_part::RIGHT, (char)0, 0, 10, 0, fmt_part::MINUS, 0, 0, 0, 0 }.render(value<0>(), performer);
-					return buf;
-				}
-				struct performer *performer;
-			} formatter;
-			formatter.performer = performer;
-			if (performer) {
-				static const metadata_map attributes = metadata_map({
-					{ "src", "../top_100.sv:44.9-44.67" },
-				});
-				performer->on_print(formatter, attributes);
-			} else {
-				std::cout << formatter();
-			}
-		}
-		cell_i_display_24__2e__2e__2f_top__100_2e_sv_3a_44_24_22 = value<1>{1u};
+	if (p_clkin__data.slice<64>().val() == value<1> {1u}) {
+		p___01__.next = value<12>{0u};
 	}
 	// connection
-	p_out__data = value<192>{0u,0u,0u,0u,0u,0u};
-	// connection
-	p_inj__param__out__547 = value<1>{0u}.concat(p___11__.curr).val();
+	p_inj__param__out__547 = p_celloutsig__0__8z;
+	// cells $lt$../top_100.sv:81$21 $reduce_or$../top_100.sv:89$29 $reduce_or$../top_100.sv:92$32 $logic_not$../top_100.sv:59$2 $or$../top_100.sv:62$9 $not$../top_100.sv:62$8
+	p_out__data.slice<128>().concat(p_out__data.slice<96>()).concat(p_out__data.slice<32>()).concat(p_out__data.slice<0>()) = or_uu<1>(p_celloutsig__1__12z, not_u<1>(p_celloutsig__1__0z)).concat(p_celloutsig__1__19z).concat(reduce_or<1>(p___11__.curr.concat(p_in__data.slice<15,3>()).concat(p_celloutsig__0__2z).concat(p_celloutsig__0__19z.slice<1,0>()).concat(logic_not<1>(p_celloutsig__0__12z.slice<1>().val())).val())).concat(lt_uu<1>(p_celloutsig__0__19z.slice<5,3>().concat(p_celloutsig__0__16z).concat(reduce_or<1>(p_celloutsig__0__13z)).val(), p_celloutsig__0__8z.slice<4,0>().val())).val();
 	return converged;
 }
 
 void p_topi::debug_eval() {
+	// \src: ../top_100.sv:85.32-85.48
+	// cell $reduce_or$../top_100.sv:85$25
+	p_celloutsig__0__0z = reduce_or<1>(p_in__data.slice<84,76>().val());
+	// cells $logic_not$../top_100.sv:60$4 $ternary$../top_100.sv:60$3
+	p_celloutsig__0__2z = logic_not<1>((p_celloutsig__0__0z ? value<1>{0x1u} : p_in__data.slice<47>().val()));
+	// \src: ../top_100.sv:91.32-91.94
+	// cell $reduce_or$../top_100.sv:91$31
+	p_celloutsig__0__3z = reduce_or<1>(p___11__.curr.concat(p_in__data.slice<15,3>()).concat(p_celloutsig__0__2z).val());
+	// \src: ../top_100.sv:79.32-79.254
+	// cell $eqx$../top_100.sv:79$19
+	p_celloutsig__0__4z = eqx_uu<1>(p_celloutsig__0__3z.concat(p_celloutsig__0__2z).concat(p_celloutsig__0__3z.repeat<2>()).concat(p_celloutsig__0__2z).concat(p_celloutsig__0__0z.repeat<2>()).concat(p_celloutsig__0__2z.repeat<2>()).val(), p_celloutsig__0__2z.concat(p___11__.curr).concat(p_celloutsig__0__0z).val());
+	// \src: ../top_100.sv:64.32-64.59
+	// cell $xor$../top_100.sv:64$11
+	p_celloutsig__1__0z = xor_uu<1>(p_in__data.slice<144>().val(), p_in__data.slice<107>().val());
+	// \src: ../top_100.sv:96.32-96.143
+	// cell $xnor$../top_100.sv:96$36
+	p_celloutsig__0__8z = xnor_uu<8>(p_celloutsig__0__4z.concat(p___11__.curr).val(), p___11__.curr.slice<5,0>().concat(p_celloutsig__0__3z.repeat<2>()).val());
+	// \src: ../top_100.sv:84.32-84.145
+	// cell $or$../top_100.sv:84$24
+	p_celloutsig__0__7z = or_uu<9>(p_in__data.slice<82,74>().val(), p___11__.curr.slice<4,0>().concat(p_celloutsig__0__2z).concat(p_celloutsig__0__3z.repeat<2>()).concat(p_celloutsig__0__2z).val());
+	// \src: ../top_100.sv:77.32-77.115
+	// cell $div$../top_100.sv:77$17
+	p_celloutsig__1__1z = div_uu<4>(p_in__data.slice<168,167>().concat(p_celloutsig__1__0z.repeat<2>()).val(), value<1>{0x1u}.concat(p_in__data.slice<126,124>()).val());
+	// \src: ../top_100.sv:76.32-76.143
+	// cell $div$../top_100.sv:76$16
+	p_celloutsig__0__9z = div_uu<13>(p_in__data.slice<26,21>().concat(p___11__.curr).val(), value<1>{0x1u}.concat(p_celloutsig__0__7z.slice<5,3>()).concat(p_celloutsig__0__8z).concat(p_celloutsig__0__0z).val());
+	// \src: ../top_100.sv:95.32-95.125
+	// cell $sshl$../top_100.sv:95$35
+	p_celloutsig__1__2z = sshl_uu<6>(p_celloutsig__1__1z.concat(p_celloutsig__1__0z.repeat<2>()).val(), p_in__data.slice<97,96>().concat(p_celloutsig__1__1z).val());
+	// \src: ../top_100.sv:90.32-90.75
+	// cell $reduce_or$../top_100.sv:90$30
+	p_celloutsig__1__4z = reduce_or<1>(p_celloutsig__1__2z.slice<5,3>().concat(p_celloutsig__1__0z).val());
+	// \src: ../top_100.sv:88.32-88.96
+	// cell $reduce_or$../top_100.sv:88$28
+	p_celloutsig__0__6z = reduce_or<1>(p___11__.curr.concat(p_in__data.slice<15,3>()).concat(p_celloutsig__0__4z).concat(p_celloutsig__0__2z).val());
+	// \src: ../top_100.sv:93.32-93.123
+	// cell $sshl$../top_100.sv:93$33
+	p_celloutsig__1__9z = sshl_uu<12>(p_celloutsig__1__4z.concat(p_celloutsig__1__1z).concat(p_celloutsig__1__2z).concat(p_celloutsig__1__0z).val(), p_in__data.slice<130,119>().val());
+	// cells $sshl$../top_100.sv:94$34 $reduce_or$../top_100.sv:88$28
+	p_celloutsig__0__12z = sshl_uu<3>(p_celloutsig__0__7z.slice<7,5>().concat(p_celloutsig__0__6z).val(), p_in__data.slice<81,78>().val());
+	// cells $not$../top_100.sv:61$7 $and$../top_100.sv:61$6 $or$../top_100.sv:61$5 $div$../top_100.sv:76$16
+	p_celloutsig__0__11z = not_u<1>(and_uu<1>(or_uu<1>(p_celloutsig__0__9z.slice<0>().val(), p_in__data.slice<8>().val()), p_celloutsig__0__7z.slice<0>().val()));
+	// cells $reduce_or$../top_100.sv:87$27 $sshl$../top_100.sv:93$33
+	p_celloutsig__1__12z = reduce_or<1>(p_celloutsig__1__9z.slice<11,8>().concat(p_celloutsig__1__2z.slice<5,3>()).concat(p_celloutsig__1__0z).concat(p___02__.curr).concat(p___01__.curr.slice<10,0>()).val());
+	// \src: ../top_100.sv:82.33-82.99
+	// cell $ne$../top_100.sv:82$22
+	p_celloutsig__0__16z = ne_uu<1>(p_celloutsig__0__7z.slice<1,0>().concat(p_celloutsig__0__2z).val(), p_celloutsig__0__12z);
+	// cells $div$../top_100.sv:78$18 $not$../top_100.sv:61$7 $and$../top_100.sv:61$6 $or$../top_100.sv:61$5 $div$../top_100.sv:76$16
+	p_celloutsig__0__13z = div_uu<7>(p_in__data.slice<30,24>().val(), value<1>{0x1u}.concat(p_celloutsig__0__7z.slice<8,4>()).concat(p_celloutsig__0__11z).val());
+	// \src: ../top_100.sv:63.33-63.67
+	// cell $xor$../top_100.sv:63$10
+	p_celloutsig__1__14z = xor_uu<1>(p_celloutsig__1__12z, p_celloutsig__1__4z);
+	// \src: ../top_100.sv:97.33-97.133
+	// cell $xnor$../top_100.sv:97$37
+	p_celloutsig__0__19z = xnor_uu<6>(p_celloutsig__0__13z.slice<6,3>().concat(p_celloutsig__0__16z).concat(p_celloutsig__0__0z).val(), p_in__data.slice<45,41>().concat(p_celloutsig__0__16z).val());
+	// \src: ../top_100.sv:59.33-59.95
+	// cell $logic_not$../top_100.sv:59$2
+	p_celloutsig__0__15z = logic_not<1>(p_celloutsig__0__12z.slice<1>().val());
+	// \src: ../top_100.sv:89.33-89.51
+	// cell $reduce_or$../top_100.sv:89$29
+	p_celloutsig__0__17z = reduce_or<1>(p_celloutsig__0__13z);
+	// \src: ../top_100.sv:83.32-83.93
+	// cell $ne$../top_100.sv:83$23
+	p_celloutsig__1__3z = ne_uu<1>(p_celloutsig__1__2z.slice<2,0>().concat(p_celloutsig__1__0z).val(), p_in__data.slice<174,171>().val());
+	// cells $reduce_or$../top_100.sv:92$32 $logic_not$../top_100.sv:59$2
+	p_celloutsig__0__25z = reduce_or<1>(p___11__.curr.concat(p_in__data.slice<15,3>()).concat(p_celloutsig__0__2z).concat(p_celloutsig__0__19z.slice<1,0>()).concat(p_celloutsig__0__15z).val());
+	// cells $or$../top_100.sv:62$9 $not$../top_100.sv:62$8
+	p_celloutsig__1__18z = or_uu<1>(p_celloutsig__1__12z, not_u<1>(p_celloutsig__1__0z));
+	// cells $lt$../top_100.sv:81$21 $reduce_or$../top_100.sv:89$29
+	p_celloutsig__0__26z = lt_uu<1>(p_celloutsig__0__19z.slice<5,3>().concat(p_celloutsig__0__16z).concat(p_celloutsig__0__17z).val(), p_celloutsig__0__8z.slice<4,0>().val());
 }
 
 CXXRTL_EXTREMELY_COLD
@@ -443,19 +315,48 @@ void p_topi::debug_info(debug_items *items, debug_scopes *scopes, std::string pa
 	assert(path.empty() || path[path.size() - 1] == ' ');
 	if (scopes) {
 		scopes->add(path.empty() ? path : path.substr(0, path.size() - 1), "topi", metadata_map({
-			{ "keep", UINT64_C(1) },
 			{ "top", UINT64_C(1) },
-			{ "src", "../top_100.sv:4.1-76.10" },
+			{ "src", "../top_100.sv:10.1-100.10" },
 		}), std::move(cell_attrs));
+		scopes->add(path, "module_with_params_inst_1000", "module_with_params", "src\000s../top_100.sv:1.1-8.10\000", "src\000s../top_100.sv:55.24-58.6\000");
 	}
 	if (items) {
-		items->add(path, "_11_", "src\000s../top_100.sv:11.15-11.19\000", p___11__, 0, debug_item::DRIVEN_SYNC);
-		items->add(path, "clkin_data", "src\000s../top_100.sv:17.18-17.28\000", p_clkin__data, 0, debug_item::INPUT|debug_item::UNDRIVEN);
-		items->add(path, "in_data", "src\000s../top_100.sv:18.19-18.26\000", p_in__data, 0, debug_item::INPUT|debug_item::UNDRIVEN);
-		items->add(path, "inj_param_out_547", "src\000s../top_100.sv:20.23-20.40\000", p_inj__param__out__547, 0, debug_item::OUTPUT|debug_item::DRIVEN_COMB);
-		items->add(path, "out_data", "src\000s../top_100.sv:19.20-19.28\000", p_out__data, 0, debug_item::OUTPUT|debug_item::DRIVEN_COMB);
-		static const value<1> const_p_simple__clock = value<1>{0u};
-		items->add(path, "simple_clock", "src\000s../top_100.sv:14.9-14.21\000", const_p_simple__clock);
+		items->add(path, "module_with_params_inst_1000 param_out", "src\000s../top_100.sv:5.23-5.32\000", debug_eval_outline, p_celloutsig__0__8z);
+		items->add(path, "module_with_params_inst_1000 param_in", "src\000s../top_100.sv:4.22-4.30\000", debug_eval_outline, p_celloutsig__0__8z);
+		items->add(path, "_01_", "src\000s../top_100.sv:17.18-17.22\000", p___01__, 0, debug_item::DRIVEN_SYNC);
+		items->add(path, "_02_", "src\000s../top_100.sv:18.17-18.21\000", p___02__, 0, debug_item::DRIVEN_SYNC);
+		items->add(path, "_11_", "src\000s../top_100.sv:68.17-68.21\000", p___11__, 0, debug_item::DRIVEN_SYNC);
+		items->add(path, "celloutsig_0_0z", "src\000s../top_100.sv:20.12-20.27\000", debug_eval_outline, p_celloutsig__0__0z);
+		items->add(path, "celloutsig_0_11z", "src\000s../top_100.sv:21.12-21.28\000", debug_eval_outline, p_celloutsig__0__11z);
+		items->add(path, "celloutsig_0_12z", "", debug_eval_outline, p_celloutsig__0__12z);
+		items->add(path, "celloutsig_0_13z", "src\000s../top_100.sv:23.18-23.34\000", debug_eval_outline, p_celloutsig__0__13z);
+		items->add(path, "celloutsig_0_15z", "src\000s../top_100.sv:24.12-24.28\000", debug_eval_outline, p_celloutsig__0__15z);
+		items->add(path, "celloutsig_0_16z", "src\000s../top_100.sv:25.12-25.28\000", debug_eval_outline, p_celloutsig__0__16z);
+		items->add(path, "celloutsig_0_17z", "src\000s../top_100.sv:26.12-26.28\000", debug_eval_outline, p_celloutsig__0__17z);
+		items->add(path, "celloutsig_0_19z", "src\000s../top_100.sv:27.18-27.34\000unused_bits\000s2\000", debug_eval_outline, p_celloutsig__0__19z);
+		items->add(path, "celloutsig_0_25z", "src\000s../top_100.sv:28.12-28.28\000", debug_eval_outline, p_celloutsig__0__25z);
+		items->add(path, "celloutsig_0_26z", "src\000s../top_100.sv:29.12-29.28\000", debug_eval_outline, p_celloutsig__0__26z);
+		items->add(path, "celloutsig_0_2z", "src\000s../top_100.sv:30.12-30.27\000", debug_eval_outline, p_celloutsig__0__2z);
+		items->add(path, "celloutsig_0_3z", "src\000s../top_100.sv:31.12-31.27\000", debug_eval_outline, p_celloutsig__0__3z);
+		items->add(path, "celloutsig_0_4z", "src\000s../top_100.sv:32.12-32.27\000", debug_eval_outline, p_celloutsig__0__4z);
+		items->add(path, "celloutsig_0_6z", "src\000s../top_100.sv:33.12-33.27\000", debug_eval_outline, p_celloutsig__0__6z);
+		items->add(path, "celloutsig_0_7z", "unused_bits\000s2\000", debug_eval_outline, p_celloutsig__0__7z);
+		items->add(path, "celloutsig_0_8z", "src\000s../top_100.sv:35.18-35.33\000", debug_eval_outline, p_celloutsig__0__8z);
+		items->add(path, "celloutsig_0_9z", "src\000s../top_100.sv:36.19-36.34\000unused_bits\000s1 2 3 4 5 6 7 8 9 10 11 12\000", debug_eval_outline, p_celloutsig__0__9z);
+		items->add(path, "celloutsig_1_0z", "src\000s../top_100.sv:37.12-37.27\000", debug_eval_outline, p_celloutsig__1__0z);
+		items->add(path, "celloutsig_1_12z", "src\000s../top_100.sv:39.12-39.28\000", debug_eval_outline, p_celloutsig__1__12z);
+		items->add(path, "celloutsig_1_14z", "src\000s../top_100.sv:40.12-40.28\000", debug_eval_outline, p_celloutsig__1__14z);
+		items->add(path, "celloutsig_1_18z", "src\000s../top_100.sv:41.12-41.28\000", debug_eval_outline, p_celloutsig__1__18z);
+		items->add(path, "celloutsig_1_19z", "src\000s../top_100.sv:42.12-42.28\000", p_celloutsig__1__19z, 0, debug_item::DRIVEN_COMB);
+		items->add(path, "celloutsig_1_1z", "src\000s../top_100.sv:43.18-43.33\000", debug_eval_outline, p_celloutsig__1__1z);
+		items->add(path, "celloutsig_1_2z", "src\000s../top_100.sv:44.18-44.33\000", debug_eval_outline, p_celloutsig__1__2z);
+		items->add(path, "celloutsig_1_3z", "src\000s../top_100.sv:45.12-45.27\000", debug_eval_outline, p_celloutsig__1__3z);
+		items->add(path, "celloutsig_1_4z", "src\000s../top_100.sv:46.12-46.27\000", debug_eval_outline, p_celloutsig__1__4z);
+		items->add(path, "celloutsig_1_9z", "src\000s../top_100.sv:47.19-47.34\000unused_bits\000s0 1 2 3 4 5 6 7\000", debug_eval_outline, p_celloutsig__1__9z);
+		items->add(path, "clkin_data", "src\000s../top_100.sv:48.20-48.30\000", p_clkin__data, 0, debug_item::INPUT|debug_item::UNDRIVEN);
+		items->add(path, "in_data", "src\000s../top_100.sv:50.21-50.28\000", p_in__data, 0, debug_item::INPUT|debug_item::UNDRIVEN);
+		items->add(path, "inj_param_out_547", "src\000s../top_100.sv:54.23-54.40\000", p_inj__param__out__547, 0, debug_item::OUTPUT|debug_item::DRIVEN_COMB);
+		items->add(path, "out_data", "src\000s../top_100.sv:52.22-52.30\000", p_out__data, 0, debug_item::OUTPUT|debug_item::UNDRIVEN|debug_item::DRIVEN_COMB);
 	}
 }
 

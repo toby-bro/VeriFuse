@@ -1,0 +1,23 @@
+read_verilog -sv <<EOT
+module top (
+	output logic [6:0] reg_out
+);
+	reg [6:0] reg_bug = 7'b0000000;  // explicit initial value
+	reg clk = 1;
+	
+	always_ff @(negedge clk)
+		reg_bug <= 7'b0011111;
+	
+	initial #1 clk = 0;
+	
+	assign reg_out = reg_bug;
+	
+	// This assertion will be proven wrong because the synthesis bug
+	// prevents the register from updating on negedge
+	always_comb assert(reg_bug == 7'b0011111);
+endmodule
+EOT
+
+prep
+chformal -lower
+sat -prove-asserts -verify -tempinduct -seq 5
