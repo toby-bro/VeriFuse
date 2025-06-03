@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ULTRA-MINIMAL negedge bug reproduction
-rm -rf verilator_ultra cxxrtl_ultra
+rm -rf verilator_ultra cxxrtl_ultra icarus_ultra
 
 echo "=== Writing the files ==="
 cat > ultra_minimal.sv << 'EOF'
@@ -146,8 +146,9 @@ int main() {
 }
 EOF
 
-mkdir -p verilator_ultra cxxrtl_ultra
+mkdir -p verilator_ultra cxxrtl_ultra icarus_ultra
 cp cxxrtl_ultra.cpp cxxrtl_ultra/testbench.cpp
+cp tb_ultra.sv icarus_ultra/
 
 echo "=== ULTRA-MINIMAL NEGEDGE BUG TEST ==="
 
@@ -177,13 +178,36 @@ else
     echo "Yosys FAILED"; exit 1
 fi
 
+echo "Running Icarus Verilog..."
+cd ../icarus_ultra
+iverilog -o module_sim_iv -g2012 -gsupported-assertions tb_ultra.sv &> compile.log
+
+if [ $? -eq 0 ]; then
+    ./module_sim_iv > exec.log && echo "Icarus Verilog: SUCCESS"
+else
+    echo "Icarus Verilog FAILED"; cat compile.log; exit 1
+fi
+
 cd ..
 echo "=== RESULTS ==="
-echo "Verilator: $(cat verilator_ultra/output_ultra.hex)"
-echo "CXXRTL:    $(cat cxxrtl_ultra/output_ultra.hex)"
+echo "Verilator:      $(cat verilator_ultra/output_ultra.hex)"
+echo "CXXRTL:         $(cat cxxrtl_ultra/output_ultra.hex)"
+echo "Icarus Verilog: $(cat icarus_ultra/output_ultra.hex)"
 
-if diff -q verilator_ultra/output_ultra.hex cxxrtl_ultra/output_ultra.hex > /dev/null; then
-    echo "MATCH ✓"
+# Compare all three results
+echo "=== COMPARISON ==="
+verilator_result=$(cat verilator_ultra/output_ultra.hex)
+cxxrtl_result=$(cat cxxrtl_ultra/output_ultra.hex)
+icarus_result=$(cat icarus_ultra/output_ultra.hex)
+
+if [ "$verilator_result" = "$cxxrtl_result" ] && [ "$verilator_result" = "$icarus_result" ]; then
+    echo "ALL MATCH ✓"
+elif [ "$verilator_result" = "$icarus_result" ]; then
+    echo "Verilator and Icarus match, CXXRTL differs - CXXRTL BUG ✗"
+elif [ "$cxxrtl_result" = "$icarus_result" ]; then
+    echo "CXXRTL and Icarus match, Verilator differs - VERILATOR BUG ✗"
+elif [ "$verilator_result" = "$cxxrtl_result" ]; then
+    echo "Verilator and CXXRTL match, Icarus differs - ICARUS BUG ✗"
 else
-    echo "MISMATCH! ✗ - NEGEDGE BUG REPRODUCED!"
+    echo "ALL DIFFER! Need more investigation ✗"
 fi
