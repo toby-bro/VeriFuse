@@ -413,8 +413,8 @@ endmodule
 			m: &Module{
 				Name: "fifo",
 				Parameters: []Parameter{
-					{Name: "DATA_W", DefaultValue: "32"},
-					{Name: "DEPTH", DefaultValue: "16"},
+					{Name: "DATA_W", DefaultValue: "32", AnsiStyle: true},
+					{Name: "DEPTH", DefaultValue: "16", AnsiStyle: true},
 				},
 				Ports: []Port{
 					{Name: "clk", Direction: INPUT, Type: LOGIC},
@@ -424,14 +424,14 @@ endmodule
 						Name:      "data_in",
 						Direction: INPUT,
 						Type:      LOGIC,
-						Width:     0, /* Placeholder for DATA_W */
+						Width:     32, /* Placeholder for DATA_W */
 					}, // Width will be dynamic
 					{Name: "rd_en", Direction: INPUT, Type: LOGIC},
 					{
 						Name:      "data_out",
 						Direction: OUTPUT,
 						Type:      LOGIC,
-						Width:     0, /* Placeholder for DATA_W */
+						Width:     32, /* Placeholder for DATA_W */
 					},
 				},
 				Body:      "// FIFO logic here\n",
@@ -447,9 +447,9 @@ endmodule
   input logic clk,
   input logic rst_n,
   input logic wr_en,
-  input logic data_in,
+  input logic [31:0] data_in,
   input logic rd_en,
-  output logic data_out
+  output logic [31:0] data_out
 );
 // FIFO logic here
 endmodule
@@ -473,24 +473,6 @@ endmodule
 			// For ports with width 0, formatWidth returns "", which is correct for scalar.
 			// If parameters should resolve width, PrintModule/PrintPort would need more context.
 			// This test assumes PrintPort prints what it's given.
-			if tt.name == "ModuleWithParamsAndPorts" {
-				tt.m.Ports[3].Width = 32 // Simulate parameter resolution for test
-				tt.m.Ports[5].Width = 32 // Simulate parameter resolution for test
-				tt.want = `module fifo #(
-  parameter DATA_W = 32,
-  parameter DEPTH = 16
-) (
-  input logic clk,
-  input logic rst_n,
-  input logic wr_en,
-  input logic [31:0] data_in,
-  input logic rd_en,
-  output logic [31:0] data_out
-);
-// FIFO logic here
-endmodule
-`
-			}
 
 			got := PrintModule(tt.m)
 			if normalizeSpace(got) != normalizeSpace(tt.want) {
@@ -618,8 +600,8 @@ func TestPrintVerilogFile(t *testing.T) {
 					"top": {
 						Name: "top", Body: "  initial $display(\"Hello\");\n",
 						Parameters: []Parameter{
-							{Name: "WIDTH", DefaultValue: "8"},
-							{Name: "DEPTH", DefaultValue: "16"},
+							{Name: "WIDTH", DefaultValue: "8", AnsiStyle: true},
+							{Name: "DEPTH", DefaultValue: "16", AnsiStyle: true},
 						},
 						Ports: []Port{
 							{Name: "clk", Direction: INPUT, Type: LOGIC},

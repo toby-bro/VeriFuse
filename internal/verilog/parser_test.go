@@ -427,6 +427,7 @@ endmodule
 						Name:         "WIDTH",
 						Type:         INTEGER,
 						DefaultValue: "8",
+						AnsiStyle:    true,
 					},
 				},
 				Body:      "\n    assign out = in;\n",
