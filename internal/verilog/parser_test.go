@@ -1846,15 +1846,21 @@ func TestParseParameters(t *testing.T) {
 			name:         "Extra whitespace",
 			paramListStr: "  parameter   int    P_VAL   =  5  ,  NEXT_P  ",
 			expectedParams: []Parameter{
-				{Name: "P_VAL", Type: INT, DefaultValue: "5"},
-				{Name: "NEXT_P", Type: INT, DefaultValue: ""},
+				{Name: "P_VAL", Type: INT, DefaultValue: "5", AnsiStyle: true},
+				{Name: "NEXT_P", Type: INT, DefaultValue: "", AnsiStyle: true},
 			},
 		},
 		{
 			name:         "Localparam (parsed as parameter)",
 			paramListStr: "localparam STATE_IDLE = 0",
 			expectedParams: []Parameter{
-				{Name: "STATE_IDLE", Type: LOGIC, DefaultValue: "0", Localparam: true},
+				{
+					Name:         "STATE_IDLE",
+					Type:         LOGIC,
+					DefaultValue: "0",
+					Localparam:   true,
+					AnsiStyle:    true,
+				},
 			},
 		},
 		{
@@ -1881,90 +1887,112 @@ func TestParseParameters(t *testing.T) {
 			name:         "Multiple parameters",
 			paramListStr: "parameter A = 1, B = 2, C = 3",
 			expectedParams: []Parameter{
-				{Name: "A", Type: LOGIC, DefaultValue: "1"},
-				{Name: "B", Type: INTEGER, DefaultValue: "2"},
-				{Name: "C", Type: INTEGER, DefaultValue: "3"},
+				{Name: "A", Type: LOGIC, DefaultValue: "1", AnsiStyle: true},
+				{Name: "B", Type: INTEGER, DefaultValue: "2", AnsiStyle: true},
+				{Name: "C", Type: INTEGER, DefaultValue: "3", AnsiStyle: true},
 			},
 		},
 		{
 			name:         "Multiple parameters with types",
 			paramListStr: "parameter integer COUNT = 10, parameter real DELAY = 1.2, bit ENABLE = 1'b1",
 			expectedParams: []Parameter{
-				{Name: "COUNT", Type: INTEGER, DefaultValue: "10"},
-				{Name: "DELAY", Type: REAL, DefaultValue: "1.2"},
-				{Name: "ENABLE", Type: BIT, DefaultValue: "1'b1"},
+				{Name: "COUNT", Type: INTEGER, DefaultValue: "10", AnsiStyle: true},
+				{Name: "DELAY", Type: REAL, DefaultValue: "1.2", AnsiStyle: true},
+				{Name: "ENABLE", Type: BIT, DefaultValue: "1'b1", AnsiStyle: true},
 			},
 		},
 		{
 			name:         "Parameter with complex value including function call",
 			paramListStr: `P_COMPLEX = $clog2(ANOTHER_PARAM + 1) - 1`,
 			expectedParams: []Parameter{
-				{Name: "P_COMPLEX", Type: UNKNOWN, DefaultValue: "$clog2(ANOTHER_PARAM + 1) - 1"},
+				{
+					Name:         "P_COMPLEX",
+					Type:         UNKNOWN,
+					DefaultValue: "$clog2(ANOTHER_PARAM + 1) - 1",
+					AnsiStyle:    true,
+				},
 			},
 		},
 		{
 			name:         "Parameter with expression as default value",
 			paramListStr: "ADDR_WIDTH = DATA_WIDTH / 2",
 			expectedParams: []Parameter{
-				{Name: "ADDR_WIDTH", Type: UNKNOWN, DefaultValue: "DATA_WIDTH / 2"},
+				{
+					Name:         "ADDR_WIDTH",
+					Type:         UNKNOWN,
+					DefaultValue: "DATA_WIDTH / 2",
+					AnsiStyle:    true,
+				},
 			},
 		},
 		{
 			name:         "Parameter with string default value",
 			paramListStr: `FILENAME = "test.txt"`,
 			expectedParams: []Parameter{
-				{Name: "FILENAME", Type: STRING, DefaultValue: `"test.txt"`},
+				{Name: "FILENAME", Type: STRING, DefaultValue: `"test.txt"`, AnsiStyle: true},
 			},
 		},
 		{
-			name:           "Parameter with trailing comma",
-			paramListStr:   "P1 = 1,",
-			expectedParams: []Parameter{{Name: "P1", Type: LOGIC, DefaultValue: "1"}},
+			name:         "Parameter with trailing comma",
+			paramListStr: "P1 = 1,",
+			expectedParams: []Parameter{
+				{Name: "P1", Type: LOGIC, DefaultValue: "1", AnsiStyle: true},
+			},
 		},
 		{
-			name:           "Parameter with type 'time'",
-			paramListStr:   "parameter time SIM_TIME = 100ns",
-			expectedParams: []Parameter{{Name: "SIM_TIME", Type: TIME, DefaultValue: "100ns"}},
+			name:         "Parameter with type 'time'",
+			paramListStr: "parameter time SIM_TIME = 100ns",
+			expectedParams: []Parameter{
+				{Name: "SIM_TIME", Type: TIME, DefaultValue: "100ns", AnsiStyle: true},
+			},
 		},
 		{
 			name:         "Parameter with type and signed-unsigned (type captures base)",
 			paramListStr: "parameter integer unsigned MAX_COUNT = 100",
 			expectedParams: []Parameter{
-				{Name: "MAX_COUNT", Type: INTEGER, DefaultValue: "100"},
+				{Name: "MAX_COUNT", Type: INTEGER, DefaultValue: "100", AnsiStyle: true},
 			}, // Regex captures 'integer' as type
 		},
 		{
-			name:           "Single parameter no type no default",
-			paramListStr:   "WIDTH",
-			expectedParams: []Parameter{{Name: "WIDTH", Type: LOGIC, DefaultValue: ""}},
+			name:         "Single parameter no type no default",
+			paramListStr: "WIDTH",
+			expectedParams: []Parameter{
+				{Name: "WIDTH", Type: LOGIC, DefaultValue: "", AnsiStyle: true},
+			},
 		},
 		{
-			name:           "Single parameter with default value",
-			paramListStr:   "WIDTH = 8",
-			expectedParams: []Parameter{{Name: "WIDTH", Type: INTEGER, DefaultValue: "8"}},
+			name:         "Single parameter with default value",
+			paramListStr: "WIDTH = 8",
+			expectedParams: []Parameter{
+				{Name: "WIDTH", Type: INTEGER, DefaultValue: "8", AnsiStyle: true},
+			},
 		},
 		{
-			name:           "Single parameter with type and default value",
-			paramListStr:   "parameter int DATA_WIDTH = 32",
-			expectedParams: []Parameter{{Name: "DATA_WIDTH", Type: INT, DefaultValue: "32"}},
+			name:         "Single parameter with type and default value",
+			paramListStr: "parameter int DATA_WIDTH = 32",
+			expectedParams: []Parameter{
+				{Name: "DATA_WIDTH", Type: INT, DefaultValue: "32", AnsiStyle: true},
+			},
 		},
 		{
-			name:           "Single parameter with type no default",
-			paramListStr:   "parameter logic CLK_PERIOD",
-			expectedParams: []Parameter{{Name: "CLK_PERIOD", Type: LOGIC, DefaultValue: ""}},
+			name:         "Single parameter with type no default",
+			paramListStr: "parameter logic CLK_PERIOD",
+			expectedParams: []Parameter{
+				{Name: "CLK_PERIOD", Type: LOGIC, DefaultValue: "", AnsiStyle: true},
+			},
 		},
 		{
 			name:         "Type",
 			paramListStr: "parameter type P_TYPE = logic",
 			expectedParams: []Parameter{
-				{Name: "P_TYPE", Type: TYPE, DefaultValue: "logic"},
+				{Name: "P_TYPE", Type: TYPE, DefaultValue: "logic", AnsiStyle: true},
 			},
 		},
 		{
 			name:         "param with width",
 			paramListStr: "parameter logic [7:0] P_SIZED = 8'hAA",
 			expectedParams: []Parameter{
-				{Name: "P_SIZED", Type: LOGIC, DefaultValue: "8'hAA", Width: 8},
+				{Name: "P_SIZED", Type: LOGIC, DefaultValue: "8'hAA", Width: 8, AnsiStyle: true},
 			},
 		},
 	}
