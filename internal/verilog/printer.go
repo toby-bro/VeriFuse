@@ -268,10 +268,80 @@ func PrintStruct(s *Struct) string {
 	return sb.String()
 }
 
+// PrintInterfacePort formats an InterfacePort for interface port declarations.
+func PrintInterfacePort(port InterfacePort, isLast bool) string {
+	var sb strings.Builder
+
+	if port.Direction != INTERNAL {
+		sb.WriteString(PortDirectionToString(port.Direction))
+		sb.WriteString(" ")
+	}
+
+	portTypeStr := TypeToString(port.Type)
+	if portTypeStr != "" {
+		sb.WriteString(portTypeStr)
+		sb.WriteString(" ")
+	}
+
+	if port.IsSigned {
+		sb.WriteString("signed ")
+	}
+
+	widthStr := formatWidth(port.Width)
+	if widthStr != "" {
+		sb.WriteString(widthStr)
+		sb.WriteString(" ")
+	}
+
+	sb.WriteString(port.Name)
+	if !isLast {
+		sb.WriteString(",")
+	}
+	return sb.String()
+}
+
+// PrintModPort formats a ModPort declaration for interfaces.
+func PrintModPort(modport ModPort) string {
+	return printModPortWithIndent(modport, "")
+}
+
+// printModPortWithIndent formats a ModPort declaration with specified indentation
+func printModPortWithIndent(modport ModPort, indent string) string {
+	var sb strings.Builder
+	sb.WriteString(indent)
+	sb.WriteString("modport ")
+	sb.WriteString(modport.Name)
+	sb.WriteString(" (\n")
+
+	for i, signal := range modport.Signals {
+		sb.WriteString(indent)
+		sb.WriteString("    ") // 4 additional spaces for signal indentation
+		sb.WriteString(PortDirectionToString(signal.Direction))
+		sb.WriteString(" ")
+		sb.WriteString(signal.Name)
+		if i < len(modport.Signals)-1 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString(indent)
+	sb.WriteString(");") // Closing parenthesis at same level as modport keyword
+	return sb.String()
+}
+
 func PrintInterface(i *Interface) string {
 	var sb strings.Builder
+
+	// Handle virtual interfaces
+	if i.IsVirtual {
+		sb.WriteString("virtual ")
+	}
+
 	sb.WriteString("interface ")
 	sb.WriteString(i.Name)
+
+	// Handle parameters
 	if len(i.Parameters) > 0 {
 		sb.WriteString(" #(\n")
 		for j, param := range i.Parameters {
@@ -281,17 +351,70 @@ func PrintInterface(i *Interface) string {
 		}
 		sb.WriteString(")")
 	}
+
+	// Handle interface ports (input/output ports of the interface itself)
+	if len(i.Ports) > 0 {
+		sb.WriteString(" (\n")
+		for j, port := range i.Ports {
+			sb.WriteString("    ")
+			sb.WriteString(PrintInterfacePort(port, j == len(i.Ports)-1))
+			sb.WriteString("\n")
+		}
+		sb.WriteString(")")
+	}
+
+	// Handle extends
+	if i.ExtendsFrom != "" {
+		sb.WriteString(" extends ")
+		sb.WriteString(i.ExtendsFrom)
+	}
+
 	sb.WriteString(";\n")
-	indentedBody := ""
-	if strings.TrimSpace(i.Body) != "" {
-		for _, line := range strings.Split(i.Body, "\n") {
-			if strings.TrimSpace(line) != "" {
-				indentedBody += "    " + line + "\n"
+
+	// Print variables declared in the interface
+	if len(i.Variables) > 0 {
+		for _, variable := range i.Variables {
+			sb.WriteString("    ")
+			sb.WriteString(PrintVariableDeclaration(variable))
+			sb.WriteString("\n")
+		}
+		if len(i.ModPorts) > 0 {
+			sb.WriteString("\n") // Add spacing before modports
+		}
+	}
+
+	// Print modport declarations
+	if len(i.ModPorts) > 0 {
+		for j, modport := range i.ModPorts {
+			sb.WriteString(printModPortWithIndent(modport, "    "))
+			if j < len(i.ModPorts)-1 {
+				sb.WriteString("\n\n") // Add spacing between modports
+			} else {
+				sb.WriteString("\n")
 			}
 		}
 	}
-	sb.WriteString(indentedBody)
-	sb.WriteString("endinterface\n")
+
+	// Handle any additional body content that wasn't parsed into structured fields
+	if strings.TrimSpace(i.Body) != "" {
+		// Only include body content that's not already represented by the structured fields
+		// This is a fallback for any unparsed content
+		bodyLines := strings.Split(i.Body, "\n")
+		hasNonEmptyContent := false
+		for _, line := range bodyLines {
+			if strings.TrimSpace(line) != "" {
+				if !hasNonEmptyContent {
+					sb.WriteString("\n") // Add spacing before raw body content
+					hasNonEmptyContent = true
+				}
+				sb.WriteString("    ")
+				sb.WriteString(line)
+				sb.WriteString("\n")
+			}
+		}
+	}
+
+	sb.WriteString("endinterface")
 	return sb.String()
 }
 
