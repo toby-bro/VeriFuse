@@ -3,6 +3,8 @@ package verilog
 type (
 	PortDirection int
 	PortType      int
+	ClockEdge     int
+	TimingUnit    int
 )
 
 const (
@@ -34,6 +36,35 @@ const (
 	USERDEFINED
 	TYPE // Only for parameters
 )
+
+const (
+	POSEDGE ClockEdge = iota
+	NEGEDGE
+	BOTHEDGE
+)
+
+const (
+	NANOSECOND TimingUnit = iota
+	PICOSECOND
+	FEMTOSECOND
+	TIMEUNIT
+)
+
+// ModPortSignal represents a signal within a modport with its direction
+type ModPortSignal struct {
+	Name      string
+	Direction PortDirection
+}
+
+// InterfacePort represents input/output ports of an interface (like module ports)
+type InterfacePort struct {
+	Name      string
+	Direction PortDirection
+	Type      PortType
+	Width     int
+	IsSigned  bool
+	Array     string
+}
 
 type Parameter struct {
 	Name         string
@@ -103,16 +134,18 @@ type Class struct {
 
 type ModPort struct {
 	Name    string
-	Inputs  []string
-	Outputs []string
+	Signals []ModPortSignal
 }
 
 type Interface struct {
-	Name       string
-	Variables  []Variable
-	ModPorts   []ModPort
-	Parameters []Parameter
-	Body       string
+	Name        string
+	Ports       []InterfacePort // Interface can have its own input/output ports
+	Parameters  []Parameter     // Interface parameters
+	ModPorts    []ModPort       // Modport declarations
+	Variables   []*Variable     // Variables declared in the interface
+	Body        string          // Raw body content for unparsed elements
+	IsVirtual   bool            // Whether this is a virtual interface
+	ExtendsFrom string          // Name of interface this extends from (if any)
 }
 
 type VerilogFile struct { //nolint:revive

@@ -102,6 +102,11 @@ var generalStructRegex = regexp.MustCompile(
 	`(?m)^typedef\s+struct\s+(?:packed\s+)\{((?:\s+.*)+)\}\s+(\w+);`,
 )
 
+var generalInterfaceRegex = regexp.MustCompile(fmt.Sprintf(
+	`(?m)^(?:(virtual)\s+)?interface\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*(?:extends\s+(\w+))?\s*(?:\(\s*([\s\S]*?)\)\s*)?;\s*((?:\s*(?:%s)*)*)\s*endinterface`,
+	utils.NegativeLookAhead("endinterface"),
+))
+
 var baseTypes = `reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum|type`
 
 var widthRegex = `\[\s*[\w\(\)'\-\+\:\s]+\s*\]`
@@ -176,6 +181,10 @@ func MatchAllClassesFromString(content string) [][]string {
 
 func MatchAllStructsFromString(content string) [][]string {
 	return generalStructRegex.FindAllStringSubmatch(content, -1)
+}
+
+func MatchAllInterfacesFromString(content string) [][]string {
+	return generalInterfaceRegex.FindAllStringSubmatch(content, -1)
 }
 
 func MatchAllVariablesFromString(content string) [][]string {
@@ -1060,6 +1069,7 @@ func ParseVariables(v *VerilogFile,
 				return nil, nil, fmt.Errorf("failed to parse width: %v", err)
 			}
 		}
+
 		var parentStruct *Struct
 		var parentClass *Class
 		if varType == UNKNOWN && v != nil {
@@ -1172,6 +1182,247 @@ func (v *VerilogFile) ParseStructs(
 	return nil
 }
 
+// parseModPort parses a single modport declaration and returns the ModPort struct
+// This is primarily used for testing individual modport parsing
+func parseModPort(modportContent string) (*ModPort, bool) {
+	content := strings.TrimSpace(modportContent)
+
+	// Regex to match modport declaration (handle multiline)
+	modportRegex := regexp.MustCompile(`(?s)modport\s+(\w+)\s*\(\s*(.*?)\s*\);`)
+	matches := modportRegex.FindStringSubmatch(content)
+
+	if len(matches) < 3 {
+		return nil, false
+	}
+
+	modportName := matches[1]
+	signalsList := matches[2]
+
+	modport := &ModPort{
+		Name:    modportName,
+		Signals: []ModPortSignal{},
+	}
+
+	if strings.TrimSpace(signalsList) == "" {
+		return modport, true // Empty modport is valid
+	}
+
+	// Parse signal declarations using the helper function
+	signals, err := parseModPortSignals(signalsList)
+	if err != nil {
+		return nil, false
+	}
+
+	modport.Signals = signals
+	return modport, true
+}
+
+// parseInterfacePorts parses interface port declarations (input/output ports of the interface itself)
+func parseInterfacePorts(
+	portListStr string,
+	parameters map[string]Parameter,
+) ([]InterfacePort, error) {
+	ports := []InterfacePort{}
+
+	if strings.TrimSpace(portListStr) == "" {
+		return ports, nil
+	}
+
+	// Split by comma and parse each port
+	portDecls := strings.Split(portListStr, ",")
+	for _, portDecl := range portDecls {
+		portDecl = strings.TrimSpace(portDecl)
+		if portDecl == "" {
+			continue
+		}
+
+		// Use similar regex as ANSI port parsing
+		matches := ansiPortRegex.FindStringSubmatch(portDecl)
+		if len(matches) > 5 {
+			directionStr := strings.TrimSpace(matches[1])
+			portTypeStr := strings.TrimSpace(matches[2])
+			signedStr := strings.TrimSpace(matches[3])
+			rangeStr := strings.TrimSpace(matches[4])
+			portName := strings.TrimSpace(matches[5])
+
+			direction := GetPortDirection(directionStr)
+			portType := GetType(portTypeStr)
+			isSigned := (signedStr == "signed")
+
+			width, err := ParseRange(rangeStr, parameters)
+			if err != nil {
+				// For interface ports, width should be 0 when no explicit range is specified
+				width = 0
+			}
+
+			port := InterfacePort{
+				Name:      portName,
+				Direction: direction,
+				Type:      portType,
+				Width:     width,
+				IsSigned:  isSigned,
+			}
+
+			ports = append(ports, port)
+		}
+	}
+
+	return ports, nil
+}
+
+// parseModPortsFromBody extracts modport declarations from interface body
+func parseModPortsFromBody(bodyStr string) ([]ModPort, error) {
+	modports := []ModPort{}
+
+	// Regex to find all modport declarations in the body
+	modportRegex := regexp.MustCompile(`(?s)modport\s+(\w+)\s*\(\s*(.*?)\s*\);`)
+	matches := modportRegex.FindAllStringSubmatch(bodyStr, -1)
+
+	for _, match := range matches {
+		if len(match) < 3 {
+			continue
+		}
+
+		modportName := match[1]
+		signalsList := match[2]
+
+		modport := ModPort{
+			Name:    modportName,
+			Signals: []ModPortSignal{},
+		}
+
+		// Parse signals within the modport
+		if strings.TrimSpace(signalsList) != "" {
+			signals, err := parseModPortSignals(signalsList)
+			if err != nil {
+				logger.Warn("Failed to parse signals for modport '%s': %v", modportName, err)
+			} else {
+				modport.Signals = signals
+			}
+		}
+
+		modports = append(modports, modport)
+	}
+
+	return modports, nil
+}
+
+// parseModPortSignals parses signal declarations within a modport
+func parseModPortSignals(signalsList string) ([]ModPortSignal, error) {
+	signals := []ModPortSignal{}
+
+	// Split by comma and newlines to handle multiline declarations
+	lines := strings.Split(signalsList, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Remove trailing comma
+		line = strings.TrimSuffix(line, ",")
+
+		// Match direction and signal names: "input signal1, signal2"
+		signalRegex := regexp.MustCompile(`(input|output|inout)\s+([\w\s,]+)`)
+		signalMatches := signalRegex.FindStringSubmatch(line)
+
+		if len(signalMatches) >= 3 {
+			direction := GetPortDirection(signalMatches[1])
+			signalNames := signalMatches[2]
+
+			// Parse multiple signal names separated by commas
+			names := strings.Split(signalNames, ",")
+			for _, name := range names {
+				name = strings.TrimSpace(name)
+				if name != "" {
+					signals = append(signals, ModPortSignal{
+						Name:      name,
+						Direction: direction,
+					})
+				}
+			}
+		}
+	}
+
+	return signals, nil
+}
+
+func (v *VerilogFile) ParseInterfaces(
+	content string,
+) error {
+	allMatchedInterfaces := MatchAllInterfacesFromString(content)
+	v.Interfaces = make(map[string]*Interface)
+
+	for _, matchedInterface := range allMatchedInterfaces {
+		if len(matchedInterface) < 7 {
+			return errors.New("no interface found in the provided text")
+		}
+
+		virtualStr := matchedInterface[1]    // "virtual" or empty
+		interfaceName := matchedInterface[2] // interface name
+		paramListStr := matchedInterface[3]  // parameter list
+		extendsFrom := matchedInterface[4]   // extends interface name
+		portListStr := matchedInterface[5]   // port list
+		bodyStr := matchedInterface[6]       // interface body
+
+		i := &Interface{
+			Name:        interfaceName,
+			IsVirtual:   virtualStr == "virtual",
+			ExtendsFrom: extendsFrom,
+			Body:        bodyStr,
+			Ports:       []InterfacePort{},
+			Parameters:  []Parameter{},
+			ModPorts:    []ModPort{},
+			Variables:   []*Variable{},
+		}
+
+		// Parse parameters if present
+		if paramListStr != "" {
+			params, err := parseParameters(paramListStr, false)
+			if err != nil {
+				logger.Warn("Failed to parse interface parameters for '%s': %v", interfaceName, err)
+			} else {
+				i.Parameters = params
+			}
+		}
+
+		// Parse interface ports if present
+		if portListStr != "" {
+			ports, err := parseInterfacePorts(portListStr, parametersToMap(i.Parameters))
+			if err != nil {
+				logger.Warn("Failed to parse interface ports for '%s': %v", interfaceName, err)
+			} else {
+				i.Ports = ports
+			}
+		}
+
+		// Parse variables from body
+		if bodyStr != "" {
+			variablesMap, _, err := ParseVariables(v, bodyStr, i.Parameters)
+			if err != nil {
+				logger.Warn("Failed to parse variables in interface '%s': %v", interfaceName, err)
+			} else {
+				variables := []*Variable{}
+				for _, variable := range variablesMap {
+					variables = append(variables, variable)
+				}
+				i.Variables = variables
+			}
+
+			// Parse modports from body
+			modports, err := parseModPortsFromBody(bodyStr)
+			if err != nil {
+				logger.Warn("Failed to parse modports in interface '%s': %v", interfaceName, err)
+			} else {
+				i.ModPorts = modports
+			}
+		}
+
+		v.Interfaces[interfaceName] = i
+	}
+	return nil
+}
+
 // Only parses the dependencies of the classes
 // Probably overengineered and should only see if the name of a class or a struct just happens to be there but too late I already wrote it
 func (v *VerilogFile) typeDependenciesParser() error {
@@ -1276,6 +1527,10 @@ func ParseVerilog(content string, verbose int) (*VerilogFile, error) {
 	err = verilogFile.ParseModules(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse modules: %v", err)
+	}
+	err = verilogFile.ParseInterfaces(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse interfaces: %v", err)
 	}
 	verilogFile.createDependancyMap()
 	err = verilogFile.typeDependenciesParser()
