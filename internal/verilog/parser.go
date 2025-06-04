@@ -662,7 +662,7 @@ func extractNonANSIParameterDeclarations(
 	content string,
 ) ([]Parameter, error) {
 	scanner := bufio.NewScanner(strings.NewReader(content))
-	var bodyParameters []Parameter
+	bodyParameters := []Parameter{}
 
 	for scanner.Scan() {
 		trimmedLine := strings.TrimSpace(scanner.Text())
@@ -698,7 +698,7 @@ func extractNonANSIParameterDeclarations(
 // If a parameter exists in both places, the body declaration takes precedence for the value
 func mergeParameterInfo(headerParams []Parameter, bodyParams []Parameter) []Parameter {
 	paramMap := make(map[string]Parameter)
-	var finalParams []Parameter
+	finalParams := []Parameter{}
 
 	// First, add all header parameters
 	for _, param := range headerParams {

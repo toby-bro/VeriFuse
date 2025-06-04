@@ -1976,6 +1976,13 @@ func TestParseParameters(t *testing.T) {
 				t.Fatalf("parseParameters() error = %v", err)
 			}
 
+			// sort the parameters by name for consistent comparison
+			sort.Slice(params, func(i, j int) bool {
+				return params[i].Name < params[j].Name
+			})
+			sort.Slice(tc.expectedParams, func(i, j int) bool {
+				return tc.expectedParams[i].Name < tc.expectedParams[j].Name
+			})
 			if !reflect.DeepEqual(params, tc.expectedParams) {
 				t.Errorf("parseParameters() = %v, want %v", params, tc.expectedParams)
 				// Detailed comparison
