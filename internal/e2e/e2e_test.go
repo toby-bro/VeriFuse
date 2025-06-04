@@ -146,8 +146,6 @@ func TestPfuzzEndToEnd(t *testing.T) {
 	// Run test for each file
 	for _, testFileRelPath := range testFiles {
 		// Capture loop variable for use in the closure by shadowing
-		testFileRelPath := testFileRelPath
-
 		testFileAbsPath := filepath.Join(projectRoot, testFileRelPath)
 		testFileName := filepath.Base(testFileAbsPath)
 		// Sanitize test name for directory creation if needed (replace non-alphanumeric)
