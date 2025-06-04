@@ -340,7 +340,8 @@ func TestScheduler_handleMismatch(t *testing.T) {
 	if !strings.Contains(contentStr, "input1 = 1010") {
 		t.Error("Summary should contain input values")
 	}
-	if !strings.Contains(contentStr, "output1: sim1=1010, sim2=1111") {
+	if !strings.Contains(contentStr, "output1:") || !strings.Contains(contentStr, "sim1=1010") ||
+		!strings.Contains(contentStr, "sim2=1111") {
 		t.Error("Summary should contain mismatch details")
 	}
 

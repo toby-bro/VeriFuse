@@ -613,7 +613,6 @@ func TestPrintVerilogFile(t *testing.T) {
 					},
 				},
 			},
-
 			want: `        module top #(
     parameter WIDTH = 8,
     parameter DEPTH = 16
