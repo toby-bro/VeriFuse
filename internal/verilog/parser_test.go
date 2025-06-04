@@ -2330,6 +2330,878 @@ endmodule
 	}
 }
 
+func TestParseInterface(t *testing.T) {
+	testCases := []struct {
+		name              string
+		interfaceContent  string
+		expectedInterface *Interface
+		expectedOK        bool
+	}{
+		{
+			name: "Complex interface with parameters and ports",
+			interfaceContent: `interface fifo_if #(
+  parameter int DEPTH = 16,
+  parameter int WIDTH = 32
+) (
+  input logic clk,
+  input logic rst_n
+);
+  logic [WIDTH-1:0] data;
+  logic [$clog2(DEPTH)-1:0] count;
+  logic full;
+  logic empty;
+  logic push;
+  logic pop;
+  
+  modport producer (
+    output data,
+    output push,
+    input full,
+    input count
+  );
+  
+  modport consumer (
+    input data,
+    output pop,
+    input empty,
+    input count
+  );
+  
+  modport monitor (
+    input data,
+    input push,
+    input pop,
+    input full,
+    input empty,
+    input count
+  );
+endinterface`,
+			expectedInterface: &Interface{
+				Name: "fifo_if",
+				Ports: []InterfacePort{
+					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+					{Name: "rst_n", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+				},
+				Parameters: []Parameter{
+					{Name: "DEPTH", Type: INT, DefaultValue: "16"},
+					{Name: "WIDTH", Type: INT, DefaultValue: "32"},
+				},
+				ModPorts: []ModPort{
+					{
+						Name: "producer",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: OUTPUT},
+							{Name: "push", Direction: OUTPUT},
+							{Name: "full", Direction: INPUT},
+							{Name: "count", Direction: INPUT},
+						},
+					},
+					{
+						Name: "consumer",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: INPUT},
+							{Name: "pop", Direction: OUTPUT},
+							{Name: "empty", Direction: INPUT},
+							{Name: "count", Direction: INPUT},
+						},
+					},
+					{
+						Name: "monitor",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: INPUT},
+							{Name: "push", Direction: INPUT},
+							{Name: "pop", Direction: INPUT},
+							{Name: "full", Direction: INPUT},
+							{Name: "empty", Direction: INPUT},
+							{Name: "count", Direction: INPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "data", Type: LOGIC, Width: 32}, // WIDTH parameter resolved
+					{Name: "count", Type: LOGIC, Width: 4}, // $clog2(DEPTH) resolved
+					{Name: "full", Type: LOGIC, Width: 0},
+					{Name: "empty", Type: LOGIC, Width: 0},
+					{Name: "push", Type: LOGIC, Width: 0},
+					{Name: "pop", Type: LOGIC, Width: 0},
+				},
+				Body:        "  logic [WIDTH-1:0] data;\n  logic [$clog2(DEPTH)-1:0] count;\n  logic full;\n  logic empty;\n  logic push;\n  logic pop;\n  \n  modport producer (\n    output data,\n    output push,\n    input full,\n    input count\n  );\n  \n  modport consumer (\n    input data,\n    output pop,\n    input empty,\n    input count\n  );\n  \n  modport monitor (\n    input data,\n    input push,\n    input pop,\n    input full,\n    input empty,\n    input count\n  );",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Empty interface",
+			interfaceContent: `interface empty_if;
+endinterface`,
+			expectedInterface: &Interface{
+				Name:        "empty_if",
+				Ports:       []InterfacePort{},
+				Parameters:  []Parameter{},
+				ModPorts:    []ModPort{},
+				Variables:   []*Variable{},
+				Body:        "",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Interface extending another interface",
+			interfaceContent: `interface advanced_bus_if extends basic_bus_if;
+  logic error;
+  logic interrupt;
+  
+  modport advanced_master (
+    output error,
+    output interrupt
+  );
+endinterface`,
+			expectedInterface: &Interface{
+				Name:       "advanced_bus_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "advanced_master",
+						Signals: []ModPortSignal{
+							{Name: "error", Direction: OUTPUT},
+							{Name: "interrupt", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "error", Type: LOGIC, Width: 0},
+					{Name: "interrupt", Type: LOGIC, Width: 0},
+				},
+				Body:        "  logic error;\n  logic interrupt;\n  \n  modport advanced_master (\n    output error,\n    output interrupt\n  );",
+				IsVirtual:   false,
+				ExtendsFrom: "basic_bus_if",
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Interface with input or output ports",
+			interfaceContent: `interface mem_if (
+  input logic clk,
+  input logic rst_n
+);
+  logic [31:0] addr;
+  logic [31:0] data;
+  logic we;
+  logic re;
+endinterface`,
+			expectedInterface: &Interface{
+				Name: "mem_if",
+				Ports: []InterfacePort{
+					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+					{Name: "rst_n", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+				},
+				Parameters: []Parameter{},
+				ModPorts:   []ModPort{},
+				Variables: []*Variable{
+					{Name: "addr", Type: LOGIC, Width: 32},
+					{Name: "data", Type: LOGIC, Width: 32},
+					{Name: "we", Type: LOGIC, Width: 0},
+					{Name: "re", Type: LOGIC, Width: 0},
+				},
+				Body:        "  logic [31:0] addr;\n  logic [31:0] data;\n  logic we;\n  logic re;",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Interface with modports",
+			interfaceContent: `interface cpu_bus_if;
+  logic [31:0] addr;
+  logic [31:0] data;
+  logic we;
+  logic re;
+  logic ready;
+  
+  modport master (
+    output addr,
+    inout data,
+    output we,
+    output re,
+    input ready
+  );
+  
+  modport slave (
+    input addr,
+    inout data,
+    input we,
+    input re,
+    output ready
+  );
+endinterface`,
+			expectedInterface: &Interface{
+				Name:       "cpu_bus_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "master",
+						Signals: []ModPortSignal{
+							{Name: "addr", Direction: OUTPUT},
+							{Name: "data", Direction: INOUT},
+							{Name: "we", Direction: OUTPUT},
+							{Name: "re", Direction: OUTPUT},
+							{Name: "ready", Direction: INPUT},
+						},
+					},
+					{
+						Name: "slave",
+						Signals: []ModPortSignal{
+							{Name: "addr", Direction: INPUT},
+							{Name: "data", Direction: INOUT},
+							{Name: "we", Direction: INPUT},
+							{Name: "re", Direction: INPUT},
+							{Name: "ready", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "addr", Type: LOGIC, Width: 32},
+					{Name: "data", Type: LOGIC, Width: 32},
+					{Name: "we", Type: LOGIC, Width: 0},
+					{Name: "re", Type: LOGIC, Width: 0},
+					{Name: "ready", Type: LOGIC, Width: 0},
+				},
+				Body:        "  logic [31:0] addr;\n  logic [31:0] data;\n  logic we;\n  logic re;\n  logic ready;\n  \n  modport master (\n    output addr,\n    inout data,\n    output we,\n    output re,\n    input ready\n  );\n  \n  modport slave (\n    input addr,\n    inout data,\n    input we,\n    input re,\n    output ready\n  );",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Interface with parameters",
+			interfaceContent: `interface bus_if #(
+  parameter int WIDTH = 8,
+  parameter logic SIGNED = 1'b0
+);
+  logic [WIDTH-1:0] data;
+  logic valid;
+endinterface`,
+			expectedInterface: &Interface{
+				Name:  "bus_if",
+				Ports: []InterfacePort{},
+				Parameters: []Parameter{
+					{Name: "WIDTH", Type: INT, DefaultValue: "8"},
+					{Name: "SIGNED", Type: LOGIC, DefaultValue: "1'b0"},
+				},
+				ModPorts: []ModPort{},
+				Variables: []*Variable{
+					{Name: "data", Type: LOGIC, Width: 8}, // WIDTH parameter resolved
+					{Name: "valid", Type: LOGIC, Width: 0},
+				},
+				Body:        "  logic [WIDTH-1:0] data;\n  logic valid;",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Interface with mixed signal types",
+			interfaceContent: `interface mixed_if;
+  logic [7:0] byte_data;
+  bit [15:0] word_data;
+  int counter;
+  wire clk_wire;
+  reg [3:0] nibble_reg;
+  
+  modport producer (
+    output byte_data,
+    output word_data,
+    output counter,
+    input clk_wire
+  );
+endinterface`,
+			expectedInterface: &Interface{
+				Name:       "mixed_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "producer",
+						Signals: []ModPortSignal{
+							{Name: "byte_data", Direction: OUTPUT},
+							{Name: "word_data", Direction: OUTPUT},
+							{Name: "counter", Direction: OUTPUT},
+							{Name: "clk_wire", Direction: INPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "byte_data", Type: LOGIC, Width: 8},
+					{Name: "word_data", Type: BIT, Width: 16},
+					{Name: "counter", Type: INT, Width: 0},
+					{Name: "clk_wire", Type: WIRE, Width: 0},
+					{Name: "nibble_reg", Type: REG, Width: 4},
+				},
+				Body:        "  logic [7:0] byte_data;\n  bit [15:0] word_data;\n  int counter;\n  wire clk_wire;\n  reg [3:0] nibble_reg;\n  \n  modport producer (\n    output byte_data,\n    output word_data,\n    output counter,\n    input clk_wire\n  );",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Malformed interface - missing endinterface",
+			interfaceContent: `interface bad_if;
+  logic data;`,
+			expectedInterface: nil,
+			expectedOK:        false,
+		},
+		{
+			name: "Malformed interface - missing name",
+			interfaceContent: `interface;
+  logic data;
+endinterface`,
+			expectedInterface: nil,
+			expectedOK:        false,
+		},
+		{
+			name: "Simple interface",
+			interfaceContent: `interface simple_if;
+  logic data;
+  logic valid;
+endinterface`,
+			expectedInterface: &Interface{
+				Name:       "simple_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts:   []ModPort{},
+				Variables: []*Variable{
+					{Name: "data", Type: LOGIC, Width: 0},
+					{Name: "valid", Type: LOGIC, Width: 0},
+				},
+				Body:        "  logic data;\n  logic valid;",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Virtual interface",
+			interfaceContent: `virtual interface axi_if;
+  // Virtual interface body would be empty or minimal
+endinterface`,
+			expectedInterface: &Interface{
+				Name:        "axi_if",
+				Ports:       []InterfacePort{},
+				Parameters:  []Parameter{},
+				ModPorts:    []ModPort{},
+				Variables:   []*Variable{},
+				Body:        "  // Virtual interface body would be empty or minimal",
+				IsVirtual:   true,
+				ExtendsFrom: "",
+			},
+			expectedOK: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vf := NewVerilogFile("test")
+			err := vf.ParseInterfaces(tc.interfaceContent)
+
+			if (err == nil && len(vf.Interfaces) != 0) != tc.expectedOK ||
+				len(vf.Interfaces) == 0 && tc.expectedOK {
+				t.Errorf("ParseInterfaces() error = %v, expectedOK = %v", err, tc.expectedOK)
+				return
+			}
+
+			if !tc.expectedOK {
+				return // Don't check interface if we expected failure
+			}
+
+			// Get the parsed interface from the VerilogFile
+			if len(vf.Interfaces) == 0 {
+				t.Errorf("ParseInterfaces() returned no interfaces when expected success")
+				return
+			}
+
+			if len(vf.Interfaces) != 1 {
+				t.Errorf("ParseInterfaces() returned %d interfaces, expected 1", len(vf.Interfaces))
+				return
+			}
+
+			var parsedInterface *Interface
+			for _, iface := range vf.Interfaces {
+				parsedInterface = iface
+				break
+			}
+
+			if parsedInterface == nil {
+				t.Errorf("ParseInterfaces() returned nil interface when expected success")
+				return
+			}
+
+			// Check interface name
+			if parsedInterface.Name != tc.expectedInterface.Name {
+				t.Errorf(
+					"Interface name = %v, want %v",
+					parsedInterface.Name,
+					tc.expectedInterface.Name,
+				)
+			}
+
+			// Check virtual flag
+			if parsedInterface.IsVirtual != tc.expectedInterface.IsVirtual {
+				t.Errorf(
+					"Interface IsVirtual = %v, want %v",
+					parsedInterface.IsVirtual,
+					tc.expectedInterface.IsVirtual,
+				)
+			}
+
+			// Check extends from
+			if parsedInterface.ExtendsFrom != tc.expectedInterface.ExtendsFrom {
+				t.Errorf(
+					"Interface ExtendsFrom = %v, want %v",
+					parsedInterface.ExtendsFrom,
+					tc.expectedInterface.ExtendsFrom,
+				)
+			}
+
+			// Check ports
+			if len(parsedInterface.Ports) != len(tc.expectedInterface.Ports) {
+				t.Errorf(
+					"Interface ports count = %v, want %v",
+					len(parsedInterface.Ports),
+					len(tc.expectedInterface.Ports),
+				)
+			} else {
+				for i, port := range parsedInterface.Ports {
+					expectedPort := tc.expectedInterface.Ports[i]
+					if !reflect.DeepEqual(port, expectedPort) {
+						t.Errorf("Interface port[%d] = %+v, want %+v", i, port, expectedPort)
+					}
+				}
+			}
+
+			// Check parameters
+			if len(parsedInterface.Parameters) != len(tc.expectedInterface.Parameters) {
+				t.Errorf(
+					"Interface parameters count = %v, want %v",
+					len(parsedInterface.Parameters),
+					len(tc.expectedInterface.Parameters),
+				)
+			} else {
+				for i, param := range parsedInterface.Parameters {
+					expectedParam := tc.expectedInterface.Parameters[i]
+					if !reflect.DeepEqual(param, expectedParam) {
+						t.Errorf("Interface parameter[%d] = %+v, want %+v", i, param, expectedParam)
+					}
+				}
+			}
+
+			// Check modports
+			if len(parsedInterface.ModPorts) != len(tc.expectedInterface.ModPorts) {
+				t.Errorf(
+					"Interface modports count = %v, want %v",
+					len(parsedInterface.ModPorts),
+					len(tc.expectedInterface.ModPorts),
+				)
+			} else {
+				for i, modport := range parsedInterface.ModPorts {
+					expectedModport := tc.expectedInterface.ModPorts[i]
+					if !reflect.DeepEqual(modport, expectedModport) {
+						t.Errorf("Interface modport[%d] = %+v, want %+v", i, modport, expectedModport)
+					}
+				}
+			}
+			// sort the variables for consistent comparison
+			sort.Slice(parsedInterface.Variables, func(i, j int) bool {
+				return parsedInterface.Variables[i].Name < parsedInterface.Variables[j].Name
+			})
+			sort.Slice(tc.expectedInterface.Variables, func(i, j int) bool {
+				return tc.expectedInterface.Variables[i].Name < tc.expectedInterface.Variables[j].Name
+			})
+
+			// Check variables
+			if len(parsedInterface.Variables) != len(tc.expectedInterface.Variables) {
+				t.Errorf(
+					"Interface variables count = %v, want %v",
+					len(parsedInterface.Variables),
+					len(tc.expectedInterface.Variables),
+				)
+			} else {
+				for i, variable := range parsedInterface.Variables {
+					expectedVariable := tc.expectedInterface.Variables[i]
+					if !reflect.DeepEqual(variable, expectedVariable) {
+						t.Errorf("Interface variable[%d] = %+v, want %+v", i, variable, expectedVariable)
+					}
+				}
+			}
+
+			// Check body (trim whitespace for comparison)
+			expectedBody := strings.TrimSpace(tc.expectedInterface.Body)
+			actualBody := strings.TrimSpace(parsedInterface.Body)
+			if actualBody != expectedBody {
+				t.Errorf("Interface body = %q, want %q", actualBody, expectedBody)
+			}
+		})
+	}
+}
+
+func TestParseModPort(t *testing.T) {
+	testCases := []struct {
+		name            string
+		modportContent  string
+		expectedModPort *ModPort
+		expectedOK      bool
+	}{
+		{
+			name: "Simple modport",
+			modportContent: `modport master (
+    output addr,
+    input data,
+    output enable
+  );`,
+			expectedModPort: &ModPort{
+				Name: "master",
+				Signals: []ModPortSignal{
+					{Name: "addr", Direction: OUTPUT},
+					{Name: "data", Direction: INPUT},
+					{Name: "enable", Direction: OUTPUT},
+				},
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Modport with inout signals",
+			modportContent: `modport cpu (
+    output addr,
+    inout data,
+    output we,
+    input ready
+  );`,
+			expectedModPort: &ModPort{
+				Name: "cpu",
+				Signals: []ModPortSignal{
+					{Name: "addr", Direction: OUTPUT},
+					{Name: "data", Direction: INOUT},
+					{Name: "we", Direction: OUTPUT},
+					{Name: "ready", Direction: INPUT},
+				},
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Modport with mixed signals on same line",
+			modportContent: `modport slave (
+    input addr, we, re,
+    output data, ready
+  );`,
+			expectedModPort: &ModPort{
+				Name: "slave",
+				Signals: []ModPortSignal{
+					{Name: "addr", Direction: INPUT},
+					{Name: "we", Direction: INPUT},
+					{Name: "re", Direction: INPUT},
+					{Name: "data", Direction: OUTPUT},
+					{Name: "ready", Direction: OUTPUT},
+				},
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Empty modport",
+			modportContent: `modport empty (
+  );`,
+			expectedModPort: &ModPort{
+				Name:    "empty",
+				Signals: []ModPortSignal{},
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Malformed modport - missing name",
+			modportContent: `modport (
+    output data
+  );`,
+			expectedModPort: nil,
+			expectedOK:      false,
+		},
+		{
+			name: "Malformed modport - missing semicolon",
+			modportContent: `modport test (
+    output data
+  )`,
+			expectedModPort: nil,
+			expectedOK:      false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			parsedModPort, ok := parseModPort(tc.modportContent)
+
+			if ok != tc.expectedOK {
+				t.Errorf("parseModPort() ok = %v, want %v", ok, tc.expectedOK)
+				return
+			}
+
+			if !tc.expectedOK {
+				return // Don't check modport if we expected failure
+			}
+
+			if parsedModPort == nil {
+				t.Errorf("parseModPort() returned nil modport when expected success")
+				return
+			}
+
+			if !reflect.DeepEqual(parsedModPort, tc.expectedModPort) {
+				t.Errorf("parseModPort() = %+v, want %+v", parsedModPort, tc.expectedModPort)
+			}
+		})
+	}
+}
+
+func TestParseInterfaceFromFile(t *testing.T) {
+	testCases := []struct {
+		name               string
+		fileContent        string
+		expectedInterfaces map[string]*Interface
+		expectedOK         bool
+	}{
+		{
+			name: "Single interface in file",
+			fileContent: `
+module some_module;
+endmodule
+
+interface simple_if;
+  logic data;
+  logic valid;
+  
+  modport master (
+    output data,
+    output valid
+  );
+endinterface
+
+module another_module;
+endmodule
+`,
+			expectedInterfaces: map[string]*Interface{
+				"simple_if": {
+					Name:       "simple_if",
+					Ports:      []InterfacePort{},
+					Parameters: []Parameter{},
+					ModPorts: []ModPort{
+						{
+							Name: "master",
+							Signals: []ModPortSignal{
+								{Name: "data", Direction: OUTPUT},
+								{Name: "valid", Direction: OUTPUT},
+							},
+						},
+					},
+					Variables: []*Variable{
+						{Name: "data", Type: LOGIC, Width: 0},
+						{Name: "valid", Type: LOGIC, Width: 0},
+					},
+					Body:        "  logic data;\n  logic valid;\n  \n  modport master (\n    output data,\n    output valid\n  );",
+					IsVirtual:   false,
+					ExtendsFrom: "",
+				},
+			},
+			expectedOK: true,
+		},
+		{
+			name: "Multiple interfaces in file",
+			fileContent: `
+interface basic_if;
+  logic [7:0] data;
+endinterface
+
+interface extended_if extends basic_if;
+  logic enable;
+  
+  modport master (
+    output data,
+    output enable
+  );
+endinterface
+
+interface parameterized_if #(parameter WIDTH = 16);
+  logic [WIDTH-1:0] wide_data;
+endinterface
+`,
+			expectedInterfaces: map[string]*Interface{
+				"basic_if": {
+					Name:       "basic_if",
+					Ports:      []InterfacePort{},
+					Parameters: []Parameter{},
+					ModPorts:   []ModPort{},
+					Variables: []*Variable{
+						{Name: "data", Type: LOGIC, Width: 8},
+					},
+					Body:        "  logic [7:0] data;",
+					IsVirtual:   false,
+					ExtendsFrom: "",
+				},
+				"extended_if": {
+					Name:       "extended_if",
+					Ports:      []InterfacePort{},
+					Parameters: []Parameter{},
+					ModPorts: []ModPort{
+						{
+							Name: "master",
+							Signals: []ModPortSignal{
+								{Name: "data", Direction: OUTPUT},
+								{Name: "enable", Direction: OUTPUT},
+							},
+						},
+					},
+					Variables: []*Variable{
+						{Name: "enable", Type: LOGIC, Width: 0},
+					},
+					Body:        "  logic enable;\n  \n  modport master (\n    output data,\n    output enable\n  );",
+					IsVirtual:   false,
+					ExtendsFrom: "basic_if",
+				},
+				"parameterized_if": {
+					Name:  "parameterized_if",
+					Ports: []InterfacePort{},
+					Parameters: []Parameter{
+						{Name: "WIDTH", Type: INTEGER, DefaultValue: "16"},
+					},
+					ModPorts: []ModPort{},
+					Variables: []*Variable{
+						{Name: "wide_data", Type: LOGIC, Width: 16},
+					},
+					Body:        "  logic [WIDTH-1:0] wide_data;",
+					IsVirtual:   false,
+					ExtendsFrom: "",
+				},
+			},
+			expectedOK: true,
+		},
+		{
+			name: "File with no interfaces",
+			fileContent: `
+module test_module;
+  logic data;
+endmodule
+
+class test_class;
+  int value;
+endclass
+`,
+			expectedInterfaces: map[string]*Interface{},
+			expectedOK:         true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			verilogFile, err := ParseVerilog(tc.fileContent, 5)
+
+			if (err == nil) != tc.expectedOK {
+				t.Errorf("ParseVerilogFromString() error = %v, expectedOK = %v", err, tc.expectedOK)
+				return
+			}
+
+			if !tc.expectedOK {
+				return
+			}
+
+			if verilogFile == nil {
+				t.Errorf("ParseVerilogFromString() returned nil file when expected success")
+				return
+			}
+
+			// Check interface count
+			if len(verilogFile.Interfaces) != len(tc.expectedInterfaces) {
+				t.Errorf(
+					"Interface count = %v, want %v",
+					len(verilogFile.Interfaces),
+					len(tc.expectedInterfaces),
+				)
+			}
+
+			// Check each interface
+			for name, expectedInterface := range tc.expectedInterfaces {
+				actualInterface, exists := verilogFile.Interfaces[name]
+				if !exists {
+					t.Errorf("Interface %s not found in parsed file", name)
+					continue
+				}
+
+				// Compare interface properties
+				if actualInterface.Name != expectedInterface.Name {
+					t.Errorf(
+						"Interface %s name = %v, want %v",
+						name,
+						actualInterface.Name,
+						expectedInterface.Name,
+					)
+				}
+
+				if actualInterface.IsVirtual != expectedInterface.IsVirtual {
+					t.Errorf(
+						"Interface %s IsVirtual = %v, want %v",
+						name,
+						actualInterface.IsVirtual,
+						expectedInterface.IsVirtual,
+					)
+				}
+
+				if actualInterface.ExtendsFrom != expectedInterface.ExtendsFrom {
+					t.Errorf(
+						"Interface %s ExtendsFrom = %v, want %v",
+						name,
+						actualInterface.ExtendsFrom,
+						expectedInterface.ExtendsFrom,
+					)
+				}
+
+				// Compare slices using reflect.DeepEqual for detailed comparison
+				if !reflect.DeepEqual(actualInterface.Ports, expectedInterface.Ports) {
+					t.Errorf(
+						"Interface %s ports = %+v, want %+v",
+						name,
+						actualInterface.Ports,
+						expectedInterface.Ports,
+					)
+				}
+
+				if !reflect.DeepEqual(actualInterface.Parameters, expectedInterface.Parameters) {
+					t.Errorf(
+						"Interface %s parameters = %+v, want %+v",
+						name,
+						actualInterface.Parameters,
+						expectedInterface.Parameters,
+					)
+				}
+
+				if !reflect.DeepEqual(actualInterface.ModPorts, expectedInterface.ModPorts) {
+					t.Errorf(
+						"Interface %s modports = %+v, want %+v",
+						name,
+						actualInterface.ModPorts,
+						expectedInterface.ModPorts,
+					)
+				}
+
+				if !reflect.DeepEqual(actualInterface.Variables, expectedInterface.Variables) {
+					t.Errorf(
+						"Interface %s variables = %+v, want %+v",
+						name,
+						actualInterface.Variables,
+						expectedInterface.Variables,
+					)
+				}
+			}
+		})
+	}
+}
+
 func TestParseTransFuzzFile(t *testing.T) {
 	// skip this test
 	t.Skip("Skipping local only test")
