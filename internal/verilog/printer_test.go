@@ -838,3 +838,379 @@ endmodule`)
 		)
 	}
 }
+
+func TestPrintInterfacePort(t *testing.T) {
+	tests := []struct {
+		name   string
+		port   InterfacePort
+		isLast bool
+		want   string
+	}{
+		{
+			name: "Simple input logic port",
+			port: InterfacePort{
+				Name:      "clk",
+				Direction: INPUT,
+				Type:      LOGIC,
+				Width:     0,
+				IsSigned:  false,
+			},
+			isLast: false,
+			want:   "input logic clk,",
+		},
+		{
+			name: "Output wire port with width",
+			port: InterfacePort{
+				Name:      "data",
+				Direction: OUTPUT,
+				Type:      WIRE,
+				Width:     8,
+				IsSigned:  false,
+			},
+			isLast: true,
+			want:   "output wire [7:0] data",
+		},
+		{
+			name: "Signed input port",
+			port: InterfacePort{
+				Name:      "addr",
+				Direction: INPUT,
+				Type:      REG,
+				Width:     16,
+				IsSigned:  true,
+			},
+			isLast: false,
+			want:   "input reg signed [15:0] addr,",
+		},
+		{
+			name: "Internal port (no direction)",
+			port: InterfacePort{
+				Name:      "internal_sig",
+				Direction: INTERNAL,
+				Type:      LOGIC,
+				Width:     0,
+				IsSigned:  false,
+			},
+			isLast: true,
+			want:   "logic internal_sig",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PrintInterfacePort(tt.port, tt.isLast)
+			if got != tt.want {
+				t.Errorf("PrintInterfacePort() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrintModPort(t *testing.T) {
+	tests := []struct {
+		name    string
+		modport ModPort
+		want    string
+	}{
+		{
+			name: "Simple modport",
+			modport: ModPort{
+				Name: "master",
+				Signals: []ModPortSignal{
+					{Name: "data", Direction: OUTPUT},
+					{Name: "valid", Direction: OUTPUT},
+					{Name: "ready", Direction: INPUT},
+				},
+			},
+			want: `modport master (
+    output data,
+    output valid,
+    input ready
+);`,
+		},
+		{
+			name: "Single signal modport",
+			modport: ModPort{
+				Name: "simple",
+				Signals: []ModPortSignal{
+					{Name: "clk", Direction: INPUT},
+				},
+			},
+			want: `modport simple (
+    input clk
+);`,
+		},
+		{
+			name: "Empty modport",
+			modport: ModPort{
+				Name:    "empty",
+				Signals: []ModPortSignal{},
+			},
+			want: `modport empty (
+);`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PrintModPort(tt.modport)
+			if got != tt.want {
+				t.Errorf("PrintModPort() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrintInterface(t *testing.T) {
+	tests := []struct {
+		name string
+		intf *Interface
+		want string
+	}{
+		{
+			name: "Simple interface",
+			intf: &Interface{
+				Name:        "simple_if",
+				Ports:       []InterfacePort{},
+				Parameters:  []Parameter{},
+				ModPorts:    []ModPort{},
+				Variables:   []*Variable{},
+				Body:        "",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface simple_if;
+endinterface`,
+		},
+		{
+			name: "Virtual interface",
+			intf: &Interface{
+				Name:        "virtual_if",
+				Ports:       []InterfacePort{},
+				Parameters:  []Parameter{},
+				ModPorts:    []ModPort{},
+				Variables:   []*Variable{},
+				Body:        "",
+				IsVirtual:   true,
+				ExtendsFrom: "",
+			},
+			want: `virtual interface virtual_if;
+endinterface`,
+		},
+		{
+			name: "Interface with parameters",
+			intf: &Interface{
+				Name:  "param_if",
+				Ports: []InterfacePort{},
+				Parameters: []Parameter{
+					{Name: "WIDTH", Type: INT, DefaultValue: "8"},
+					{Name: "DEPTH", Type: INT, DefaultValue: "16"},
+				},
+				ModPorts:    []ModPort{},
+				Variables:   []*Variable{},
+				Body:        "",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface param_if #(
+    parameter int WIDTH = 8,
+    parameter int DEPTH = 16
+);
+endinterface`,
+		},
+		{
+			name: "Interface with ports",
+			intf: &Interface{
+				Name: "port_if",
+				Ports: []InterfacePort{
+					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+					{Name: "rst_n", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+				},
+				Parameters:  []Parameter{},
+				ModPorts:    []ModPort{},
+				Variables:   []*Variable{},
+				Body:        "",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface port_if (
+    input logic clk,
+    input logic rst_n
+);
+endinterface`,
+		},
+		{
+			name: "Interface extending another",
+			intf: &Interface{
+				Name:        "extended_if",
+				Ports:       []InterfacePort{},
+				Parameters:  []Parameter{},
+				ModPorts:    []ModPort{},
+				Variables:   []*Variable{},
+				Body:        "",
+				IsVirtual:   false,
+				ExtendsFrom: "base_if",
+			},
+			want: `interface extended_if extends base_if;
+endinterface`,
+		},
+		{
+			name: "Interface with variables",
+			intf: &Interface{
+				Name:       "var_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts:   []ModPort{},
+				Variables: []*Variable{
+					{Name: "data", Type: LOGIC, Width: 8},
+					{Name: "valid", Type: LOGIC, Width: 0},
+				},
+				Body:        "",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface var_if;
+    logic [7:0] data;
+    logic valid;
+endinterface`,
+		},
+		{
+			name: "Interface with modports",
+			intf: &Interface{
+				Name:       "modport_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "master",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: OUTPUT},
+							{Name: "ready", Direction: INPUT},
+						},
+					},
+					{
+						Name: "slave",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: INPUT},
+							{Name: "ready", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables:   []*Variable{},
+				Body:        "",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface modport_if;
+    modport master (
+        output data,
+        input ready
+    );
+
+    modport slave (
+        input data,
+        output ready
+    );
+endinterface`,
+		},
+		{
+			name: "Complete interface with all features",
+			intf: &Interface{
+				Name: "complete_if",
+				Ports: []InterfacePort{
+					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+				},
+				Parameters: []Parameter{
+					{Name: "WIDTH", Type: INT, DefaultValue: "8"},
+				},
+				ModPorts: []ModPort{
+					{
+						Name: "producer",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: OUTPUT},
+							{Name: "valid", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "data", Type: LOGIC, Width: 8},
+					{Name: "valid", Type: LOGIC, Width: 0},
+				},
+				Body:        "",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface complete_if #(
+    parameter int WIDTH = 8
+) (
+    input logic clk
+);
+    logic [7:0] data;
+    logic valid;
+
+    modport producer (
+        output data,
+        output valid
+    );
+endinterface`,
+		},
+		{
+			name: "Virtual interface extending with all features",
+			intf: &Interface{
+				Name: "full_virtual_if",
+				Ports: []InterfacePort{
+					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+					{Name: "rst_n", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+				},
+				Parameters: []Parameter{
+					{Name: "WIDTH", Type: INT, DefaultValue: "32"},
+					{Name: "DEPTH", Type: INT, DefaultValue: "16"},
+				},
+				ModPorts: []ModPort{
+					{
+						Name: "master",
+						Signals: []ModPortSignal{
+							{Name: "addr", Direction: OUTPUT},
+							{Name: "data", Direction: INOUT},
+							{Name: "we", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "addr", Type: LOGIC, Width: 32},
+					{Name: "data", Type: LOGIC, Width: 32},
+					{Name: "we", Type: LOGIC, Width: 0},
+				},
+				Body:        "",
+				IsVirtual:   true,
+				ExtendsFrom: "base_memory_if",
+			},
+			want: `virtual interface full_virtual_if #(
+    parameter int WIDTH = 32,
+    parameter int DEPTH = 16
+) (
+    input logic clk,
+    input logic rst_n
+) extends base_memory_if;
+    logic [31:0] addr;
+    logic [31:0] data;
+    logic we;
+
+    modport master (
+        output addr,
+        inout data,
+        output we
+    );
+endinterface`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PrintInterface(tt.intf)
+			if got != tt.want {
+				t.Errorf("PrintInterface() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
