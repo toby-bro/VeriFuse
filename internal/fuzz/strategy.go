@@ -118,7 +118,7 @@ func generateRandomValue(portType verilog.PortType, width int, isSigned bool) st
 		if rand.Intn(2) == 1 {
 			val = -val
 		}
-		return fmt.Sprintf("%x", uint32(val)) // Cast to uint32
+		return strconv.FormatUint(uint64(uint32(val)), 16) // Cast to uint32
 
 	case verilog.INT: // SystemVerilog int: 32-bit signed
 		var val int32
@@ -126,37 +126,37 @@ func generateRandomValue(portType verilog.PortType, width int, isSigned bool) st
 		if rand.Intn(2) == 1 {
 			val = -val
 		}
-		return fmt.Sprintf("%x", uint32(val)) // Cast to uint32
+		return strconv.FormatUint(uint64(uint32(val)), 16) // Cast to uint32
 
 	case verilog.BYTE: // 8-bit
 		if isSigned {
 			// Generate a random int8 value, then cast to uint8 for hex representation
 			randBits := rand.Intn(1 << 8)
 			val := int8(randBits)
-			return fmt.Sprintf("%x", uint8(val))
+			return strconv.FormatUint(uint64(uint8(val)), 16)
 		} else {
-			return fmt.Sprintf("%x", uint8(rand.Intn(1<<8)))
+			return strconv.FormatUint(uint64(uint8(rand.Intn(1<<8))), 16)
 		}
 
 	case verilog.SHORTINT: // 16-bit
 		if isSigned {
 			randBits := rand.Intn(1 << 16)
 			val := int16(randBits)
-			return fmt.Sprintf("%x", uint16(val))
+			return strconv.FormatUint(uint64(uint16(val)), 16)
 		} else {
-			return fmt.Sprintf("%x", uint16(rand.Intn(1<<16)))
+			return strconv.FormatUint(uint64(uint16(rand.Intn(1<<16))), 16)
 		}
 
 	case verilog.LONGINT: // 64-bit
 		if isSigned {
 			val := int64(rand.Uint64()) // Full range for int64
-			return fmt.Sprintf("%x", uint64(val))
+			return strconv.FormatUint(uint64(val), 16)
 		} else {
-			return fmt.Sprintf("%x", rand.Uint64())
+			return strconv.FormatUint(rand.Uint64(), 16)
 		}
 
 	case verilog.TIME: // 64-bit unsigned
-		return fmt.Sprintf("%x", rand.Uint64())
+		return strconv.FormatUint(rand.Uint64(), 16)
 
 	// Floating point and string types remain unchanged as they are not typically represented as raw hex numbers in this context.
 	case verilog.REAL, verilog.REALTIME:
@@ -256,61 +256,61 @@ func generateEdgeCaseValue( // nolint:gocyclo
 	case verilog.INTEGER, verilog.INT: // 32-bit signed
 		if pickMin {
 			minInt32Val := int32(math.MinInt32)
-			return fmt.Sprintf("%x", uint32(minInt32Val))
+			return strconv.FormatUint(uint64(uint32(minInt32Val)), 16)
 		}
 		maxInt32Val := int32(math.MaxInt32)
-		return fmt.Sprintf("%x", uint32(maxInt32Val))
+		return strconv.FormatUint(uint64(uint32(maxInt32Val)), 16)
 
 	case verilog.BYTE: // 8-bit
 		if isSigned {
 			if pickMin {
 				val := int8(math.MinInt8)
-				return fmt.Sprintf("%x", uint8(val))
+				return strconv.FormatUint(uint64(uint8(val)), 16)
 			}
 			val := int8(math.MaxInt8)
-			return fmt.Sprintf("%x", uint8(val))
+			return strconv.FormatUint(uint64(uint8(val)), 16)
 		}
 		// Unsigned
 		if pickMin {
 			return "0"
 		}
-		return fmt.Sprintf("%x", uint8(math.MaxUint8))
+		return strconv.FormatUint(uint64(uint8(math.MaxUint8)), 16)
 
 	case verilog.SHORTINT: // 16-bit
 		if isSigned {
 			if pickMin {
 				val := int16(math.MinInt16)
-				return fmt.Sprintf("%x", uint16(val))
+				return strconv.FormatUint(uint64(uint16(val)), 16)
 			}
 			val := int16(math.MaxInt16)
-			return fmt.Sprintf("%x", uint16(val))
+			return strconv.FormatUint(uint64(uint16(val)), 16)
 		}
 		// Unsigned
 		if pickMin {
 			return "0"
 		}
-		return fmt.Sprintf("%x", uint16(math.MaxUint16))
+		return strconv.FormatUint(uint64(uint16(math.MaxUint16)), 16)
 
 	case verilog.LONGINT: // 64-bit
 		if isSigned {
 			if pickMin {
 				val := int64(math.MinInt64)
-				return fmt.Sprintf("%x", uint64(val))
+				return strconv.FormatUint(uint64(val), 16)
 			}
 			val := int64(math.MaxInt64)
-			return fmt.Sprintf("%x", uint64(val))
+			return strconv.FormatUint(uint64(val), 16)
 		}
 		// Unsigned
 		if pickMin {
 			return "0"
 		}
-		return fmt.Sprintf("%x", uint64(math.MaxUint64))
+		return strconv.FormatUint(uint64(math.MaxUint64), 16)
 
 	case verilog.TIME: // 64-bit unsigned
 		if pickMin {
 			return "0"
 		}
-		return fmt.Sprintf("%x", uint64(math.MaxUint64))
+		return strconv.FormatUint(uint64(math.MaxUint64), 16)
 
 	// Floating point and string types remain unchanged
 	case verilog.REAL, verilog.REALTIME:

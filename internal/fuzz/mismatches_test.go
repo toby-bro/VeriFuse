@@ -30,7 +30,7 @@ func TestCompareOutputValues(t *testing.T) {
 		{"0 vs x equivalence", "0", "x", true},
 		{"x vs 0 equivalence", "x", "0", true},
 		{"mixed x equivalence", "1x0x", "1000", true},
-		//{"mixed x non-equivalence", "1x0x", "1101", false},
+		// {"mixed x non-equivalence", "1x0x", "1101", false},
 		{"uppercase X", "1X0X", "1000", true},
 		{"uppercase Z", "1Z0Z", "1000", true},
 		{"different lengths", "101", "10101", false},

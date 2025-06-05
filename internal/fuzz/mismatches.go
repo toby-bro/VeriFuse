@@ -326,7 +326,7 @@ func (sch *Scheduler) copyCxxrtlFiles(
 // copyCxxrtlTestbench copies the CXXRTL testbench.cpp file
 func (sch *Scheduler) copyCxxrtlTestbench(cxxrtlSimDir, mismatchDir, dirName string) {
 	sourceCppTestbenchPath := filepath.Join(cxxrtlSimDir, "testbench.cpp")
-	destCppTestbenchPath := filepath.Join(mismatchDir, fmt.Sprintf("%s_testbench.cpp", dirName))
+	destCppTestbenchPath := filepath.Join(mismatchDir, dirName+"_testbench.cpp")
 
 	if _, statErr := os.Stat(sourceCppTestbenchPath); statErr == nil {
 		if copyErr := utils.CopyFile(sourceCppTestbenchPath, destCppTestbenchPath); copyErr != nil {
@@ -357,7 +357,7 @@ func (sch *Scheduler) copyCxxrtlModuleFile(
 		return
 	}
 
-	cxxrtlModuleCcFileName := fmt.Sprintf("%s.cc", workerModule.Name)
+	cxxrtlModuleCcFileName := workerModule.Name + ".cc"
 	sourceModuleCcPath := filepath.Join(cxxrtlSimDir, cxxrtlModuleCcFileName)
 	destModuleCcPath := filepath.Join(
 		mismatchDir,

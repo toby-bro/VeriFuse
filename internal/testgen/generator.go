@@ -759,7 +759,7 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 	for _, clockPort := range clockPortNames {
 		mangledClockPortName := cxxrtlManglePortName(clockPort)
 		// Find the actual port to get its type
-		var clockPortType string = "bool" // default
+		clockPortType := "bool" // default
 		for _, port := range g.module.Ports {
 			if strings.TrimSpace(port.Name) == clockPort {
 				clockPortType = getCXXRTLPortType(&port)
@@ -786,7 +786,7 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 	for _, clockPort := range clockPortNames {
 		mangledClockPortName := cxxrtlManglePortName(clockPort)
 		// Find the actual port to get its type
-		var clockPortType string = "bool" // default
+		clockPortType := "bool" // default
 		for _, port := range g.module.Ports {
 			if strings.TrimSpace(port.Name) == clockPort {
 				clockPortType = getCXXRTLPortType(&port)
@@ -1018,15 +1018,20 @@ func (g *Generator) GenerateInterfaceStimulus(port verilog.Port) string {
 				}
 
 				// Generate appropriate stimulus based on signal name and width
-				if signal.Name == "data" {
+				switch signal.Name {
+				case "data":
 					stimulus.WriteString(
 						fmt.Sprintf("        %s = %d'h%02X;\n", signalName, signalWidth, 0x55),
 					) // Pattern value
-				} else if signal.Name == "valid" {
-					stimulus.WriteString(fmt.Sprintf("        %s = 1'b1;\n", signalName)) // Start with valid data
-				} else if signal.Name == "ready" {
-					stimulus.WriteString(fmt.Sprintf("        %s = 1'b1;\n", signalName)) // Ready to receive
-				} else {
+				case "valid":
+					stimulus.WriteString(
+						fmt.Sprintf("        %s = 1'b1;\n", signalName),
+					) // Start with valid data
+				case "ready":
+					stimulus.WriteString(
+						fmt.Sprintf("        %s = 1'b1;\n", signalName),
+					) // Ready to receive
+				default:
 					// Generic initialization for other signals
 					if signalWidth <= 1 {
 						stimulus.WriteString(fmt.Sprintf("        %s = 1'b0;\n", signalName))
@@ -1043,13 +1048,14 @@ func (g *Generator) GenerateInterfaceStimulus(port verilog.Port) string {
 		// Look for common interface signals in variables
 		for _, variable := range intf.Variables {
 			signalName := fmt.Sprintf("%s.%s", portName, variable.Name)
-			if variable.Name == "data" {
+			switch variable.Name {
+			case "data":
 				stimulus.WriteString(fmt.Sprintf("        %s = %d'h55;\n", signalName, variable.Width))
-			} else if variable.Name == "valid" {
+			case "valid":
 				stimulus.WriteString(fmt.Sprintf("        %s = 1'b1;\n", signalName))
-			} else if variable.Name == "ready" {
+			case "ready":
 				stimulus.WriteString(fmt.Sprintf("        %s = 1'b1;\n", signalName))
-			} else {
+			default:
 				if variable.Width <= 1 {
 					stimulus.WriteString(fmt.Sprintf("        %s = 1'b0;\n", signalName))
 				} else {
