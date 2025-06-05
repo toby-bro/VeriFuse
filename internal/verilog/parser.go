@@ -1561,6 +1561,15 @@ func (v *VerilogFile) typeDependenciesParser() error {
 			}
 		}
 
+		// Check for interface instantiations in module body
+		interfaceInstantiations := matchInterfaceInstantiationsFromString(v, module.Body)
+		for _, interfaceName := range interfaceInstantiations {
+			v.DependancyMap[module.Name].DependsOn = append(
+				v.DependancyMap[module.Name].DependsOn,
+				interfaceName,
+			)
+		}
+
 		// Check for user-defined type dependencies in module body
 		vars := matchUserDefinedVariablesFromString(v, module.Body)
 		for _, matchedVariable := range vars {
@@ -1660,4 +1669,33 @@ func ParseVerilog(content string, verbose int) (*VerilogFile, error) {
 		return nil, fmt.Errorf("failed to parse dependencies: %v", err)
 	}
 	return verilogFile, nil
+}
+
+// matchInterfaceInstantiationsFromString finds interface instantiations in the form "interface_name instance_name();"
+func matchInterfaceInstantiationsFromString(vf *VerilogFile, content string) []string {
+	interfaceNames := []string{}
+	for _, iface := range vf.Interfaces {
+		interfaceNames = append(interfaceNames, iface.Name)
+	}
+
+	if len(interfaceNames) == 0 {
+		return []string{}
+	}
+
+	// Create regex pattern to match interface instantiations like "test_if iface_inst();"
+	interfaceNamesConcat := strings.Join(interfaceNames, "|")
+	regexpString := fmt.Sprintf(`(?m)^\s*(%s)\s+\w+\s*\(\s*\)\s*;`, interfaceNamesConcat)
+	regex := regexp.MustCompile(regexpString)
+
+	matches := regex.FindAllStringSubmatch(content, -1)
+	foundInterfaces := []string{}
+
+	for _, match := range matches {
+		if len(match) >= 2 {
+			interfaceName := match[1]
+			foundInterfaces = append(foundInterfaces, interfaceName)
+		}
+	}
+
+	return foundInterfaces
 }

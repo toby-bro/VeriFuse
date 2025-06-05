@@ -3434,28 +3434,91 @@ func TestInterfaceDependencyMapping(t *testing.T) {
 	}
 }
 
-func TestParseTransFuzzFile(t *testing.T) {
-	// skip this test
-	t.Skip("Skipping local only test")
-	fmt.Printf("Modules regex, \n%s\n", generalModuleRegex.String())
-	fmt.Printf("Classes regex, \n%s\n", generalClassRegex.String())
-	rootDir, err := utils.GetRootDir()
+// TestInterfaceInstantiationDependencyTracking tests that interface instantiations within module bodies are detected as dependencies
+func TestInterfaceInstantiationDependencyTracking(t *testing.T) {
+	testContent := `
+interface test_if;
+  logic [7:0] data;
+  logic valid;
+  modport master (output data, output valid);
+  modport slave (input data, input valid);
+endinterface
+
+module test_module_with_instantiation(
+  input logic clk,
+  input logic [7:0] in_data,
+  output logic [7:0] out_data
+);
+  // This interface instantiation should be detected as a dependency
+  test_if iface_inst();
+  
+  always_ff @(posedge clk) begin
+    iface_inst.data <= in_data;
+    iface_inst.valid <= 1'b1;
+    out_data <= iface_inst.data;
+  end
+endmodule
+
+module test_module_with_interface_port(
+  test_if.slave in_bus,
+  output logic [7:0] out_data
+);
+  // This interface port dependency should already be working
+  assign out_data = in_bus.data;
+endmodule
+`
+
+	svFile, err := ParseVerilog(testContent, 0)
 	if err != nil {
-		t.Fatalf("Failed to get root directory: %v", err)
+		t.Fatalf("Failed to parse test content: %v", err)
 	}
-	filename := filepath.Join(
-		rootDir,
-		"isolated/V3Unknown/HandleOutOfBoundsWrite.sv",
-	)
-	fileContent, err := utils.ReadFileContent(filename)
-	if err != nil {
-		t.Fatalf("Failed to read file content from %s", filename)
+
+	// Test 1: Verify interface was parsed
+	if _, exists := svFile.Interfaces["test_if"]; !exists {
+		t.Error("Expected test_if interface to be parsed")
 	}
-	svFile, err := ParseVerilog(fileContent, 5)
-	if err != nil {
-		t.Fatalf("Failed to parse file content from %s", filename)
+
+	// Test 2: Verify both modules were parsed
+	if _, exists := svFile.Modules["test_module_with_instantiation"]; !exists {
+		t.Error("Expected test_module_with_instantiation module to be parsed")
 	}
-	if svFile.DependancyMap == nil {
-		t.Fatalf("Failed to parse dependancy map from %s", filename)
+	if _, exists := svFile.Modules["test_module_with_interface_port"]; !exists {
+		t.Error("Expected test_module_with_interface_port module to be parsed")
+	}
+
+	// Test 3: Verify interface port dependency is tracked (this should already work)
+	if deps, exists := svFile.DependancyMap["test_module_with_interface_port"]; exists {
+		testIfFound := false
+		for _, dep := range deps.DependsOn {
+			if dep == "test_if" {
+				testIfFound = true
+				break
+			}
+		}
+		if !testIfFound {
+			t.Error(
+				"Expected test_module_with_interface_port to depend on test_if interface (interface port dependency)",
+			)
+		}
+	} else {
+		t.Error("Expected test_module_with_interface_port to be found in dependency map")
+	}
+
+	// Test 4: Verify interface instantiation dependency is tracked (this will currently fail)
+	if deps, exists := svFile.DependancyMap["test_module_with_instantiation"]; exists {
+		testIfFound := false
+		for _, dep := range deps.DependsOn {
+			if dep == "test_if" {
+				testIfFound = true
+				break
+			}
+		}
+		if !testIfFound {
+			t.Error(
+				"Expected test_module_with_instantiation to depend on test_if interface (interface instantiation dependency)",
+			)
+		}
+	} else {
+		t.Error("Expected test_module_with_instantiation to be found in dependency map")
 	}
 }
