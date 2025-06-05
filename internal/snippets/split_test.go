@@ -178,3 +178,91 @@ func TestSplitInterfaceDependencies(t *testing.T) {
 		}
 	}
 }
+
+// TestSnippetModuleDependencyResolution tests that module dependencies are properly included in generated snippets
+func TestSnippetModuleDependencyResolution(t *testing.T) {
+	testContent := `
+module base_module (
+  input logic [7:0] a,
+  output logic [7:0] out
+);
+  assign out = a + 8'h01;
+endmodule
+
+module dependent_module (
+  input logic [7:0] data_in,
+  output logic [7:0] data_out
+);
+  base_module inst (
+    .a(data_in),
+    .out(data_out)
+  );
+endmodule
+`
+
+	// Parse the content
+	svFile, err := verilog.ParseVerilog(testContent, 0)
+	if err != nil {
+		t.Fatalf("Failed to parse test content: %v", err)
+	}
+
+	// Verify dependency tracking works
+	if deps, exists := svFile.DependencyMap["dependent_module"]; exists {
+		found := false
+		for _, dep := range deps.DependsOn {
+			if dep == "base_module" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("Expected dependent_module to depend on base_module")
+		}
+	} else {
+		t.Error("Expected dependent_module to be found in dependency map")
+	}
+
+	// Test snippet generation
+	dependentModule := svFile.Modules["dependent_module"]
+	if dependentModule == nil {
+		t.Fatal("dependent_module not found")
+	}
+
+	snippet := &Snippet{
+		Name:       dependentModule.Name,
+		Module:     dependentModule,
+		ParentFile: svFile,
+	}
+
+	// Create target file for snippet
+	targetFile := verilog.NewVerilogFile("test_snippet.sv")
+
+	// Add dependencies
+	err = AddDependencies(targetFile, snippet)
+	if err != nil {
+		t.Fatalf("Failed to add dependencies: %v", err)
+	}
+
+	// Verify that base_module is included in the target file
+	if _, exists := targetFile.Modules["base_module"]; !exists {
+		t.Error("Expected base_module to be included in snippet dependencies")
+	}
+
+	// Verify that dependent_module is included
+	if _, exists := targetFile.Modules["dependent_module"]; !exists {
+		t.Error("Expected dependent_module to be included in snippet")
+	}
+
+	// Test that the generated content includes both modules
+	content, err := verilog.PrintVerilogFile(targetFile)
+	if err != nil {
+		t.Fatalf("Failed to print Verilog file: %v", err)
+	}
+
+	if !strings.Contains(content, "module base_module") {
+		t.Error("Expected generated content to contain base_module definition")
+	}
+	if !strings.Contains(content, "module dependent_module") {
+		t.Error("Expected generated content to contain dependent_module definition")
+	}
+}

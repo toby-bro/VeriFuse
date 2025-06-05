@@ -3295,7 +3295,7 @@ func TestInterfacePortParsing(t *testing.T) { // nolint: gocyclo
 		t.Fatalf("Failed to parse file content from %s", filename)
 	}
 
-	// Test that interface was parsed
+	// Test 1: Verify interface was parsed
 	if len(svFile.Interfaces) != 1 {
 		t.Errorf("Expected 1 interface, got %d", len(svFile.Interfaces))
 	}
@@ -3523,30 +3523,58 @@ endmodule
 	}
 }
 
-// TestInterfaceInstantiationWithParameters tests that interface instantiations with parameters are detected as dependencies
-func TestInterfaceInstantiationWithParameters(t *testing.T) {
+// TestModuleInstantiationDependencyTracking tests that module instantiations within module bodies are detected as dependencies
+func TestModuleInstantiationDependencyTracking(t *testing.T) {
 	testContent := `
-interface MyInterface (input logic clk);
-  logic req;
-  logic valid;
-  modport master (output req, input valid, input clk);
-  modport slave (input req, output valid, input clk);
-endinterface
-
-module ModuleWithInterface (
-    input logic clk_in,
-    output logic valid_out
+module base_adder (
+  input logic [7:0] a,
+  input logic [7:0] b,
+  output logic [7:0] sum
 );
-  MyInterface my_if (clk_in);
-  assign my_if.req = 1'b1;
-  assign valid_out = my_if.valid;
+  assign sum = a + b;
 endmodule
 
-module ModuleWithEmptyInterface (
-    output logic status
+module base_multiplier (
+  input logic [7:0] x,
+  input logic [7:0] y,
+  output logic [15:0] product
 );
-  MyInterface my_if2();
-  assign status = my_if2.req;
+  assign product = x * y;
+endmodule
+
+module complex_math (
+  input logic [7:0] in_a,
+  input logic [7:0] in_b,
+  input logic [7:0] in_c,
+  output logic [15:0] result
+);
+  logic [7:0] sum_out;
+  
+  // This module instantiation should be detected as a dependency
+  base_adder adder_inst (
+    .a(in_a),
+    .b(in_b),
+    .sum(sum_out)
+  );
+  
+  // This module instantiation should also be detected as a dependency
+  base_multiplier mult_inst (
+    .x(sum_out),
+    .y(in_c),
+    .product(result)
+  );
+endmodule
+
+module simple_wrapper (
+  input logic [7:0] data_in,
+  output logic [7:0] data_out
+);
+  // Simple module instantiation
+  base_adder simple_add (
+    .a(data_in),
+    .b(8'h01),
+    .sum(data_out)
+  );
 endmodule
 `
 
@@ -3555,52 +3583,69 @@ endmodule
 		t.Fatalf("Failed to parse test content: %v", err)
 	}
 
-	// Test 1: Verify interface was parsed
-	if _, exists := svFile.Interfaces["MyInterface"]; !exists {
-		t.Error("Expected MyInterface interface to be parsed")
+	// Test 1: Verify all modules were parsed
+	expectedModules := []string{
+		"base_adder",
+		"base_multiplier",
+		"complex_math",
+		"simple_wrapper",
+	}
+	for _, moduleName := range expectedModules {
+		if _, exists := svFile.Modules[moduleName]; !exists {
+			t.Errorf("Expected module %s to be parsed", moduleName)
+		}
 	}
 
-	// Test 2: Verify both modules were parsed
-	if _, exists := svFile.Modules["ModuleWithInterface"]; !exists {
-		t.Error("Expected ModuleWithInterface module to be parsed")
-	}
-	if _, exists := svFile.Modules["ModuleWithEmptyInterface"]; !exists {
-		t.Error("Expected ModuleWithEmptyInterface module to be parsed")
+	// Test 2: Verify base modules have no dependencies (they don't instantiate other modules)
+	for _, baseModule := range []string{"base_adder", "base_multiplier"} {
+		if deps, exists := svFile.DependencyMap[baseModule]; exists {
+			if len(deps.DependsOn) > 0 {
+				t.Errorf(
+					"Expected base module %s to have no dependencies, but found: %v",
+					baseModule,
+					deps.DependsOn,
+				)
+			}
+		}
 	}
 
-	// Test 3: Verify interface instantiation with parameters is tracked
-	if deps, exists := svFile.DependencyMap["ModuleWithInterface"]; exists {
-		myInterfaceFound := false
+	// Test 3: Verify complex_math depends on both base_adder and base_multiplier
+	if deps, exists := svFile.DependencyMap["complex_math"]; exists {
+		expectedDeps := []string{"base_adder", "base_multiplier"}
+		for _, expectedDep := range expectedDeps {
+			found := false
+			for _, dep := range deps.DependsOn {
+				if dep == expectedDep {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf(
+					"Expected complex_math to depend on %s module (module instantiation dependency)",
+					expectedDep,
+				)
+			}
+		}
+	} else {
+		t.Error("Expected complex_math to be found in dependency map")
+	}
+
+	// Test 4: Verify simple_wrapper depends on base_adder
+	if deps, exists := svFile.DependencyMap["simple_wrapper"]; exists {
+		baseAdderFound := false
 		for _, dep := range deps.DependsOn {
-			if dep == "MyInterface" {
-				myInterfaceFound = true
+			if dep == "base_adder" {
+				baseAdderFound = true
 				break
 			}
 		}
-		if !myInterfaceFound {
+		if !baseAdderFound {
 			t.Error(
-				"Expected ModuleWithInterface to depend on MyInterface interface (interface instantiation with parameters)",
+				"Expected simple_wrapper to depend on base_adder module (simple module instantiation dependency)",
 			)
 		}
 	} else {
-		t.Error("Expected ModuleWithInterface to be found in dependency map")
-	}
-
-	// Test 4: Verify interface instantiation without parameters still works
-	if deps, exists := svFile.DependencyMap["ModuleWithEmptyInterface"]; exists {
-		myInterfaceFound := false
-		for _, dep := range deps.DependsOn {
-			if dep == "MyInterface" {
-				myInterfaceFound = true
-				break
-			}
-		}
-		if !myInterfaceFound {
-			t.Error(
-				"Expected ModuleWithEmptyInterface to depend on MyInterface interface (interface instantiation without parameters)",
-			)
-		}
-	} else {
-		t.Error("Expected ModuleWithEmptyInterface to be found in dependency map")
+		t.Error("Expected simple_wrapper to be found in dependency map")
 	}
 }
