@@ -294,7 +294,7 @@ func TestModuleWithInterfaceDependencyPrinting(t *testing.T) {
 	svFile.Name = testFilePath
 
 	// Test 1: Verify dependency mapping includes interface
-	if deps, exists := svFile.DependancyMap["interface_module"]; exists {
+	if deps, exists := svFile.DependencyMap["interface_module"]; exists {
 		simpleBusFound := false
 		for _, dep := range deps.DependsOn {
 			if dep == "simple_bus" {
@@ -313,7 +313,7 @@ func TestModuleWithInterfaceDependencyPrinting(t *testing.T) {
 	}
 
 	// Test 2: Verify interface is in dependency map
-	if _, exists := svFile.DependancyMap["simple_bus"]; !exists {
+	if _, exists := svFile.DependencyMap["simple_bus"]; !exists {
 		t.Error("Expected simple_bus interface to be in dependency map")
 	}
 

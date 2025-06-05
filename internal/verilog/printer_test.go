@@ -515,7 +515,7 @@ func TestGetPrintOrder(t *testing.T) {
 				Modules: map[string]*Module{"modMain": {Name: "modMain"}},
 				Classes: map[string]*Class{"myClass": {Name: "myClass"}},
 				Structs: map[string]*Struct{"myStruct": {Name: "myStruct"}},
-				DependancyMap: map[string]*DependencyNode{
+				DependencyMap: map[string]*DependencyNode{
 					"modMain":  {Name: "modMain", DependsOn: []string{"myClass"}},
 					"myClass":  {Name: "myClass", DependsOn: []string{"myStruct"}},
 					"myStruct": {Name: "myStruct", DependsOn: []string{}},
@@ -528,7 +528,7 @@ func TestGetPrintOrder(t *testing.T) {
 			name: "DependencyCycle", // Kahn's should leave cyclic nodes out or error
 			vf: &VerilogFile{
 				Modules: map[string]*Module{"modA": {Name: "modA"}, "modB": {Name: "modB"}},
-				DependancyMap: map[string]*DependencyNode{
+				DependencyMap: map[string]*DependencyNode{
 					"modA": {Name: "modA", DependsOn: []string{"modB"}},
 					"modB": {Name: "modB", DependsOn: []string{"modA"}},
 				},
@@ -547,7 +547,7 @@ func TestGetPrintOrder(t *testing.T) {
 					"modC": {Name: "modC"},
 				}, // modC not in map
 				Structs: map[string]*Struct{"structB": {Name: "structB"}},
-				DependancyMap: map[string]*DependencyNode{
+				DependencyMap: map[string]*DependencyNode{
 					"modA":    {Name: "modA", DependsOn: []string{"structB"}},
 					"structB": {Name: "structB", DependsOn: []string{}},
 				},
@@ -555,7 +555,7 @@ func TestGetPrintOrder(t *testing.T) {
 			// modC should still be included by the fallback logic in PrintVerilogFile,
 			// getPrintOrder might only return modA, structB based on map.
 			// The test for getPrintOrder should reflect what it *returns*.
-			// The current getPrintOrder only processes nodes in DependancyMap for sorting,
+			// The current getPrintOrder only processes nodes in DependencyMap for sorting,
 			// but then adds all defined nodes.
 			want:    []string{"modC", "structB", "modA"}, // Order can vary for unmapped/fallback
 			wantErr: false,
@@ -646,7 +646,7 @@ endmodule
 						AnsiStyle: true,
 					},
 				},
-				DependancyMap: map[string]*DependencyNode{
+				DependencyMap: map[string]*DependencyNode{
 					"processor": {Name: "processor", DependsOn: []string{"my_data_t"}},
 					"my_data_t": {Name: "my_data_t", DependsOn: []string{}},
 				},
@@ -671,7 +671,7 @@ endmodule
 				Structs: map[string]*Struct{
 					"S": {Name: "S", Variables: []*Variable{{Name: "field", Type: INT}}},
 				},
-				DependancyMap: map[string]*DependencyNode{
+				DependencyMap: map[string]*DependencyNode{
 					"M": {Name: "M", DependsOn: []string{"C"}},
 					"C": {Name: "C", DependsOn: []string{"S"}},
 					"S": {Name: "S", DependsOn: []string{}},
@@ -692,12 +692,12 @@ endmodule
 			wantErr: false,
 		},
 		{
-			name: "NoDependencyMapFallbackOrder", // Test fallback when DependancyMap is nil or incomplete
+			name: "NoDependencyMapFallbackOrder", // Test fallback when DependencyMap is nil or incomplete
 			vf: &VerilogFile{
 				Modules: map[string]*Module{"modA": {Name: "modA"}},
 				Structs: map[string]*Struct{"structZ": {Name: "structZ"}},
 				Classes: map[string]*Class{"classM": {Name: "classM"}},
-				// DependancyMap: nil, // Explicitly test nil case
+				// DependencyMap: nil, // Explicitly test nil case
 			},
 			// Order will be structs, then classes, then modules, then interfaces (alphabetical within type)
 			want: `typedef struct packed {
@@ -722,7 +722,7 @@ endmodule
 						AnsiStyle: false, // Non-ANSI style
 					},
 				},
-				DependancyMap: map[string]*DependencyNode{
+				DependencyMap: map[string]*DependencyNode{
 					"nonAnsiModule": {Name: "nonAnsiModule", DependsOn: []string{}},
 				},
 			},
@@ -796,7 +796,7 @@ func createVerilogFileWithCycle() *VerilogFile {
 			"modA": {Name: "modA", Body: "// A depends on B"},
 			"modB": {Name: "modB", Body: "// B depends on A"},
 		},
-		DependancyMap: map[string]*DependencyNode{
+		DependencyMap: map[string]*DependencyNode{
 			"modA": {Name: "modA", DependsOn: []string{"modB"}},
 			"modB": {Name: "modB", DependsOn: []string{"modA"}},
 		},

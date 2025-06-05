@@ -527,7 +527,7 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) {
 	allNodes := make(map[string][]string)
 	nodeType := make(map[string]string) // "struct", "class", "module", "interface"
 
-	if vf.DependancyMap == nil {
+	if vf.DependencyMap == nil {
 		var names []string
 		for name := range vf.Structs {
 			names = append(names, name)
@@ -543,7 +543,7 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) {
 		return names, nil
 	}
 
-	for name, node := range vf.DependancyMap {
+	for name, node := range vf.DependencyMap {
 		allNodes[name] = append([]string{}, node.DependsOn...) // Make a copy
 		if _, ok := vf.Structs[name]; ok {
 			nodeType[name] = "struct"
