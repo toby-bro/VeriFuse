@@ -34,7 +34,8 @@ const (
 	VOID
 	ENUM
 	USERDEFINED
-	TYPE // Only for parameters
+	TYPE      // Only for parameters
+	INTERFACE // Interface ports (e.g., simple_bus.slave)
 )
 
 const (
@@ -83,6 +84,22 @@ type Port struct {
 	IsSigned        bool
 	AlreadyDeclared bool
 	Array           string
+	// Interface port information
+	InterfaceName string // Name of the interface (e.g., "simple_bus")
+	ModportName   string // Name of the modport (e.g., "slave", "master")
+}
+
+// IsInterfacePort returns true if this port is an interface port
+func (p *Port) IsInterfacePort() bool {
+	return p.InterfaceName != "" && p.ModportName != ""
+}
+
+// GetInterfaceType returns the full interface type string (e.g., "simple_bus.slave")
+func (p *Port) GetInterfaceType() string {
+	if p.IsInterfacePort() {
+		return p.InterfaceName + "." + p.ModportName
+	}
+	return ""
 }
 
 type Module struct {
