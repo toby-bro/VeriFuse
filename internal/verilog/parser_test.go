@@ -3522,3 +3522,85 @@ endmodule
 		t.Error("Expected test_module_with_instantiation to be found in dependency map")
 	}
 }
+
+// TestInterfaceInstantiationWithParameters tests that interface instantiations with parameters are detected as dependencies
+func TestInterfaceInstantiationWithParameters(t *testing.T) {
+	testContent := `
+interface MyInterface (input logic clk);
+  logic req;
+  logic valid;
+  modport master (output req, input valid, input clk);
+  modport slave (input req, output valid, input clk);
+endinterface
+
+module ModuleWithInterface (
+    input logic clk_in,
+    output logic valid_out
+);
+  MyInterface my_if (clk_in);
+  assign my_if.req = 1'b1;
+  assign valid_out = my_if.valid;
+endmodule
+
+module ModuleWithEmptyInterface (
+    output logic status
+);
+  MyInterface my_if2();
+  assign status = my_if2.req;
+endmodule
+`
+
+	svFile, err := ParseVerilog(testContent, 0)
+	if err != nil {
+		t.Fatalf("Failed to parse test content: %v", err)
+	}
+
+	// Test 1: Verify interface was parsed
+	if _, exists := svFile.Interfaces["MyInterface"]; !exists {
+		t.Error("Expected MyInterface interface to be parsed")
+	}
+
+	// Test 2: Verify both modules were parsed
+	if _, exists := svFile.Modules["ModuleWithInterface"]; !exists {
+		t.Error("Expected ModuleWithInterface module to be parsed")
+	}
+	if _, exists := svFile.Modules["ModuleWithEmptyInterface"]; !exists {
+		t.Error("Expected ModuleWithEmptyInterface module to be parsed")
+	}
+
+	// Test 3: Verify interface instantiation with parameters is tracked
+	if deps, exists := svFile.DependancyMap["ModuleWithInterface"]; exists {
+		myInterfaceFound := false
+		for _, dep := range deps.DependsOn {
+			if dep == "MyInterface" {
+				myInterfaceFound = true
+				break
+			}
+		}
+		if !myInterfaceFound {
+			t.Error(
+				"Expected ModuleWithInterface to depend on MyInterface interface (interface instantiation with parameters)",
+			)
+		}
+	} else {
+		t.Error("Expected ModuleWithInterface to be found in dependency map")
+	}
+
+	// Test 4: Verify interface instantiation without parameters still works
+	if deps, exists := svFile.DependancyMap["ModuleWithEmptyInterface"]; exists {
+		myInterfaceFound := false
+		for _, dep := range deps.DependsOn {
+			if dep == "MyInterface" {
+				myInterfaceFound = true
+				break
+			}
+		}
+		if !myInterfaceFound {
+			t.Error(
+				"Expected ModuleWithEmptyInterface to depend on MyInterface interface (interface instantiation without parameters)",
+			)
+		}
+	} else {
+		t.Error("Expected ModuleWithEmptyInterface to be found in dependency map")
+	}
+}
