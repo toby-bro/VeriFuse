@@ -318,6 +318,8 @@ func generateSignalDeclaration(port verilog.Port, signalName string) string {
 		directionStr = "output "
 	case verilog.INOUT:
 		directionStr = "inout "
+	case verilog.INTERNAL:
+		directionStr = ""
 	}
 
 	typeStr := port.Type.String()

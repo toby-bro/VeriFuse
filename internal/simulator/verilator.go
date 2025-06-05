@@ -76,7 +76,12 @@ func (sim *VerilatorSimulator) killProcessGroup(cmd *exec.Cmd) error {
 
 	// Force kill with SIGKILL if process is still running
 	if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
-		syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		if syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) != nil {
+			// If SIGKILL fails, try killing the process directly
+			if err := cmd.Process.Kill(); err != nil {
+				return fmt.Errorf("failed to kill process group: %v", err)
+			}
+		}
 	}
 
 	return nil
@@ -107,7 +112,9 @@ func (sim *VerilatorSimulator) timeoutWithForceKill(
 		}
 		return nil
 	case <-ctx.Done():
-		sim.killProcessGroup(cmd)
+		if sim.killProcessGroup(cmd) != nil {
+			sim.logger.Warn("Failed to kill process group for %s", operation)
+		}
 		return fmt.Errorf("%s timed out: %v", operation, ctx.Err())
 	}
 }

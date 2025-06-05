@@ -134,26 +134,23 @@ func generateRandomValue(portType verilog.PortType, width int, isSigned bool) st
 			randBits := rand.Intn(1 << 8)
 			val := int8(randBits)
 			return strconv.FormatUint(uint64(uint8(val)), 16)
-		} else {
-			return strconv.FormatUint(uint64(uint8(rand.Intn(1<<8))), 16)
 		}
+		return strconv.FormatUint(uint64(uint8(rand.Intn(1<<8))), 16)
 
 	case verilog.SHORTINT: // 16-bit
 		if isSigned {
 			randBits := rand.Intn(1 << 16)
 			val := int16(randBits)
 			return strconv.FormatUint(uint64(uint16(val)), 16)
-		} else {
-			return strconv.FormatUint(uint64(uint16(rand.Intn(1<<16))), 16)
 		}
+		return strconv.FormatUint(uint64(uint16(rand.Intn(1<<16))), 16)
 
 	case verilog.LONGINT: // 64-bit
 		if isSigned {
 			val := int64(rand.Uint64()) // Full range for int64
 			return strconv.FormatUint(uint64(val), 16)
-		} else {
-			return strconv.FormatUint(rand.Uint64(), 16)
 		}
+		return strconv.FormatUint(rand.Uint64(), 16)
 
 	case verilog.TIME: // 64-bit unsigned
 		return strconv.FormatUint(rand.Uint64(), 16)

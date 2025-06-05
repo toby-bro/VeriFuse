@@ -483,7 +483,7 @@ func (g *Generator) generateCXXRTLInputDeclarations() string {
 	return inputDecls.String()
 }
 
-func (g *Generator) generateCXXRTLInputReads(outputDir string) string {
+func (g *Generator) generateCXXRTLInputReads() string {
 	var inputReads strings.Builder
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
@@ -830,7 +830,7 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 	return clockLogic.String()
 }
 
-func (g *Generator) generateCXXRTLOutputWrites(instanceName string, outputDir string) string {
+func (g *Generator) generateCXXRTLOutputWrites(instanceName string) string {
 	var outputWrites strings.Builder
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.OUTPUT {
@@ -903,9 +903,7 @@ func (g *Generator) GenerateCXXRTLTestbench(outputDir string) error {
 	instanceName := baseModuleNameForInstance + "_i"
 
 	inputDeclsStr := g.generateCXXRTLInputDeclarations()
-	inputReadsStr := g.generateCXXRTLInputReads(
-		outputDir,
-	) // outputDir is for generator context, not hardcoded paths
+	inputReadsStr := g.generateCXXRTLInputReads()
 	inputApplyStr := g.generateCXXRTLInputApply(instanceName)
 
 	svClockPorts, svResetPort, svIsActiveHigh := g.identifyClockAndResetPorts()
@@ -934,7 +932,6 @@ func (g *Generator) GenerateCXXRTLTestbench(outputDir string) error {
 	clockAndResetHandling.WriteString(clockLogicStr)
 	outputWritesStr := g.generateCXXRTLOutputWrites(
 		instanceName,
-		outputDir,
 	) // outputDir is for generator context
 
 	// Ensure the template uses "%s.h" for the include directive
