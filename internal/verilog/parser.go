@@ -1563,12 +1563,15 @@ func (v *VerilogFile) typeDependenciesParser() error {
 
 		// Check for interface instantiations in module body
 		interfaceInstantiations := matchInterfaceInstantiationsFromString(v, module.Body)
-		for _, interfaceName := range interfaceInstantiations {
-			v.DependencyMap[module.Name].DependsOn = append(
-				v.DependencyMap[module.Name].DependsOn,
-				interfaceName,
-			)
-		}
+		v.DependencyMap[module.Name].DependsOn = append(
+			v.DependencyMap[module.Name].DependsOn,
+			interfaceInstantiations...)
+
+		// Check for module instantiations in module body
+		moduleInstantiations := matchModuleInstantiationsFromString(v, module.Body)
+		v.DependencyMap[module.Name].DependsOn = append(
+			v.DependencyMap[module.Name].DependsOn,
+			moduleInstantiations...)
 
 		// Check for user-defined type dependencies in module body
 		vars := matchUserDefinedVariablesFromString(v, module.Body)
@@ -1698,4 +1701,36 @@ func matchInterfaceInstantiationsFromString(vf *VerilogFile, content string) []s
 	}
 
 	return foundInterfaces
+}
+
+// matchModuleInstantiationsFromString finds module instantiations in the form "module_name instance_name(...);"
+func matchModuleInstantiationsFromString(vf *VerilogFile, content string) []string {
+	moduleNames := []string{}
+	for _, module := range vf.Modules {
+		moduleNames = append(moduleNames, module.Name)
+	}
+
+	if len(moduleNames) == 0 {
+		return []string{}
+	}
+
+	// Create regex pattern to match module instantiations like "base_adder inst_name(...)"
+	// This pattern matches: module_name instance_name (...);
+	// where (...) can contain any parameter/port connections across multiple lines
+	moduleNamesConcat := strings.Join(moduleNames, "|")
+	// Use (?s) flag to make . match newlines, and don't anchor to line start since instantiations are often indented
+	regexpString := fmt.Sprintf(`(?s)(%s)\s+\w+\s*\([^;]*\)\s*;`, moduleNamesConcat)
+	regex := regexp.MustCompile(regexpString)
+
+	matches := regex.FindAllStringSubmatch(content, -1)
+	foundModules := []string{}
+
+	for _, match := range matches {
+		if len(match) >= 2 {
+			moduleName := match[1]
+			foundModules = append(foundModules, moduleName)
+		}
+	}
+
+	return foundModules
 }
