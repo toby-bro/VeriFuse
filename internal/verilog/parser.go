@@ -16,7 +16,27 @@ var logger *utils.DebugLogger
 
 // TODO: #5 Improve the type for structs, enums, userdefined types...
 func GetType(portTypeString string) PortType {
-	switch strings.ToLower(portTypeString) {
+	// Extract the first word (type keyword) from the string
+	// Handle cases like "logic [7:0] data" -> extract "logic"
+	typeString := strings.TrimSpace(portTypeString)
+	if typeString == "" {
+		return LOGIC // Default for empty type
+	}
+
+	// Check if it's an interface type (contains a dot)
+	if strings.Contains(typeString, ".") {
+		return INTERFACE
+	}
+
+	// Extract the first word which should be the type keyword
+	words := strings.Fields(typeString)
+	if len(words) == 0 {
+		return LOGIC // Default
+	}
+
+	firstWord := strings.ToLower(words[0])
+
+	switch firstWord {
 	case "reg":
 		return REG
 	case "wire":
@@ -88,6 +108,20 @@ func GetPortDirection(direction string) PortDirection {
 	}
 }
 
+// GetInterfacePortDirection determines the direction of an interface port based on modport naming conventions
+// and explicit direction. If explicit direction is provided, it takes precedence.
+func GetInterfacePortDirection(explicitDirection string, modportName string) PortDirection {
+	// If explicit direction is provided, use it
+	if explicitDirection != "" {
+		return GetPortDirection(explicitDirection)
+	}
+
+	// For interface ports, the direction refers to whether the interface instance
+	// is input or output to the module, not the signal directions within the interface.
+	// By default, interface instances are typically inputs to modules (interface connections)
+	return INPUT // Default to input for interface ports when not explicitly specified
+}
+
 var generalModuleRegex = regexp.MustCompile(fmt.Sprintf(
 	`(?m)^module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([^\)]*?)\);((?:\s*(?:%s)*)*)\s*endmodule`,
 	utils.NegativeLookAhead("endmodule"),
@@ -154,6 +188,11 @@ var ansiPortRegex = regexp.MustCompile(
 		`(?:(\[\s*[\w\-\+\:\s]+\s*\])\s+)?` +
 		`(\w+)\s*` +
 		`(?:\s*\[([^\]:])*\])?\s*$`,
+)
+
+// Regex for interface port declarations (e.g., "simple_bus.slave port_name")
+var interfacePortRegex = regexp.MustCompile(
+	`^\s*(?:(input|output|inout)\s+)?(\w+)\.(\w+)\s+(\w+)\s*(?:\s*\[([^\]:])*\])?\s*;?\s*$`,
 )
 
 var simplePortRegex = regexp.MustCompile(
@@ -382,6 +421,34 @@ func parsePortDeclaration(
 
 	line = strings.TrimSpace(line) // Ensure leading/trailing whitespace is removed
 
+	// First, try to match interface port (e.g., "simple_bus.slave port_name")
+	interfaceMatches := interfacePortRegex.FindStringSubmatch(line)
+	if len(interfaceMatches) >= 5 {
+		directionStr := strings.TrimSpace(interfaceMatches[1])
+		interfaceName := strings.TrimSpace(interfaceMatches[2])
+		modportName := strings.TrimSpace(interfaceMatches[3])
+		portName := strings.TrimSpace(interfaceMatches[4])
+		arrayStr := strings.TrimSpace(interfaceMatches[5])
+
+		// Determine direction based on explicit direction or modport naming convention
+		direction = GetInterfacePortDirection(directionStr, modportName)
+
+		port := &Port{
+			Name:            portName,
+			Direction:       direction,
+			Type:            INTERFACE,
+			Width:           0, // Interface ports don't have explicit width
+			IsSigned:        false,
+			AlreadyDeclared: false,
+			Array:           arrayStr,
+			InterfaceName:   interfaceName,
+			ModportName:     modportName,
+		}
+
+		return port, true
+	}
+
+	// If not an interface port, try regular port parsing
 	matches = generalPortRegex.FindStringSubmatch(line)
 	if len(matches) != 6 {
 		return nil, false // Not a matching port declaration line
@@ -424,6 +491,8 @@ func parsePortDeclaration(
 		Width:           width,
 		IsSigned:        isSigned,
 		AlreadyDeclared: alreadyDeclared,
+		InterfaceName:   "", // Regular ports don't have interface info
+		ModportName:     "",
 	}
 
 	return port, true
@@ -448,7 +517,30 @@ func extractANSIPortDeclarations(
 		portName := ""
 		var port Port
 
-		if matches := ansiPortRegex.FindStringSubmatch(portDecl); len(matches) > 5 {
+		// First check for interface port declaration (e.g., "simple_bus.slave port_name")
+		if interfaceMatches := interfacePortRegex.FindStringSubmatch(portDecl); len(
+			interfaceMatches,
+		) >= 5 {
+			directionStr := strings.TrimSpace(interfaceMatches[1])
+			interfaceName := strings.TrimSpace(interfaceMatches[2])
+			modportName := strings.TrimSpace(interfaceMatches[3])
+			portName = strings.TrimSpace(interfaceMatches[4])
+			arrayStr := strings.TrimSpace(interfaceMatches[5])
+
+			// Determine direction based on explicit direction or modport naming convention
+			direction := GetInterfacePortDirection(directionStr, modportName)
+
+			port = Port{
+				Name:          portName,
+				Direction:     direction,
+				Type:          INTERFACE,
+				Width:         0, // Interface ports don't have explicit width
+				IsSigned:      false,
+				Array:         arrayStr,
+				InterfaceName: interfaceName,
+				ModportName:   modportName,
+			}
+		} else if matches := ansiPortRegex.FindStringSubmatch(portDecl); len(matches) > 5 {
 			// Full ANSI declaration found
 			directionStr := strings.TrimSpace(matches[1])
 			portStr := strings.TrimSpace(matches[2])
@@ -466,12 +558,14 @@ func extractANSIPortDeclarations(
 				// Port is the same as the last port
 				precedingPort := headerPorts[headerPortOrder[len(headerPortOrder)-1]]
 				port = Port{
-					Name:      portName,
-					Direction: precedingPort.Direction,
-					Type:      precedingPort.Type,
-					Width:     precedingPort.Width,
-					IsSigned:  precedingPort.IsSigned,
-					Array:     precedingPort.Array,
+					Name:          portName,
+					Direction:     precedingPort.Direction,
+					Type:          precedingPort.Type,
+					Width:         precedingPort.Width,
+					IsSigned:      precedingPort.IsSigned,
+					Array:         precedingPort.Array,
+					InterfaceName: precedingPort.InterfaceName,
+					ModportName:   precedingPort.ModportName,
 				}
 			} else {
 				isSigned := (signedStr == "signed")
@@ -496,12 +590,14 @@ func extractANSIPortDeclarations(
 				}
 
 				port = Port{
-					Name:      portName,
-					Direction: direction,
-					Type:      portType,
-					Width:     width,
-					IsSigned:  isSigned,
-					Array:     array,
+					Name:          portName,
+					Direction:     direction,
+					Type:          portType,
+					Width:         width,
+					IsSigned:      isSigned,
+					Array:         array,
+					InterfaceName: "", // Regular ports don't have interface info
+					ModportName:   "",
 				}
 			}
 		} else if matches := simplePortRegex.FindStringSubmatch(portDecl); len(matches) > 2 {
@@ -512,7 +608,15 @@ func extractANSIPortDeclarations(
 				portName = matches[2]
 			}
 			// Create a placeholder, details expected in body scan
-			port = Port{Name: portName, Width: 0, Type: UNKNOWN, Direction: INTERNAL, IsSigned: false} // Sensible defaults
+			port = Port{
+				Name:          portName,
+				Width:         0,
+				Type:          UNKNOWN,
+				Direction:     INTERNAL,
+				IsSigned:      false,
+				InterfaceName: "",
+				ModportName:   "",
+			} // Sensible defaults
 		} else {
 			logger.Warn("Could not parse port declaration fragment in header: '%s'", portDecl)
 			continue // Skip if we can't extract a name
@@ -1446,6 +1550,18 @@ func (v *VerilogFile) typeDependenciesParser() error {
 		}
 	}
 	for _, module := range v.Modules {
+		// Check for interface dependencies in module ports
+		for _, port := range module.Ports {
+			if port.IsInterfacePort() {
+				// Add dependency on the interface
+				v.DependancyMap[module.Name].DependsOn = append(
+					v.DependancyMap[module.Name].DependsOn,
+					port.InterfaceName,
+				)
+			}
+		}
+
+		// Check for user-defined type dependencies in module body
 		vars := matchUserDefinedVariablesFromString(v, module.Body)
 		for _, matchedVariable := range vars {
 			if len(matchedVariable) < 4 {
@@ -1478,6 +1594,12 @@ func (v *VerilogFile) createDependancyMap() {
 	for _, className := range v.Classes {
 		v.DependancyMap[className.Name] = &DependencyNode{
 			Name:      className.Name,
+			DependsOn: []string{},
+		}
+	}
+	for _, interfaceName := range v.Interfaces {
+		v.DependancyMap[interfaceName.Name] = &DependencyNode{
+			Name:      interfaceName.Name,
 			DependsOn: []string{},
 		}
 	}
