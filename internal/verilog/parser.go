@@ -110,7 +110,7 @@ func GetPortDirection(direction string) PortDirection {
 
 // GetInterfacePortDirection determines the direction of an interface port based on modport naming conventions
 // and explicit direction. If explicit direction is provided, it takes precedence.
-func GetInterfacePortDirection(explicitDirection string, modportName string) PortDirection {
+func GetInterfacePortDirection(explicitDirection string) PortDirection {
 	// If explicit direction is provided, use it
 	if explicitDirection != "" {
 		return GetPortDirection(explicitDirection)
@@ -431,7 +431,7 @@ func parsePortDeclaration(
 		arrayStr := strings.TrimSpace(interfaceMatches[5])
 
 		// Determine direction based on explicit direction or modport naming convention
-		direction = GetInterfacePortDirection(directionStr, modportName)
+		direction = GetInterfacePortDirection(directionStr)
 
 		port := &Port{
 			Name:            portName,
@@ -528,7 +528,7 @@ func extractANSIPortDeclarations(
 			arrayStr := strings.TrimSpace(interfaceMatches[5])
 
 			// Determine direction based on explicit direction or modport naming convention
-			direction := GetInterfacePortDirection(directionStr, modportName)
+			direction := GetInterfacePortDirection(directionStr)
 
 			port = Port{
 				Name:          portName,

@@ -353,17 +353,6 @@ func TestScheduler_handleMismatch(t *testing.T) {
 
 // Mock implementations for testing
 
-type mockDebugger struct{}
-
-func (m *mockDebugger) Debug(format string, args ...interface{}) {}
-func (m *mockDebugger) Info(format string, args ...interface{})  {}
-func (m *mockDebugger) Warn(format string, args ...interface{})  {}
-func (m *mockDebugger) Error(format string, args ...interface{}) {}
-
-type mockStats struct{}
-
-func (m *mockStats) AddMismatch(testCase map[string]string) {}
-
 func TestCompareOutputValuesWithSkipDisabled(t *testing.T) {
 	// Save original values
 	origSkipX := SKIP_X_OUTPUTS

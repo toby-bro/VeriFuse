@@ -111,13 +111,17 @@ func killProcessGroup(cmd *exec.Cmd) error {
 	}
 
 	// Kill the process group with SIGTERM first
-	syscall.Kill(-pgid, syscall.SIGTERM)
+	if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
+		return fmt.Errorf("failed to kill process group %d: %v", pgid, err)
+	}
 
 	// Give it a moment to terminate gracefully
 	time.Sleep(100 * time.Millisecond)
 
 	// Force kill if still running
-	syscall.Kill(-pgid, syscall.SIGKILL)
+	if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil {
+		return fmt.Errorf("failed to force kill process group %d: %v", pgid, err)
+	}
 
 	return nil
 }
@@ -144,7 +148,9 @@ func timeoutWithForceKill(ctx context.Context, cmd *exec.Cmd, operation string) 
 		return err
 	case <-ctx.Done():
 		// Use aggressive process group killing
-		killProcessGroup(cmd)
+		if err := killProcessGroup(cmd); err != nil {
+			return fmt.Errorf("failed to kill %s process group: %v", operation, err)
+		}
 		return fmt.Errorf("%s timed out: %v", operation, ctx.Err())
 	}
 }

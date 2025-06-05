@@ -103,7 +103,9 @@ func (sim *IVerilogSimulator) CompileSpecific(ctx context.Context) error {
 	case <-ctx.Done():
 		// Context was cancelled (timeout or cancellation)
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			if err := cmd.Process.Kill(); err != nil {
+				sim.debug.Debug("Failed to kill iverilog process: %v", err)
+			}
 		}
 		return fmt.Errorf("iverilog compilation timed out or was cancelled: %v", ctx.Err())
 	}
@@ -203,7 +205,9 @@ func (sim *IVerilogSimulator) RunTest(
 	case <-ctx.Done():
 		// Context was cancelled (timeout or cancellation)
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			if cmd.Process.Kill() != nil {
+				sim.debug.Debug("Failed to kill vvp process: %v", cmd.Process.Kill())
+			}
 		}
 		return fmt.Errorf("iverilog execution timed out or was cancelled: %v", ctx.Err())
 	}
