@@ -174,28 +174,36 @@ func PrintParameter(param Parameter, isLast bool) string {
 func PrintPort(port Port, isLast bool, ansiStyle bool) string {
 	var sb strings.Builder
 	if !port.AlreadyDeclared && ansiStyle {
-		if port.Direction != INTERNAL {
-			sb.WriteString(PortDirectionToString(port.Direction))
+		// Special handling for interface ports
+		if port.IsInterfacePort() {
+			// For interface ports, print the interface type (e.g., simple_bus.slave)
+			sb.WriteString(port.GetInterfaceType())
 			sb.WriteString(" ")
-		}
+		} else {
+			// Regular port handling
+			if port.Direction != INTERNAL {
+				sb.WriteString(PortDirectionToString(port.Direction))
+				sb.WriteString(" ")
+			}
 
-		portTypeStr := TypeToString(port.Type)
-		if portTypeStr != "" {
-			// Avoid printing 'logic' if it's the default and no other specifiers exist,
-			// unless it's truly specified. This can be tricky.
-			// For simplicity, print what's parsed.
-			sb.WriteString(portTypeStr)
-			sb.WriteString(" ")
-		}
+			portTypeStr := TypeToString(port.Type)
+			if portTypeStr != "" {
+				// Avoid printing 'logic' if it's the default and no other specifiers exist,
+				// unless it's truly specified. This can be tricky.
+				// For simplicity, print what's parsed.
+				sb.WriteString(portTypeStr)
+				sb.WriteString(" ")
+			}
 
-		if port.IsSigned {
-			sb.WriteString("signed ")
-		}
+			if port.IsSigned {
+				sb.WriteString("signed ")
+			}
 
-		widthStr := formatWidth(port.Width)
-		if widthStr != "" {
-			sb.WriteString(widthStr)
-			sb.WriteString(" ")
+			widthStr := formatWidth(port.Width)
+			if widthStr != "" {
+				sb.WriteString(widthStr)
+				sb.WriteString(" ")
+			}
 		}
 	}
 

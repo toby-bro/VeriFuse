@@ -270,3 +270,100 @@ func TestGenerateInterfaceStimulusWithMissingModport(t *testing.T) {
 			expectedWarning, stimulus)
 	}
 }
+
+func TestModuleWithInterfaceDependencyPrinting(t *testing.T) {
+	// Get the root directory to construct the path to test files
+	rootDir, err := utils.GetRootDir()
+	if err != nil {
+		t.Fatalf("Failed to get root directory: %v", err)
+	}
+
+	// Parse the interface module test file
+	testFilePath := filepath.Join(rootDir, "testfiles", "sv", "ok", "interface_module.sv")
+	fileContent, err := os.ReadFile(testFilePath)
+	if err != nil {
+		t.Fatalf("Failed to read interface_module.sv: %v", err)
+	}
+
+	svFile, err := verilog.ParseVerilog(string(fileContent), 0)
+	if err != nil {
+		t.Fatalf("Failed to parse interface_module.sv: %v", err)
+	}
+
+	// Set the file name manually since ParseVerilog doesn't set it
+	svFile.Name = testFilePath
+
+	// Test 1: Verify dependency mapping includes interface
+	if deps, exists := svFile.DependancyMap["interface_module"]; exists {
+		simpleBusFound := false
+		for _, dep := range deps.DependsOn {
+			if dep == "simple_bus" {
+				simpleBusFound = true
+				break
+			}
+		}
+		if !simpleBusFound {
+			t.Errorf(
+				"Expected interface_module to depend on simple_bus interface, dependencies: %v",
+				deps.DependsOn,
+			)
+		}
+	} else {
+		t.Error("Expected interface_module to be found in dependency map")
+	}
+
+	// Test 2: Verify interface is in dependency map
+	if _, exists := svFile.DependancyMap["simple_bus"]; !exists {
+		t.Error("Expected simple_bus interface to be in dependency map")
+	}
+
+	// Test 3: Print the VerilogFile and verify interface is included
+	output, err := verilog.PrintVerilogFile(svFile)
+	if err != nil {
+		t.Fatalf("Failed to print VerilogFile: %v", err)
+	}
+
+	// Debug: Print the actual output
+	// t.Logf("PrintVerilogFile output:\n%s", output)
+
+	// Verify that the interface definition is included in the output
+	if !strings.Contains(output, "interface simple_bus") {
+		t.Errorf(
+			"Expected interface definition 'interface simple_bus' in output, but not found. Output:\n%s",
+			output,
+		)
+	}
+
+	// Verify that the interface comes before the module that uses it
+	interfaceIndex := strings.Index(output, "interface simple_bus")
+	moduleIndex := strings.Index(output, "module interface_module")
+
+	if interfaceIndex == -1 {
+		t.Error("Interface definition not found in output")
+	}
+	if moduleIndex == -1 {
+		t.Error("Module definition not found in output")
+	}
+	if interfaceIndex > moduleIndex {
+		t.Error("Interface should be defined before the module that uses it")
+	}
+
+	// Verify modport definitions are included
+	if !strings.Contains(output, "modport master") {
+		t.Error("Expected 'modport master' in interface definition")
+	}
+	if !strings.Contains(output, "modport slave") {
+		t.Error("Expected 'modport slave' in interface definition")
+	}
+
+	// Verify interface variables are included
+	if !strings.Contains(output, "logic [7:0] data") {
+		t.Error("Expected interface variable 'logic [7:0] data' in output")
+	}
+	if !strings.Contains(output, "logic valid") {
+		t.Error("Expected interface variable 'logic valid' in output")
+	}
+	if !strings.Contains(output, "logic ready") {
+		t.Error("Expected interface variable 'logic ready' in output")
+	}
+}
