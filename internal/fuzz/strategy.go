@@ -188,6 +188,11 @@ func generateRandomValue(portType verilog.PortType, width int, isSigned bool) st
 	case verilog.TYPE:
 		return ""
 
+	case verilog.INTERFACE:
+		// Interface ports are complex and require special handling
+		// They contain multiple signals and should not be treated as simple hex values
+		return "INTERFACE_PORT"
+
 	default:
 		return "x"
 	}
@@ -345,6 +350,11 @@ func generateEdgeCaseValue( // nolint:gocyclo
 
 	case verilog.TYPE:
 		return ""
+
+	case verilog.INTERFACE:
+		// Interface ports are complex and require special handling
+		// They contain multiple signals and should not be treated as simple hex values
+		return "INTERFACE_PORT"
 
 	default:
 		return "x"

@@ -164,6 +164,7 @@ func (sch *Scheduler) performWorkerAttempt(
 	gen := testgen.NewGenerator(
 		currentWorkerModule,
 		svFile.Name,
+		svFile,
 	) // Use current (mutated) svFile.Name
 	if err := gen.GenerateSVTestbench(workerDir); err != nil { // Generates testbench.sv in workerDir
 		return false, fmt.Errorf(
