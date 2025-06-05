@@ -1,3 +1,24 @@
+interface simple_if (
+    input logic clk
+);
+    logic data;
+    logic ready;
+
+    modport master (
+        output data,
+        output input ready
+    );
+
+    modport slave (
+        input data,
+        input output ready
+    );
+
+    logic data;
+        logic ready;
+        modport master (output data, input ready);
+        modport slave (input data, output ready);
+endinterface
 class SimpleClass;
         logic [7:0] internal_data;
         function new();
@@ -12,9 +33,9 @@ class SimpleClass;
 endclass
 
 module basic_comb (
-    output logic [7:0] out1,
     input logic [7:0] in1,
-    input logic [7:0] in2
+    input logic [7:0] in2,
+    output logic [7:0] out1
 );
     (* verilator inline_module *) ;
     logic [7:0] temp_wire;
@@ -25,10 +46,10 @@ module basic_comb (
 endmodule
 
 module container_for_inlining (
+    output logic [7:0] main_data_out,
     input logic main_clk,
     input logic main_reset,
-    input logic [7:0] main_data_in,
-    output logic [7:0] main_data_out
+    input logic [7:0] main_data_in
 );
     logic [7:0] basic_comb_out;
     logic [7:0] class_module_out;
@@ -130,10 +151,10 @@ module module_with_class (
 endmodule
 
 module module_with_simple_assign (
+    output logic cover_hit,
     input logic clk,
     input logic reset,
-    input logic [1:0] state_in,
-    output logic cover_hit
+    input logic [1:0] state_in
 );
     logic [1:0] current_state;
     always_ff @(posedge clk or posedge reset) begin
@@ -147,10 +168,10 @@ module module_with_simple_assign (
 endmodule
 
 module sequential_logic (
-    input logic [3:0] data_in,
-    output logic [3:0] data_out,
     input logic clk,
-    input logic rst_n
+    input logic rst_n,
+    input logic [3:0] data_in,
+    output logic [3:0] data_out
 );
     (* verilator no_inline_module *) ;
     logic [3:0] internal_reg;
@@ -165,8 +186,8 @@ module sequential_logic (
 endmodule
 
 module sub_module (
-    input logic sub_in,
-    output logic sub_out
+    output logic sub_out,
+    input logic sub_in
 );
     assign sub_out = !sub_in;
 endmodule

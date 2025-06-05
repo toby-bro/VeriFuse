@@ -1686,8 +1686,10 @@ func matchInterfaceInstantiationsFromString(vf *VerilogFile, content string) []s
 	}
 
 	// Create regex pattern to match interface instantiations like "test_if iface_inst();" or "MyInterface my_if (clk_in);"
+	// Use (?s) flag to make . match newlines, and don't anchor to line start since instantiations are often indented
+	// Use [^;]* instead of [^)]* to handle nested parentheses (e.g., ".clk(clk)" inside the port list)
 	interfaceNamesConcat := strings.Join(interfaceNames, "|")
-	regexpString := fmt.Sprintf(`(?m)^\s*(%s)\s+\w+\s*\([^)]*\)\s*;`, interfaceNamesConcat)
+	regexpString := fmt.Sprintf(`(?s)(%s)\s+\w+\s*\([^;]*\)\s*;`, interfaceNamesConcat)
 	regex := regexp.MustCompile(regexpString)
 
 	matches := regex.FindAllStringSubmatch(content, -1)
