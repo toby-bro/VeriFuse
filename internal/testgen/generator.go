@@ -319,10 +319,10 @@ func (g *Generator) generateSVClockToggling(clockPorts []string) string {
 	timeoutTime := int(float64(maxSimTime) * g.config.TimeoutMultiplier)
 
 	clockToggle.WriteString(
-		fmt.Sprintf("        // Set simulation timeout to prevent infinite loops\n"),
+		"        // Set simulation timeout to prevent infinite loops\n",
 	)
-	clockToggle.WriteString(fmt.Sprintf("        fork\n"))
-	clockToggle.WriteString(fmt.Sprintf("            begin\n"))
+	clockToggle.WriteString("        fork\n")
+	clockToggle.WriteString("            begin\n")
 	clockToggle.WriteString(fmt.Sprintf("                #%d;\n", timeoutTime))
 	clockToggle.WriteString(
 		fmt.Sprintf(
@@ -330,9 +330,9 @@ func (g *Generator) generateSVClockToggling(clockPorts []string) string {
 			timeoutTime,
 		),
 	)
-	clockToggle.WriteString(fmt.Sprintf("                $finish;\n"))
-	clockToggle.WriteString(fmt.Sprintf("            end\n"))
-	clockToggle.WriteString(fmt.Sprintf("            begin\n"))
+	clockToggle.WriteString("                $finish;\n")
+	clockToggle.WriteString("            end\n")
+	clockToggle.WriteString("            begin\n")
 
 	clockToggle.WriteString(
 		fmt.Sprintf("                repeat (%d) begin\n", g.config.MaxClockCycles),
