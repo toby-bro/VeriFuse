@@ -1671,7 +1671,7 @@ func ParseVerilog(content string, verbose int) (*VerilogFile, error) {
 	return verilogFile, nil
 }
 
-// matchInterfaceInstantiationsFromString finds interface instantiations in the form "interface_name instance_name();"
+// matchInterfaceInstantiationsFromString finds interface instantiations in the form "interface_name instance_name();" or "interface_name instance_name(params);"
 func matchInterfaceInstantiationsFromString(vf *VerilogFile, content string) []string {
 	interfaceNames := []string{}
 	for _, iface := range vf.Interfaces {
@@ -1682,9 +1682,9 @@ func matchInterfaceInstantiationsFromString(vf *VerilogFile, content string) []s
 		return []string{}
 	}
 
-	// Create regex pattern to match interface instantiations like "test_if iface_inst();"
+	// Create regex pattern to match interface instantiations like "test_if iface_inst();" or "MyInterface my_if (clk_in);"
 	interfaceNamesConcat := strings.Join(interfaceNames, "|")
-	regexpString := fmt.Sprintf(`(?m)^\s*(%s)\s+\w+\s*\(\s*\)\s*;`, interfaceNamesConcat)
+	regexpString := fmt.Sprintf(`(?m)^\s*(%s)\s+\w+\s*\([^)]*\)\s*;`, interfaceNamesConcat)
 	regex := regexp.MustCompile(regexpString)
 
 	matches := regex.FindAllStringSubmatch(content, -1)
