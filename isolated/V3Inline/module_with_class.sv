@@ -12,10 +12,10 @@ class SimpleClass;
 endclass
 
 module module_with_class (
+    input logic clk,
     input logic reset,
     input logic [7:0] class_in,
-    output logic [7:0] class_out,
-    input logic clk
+    output logic [7:0] class_out
 );
     SimpleClass my_object;
     logic [7:0] stored_data;
