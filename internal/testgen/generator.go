@@ -47,15 +47,17 @@ type Generator struct {
 	module   *verilog.Module
 	fileName string
 	config   *TestbenchConfig
+	svFile   *verilog.VerilogFile
 }
 
 // NewGenerator creates a new testbench generator
-func NewGenerator(module *verilog.Module, fileName string) *Generator {
+func NewGenerator(module *verilog.Module, fileName string, svFile *verilog.VerilogFile) *Generator {
 	// We don't need to extract enums here anymore since they're embedded in the mocked file
 	return &Generator{
 		module:   module,
 		fileName: fileName,
 		config:   DefaultTestbenchConfig(),
+		svFile:   svFile,
 	}
 }
 
@@ -79,27 +81,33 @@ func (g *Generator) generateSVPortDeclarations() string {
 		portName := strings.TrimSpace(port.Name)
 		var finalDeclarationString string
 
-		// Determine the target width for the port
-		targetWidth := port.Width // Start with the width from the parser
-
-		// If the parsed width is 0 or 1, it might not be the full width for certain types.
-		// We consult GetWidthForType to get a default width for the Verilog type.
-		if targetWidth <= 1 {
-			// Assuming verilog.GetWidthForType is available as per the user's context.
-			// This function provides default widths (e.g., INT=32, BYTE=8, LOGIC=1).
-			defaultWidthForType := verilog.GetWidthForType(port.Type)
-			if defaultWidthForType > targetWidth {
-				targetWidth = defaultWidthForType
-			}
-		}
-
-		// Generate the SystemVerilog declaration string
-		if targetWidth > 1 {
-			finalDeclarationString = fmt.Sprintf("logic [%d:0] %s;", targetWidth-1, portName)
+		// Handle interface ports differently
+		if port.Type == verilog.INTERFACE {
+			// For interface ports, instantiate the interface itself
+			finalDeclarationString = fmt.Sprintf("%s %s();", port.InterfaceName, portName)
 		} else {
-			// Handles targetWidth == 1 (e.g. for single bit logic, reg, or byte with width 1 if GetWidthForType returned 1)
-			// Also handles targetWidth == 0 as a fallback (e.g. for UNKNOWN type if port.Width was also 0)
-			finalDeclarationString = fmt.Sprintf("logic %s;", portName)
+			// Determine the target width for regular ports
+			targetWidth := port.Width // Start with the width from the parser
+
+			// If the parsed width is 0 or 1, it might not be the full width for certain types.
+			// We consult GetWidthForType to get a default width for the Verilog type.
+			if targetWidth <= 1 {
+				// Assuming verilog.GetWidthForType is available as per the user's context.
+				// This function provides default widths (e.g., INT=32, BYTE=8, LOGIC=1).
+				defaultWidthForType := verilog.GetWidthForType(port.Type)
+				if defaultWidthForType > targetWidth {
+					targetWidth = defaultWidthForType
+				}
+			}
+
+			// Generate the SystemVerilog declaration string
+			if targetWidth > 1 {
+				finalDeclarationString = fmt.Sprintf("logic [%d:0] %s;", targetWidth-1, portName)
+			} else {
+				// Handles targetWidth == 1 (e.g. for single bit logic, reg, or byte with width 1 if GetWidthForType returned 1)
+				// Also handles targetWidth == 0 as a fallback (e.g. for UNKNOWN type if port.Width was also 0)
+				finalDeclarationString = fmt.Sprintf("logic %s;", portName)
+			}
 		}
 
 		declarations.WriteString(fmt.Sprintf("    %s\n", finalDeclarationString))
@@ -234,6 +242,15 @@ func (g *Generator) generateSVInputReads(clockPorts []string, resetPort string) 
 			if isClockPort || portName == resetPort {
 				// Initialize clocks and reset to 0 (or appropriate initial state if needed later)
 				inputReads.WriteString(fmt.Sprintf("        %s = 0;\n", portName))
+				continue
+			}
+
+			// Handle interface ports differently - generate protocol-aware stimulus
+			if port.Type == verilog.INTERFACE {
+				inputCount++
+				// Generate meaningful interface stimulus based on modport
+				interfaceStimulus := g.GenerateInterfaceStimulus(port)
+				inputReads.WriteString(interfaceStimulus)
 				continue
 			}
 
@@ -934,4 +951,113 @@ func (g *Generator) GenerateCXXRTLTestbench(outputDir string) error {
 
 	cppTestbenchPath := filepath.Join(outputDir, "testbench.cpp")
 	return utils.WriteFileContent(cppTestbenchPath, testbench)
+}
+
+// GenerateInterfaceStimulus generates protocol-aware stimulus for interface ports
+func (g *Generator) GenerateInterfaceStimulus(port verilog.Port) string {
+	var stimulus strings.Builder
+	portName := strings.TrimSpace(port.Name)
+
+	// Find the interface definition to understand its signals
+	var intf *verilog.Interface
+	for _, i := range g.svFile.Interfaces {
+		if i.Name == port.InterfaceName {
+			intf = i
+			break
+		}
+	}
+
+	if intf == nil {
+		// Fallback: if we can't find the interface, initialize to safe defaults
+		stimulus.WriteString(
+			fmt.Sprintf(
+				"        // Interface %s not found, using safe defaults\n",
+				port.InterfaceName,
+			),
+		)
+		stimulus.WriteString(fmt.Sprintf("        %s.data = 8'h00;\n", portName))
+		stimulus.WriteString(fmt.Sprintf("        %s.valid = 1'b0;\n", portName))
+		stimulus.WriteString(fmt.Sprintf("        %s.ready = 1'b0;\n", portName))
+		return stimulus.String()
+	}
+
+	// Generate stimulus based on modport and interface signals
+	stimulus.WriteString(
+		fmt.Sprintf(
+			"        // Initialize interface %s (%s.%s)\n",
+			portName,
+			port.InterfaceName,
+			port.ModportName,
+		),
+	)
+
+	// Find the modport to understand signal directions
+	var modport *verilog.ModPort
+	for _, mp := range intf.ModPorts {
+		if mp.Name == port.ModportName {
+			modport = &mp
+			break
+		}
+	}
+
+	if modport != nil {
+		// Generate stimulus based on modport signals
+		for _, signal := range modport.Signals {
+			signalName := fmt.Sprintf("%s.%s", portName, signal.Name)
+
+			// Only drive signals that are outputs from the modport perspective
+			// (inputs to the module from the testbench perspective)
+			if signal.Direction == verilog.OUTPUT {
+				// Find the signal width from interface variables
+				signalWidth := 1 // default width
+				for _, variable := range intf.Variables {
+					if variable.Name == signal.Name {
+						signalWidth = variable.Width
+						break
+					}
+				}
+
+				// Generate appropriate stimulus based on signal name and width
+				if signal.Name == "data" {
+					stimulus.WriteString(
+						fmt.Sprintf("        %s = %d'h%02X;\n", signalName, signalWidth, 0x55),
+					) // Pattern value
+				} else if signal.Name == "valid" {
+					stimulus.WriteString(fmt.Sprintf("        %s = 1'b1;\n", signalName)) // Start with valid data
+				} else if signal.Name == "ready" {
+					stimulus.WriteString(fmt.Sprintf("        %s = 1'b1;\n", signalName)) // Ready to receive
+				} else {
+					// Generic initialization for other signals
+					if signalWidth <= 1 {
+						stimulus.WriteString(fmt.Sprintf("        %s = 1'b0;\n", signalName))
+					} else {
+						stimulus.WriteString(fmt.Sprintf("        %s = %d'h00;\n", signalName, signalWidth))
+					}
+				}
+			}
+		}
+	} else {
+		// Fallback: if modport not found, initialize common interface signals
+		stimulus.WriteString(fmt.Sprintf("        // Modport %s not found, using common defaults\n", port.ModportName))
+
+		// Look for common interface signals in variables
+		for _, variable := range intf.Variables {
+			signalName := fmt.Sprintf("%s.%s", portName, variable.Name)
+			if variable.Name == "data" {
+				stimulus.WriteString(fmt.Sprintf("        %s = %d'h55;\n", signalName, variable.Width))
+			} else if variable.Name == "valid" {
+				stimulus.WriteString(fmt.Sprintf("        %s = 1'b1;\n", signalName))
+			} else if variable.Name == "ready" {
+				stimulus.WriteString(fmt.Sprintf("        %s = 1'b1;\n", signalName))
+			} else {
+				if variable.Width <= 1 {
+					stimulus.WriteString(fmt.Sprintf("        %s = 1'b0;\n", signalName))
+				} else {
+					stimulus.WriteString(fmt.Sprintf("        %s = %d'h00;\n", signalName, variable.Width))
+				}
+			}
+		}
+	}
+
+	return stimulus.String()
 }
