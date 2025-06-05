@@ -1288,39 +1288,6 @@ func (v *VerilogFile) ParseStructs(
 
 // parseModPort parses a single modport declaration and returns the ModPort struct
 // This is primarily used for testing individual modport parsing
-func parseModPort(modportContent string) (*ModPort, bool) {
-	content := strings.TrimSpace(modportContent)
-
-	// Regex to match modport declaration (handle multiline)
-	modportRegex := regexp.MustCompile(`(?s)modport\s+(\w+)\s*\(\s*(.*?)\s*\);`)
-	matches := modportRegex.FindStringSubmatch(content)
-
-	if len(matches) < 3 {
-		return nil, false
-	}
-
-	modportName := matches[1]
-	signalsList := matches[2]
-
-	modport := &ModPort{
-		Name:    modportName,
-		Signals: []ModPortSignal{},
-	}
-
-	if strings.TrimSpace(signalsList) == "" {
-		return modport, true // Empty modport is valid
-	}
-
-	// Parse signal declarations using the helper function
-	signals, err := parseModPortSignals(signalsList)
-	if err != nil {
-		return nil, false
-	}
-
-	modport.Signals = signals
-	return modport, true
-}
-
 // parseInterfacePorts parses interface port declarations (input/output ports of the interface itself)
 func parseInterfacePorts(
 	portListStr string,

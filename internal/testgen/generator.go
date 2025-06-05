@@ -445,12 +445,12 @@ func getCXXRTLPortType(port *verilog.Port) string {
 	width := port.Width
 
 	// Correct width for specific Verilog types if parser defaults width to 0 or an incorrect value.
-	if port.Type == verilog.INT ||
-		port.Type == verilog.INTEGER {
+	switch {
+	case port.Type == verilog.INT || port.Type == verilog.INTEGER:
 		width = 32
-	} else if (port.Type == verilog.LOGIC || port.Type == verilog.BIT || port.Type == verilog.REG || port.Type == verilog.WIRE) && width == 0 {
+	case (port.Type == verilog.LOGIC || port.Type == verilog.BIT || port.Type == verilog.REG || port.Type == verilog.WIRE) && width == 0:
 		width = 1
-	} else if width == 0 {
+	case width == 0:
 		width = 1
 	}
 
@@ -458,17 +458,19 @@ func getCXXRTLPortType(port *verilog.Port) string {
 		return "bool"
 	}
 	// For multi-bit ports, use CXXRTL value types for wide signals
-	if width <= 8 {
+	switch {
+	case width <= 8:
 		return "uint8_t"
-	} else if width <= 16 {
+	case width <= 16:
 		return "uint16_t"
-	} else if width <= 32 {
+	case width <= 32:
 		return "uint32_t"
-	} else if width <= 64 {
+	case width <= 64:
 		return "uint64_t"
+	default:
+		// For very wide signals, use CXXRTL value type
+		return fmt.Sprintf("cxxrtl::value<%d>", width)
 	}
-	// For very wide signals, use CXXRTL value type
-	return fmt.Sprintf("cxxrtl::value<%d>", width)
 }
 
 func (g *Generator) generateCXXRTLInputDeclarations() string {
@@ -863,7 +865,8 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string) string {
 				effectiveWidth = 1
 			}
 
-			if strings.HasPrefix(cppType, "cxxrtl::value<") {
+			switch {
+			case strings.HasPrefix(cppType, "cxxrtl::value<"):
 				// Wide signal - access the port directly, write MSB to LSB to match other simulators
 				outputWrites.WriteString(
 					fmt.Sprintf("    for (int i = %d; i >= 0; --i) {\n", effectiveWidth-1),
@@ -878,16 +881,42 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string) string {
 				)
 				outputWrites.WriteString("    }\n")
 				outputWrites.WriteString(fmt.Sprintf("    %s_file << std::endl;\n", portName))
-			} else if effectiveWidth > 1 {
+			case effectiveWidth > 1:
 				// Multi-bit standard types
-				outputWrites.WriteString(fmt.Sprintf("    %s value_%s = %s.%s.get<%s>();\n", cppType, portName, instanceName, mangledPortName, cppType))
-				outputWrites.WriteString(fmt.Sprintf("    for (int i = %d; i >= 0; i--) {\n", effectiveWidth-1))
-				outputWrites.WriteString(fmt.Sprintf("        %s_file << ((value_%s >> i) & 1);\n", portName, portName))
+				outputWrites.WriteString(
+					fmt.Sprintf(
+						"    %s value_%s = %s.%s.get<%s>();\n",
+						cppType,
+						portName,
+						instanceName,
+						mangledPortName,
+						cppType,
+					),
+				)
+				outputWrites.WriteString(
+					fmt.Sprintf("    for (int i = %d; i >= 0; i--) {\n", effectiveWidth-1),
+				)
+				outputWrites.WriteString(
+					fmt.Sprintf("        %s_file << ((value_%s >> i) & 1);\n", portName, portName),
+				)
 				outputWrites.WriteString("    }\n")
-				outputWrites.WriteString(fmt.Sprintf("    %s_file << std::endl; // Add a newline at the end of the bit string\n", portName))
-			} else {
+				outputWrites.WriteString(
+					fmt.Sprintf(
+						"    %s_file << std::endl; // Add a newline at the end of the bit string\n",
+						portName,
+					),
+				)
+			default:
 				// Single-bit ports
-				outputWrites.WriteString(fmt.Sprintf("    %s_file << (%s.%s.get<%s>() ? 1 : 0) << std::endl;\n", portName, instanceName, mangledPortName, cppType))
+				outputWrites.WriteString(
+					fmt.Sprintf(
+						"    %s_file << (%s.%s.get<%s>() ? 1 : 0) << std::endl;\n",
+						portName,
+						instanceName,
+						mangledPortName,
+						cppType,
+					),
+				)
 			}
 			outputWrites.WriteString(fmt.Sprintf("    %s_file.close();\n\n", portName))
 		}
