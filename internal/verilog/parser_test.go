@@ -3523,6 +3523,108 @@ endmodule
 	}
 }
 
+// TestInterfaceInstantiationNestedParentheses tests that interface instantiations with nested parentheses are correctly detected
+func TestInterfaceInstantiationNestedParentheses(t *testing.T) {
+	testContent := `
+interface simple_if;
+  logic clk;
+  logic [7:0] data;
+  logic valid;
+  modport master (output data, output valid, input clk);
+  modport slave (input data, input valid, input clk);
+endinterface
+
+interface parameterized_if #(parameter int WIDTH = 8);
+  logic clk;
+  logic [WIDTH-1:0] data;
+  logic valid;
+  modport master (output data, output valid, input clk);
+  modport slave (input data, input valid, input clk);
+endinterface
+
+module hierarchy_if(
+  input logic clk,
+  input logic [7:0] data_in,
+  output logic [7:0] data_out
+);
+  // Test interface instantiation with nested parentheses - this is the real-world case that was failing
+  simple_if if_inst (.clk(clk));
+  
+  // Test parameterized interface instantiation with nested parentheses
+  parameterized_if #(.WIDTH(16)) param_if_inst (.clk(clk));
+  
+  // Test interface instantiation with multiple nested parentheses
+  simple_if multi_if_inst (.clk(clk), .data(data_in), .valid(1'b1));
+  
+  always_ff @(posedge clk) begin
+    if_inst.data <= data_in;
+    if_inst.valid <= 1'b1;
+    param_if_inst.data <= {data_in, data_in};
+    param_if_inst.valid <= 1'b1;
+    multi_if_inst.data <= data_in;
+    data_out <= if_inst.data;
+  end
+endmodule
+`
+
+	svFile, err := ParseVerilog(testContent, 0)
+	if err != nil {
+		t.Fatalf("Failed to parse test content: %v", err)
+	}
+
+	// Test 1: Verify interfaces were parsed
+	if _, exists := svFile.Interfaces["simple_if"]; !exists {
+		t.Error("Expected simple_if interface to be parsed")
+	}
+	if _, exists := svFile.Interfaces["parameterized_if"]; !exists {
+		t.Error("Expected parameterized_if interface to be parsed")
+	}
+
+	// Test 2: Verify module was parsed
+	if _, exists := svFile.Modules["hierarchy_if"]; !exists {
+		t.Error("Expected hierarchy_if module to be parsed")
+	}
+
+	// Test 3: Verify interface instantiation dependencies are tracked correctly even with nested parentheses
+	if deps, exists := svFile.DependencyMap["hierarchy_if"]; exists {
+		expectedInterfaces := []string{"simple_if", "parameterized_if"}
+		for _, expectedInterface := range expectedInterfaces {
+			found := false
+			for _, dep := range deps.DependsOn {
+				if dep == expectedInterface {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf(
+					"Expected hierarchy_if to depend on %s interface (nested parentheses instantiation dependency)",
+					expectedInterface,
+				)
+			}
+		}
+	} else {
+		t.Error("Expected hierarchy_if to be found in dependency map")
+	}
+
+	// Test 4: Verify multiple instantiations of the same interface are still tracked (should not duplicate)
+	if deps, exists := svFile.DependencyMap["hierarchy_if"]; exists {
+		simpleIfCount := 0
+		for _, dep := range deps.DependsOn {
+			if dep == "simple_if" {
+				simpleIfCount++
+			}
+		}
+		if simpleIfCount != 1 {
+			t.Errorf(
+				"Expected exactly one dependency on simple_if, but found %d occurrences in dependencies: %v",
+				simpleIfCount,
+				deps.DependsOn,
+			)
+		}
+	}
+}
+
 // TestModuleInstantiationDependencyTracking tests that module instantiations within module bodies are detected as dependencies
 func TestModuleInstantiationDependencyTracking(t *testing.T) {
 	testContent := `

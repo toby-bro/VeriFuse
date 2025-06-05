@@ -1527,6 +1527,21 @@ func (v *VerilogFile) ParseInterfaces(
 	return nil
 }
 
+// removeDuplicateStrings removes duplicate strings from a slice while preserving order
+func removeDuplicateStrings(slice []string) []string {
+	keys := make(map[string]bool)
+	result := []string{}
+
+	for _, item := range slice {
+		if !keys[item] {
+			keys[item] = true
+			result = append(result, item)
+		}
+	}
+
+	return result
+}
+
 // Only parses the dependencies of the classes
 // Probably overengineered and should only see if the name of a class or a struct just happens to be there but too late I already wrote it
 func (v *VerilogFile) typeDependenciesParser() error {
@@ -1585,6 +1600,11 @@ func (v *VerilogFile) typeDependenciesParser() error {
 				userTypeStr,
 			)
 		}
+
+		// Remove duplicates from dependencies
+		v.DependencyMap[module.Name].DependsOn = removeDuplicateStrings(
+			v.DependencyMap[module.Name].DependsOn,
+		)
 	}
 	return nil
 }
@@ -1686,10 +1706,16 @@ func matchInterfaceInstantiationsFromString(vf *VerilogFile, content string) []s
 	}
 
 	// Create regex pattern to match interface instantiations like "test_if iface_inst();" or "MyInterface my_if (clk_in);"
+	// Also handles parameterized interfaces like "parameterized_if #(.WIDTH(16)) param_if_inst (.clk(clk));"
 	// Use (?s) flag to make . match newlines, and don't anchor to line start since instantiations are often indented
 	// Use [^;]* instead of [^)]* to handle nested parentheses (e.g., ".clk(clk)" inside the port list)
+	// Pattern: interface_name [optional #(params)] instance_name (port_connections);
+	// For the parameter section, we use [^#;]* to match everything until we see another # or ;
 	interfaceNamesConcat := strings.Join(interfaceNames, "|")
-	regexpString := fmt.Sprintf(`(?s)(%s)\s+\w+\s*\([^;]*\)\s*;`, interfaceNamesConcat)
+	regexpString := fmt.Sprintf(
+		`(?s)(%s)(?:\s*#[^#;]*?)?\s+\w+\s*\([^;]*\)\s*;`,
+		interfaceNamesConcat,
+	)
 	regex := regexp.MustCompile(regexpString)
 
 	matches := regex.FindAllStringSubmatch(content, -1)
