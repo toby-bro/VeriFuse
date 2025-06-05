@@ -61,6 +61,8 @@ func (pt PortType) String() string {
 		return "enum"
 	case TYPE:
 		return "type" // For parameters
+	case INTERFACE:
+		return "interface" // For interface ports
 	case USERDEFINED, UNKNOWN:
 		// The String() method for USERDEFINED should indicate it's a placeholder.
 		// The actual type name needs to be resolved from context.
@@ -133,6 +135,10 @@ func TypeToString(pt PortType) string {
 	case ENUM:
 		// Similar to struct, "enum" is the keyword.
 		return "enum"
+	case TYPE:
+		return "type" // For parameters
+	case INTERFACE:
+		return "interface" // For interface ports
 	case USERDEFINED, UNKNOWN:
 		// This is tricky. The actual user-defined type name should be used.
 		// The caller (PrintPort, PrintVariableDeclaration) needs to handle this.
@@ -140,8 +146,6 @@ func TypeToString(pt PortType) string {
 		// For now, let's assume the parser/linker provides the actual name for USERDEFINED types.
 		// If this function is called with USERDEFINED, it implies a missing resolution.
 		return "" // Or "" if it should be resolved by caller
-	case TYPE:
-		return "type" // For parameters
 	default:
 		return fmt.Sprintf("type_%d", pt) // Fallback
 	}
