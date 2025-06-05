@@ -1274,10 +1274,10 @@ func (v *VerilogFile) ParseStructs(
 			for _, variable := range variables {
 				if variable.Type == USERDEFINED {
 					if variable.ParentStruct != nil {
-						v.DependancyMap[structName].DependsOn = append(v.DependancyMap[structName].DependsOn, variable.ParentStruct.Name)
+						v.DependencyMap[structName].DependsOn = append(v.DependencyMap[structName].DependsOn, variable.ParentStruct.Name)
 					}
 					if variable.ParentClass != nil {
-						v.DependancyMap[structName].DependsOn = append(v.DependancyMap[structName].DependsOn, variable.ParentClass.Name)
+						v.DependencyMap[structName].DependsOn = append(v.DependencyMap[structName].DependsOn, variable.ParentClass.Name)
 					}
 				}
 			}
@@ -1532,8 +1532,8 @@ func (v *VerilogFile) ParseInterfaces(
 func (v *VerilogFile) typeDependenciesParser() error {
 	for _, class := range v.Classes {
 		if class.extends != "" {
-			v.DependancyMap[class.Name].DependsOn = append(
-				v.DependancyMap[class.Name].DependsOn,
+			v.DependencyMap[class.Name].DependsOn = append(
+				v.DependencyMap[class.Name].DependsOn,
 				class.extends,
 			)
 		}
@@ -1543,8 +1543,8 @@ func (v *VerilogFile) typeDependenciesParser() error {
 				return errors.New("no variable found in the provided text")
 			}
 			userTypeStr := matchedVariable[2]
-			v.DependancyMap[class.Name].DependsOn = append(
-				v.DependancyMap[class.Name].DependsOn,
+			v.DependencyMap[class.Name].DependsOn = append(
+				v.DependencyMap[class.Name].DependsOn,
 				userTypeStr,
 			)
 		}
@@ -1554,8 +1554,8 @@ func (v *VerilogFile) typeDependenciesParser() error {
 		for _, port := range module.Ports {
 			if port.IsInterfacePort() {
 				// Add dependency on the interface
-				v.DependancyMap[module.Name].DependsOn = append(
-					v.DependancyMap[module.Name].DependsOn,
+				v.DependencyMap[module.Name].DependsOn = append(
+					v.DependencyMap[module.Name].DependsOn,
 					port.InterfaceName,
 				)
 			}
@@ -1564,8 +1564,8 @@ func (v *VerilogFile) typeDependenciesParser() error {
 		// Check for interface instantiations in module body
 		interfaceInstantiations := matchInterfaceInstantiationsFromString(v, module.Body)
 		for _, interfaceName := range interfaceInstantiations {
-			v.DependancyMap[module.Name].DependsOn = append(
-				v.DependancyMap[module.Name].DependsOn,
+			v.DependencyMap[module.Name].DependsOn = append(
+				v.DependencyMap[module.Name].DependsOn,
 				interfaceName,
 			)
 		}
@@ -1577,8 +1577,8 @@ func (v *VerilogFile) typeDependenciesParser() error {
 				return errors.New("no variable found in the provided text")
 			}
 			userTypeStr := matchedVariable[2]
-			v.DependancyMap[module.Name].DependsOn = append(
-				v.DependancyMap[module.Name].DependsOn,
+			v.DependencyMap[module.Name].DependsOn = append(
+				v.DependencyMap[module.Name].DependsOn,
 				userTypeStr,
 			)
 		}
@@ -1586,28 +1586,28 @@ func (v *VerilogFile) typeDependenciesParser() error {
 	return nil
 }
 
-func (v *VerilogFile) createDependancyMap() {
-	v.DependancyMap = make(map[string]*DependencyNode)
+func (v *VerilogFile) createDependencyMap() {
+	v.DependencyMap = make(map[string]*DependencyNode)
 	for _, module := range v.Modules {
-		v.DependancyMap[module.Name] = &DependencyNode{
+		v.DependencyMap[module.Name] = &DependencyNode{
 			Name:      module.Name,
 			DependsOn: []string{},
 		}
 	}
 	for _, structName := range v.Structs {
-		v.DependancyMap[structName.Name] = &DependencyNode{
+		v.DependencyMap[structName.Name] = &DependencyNode{
 			Name:      structName.Name,
 			DependsOn: []string{},
 		}
 	}
 	for _, className := range v.Classes {
-		v.DependancyMap[className.Name] = &DependencyNode{
+		v.DependencyMap[className.Name] = &DependencyNode{
 			Name:      className.Name,
 			DependsOn: []string{},
 		}
 	}
 	for _, interfaceName := range v.Interfaces {
-		v.DependancyMap[interfaceName.Name] = &DependencyNode{
+		v.DependencyMap[interfaceName.Name] = &DependencyNode{
 			Name:      interfaceName.Name,
 			DependsOn: []string{},
 		}
@@ -1663,7 +1663,7 @@ func ParseVerilog(content string, verbose int) (*VerilogFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse interfaces: %v", err)
 	}
-	verilogFile.createDependancyMap()
+	verilogFile.createDependencyMap()
 	err = verilogFile.typeDependenciesParser()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse dependencies: %v", err)

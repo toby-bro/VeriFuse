@@ -171,7 +171,7 @@ type VerilogFile struct { //nolint:revive
 	Interfaces    map[string]*Interface
 	Classes       map[string]*Class
 	Structs       map[string]*Struct
-	DependancyMap map[string]*DependencyNode
+	DependencyMap map[string]*DependencyNode
 }
 
 type DependencyNode struct {
@@ -193,6 +193,6 @@ func NewVerilogFile(name string) *VerilogFile {
 		Interfaces:    make(map[string]*Interface),
 		Classes:       make(map[string]*Class),
 		Structs:       make(map[string]*Struct),
-		DependancyMap: make(map[string]*DependencyNode),
+		DependencyMap: make(map[string]*DependencyNode),
 	}
 }

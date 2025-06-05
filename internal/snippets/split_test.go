@@ -104,7 +104,7 @@ func TestSplitInterfaceDependencies(t *testing.T) {
 	}
 
 	// Verify the interface was added to the dependency map
-	if _, exists := snippetFile.DependancyMap["simple_bus"]; !exists {
+	if _, exists := snippetFile.DependencyMap["simple_bus"]; !exists {
 		t.Error("Expected simple_bus interface to be in dependency map")
 	}
 

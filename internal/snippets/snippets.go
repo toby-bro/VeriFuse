@@ -106,16 +106,16 @@ func dfsDependencies(
 	parentVF *verilog.VerilogFile,
 	targetFile *verilog.VerilogFile,
 ) {
-	parentNode, ok := parentVF.DependancyMap[nodeName]
+	parentNode, ok := parentVF.DependencyMap[nodeName]
 	if !ok {
 		return
 	}
 
 	for _, dep := range parentNode.DependsOn {
-		if _, found := targetFile.DependancyMap[dep]; found {
+		if _, found := targetFile.DependencyMap[dep]; found {
 			continue
 		}
-		targetFile.DependancyMap[dep] = parentVF.DependancyMap[dep]
+		targetFile.DependencyMap[dep] = parentVF.DependencyMap[dep]
 		if s, found := parentVF.Structs[dep]; found {
 			if _, exists := targetFile.Structs[dep]; !exists {
 				targetFile.Structs[dep] = s
@@ -145,11 +145,11 @@ func AddDependencies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
 	if parentVF == nil {
 		return errors.New("snippet parent file is nil")
 	}
-	if targetFile.DependancyMap == nil {
-		targetFile.DependancyMap = make(map[string]*verilog.DependencyNode)
+	if targetFile.DependencyMap == nil {
+		targetFile.DependencyMap = make(map[string]*verilog.DependencyNode)
 	}
-	if _, ok := targetFile.DependancyMap[snippet.Name]; !ok {
-		targetFile.DependancyMap[snippet.Name] = &verilog.DependencyNode{
+	if _, ok := targetFile.DependencyMap[snippet.Name]; !ok {
+		targetFile.DependencyMap[snippet.Name] = &verilog.DependencyNode{
 			Name:      snippet.Module.Name,
 			DependsOn: []string{},
 		}

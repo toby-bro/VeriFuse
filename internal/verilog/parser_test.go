@@ -1031,16 +1031,16 @@ func TestCompleteParsing(t *testing.T) {
 	if len(vfile.Structs) == 0 {
 		t.Fatalf("No structs found in parsed Verilog file")
 	}
-	if len(vfile.DependancyMap) == 0 {
+	if len(vfile.DependencyMap) == 0 {
 		t.Fatalf("No dependencies found in parsed Verilog file")
 	}
-	if value, isMapContainsKey := vfile.DependancyMap["GGG_StructRandContainer"]; !isMapContainsKey {
+	if value, isMapContainsKey := vfile.DependencyMap["GGG_StructRandContainer"]; !isMapContainsKey {
 		t.Fatalf("Dependency map does not contain key GGG_StructRandContainer")
 	} else if value.DependsOn[0] != "GGG_my_struct_t" {
 		t.Fatalf("Dependency map value does not contain expected value GGG_my_struct_t")
 	}
 
-	if value, isMapContainsKey := vfile.DependancyMap["GGG_StructuredRandModule"]; !isMapContainsKey {
+	if value, isMapContainsKey := vfile.DependencyMap["GGG_StructuredRandModule"]; !isMapContainsKey {
 		t.Fatalf("Dependency map does not contain key GGG_StructuredRandModule")
 	} else if value.DependsOn[0] != "GGG_StructRandContainer" {
 		t.Fatalf("Dependency map value does not contain expected value GGG_StructRandContainer")
@@ -1170,7 +1170,7 @@ func TestParseClasses(t *testing.T) {
 	}
 }
 
-func TestDependancyGraph(t *testing.T) {
+func TestDependencyGraph(t *testing.T) {
 	rootDir, err := utils.GetRootDir()
 	if err != nil {
 		t.Fatalf("Failed to get root directory: %v", err)
@@ -1186,8 +1186,8 @@ func TestDependancyGraph(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to parse file content from %s", filename)
 	}
-	if svFile.DependancyMap == nil {
-		t.Fatalf("Failed to parse dependancy map from %s", filename)
+	if svFile.DependencyMap == nil {
+		t.Fatalf("Failed to parse dependency map from %s", filename)
 	}
 }
 
@@ -3410,7 +3410,7 @@ func TestInterfaceDependencyMapping(t *testing.T) {
 	}
 
 	// Verify the interface_module depends on simple_bus interface
-	if deps, exists := svFile.DependancyMap["interface_module"]; exists {
+	if deps, exists := svFile.DependencyMap["interface_module"]; exists {
 		simpleBusFound := false
 		for _, dep := range deps.DependsOn {
 			if dep == "simple_bus" {
@@ -3429,7 +3429,7 @@ func TestInterfaceDependencyMapping(t *testing.T) {
 	}
 
 	// Verify the simple_bus interface is in the dependency map
-	if _, exists := svFile.DependancyMap["simple_bus"]; !exists {
+	if _, exists := svFile.DependencyMap["simple_bus"]; !exists {
 		t.Error("Expected simple_bus interface to be in dependency map")
 	}
 }
@@ -3487,7 +3487,7 @@ endmodule
 	}
 
 	// Test 3: Verify interface port dependency is tracked (this should already work)
-	if deps, exists := svFile.DependancyMap["test_module_with_interface_port"]; exists {
+	if deps, exists := svFile.DependencyMap["test_module_with_interface_port"]; exists {
 		testIfFound := false
 		for _, dep := range deps.DependsOn {
 			if dep == "test_if" {
@@ -3505,7 +3505,7 @@ endmodule
 	}
 
 	// Test 4: Verify interface instantiation dependency is tracked (this will currently fail)
-	if deps, exists := svFile.DependancyMap["test_module_with_instantiation"]; exists {
+	if deps, exists := svFile.DependencyMap["test_module_with_instantiation"]; exists {
 		testIfFound := false
 		for _, dep := range deps.DependsOn {
 			if dep == "test_if" {
@@ -3569,7 +3569,7 @@ endmodule
 	}
 
 	// Test 3: Verify interface instantiation with parameters is tracked
-	if deps, exists := svFile.DependancyMap["ModuleWithInterface"]; exists {
+	if deps, exists := svFile.DependencyMap["ModuleWithInterface"]; exists {
 		myInterfaceFound := false
 		for _, dep := range deps.DependsOn {
 			if dep == "MyInterface" {
@@ -3587,7 +3587,7 @@ endmodule
 	}
 
 	// Test 4: Verify interface instantiation without parameters still works
-	if deps, exists := svFile.DependancyMap["ModuleWithEmptyInterface"]; exists {
+	if deps, exists := svFile.DependencyMap["ModuleWithEmptyInterface"]; exists {
 		myInterfaceFound := false
 		for _, dep := range deps.DependsOn {
 			if dep == "MyInterface" {
