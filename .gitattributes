@@ -1,3 +1,3 @@
-snippets/* linguist-vendored
-isolated/* linguist-vendored
-confirmed/* linguist-vendored
+snippets/** linguist-vendored
+isolated/** linguist-vendored
+confirmed/** linguist-vendored
