@@ -311,11 +311,12 @@ func generateSignalDeclaration(port verilog.Port, signalName string) string {
 		signedStr = "signed "
 	}
 	directionStr := ""
-	if port.Direction == verilog.INPUT {
+	switch port.Direction {
+	case verilog.INPUT:
 		directionStr = "input "
-	} else if port.Direction == verilog.OUTPUT {
+	case verilog.OUTPUT:
 		directionStr = "output "
-	} else if port.Direction == verilog.INOUT {
+	case verilog.INOUT:
 		directionStr = "inout "
 	}
 
@@ -394,9 +395,7 @@ func insertSnippetIntoModule(
 			contentToInsert = append([]string{declarationString}, contentToInsert...)
 		}
 	}
-	for _, portToDeclare := range newDeclarations {
-		module.Ports = append(module.Ports, portToDeclare)
-	}
+	module.Ports = append(module.Ports, newDeclarations...)
 	contentToInsert = append(contentToInsert, instantiation)
 
 	if insertionPoint < 0 {

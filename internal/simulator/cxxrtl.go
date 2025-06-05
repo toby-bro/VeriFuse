@@ -3,6 +3,7 @@ package simulator
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -99,25 +100,25 @@ func NewCXXRTLSimulator(
 // killProcessGroup kills the process and its entire process group to ensure cleanup
 func killProcessGroup(cmd *exec.Cmd) error {
 	if cmd.Process == nil {
-		return fmt.Errorf("process is nil")
+		return errors.New("process is nil")
 	}
-	
+
 	// Kill the entire process group
 	pgid, err := syscall.Getpgid(cmd.Process.Pid)
 	if err != nil {
 		// Fallback to killing just the process
 		return cmd.Process.Kill()
 	}
-	
+
 	// Kill the process group with SIGTERM first
 	syscall.Kill(-pgid, syscall.SIGTERM)
-	
+
 	// Give it a moment to terminate gracefully
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Force kill if still running
 	syscall.Kill(-pgid, syscall.SIGKILL)
-	
+
 	return nil
 }
 
@@ -128,7 +129,7 @@ func timeoutWithForceKill(ctx context.Context, cmd *exec.Cmd, operation string) 
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
 	cmd.SysProcAttr.Setpgid = true
-	
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start %s: %v", operation, err)
 	}
@@ -173,10 +174,10 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	if sim.optimized {
 		yosysScript += "; proc; opt; fsm; opt; memory; opt; techmap; opt"
 	}
-	
+
 	// Add combinational loop detection and breaking
 	yosysScript += "; check -assert"
-	yosysScript += fmt.Sprintf("; write_cxxrtl %s", yosysOutputCCFile)
+	yosysScript += "; write_cxxrtl " + yosysOutputCCFile
 
 	if sim.useSlang {
 		cmdYosys = exec.Command("yosys", "-m", "slang", "-p", yosysScript)
@@ -318,7 +319,7 @@ func (sim *CXXRTLSimulator) RunTest(
 			stderrSim.String(),
 		)
 	}
-	
+
 	sim.logger.Debug("CXXRTL simulation execution successful.\nStdout: %s", stdoutSim.String())
 	if stderrSim.Len() > 0 {
 		sim.logger.Warn("CXXRTL simulation stderr (non-fatal or warning):\n%s", stderrSim.String())

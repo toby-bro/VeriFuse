@@ -64,29 +64,33 @@ func (sim *VerilatorSimulator) killProcessGroup(cmd *exec.Cmd) error {
 	if cmd.Process == nil {
 		return nil
 	}
-	
+
 	// Try SIGTERM first
 	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil {
 		// If SIGTERM fails, try SIGKILL on the process directly
 		return cmd.Process.Kill()
 	}
-	
+
 	// Wait a bit for graceful termination
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Force kill with SIGKILL if process is still running
 	if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
 		syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
-	
+
 	return nil
 }
 
 // timeoutWithForceKill implements a more aggressive timeout mechanism
-func (sim *VerilatorSimulator) timeoutWithForceKill(ctx context.Context, cmd *exec.Cmd, operation string) error {
+func (sim *VerilatorSimulator) timeoutWithForceKill(
+	ctx context.Context,
+	cmd *exec.Cmd,
+	operation string,
+) error {
 	// Set up process group for better cleanup
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start %s: %v", operation, err)
 	}
