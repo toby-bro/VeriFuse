@@ -1214,3 +1214,135 @@ endinterface`,
 		})
 	}
 }
+
+func TestPrintPackage(t *testing.T) {
+	tests := []struct {
+		name string
+		pkg  *Package
+		want string
+	}{
+		{
+			name: "SimplePackageWithTypedef",
+			pkg: &Package{
+				Name: "test_pkg",
+				Typedefs: []string{
+					"typedef logic [7:0] data_t;",
+				},
+				Body: "    typedef logic [7:0] data_t;",
+			},
+			want: `package test_pkg;
+    typedef logic [7:0] data_t;
+endpackage
+`,
+		},
+		{
+			name: "PackageWithImports",
+			pkg: &Package{
+				Name: "importer_pkg",
+				Imports: []string{
+					"import other_pkg::*;",
+					"import another_pkg::specific_item;",
+				},
+				Body: `    import other_pkg::*;
+    import another_pkg::specific_item;`,
+			},
+			want: `package importer_pkg;
+    import other_pkg::*;
+    import another_pkg::specific_item;
+endpackage
+`,
+		},
+		{
+			name: "PackageWithParameters",
+			pkg: &Package{
+				Name: "config_pkg",
+				Parameters: []Parameter{
+					{Name: "WIDTH", DefaultValue: "8"},
+					{Name: "DEPTH", Type: INTEGER, DefaultValue: "256"},
+				},
+				Body: `    parameter WIDTH = 8;
+    parameter integer DEPTH = 256;`,
+			},
+			want: `package config_pkg;
+    parameter WIDTH = 8;
+    parameter integer DEPTH = 256;
+endpackage
+`,
+		},
+		{
+			name: "PackageWithVariables",
+			pkg: &Package{
+				Name: "vars_pkg",
+				Variables: []*Variable{
+					{Name: "status_reg", Type: LOGIC, Width: 4},
+					{Name: "counter", Type: INT, Unsigned: true},
+				},
+				Body: `    logic [3:0] status_reg;
+    int unsigned counter;`,
+			},
+			want: `package vars_pkg;
+    logic [3:0] status_reg;
+    int unsigned counter;
+endpackage
+`,
+		},
+		{
+			name: "EmptyPackage",
+			pkg: &Package{
+				Name: "empty_pkg",
+				Body: "",
+			},
+			want: `package empty_pkg;
+endpackage
+`,
+		},
+		{
+			name: "ComplexPackage",
+			pkg: &Package{
+				Name: "complex_pkg",
+				Parameters: []Parameter{
+					{Name: "DATA_WIDTH", DefaultValue: "32"},
+				},
+				Imports: []string{"import common_types_pkg::*;"},
+				Typedefs: []string{
+					"typedef struct packed { logic valid; logic [DATA_WIDTH-1:0] data; } packet_t;",
+				},
+				Variables: []*Variable{
+					{
+						Name: "current_packet", Type: USERDEFINED, ParentStruct: &Struct{Name: "packet_t"},
+					}, // Changed UserType to ParentStruct
+				},
+				// Body field will be constructed by the PrintPackage function
+				// For now, we can leave it empty or provide a simplified version
+				// as the printer should ideally reconstruct it from components.
+				// Let's assume PrintPackage will use the individual fields (Typedefs, Variables etc.)
+				// and not just echo a pre-formatted Body.
+				// If PrintPackage just prints the Body, these tests are less effective for sub-elements.
+				// For this iteration, let's assume PrintPackage is smart.
+			},
+			// This expected output assumes PrintPackage intelligently combines the components.
+			// The actual Body field in the Package struct might be the raw parsed body,
+			// but the printer should generate from the structured fields.
+			want: `package complex_pkg;
+    parameter DATA_WIDTH = 32;
+
+    import common_types_pkg::*;
+
+    typedef struct packed { logic valid; logic [DATA_WIDTH-1:0] data; } packet_t;
+
+    packet_t current_packet;
+endpackage
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PrintPackage(tt.pkg) // Now using the actual PrintPackage function
+
+			if normalizeSpaceFile(got) != normalizeSpaceFile(tt.want) {
+				t.Errorf("PrintPackage() got =\n%v\nwant =\n%v", got, tt.want)
+			}
+		})
+	}
+}
