@@ -136,6 +136,11 @@ func dfsDependencies(
 				targetFile.Interfaces[dep] = i
 			}
 		}
+		if p, found := parentVF.Packages[dep]; found {
+			if _, exists := targetFile.Packages[dep]; !exists {
+				targetFile.Packages[dep] = p
+			}
+		}
 		dfsDependencies(dep, parentVF, targetFile)
 	}
 }
