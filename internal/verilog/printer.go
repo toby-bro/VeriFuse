@@ -526,8 +526,80 @@ func PrintModule(m *Module) string {
 	return sb.String()
 }
 
+// PrintPackage converts a Package object to its Verilog string representation.
+func PrintPackage(pkg *Package) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("package %s;\n", pkg.Name))
+
+	// Print Parameters
+	if len(pkg.Parameters) > 0 {
+		for _, param := range pkg.Parameters {
+			// Assuming PrintParameter handles commas correctly if we adapt it or use a helper
+			// For simplicity, let's assume parameters are printed one per line without trailing commas here.
+			if param.Type != UNKNOWN {
+				sb.WriteString(
+					fmt.Sprintf(
+						"    parameter %s %s = %s;\n",
+						param.Type.String(),
+						param.Name,
+						param.DefaultValue,
+					),
+				)
+			} else {
+				sb.WriteString(fmt.Sprintf("    parameter %s = %s;\n", param.Name, param.DefaultValue))
+			}
+		}
+		sb.WriteString("\n") // Add a newline after parameters if any
+	}
+
+	// Print Imports
+	if len(pkg.Imports) > 0 {
+		for _, imp := range pkg.Imports {
+			sb.WriteString(fmt.Sprintf("    %s\n", imp))
+		}
+		sb.WriteString("\n") // Add a newline after imports if any
+	}
+
+	// Print Typedefs
+	if len(pkg.Typedefs) > 0 {
+		for _, typedef := range pkg.Typedefs {
+			sb.WriteString(fmt.Sprintf("    %s\n", typedef))
+		}
+		sb.WriteString("\n") // Add a newline after typedefs if any
+	}
+
+	// Print Variables
+	if len(pkg.Variables) > 0 {
+		for _, v := range pkg.Variables {
+			sb.WriteString(fmt.Sprintf("    %s\n", PrintVariableDeclaration(v)))
+		}
+		sb.WriteString("\n") // Add a newline after variables if any
+	}
+
+	// If there was no content (params, imports, typedefs, vars),
+	// and Body is also empty, we might want to ensure there's at least one newline
+	// before endpackage, or that the package body isn't just empty.
+	// However, the current structure with newlines after each section should handle this.
+
+	// Fallback to Body if it's not empty and other elements were not printed
+	// This part is tricky: should we print Body if other elements are present?
+	// For now, let's assume if Parameters, Imports, Typedefs, Variables are populated,
+	// they are the source of truth. If they are empty, but Body is not, print Body.
+	if len(pkg.Parameters) == 0 && len(pkg.Imports) == 0 && len(pkg.Typedefs) == 0 &&
+		len(pkg.Variables) == 0 &&
+		pkg.Body != "" {
+		bodyLines := strings.Split(strings.TrimSpace(pkg.Body), "\n")
+		for _, line := range bodyLines {
+			sb.WriteString(fmt.Sprintf("    %s\n", strings.TrimSpace(line)))
+		}
+	}
+
+	sb.WriteString("endpackage\n")
+	return sb.String()
+}
+
 // getPrintOrder determines the order for printing Verilog elements based on dependencies.
-func getPrintOrder(vf *VerilogFile) ([]string, error) {
+func getPrintOrder(vf *VerilogFile) ([]string, error) { // nolint: gocyclo
 	allNodes := make(map[string][]string)
 	nodeType := make(map[string]string) // "struct", "class", "module", "interface"
 
@@ -557,6 +629,8 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) {
 			nodeType[name] = "interface"
 		} else if _, ok := vf.Modules[name]; ok {
 			nodeType[name] = "module"
+		} else if _, ok := vf.Packages[name]; ok { // Added Package type
+			nodeType[name] = "package"
 		} else {
 			continue
 			// This node might be an external dependency not defined in this file.
@@ -578,8 +652,15 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) {
 		inDegree[name] = 0
 		graph[name] = []string{}
 	}
-	// for name := range vf.Interfaces { inDegree[name] = 0; graph[name] = []string{} } // TODO
+	for name := range vf.Interfaces { // Corrected from // TODO
+		inDegree[name] = 0
+		graph[name] = []string{}
+	}
 	for name := range vf.Modules {
+		inDegree[name] = 0
+		graph[name] = []string{}
+	}
+	for name := range vf.Packages { // Added Packages
 		inDegree[name] = 0
 		graph[name] = []string{}
 	}
@@ -627,7 +708,17 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) {
 	}
 
 	// Check if all defined nodes were sorted
-	definedNodeCount := len(vf.Structs) + len(vf.Classes) + len(vf.Modules) + len(vf.Interfaces)
+	definedNodeCount := len(
+		vf.Structs,
+	) + len(
+		vf.Classes,
+	) + len(
+		vf.Modules,
+	) + len(
+		vf.Interfaces,
+	) + len(
+		vf.Packages,
+	) // Added Packages
 	if len(sortedList) != definedNodeCount {
 		// This indicates a cycle among the defined elements, or an issue with dependency tracking.
 		logger.Warn(
@@ -658,6 +749,9 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) {
 			appendIfMissing(name)
 		}
 		for name := range vf.Modules { // Finally Modules
+			appendIfMissing(name)
+		}
+		for name := range vf.Packages { // Packages first (or based on typical usage)
 			appendIfMissing(name)
 		}
 	}
@@ -705,7 +799,16 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	printed := make(map[string]bool)
 
 	// Print items from sortedNames in strict categorical order: Structs, Interfaces, Classes, Modules
-	// Pass 1: Print Structs from sortedNames
+	// Pass 1: Print Packages from sortedNames
+	for _, name := range sortedNames {
+		if pkg, ok := vf.Packages[name]; ok && !printed[name] {
+			sb.WriteString(PrintPackage(pkg))
+			sb.WriteString("\\n")
+			printed[name] = true
+		}
+	}
+
+	// Pass 2: Print Structs from sortedNames
 	for _, name := range sortedNames {
 		if s, ok := vf.Structs[name]; ok && !printed[name] {
 			sb.WriteString(PrintStruct(s))
@@ -714,7 +817,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 		}
 	}
 
-	// Pass 2: Print Interfaces from sortedNames
+	// Pass 3: Print Interfaces from sortedNames
 	for _, name := range sortedNames {
 		if i, ok := vf.Interfaces[name]; ok && !printed[name] {
 			sb.WriteString(PrintInterface(i))
@@ -723,7 +826,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 		}
 	}
 
-	// Pass 3: Print Classes from sortedNames
+	// Pass 4: Print Classes from sortedNames
 	for _, name := range sortedNames {
 		if c, ok := vf.Classes[name]; ok && !printed[name] {
 			sb.WriteString(PrintClass(c))
@@ -732,7 +835,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 		}
 	}
 
-	// Pass 4: Print Modules from sortedNames
+	// Pass 5: Print Modules from sortedNames
 	for _, name := range sortedNames {
 		if m, ok := vf.Modules[name]; ok && !printed[name] {
 			sb.WriteString(PrintModule(m))
@@ -743,6 +846,15 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 
 	// Ensure everything gets printed, even if not in sortedNames (e.g., if dependency map was incomplete or getPrintOrder missed something)
 	// Iterate through all known items in the desired final order.
+	// Print remaining Packages
+	for name, pkg := range vf.Packages {
+		if !printed[name] {
+			sb.WriteString(PrintPackage(pkg))
+			sb.WriteString("\\n")
+			printed[name] = true
+			logger.Debug("Printed remaining (unsorted/missed) package: %s\\n", name)
+		}
+	}
 	// Print remaining Structs
 	for name, s := range vf.Structs {
 		if !printed[name] {
