@@ -815,3 +815,117 @@ endpackage
 		t.Logf("Typedef %d: %s", i, typedef)
 	}
 }
+
+// Test package dependency detection in modules
+func TestParsePackages_Dependencies(t *testing.T) {
+	content := `
+package operation_pkg;
+    typedef enum logic [2:0] {
+        ADD     = 3'b000,
+        SUB     = 3'b001,
+        MUL     = 3'b010,
+        DIV     = 3'b011,
+        AND     = 3'b100,
+        OR      = 3'b101,
+        XOR     = 3'b110,
+        INVALID = 3'b111
+    } operation_t;
+endpackage
+
+module enum_cast (
+    input  logic        clk,
+    input  logic        reset_n,
+    input  logic [2:0]  op_code,
+    output logic [7:0]  result
+);
+    
+    import operation_pkg::*;
+    
+    operation_t current_op;
+    logic [7:0] a, b;
+    
+    always_ff @(posedge clk or negedge reset_n) begin
+        if (!reset_n) begin
+            current_op <= ADD;
+            a <= 8'd0;
+            b <= 8'd0;
+        end else begin
+            current_op <= operation_t'(op_code);
+            a <= 8'd10;
+            b <= 8'd5;
+        end
+    end
+    
+    always_comb begin
+        case (current_op)
+            ADD: result = a + b;
+            SUB: result = a - b;
+            MUL: result = a * b;
+            DIV: result = a / b;
+            AND: result = a & b;
+            OR:  result = a | b;
+            XOR: result = a ^ b;
+            default: result = 8'd0;
+        endcase
+    end
+endmodule
+`
+
+	vf, err := ParseVerilog(content, 0)
+	if err != nil {
+		t.Fatalf("Failed to parse Verilog content: %v", err)
+	}
+
+	// Check if the package was parsed
+	if len(vf.Packages) != 1 {
+		t.Errorf("Expected 1 package, got %d", len(vf.Packages))
+	}
+
+	pkg, exists := vf.Packages["operation_pkg"]
+	if !exists {
+		t.Fatal("Package 'operation_pkg' not found")
+	}
+
+	// Verify the package has the expected typedef
+	if len(pkg.Typedefs) != 1 {
+		t.Errorf("Expected 1 typedef in operation_pkg, got %d", len(pkg.Typedefs))
+	}
+
+	// Check if the module was parsed
+	if len(vf.Modules) != 1 {
+		t.Errorf("Expected 1 module, got %d", len(vf.Modules))
+	}
+
+	module, exists := vf.Modules["enum_cast"]
+	if !exists {
+		t.Fatal("Module 'enum_cast' not found")
+	}
+
+	// Verify the module has the expected ports
+	if len(module.Ports) != 4 {
+		t.Errorf("Expected 4 ports in enum_cast module, got %d", len(module.Ports))
+	}
+
+	// Check dependency map
+	if len(vf.DependencyMap) == 0 {
+		t.Fatal("DependencyMap is empty")
+	}
+
+	// Verify enum_cast depends on operation_pkg
+	deps, exists := vf.DependencyMap["enum_cast"]
+	if !exists {
+		t.Fatal("enum_cast not found in dependency map")
+	}
+
+	found := false
+	for _, dep := range deps.DependsOn {
+		if dep == "operation_pkg" {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("enum_cast should depend on operation_pkg, dependencies: %v", deps.DependsOn)
+	}
+}
