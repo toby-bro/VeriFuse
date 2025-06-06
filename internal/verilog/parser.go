@@ -141,6 +141,13 @@ var generalInterfaceRegex = regexp.MustCompile(fmt.Sprintf(
 	utils.NegativeLookAhead("endinterface"),
 ))
 
+var generalPackageRegex = regexp.MustCompile(fmt.Sprintf(
+	`(?m)^package\s+(\w+)\s*;\s*((?:\s*(?:%s)*)*)\s*endpackage`,
+	utils.NegativeLookAhead("endpackage"),
+))
+
+var importRegex = regexp.MustCompile(`(?m)^.*import\s+.*$`)
+
 var baseTypes = `reg|wire|integer|real|time|realtime|logic|bit|byte|shortint|int|longint|shortreal|string|struct|enum|type`
 
 var widthRegex = `\[\s*[\w\(\)'\-\+\:\s]+\s*\]`
@@ -199,6 +206,10 @@ var simplePortRegex = regexp.MustCompile(
 	`^\s*(?:\.\s*(\w+)\s*\()?\s*(\w+)\s*\)?\s*$`,
 )
 
+var typedefRegex = regexp.MustCompile(
+	`(?s)typedef\s+(?:enum|struct|union)?\s*[^;]*?\s*\w+\s*;`,
+)
+
 // TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not Also add the support for declarations with , for many decls
 var generalVariableRegex = regexp.MustCompile(
 	fmt.Sprintf(
@@ -224,6 +235,10 @@ func MatchAllStructsFromString(content string) [][]string {
 
 func MatchAllInterfacesFromString(content string) [][]string {
 	return generalInterfaceRegex.FindAllStringSubmatch(content, -1)
+}
+
+func MatchAllPackagesFromString(content string) [][]string {
+	return generalPackageRegex.FindAllStringSubmatch(content, -1)
 }
 
 func MatchAllVariablesFromString(content string) [][]string {
@@ -1490,6 +1505,66 @@ func (v *VerilogFile) ParseInterfaces(
 		}
 
 		v.Interfaces[interfaceName] = i
+	}
+	return nil
+}
+
+func (v *VerilogFile) ParsePackages(content string) error {
+	allMatchedPackages := MatchAllPackagesFromString(content)
+	v.Packages = make(map[string]*Package)
+
+	for _, matchedPackage := range allMatchedPackages {
+		if len(matchedPackage) < 3 {
+			return errors.New("no package found in the provided text")
+		}
+
+		packageName := matchedPackage[1] // package name
+		bodyStr := matchedPackage[2]     // package body
+
+		pkg := &Package{
+			Name:       packageName,
+			Body:       bodyStr,
+			Typedefs:   []string{},
+			Imports:    []string{},
+			Variables:  []*Variable{},
+			Parameters: []Parameter{},
+		}
+
+		// Parse typedef statements - handle multi-line typedefs like enums and structs
+		typedefMatches := typedefRegex.FindAllString(bodyStr, -1)
+		for _, typedefMatch := range typedefMatches {
+			pkg.Typedefs = append(pkg.Typedefs, strings.TrimSpace(typedefMatch))
+		}
+
+		// Parse import statements
+		importMatches := importRegex.FindAllString(bodyStr, -1)
+		for _, importMatch := range importMatches {
+			pkg.Imports = append(pkg.Imports, strings.TrimSpace(importMatch))
+		}
+
+		// Parse variables from body
+		if bodyStr != "" {
+			variablesMap, _, err := ParseVariables(v, bodyStr, pkg.Parameters)
+			if err != nil {
+				logger.Warn("Failed to parse variables in package '%s': %v", packageName, err)
+			} else {
+				variables := []*Variable{}
+				for _, variable := range variablesMap {
+					variables = append(variables, variable)
+				}
+				pkg.Variables = variables
+			}
+
+			// Parse parameters/localparams from body
+			bodyParameters, err := extractNonANSIParameterDeclarations(bodyStr)
+			if err != nil {
+				logger.Warn("Failed to parse parameters in package '%s': %v", packageName, err)
+			} else {
+				pkg.Parameters = bodyParameters
+			}
+		}
+
+		v.Packages[packageName] = pkg
 	}
 	return nil
 }

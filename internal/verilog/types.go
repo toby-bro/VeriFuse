@@ -149,6 +149,15 @@ type Class struct {
 	extends    string
 }
 
+type Package struct {
+	Name       string
+	Body       string
+	Typedefs   []string    // typedef statements found in package
+	Imports    []string    // import statements that this package makes
+	Variables  []*Variable // Variables declared in the package
+	Parameters []Parameter // Parameters if any
+}
+
 type ModPort struct {
 	Name    string
 	Signals []ModPortSignal
@@ -171,6 +180,7 @@ type VerilogFile struct { //nolint:revive
 	Interfaces    map[string]*Interface
 	Classes       map[string]*Class
 	Structs       map[string]*Struct
+	Packages      map[string]*Package
 	DependencyMap map[string]*DependencyNode
 }
 
@@ -193,6 +203,7 @@ func NewVerilogFile(name string) *VerilogFile {
 		Interfaces:    make(map[string]*Interface),
 		Classes:       make(map[string]*Class),
 		Structs:       make(map[string]*Struct),
+		Packages:      make(map[string]*Package),
 		DependencyMap: make(map[string]*DependencyNode),
 	}
 }
