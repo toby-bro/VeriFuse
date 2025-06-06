@@ -172,7 +172,12 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	var yosysScript string
 	var cmdYosys *exec.Cmd
 	if sim.useSlang {
-		yosysScript = fmt.Sprintf("read_slang %s; prep -top %s", yosysInputFile, sim.moduleName)
+		yosysScript = fmt.Sprintf(
+			"read_slang %s --top %s; prep -top %s",
+			yosysInputFile,
+			sim.moduleName,
+			sim.moduleName,
+		)
 	} else {
 		yosysScript = fmt.Sprintf("read_verilog -sv %s; prep -top %s", yosysInputFile, sim.moduleName)
 	}

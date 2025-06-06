@@ -35,9 +35,9 @@ type TimeoutConfig struct {
 // DefaultTimeoutConfig returns sensible default timeout values
 func DefaultTimeoutConfig() TimeoutConfig {
 	return TimeoutConfig{
-		CompilationTimeout: 5 * time.Minute,  // 5 minutes for compilation
-		TestTimeout:        30 * time.Second, // 30 seconds per test
-		OverallTimeout:     1 * time.Hour,    // 1 hour overall
+		CompilationTimeout: 1 * time.Minute,
+		TestTimeout:        30 * time.Second,
+		OverallTimeout:     5 * time.Minute,
 	}
 }
 
@@ -121,6 +121,10 @@ func (sch *Scheduler) Setup() error {
 		return fmt.Errorf("cxxrtl tool check failed: %v", err)
 	}
 	sch.debug.Debug("CXXRTL tool found.")
+	if err := simulator.TestSV2VTool(); err != nil {
+		return fmt.Errorf("sv2v tool check failed: %v", err)
+	}
+	sch.debug.Debug("SV2V tool found.")
 	return nil
 }
 
@@ -236,7 +240,7 @@ func (sch *Scheduler) Run(numTests int) error {
 	} else {
 		switch sch.operation {
 		case OpCheckFile:
-			fmt.Printf("%s[+] File `%s` checked successfully, modules seem valid.%s\n", utils.ColorGreen, sch.svFile.Name, utils.ColorReset)
+			fmt.Printf("%s%s[+] File `%s` checked successfully, modules seem valid.%s%s\n", utils.BoldStart, utils.ColorGreen, sch.svFile.Name, utils.ColorReset, utils.BoldEnd)
 		case OpRewriteValid:
 			err := snippets.WriteFileAsSnippets(sch.svFile)
 			if err != nil {
