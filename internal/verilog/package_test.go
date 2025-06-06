@@ -818,7 +818,8 @@ endpackage
 
 // Test package dependency detection in modules
 func TestParsePackages_Dependencies(t *testing.T) {
-	content := `
+	t.Run("Module with package dependency", func(t *testing.T) {
+		content := `
 package operation_pkg;
     typedef enum logic [2:0] {
         ADD     = 3'b000,
@@ -871,61 +872,205 @@ module enum_cast (
 endmodule
 `
 
-	vf, err := ParseVerilog(content, 0)
-	if err != nil {
-		t.Fatalf("Failed to parse Verilog content: %v", err)
-	}
-
-	// Check if the package was parsed
-	if len(vf.Packages) != 1 {
-		t.Errorf("Expected 1 package, got %d", len(vf.Packages))
-	}
-
-	pkg, exists := vf.Packages["operation_pkg"]
-	if !exists {
-		t.Fatal("Package 'operation_pkg' not found")
-	}
-
-	// Verify the package has the expected typedef
-	if len(pkg.Typedefs) != 1 {
-		t.Errorf("Expected 1 typedef in operation_pkg, got %d", len(pkg.Typedefs))
-	}
-
-	// Check if the module was parsed
-	if len(vf.Modules) != 1 {
-		t.Errorf("Expected 1 module, got %d", len(vf.Modules))
-	}
-
-	module, exists := vf.Modules["enum_cast"]
-	if !exists {
-		t.Fatal("Module 'enum_cast' not found")
-	}
-
-	// Verify the module has the expected ports
-	if len(module.Ports) != 4 {
-		t.Errorf("Expected 4 ports in enum_cast module, got %d", len(module.Ports))
-	}
-
-	// Check dependency map
-	if len(vf.DependencyMap) == 0 {
-		t.Fatal("DependencyMap is empty")
-	}
-
-	// Verify enum_cast depends on operation_pkg
-	deps, exists := vf.DependencyMap["enum_cast"]
-	if !exists {
-		t.Fatal("enum_cast not found in dependency map")
-	}
-
-	found := false
-	for _, dep := range deps.DependsOn {
-		if dep == "operation_pkg" {
-			found = true
-			break
+		vf, err := ParseVerilog(content, 0)
+		if err != nil {
+			t.Fatalf("Failed to parse Verilog content: %v", err)
 		}
-	}
 
-	if !found {
-		t.Errorf("enum_cast should depend on operation_pkg, dependencies: %v", deps.DependsOn)
-	}
+		// Check if the package was parsed
+		if len(vf.Packages) != 1 {
+			t.Errorf("Expected 1 package, got %d", len(vf.Packages))
+		}
+
+		pkg, exists := vf.Packages["operation_pkg"]
+		if !exists {
+			t.Fatal("Package 'operation_pkg' not found")
+		}
+
+		// Verify the package has the expected typedef
+		if len(pkg.Typedefs) != 1 {
+			t.Errorf("Expected 1 typedef in operation_pkg, got %d", len(pkg.Typedefs))
+		}
+
+		// Check if the module was parsed
+		if len(vf.Modules) != 1 {
+			t.Errorf("Expected 1 module, got %d", len(vf.Modules))
+		}
+
+		module, exists := vf.Modules["enum_cast"]
+		if !exists {
+			t.Fatal("Module 'enum_cast' not found")
+		}
+
+		// Verify the module has the expected ports
+		if len(module.Ports) != 4 {
+			t.Errorf("Expected 4 ports in enum_cast module, got %d", len(module.Ports))
+		}
+
+		// Check dependency map
+		if len(vf.DependencyMap) == 0 {
+			t.Fatal("DependencyMap is empty")
+		}
+
+		// Verify enum_cast depends on operation_pkg
+		deps, exists := vf.DependencyMap["enum_cast"]
+		if !exists {
+			t.Fatal("enum_cast not found in dependency map")
+		}
+
+		found := false
+		for _, dep := range deps.DependsOn {
+			if dep == "operation_pkg" {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			t.Errorf("enum_cast should depend on operation_pkg, dependencies: %v", deps.DependsOn)
+		}
+	})
+
+	t.Run("Module with no package dependencies", func(t *testing.T) {
+		content := `
+module simple_adder (
+    input  logic [7:0] a,
+    input  logic [7:0] b,
+    output logic [8:0] sum
+);
+    // Simple adder logic
+    assign sum = a + b;
+endmodule
+`
+
+		vf, err := ParseVerilog(content, 0)
+		if err != nil {
+			t.Fatalf("Failed to parse Verilog content: %v", err)
+		}
+
+		// Check if no packages were parsed
+		if len(vf.Packages) != 0 {
+			t.Errorf("Expected 0 packages, got %d", len(vf.Packages))
+		}
+
+		// Check if the module was parsed
+		if len(vf.Modules) != 1 {
+			t.Errorf("Expected 1 module, got %d", len(vf.Modules))
+		}
+
+		_, exists := vf.Modules["simple_adder"]
+		if !exists {
+			t.Fatal("Module 'simple_adder' not found")
+		}
+
+		// Check dependency map
+		deps, exists := vf.DependencyMap["simple_adder"]
+		if !exists {
+			t.Fatal("simple_adder not found in dependency map")
+		}
+
+		// Verify simple_adder doesn't depend on any packages
+		if len(deps.DependsOn) != 0 {
+			t.Errorf(
+				"simple_adder should not depend on any packages, but got dependencies: %v",
+				deps.DependsOn,
+			)
+		}
+	})
+
+	t.Run("Module with multiple package dependencies", func(t *testing.T) {
+		content := `
+package types_pkg;
+    typedef logic [7:0] byte_t;
+    typedef logic [15:0] word_t;
+endpackage
+
+package constants_pkg;
+    parameter MAX_VALUE = 255;
+    parameter MIN_VALUE = 0;
+endpackage
+
+module processor (
+    input  logic        clk,
+    input  logic        reset_n,
+    input  logic [7:0]  data_in,
+    output logic [15:0] data_out
+);
+    import types_pkg::*;
+    import constants_pkg::*;
+    
+    byte_t input_byte;
+    word_t output_word;
+    
+    always_ff @(posedge clk or negedge reset_n) begin
+        if (!reset_n) begin
+            input_byte <= MIN_VALUE;
+            output_word <= 16'd0;
+        end else begin
+            input_byte <= data_in;
+            output_word <= {input_byte, input_byte};
+            if (input_byte > MAX_VALUE / 2) begin
+                output_word <= 16'hFFFF;
+            end
+        end
+    end
+    
+    assign data_out = output_word;
+endmodule
+`
+
+		vf, err := ParseVerilog(content, 0)
+		if err != nil {
+			t.Fatalf("Failed to parse Verilog content: %v", err)
+		}
+
+		// Check if both packages were parsed
+		if len(vf.Packages) != 2 {
+			t.Errorf("Expected 2 packages, got %d", len(vf.Packages))
+		}
+
+		// Check if types_pkg exists
+		_, exists := vf.Packages["types_pkg"]
+		if !exists {
+			t.Fatal("Package 'types_pkg' not found")
+		}
+
+		// Check if constants_pkg exists
+		_, exists = vf.Packages["constants_pkg"]
+		if !exists {
+			t.Fatal("Package 'constants_pkg' not found")
+		}
+
+		// Check if the module was parsed
+		if len(vf.Modules) != 1 {
+			t.Errorf("Expected 1 module, got %d", len(vf.Modules))
+		}
+
+		// Check dependency map
+		deps, exists := vf.DependencyMap["processor"]
+		if !exists {
+			t.Fatal("processor not found in dependency map")
+		}
+
+		// Verify processor depends on both packages
+		foundTypes := false
+		foundConstants := false
+
+		for _, dep := range deps.DependsOn {
+			if dep == "types_pkg" {
+				foundTypes = true
+			}
+			if dep == "constants_pkg" {
+				foundConstants = true
+			}
+		}
+
+		if !foundTypes {
+			t.Errorf("processor should depend on types_pkg, dependencies: %v", deps.DependsOn)
+		}
+
+		if !foundConstants {
+			t.Errorf("processor should depend on constants_pkg, dependencies: %v", deps.DependsOn)
+		}
+	})
 }
