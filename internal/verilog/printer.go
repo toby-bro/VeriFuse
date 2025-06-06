@@ -803,7 +803,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	for _, name := range sortedNames {
 		if pkg, ok := vf.Packages[name]; ok && !printed[name] {
 			sb.WriteString(PrintPackage(pkg))
-			sb.WriteString("\\n")
+			sb.WriteString("\n")
 			printed[name] = true
 		}
 	}
@@ -850,9 +850,9 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	for name, pkg := range vf.Packages {
 		if !printed[name] {
 			sb.WriteString(PrintPackage(pkg))
-			sb.WriteString("\\n")
+			sb.WriteString("\n")
 			printed[name] = true
-			logger.Debug("Printed remaining (unsorted/missed) package: %s\\n", name)
+			logger.Debug("Printed remaining (unsorted/missed) package: %s\n", name)
 		}
 	}
 	// Print remaining Structs
