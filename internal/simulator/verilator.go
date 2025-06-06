@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -127,11 +128,22 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 		return fmt.Errorf("failed to create obj_dir: %v", err)
 	}
 
-	testbenchPath := filepath.Join(filepath.Dir(sim.workDir), "testbench.sv")
+	// Determine testbench file extension based on context
+	// If working directory contains "sv2v", use .v testbench for Verilog compatibility
+	testbenchExtension := ".sv"
+	if strings.Contains(sim.workDir, "sv2v") {
+		testbenchExtension = ".v"
+		sim.logger.Debug("Detected sv2v context, using testbench.v instead of testbench.sv")
+	}
+	testbenchPath := filepath.Join(filepath.Dir(sim.workDir), "testbench"+testbenchExtension)
 
 	// Verify the testbench file exists and has content
 	if info, err := os.Stat(testbenchPath); err != nil || info.Size() == 0 {
-		return fmt.Errorf("testbench.sv is missing or empty in %s", filepath.Dir(sim.workDir))
+		return fmt.Errorf(
+			"testbench%s is missing or empty in %s",
+			testbenchExtension,
+			filepath.Dir(sim.workDir),
+		)
 	}
 
 	// Build verilator command with all SV files and parameters
@@ -152,7 +164,7 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 		"-Wno-MULTITOP",
 		"-Wno-CASEINCOMPLETE",
 		"-Wno-CASEOVERLAP",
-		"../testbench.sv",
+		"../testbench" + testbenchExtension,
 	}
 
 	if sim.optimized {

@@ -417,26 +417,37 @@ func (g *Generator) GenerateSVTestbench(outputDir string) error {
 	clockToggleStr := g.generateSVClockToggling(clockPorts)
 	outputWritesStr, outputCount := g.generateSVOutputWrites()
 
-	// Include the mocked module file - assumes the verilog file is in the same dir
-	// The path might need adjustment depending on where the worker copies the verilog file relative to testbench.sv
-	// Assuming they are in the same directory (outputDir) for now.
-	includeDirective := fmt.Sprintf("`include \"../%s\"", g.fileName)
+	fileNameWithoutExtension := strings.TrimSuffix(g.fileName, filepath.Ext(g.fileName))
 
-	// Apply the generated code to the template
-	testbench := fmt.Sprintf(svTestbenchTemplate,
-		includeDirective,
-		declarations,
-		moduleInst,
-		inputCount,
-		inputReadsStr,
-		resetToggleStr, // Apply reset before clock toggling
-		clockToggleStr, // Apply clock toggling after reset
-		outputCount,
-		outputWritesStr)
+	for _, extension := range []string{".sv", ".v"} {
+		// Include the mocked module file - assumes the verilog file is in the same dir
+		// The path might need adjustment depending on where the worker copies the verilog file relative to testbench.sv
+		// Assuming they are in the same directory (outputDir) for now.
+		includeDirective := fmt.Sprintf("`include \"../%s%s\"", fileNameWithoutExtension, extension)
 
-	// Write to the specified output directory
-	svTestbenchPath := filepath.Join(outputDir, "testbench.sv")
-	return utils.WriteFileContent(svTestbenchPath, testbench)
+		// Apply the generated code to the template
+		testbench := fmt.Sprintf(svTestbenchTemplate,
+			includeDirective,
+			declarations,
+			moduleInst,
+			inputCount,
+			inputReadsStr,
+			resetToggleStr, // Apply reset before clock toggling
+			clockToggleStr, // Apply clock toggling after reset
+			outputCount,
+			outputWritesStr)
+
+		// Write to the specified output directory
+		svTestbenchPath := filepath.Join(outputDir, "testbench"+extension)
+		if err := utils.WriteFileContent(svTestbenchPath, testbench); err != nil {
+			return fmt.Errorf(
+				"failed to write SystemVerilog testbench to %s: %w",
+				svTestbenchPath,
+				err,
+			)
+		}
+	}
+	return nil
 }
 
 // getCXXRTLPortType returns a string representation of the C++ type for CXXRTL port access.

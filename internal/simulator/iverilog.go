@@ -40,8 +40,7 @@ func TestIVerilogTool() error {
 }
 
 // NewIVerilogSimulator creates a new IVerilog simulator instance
-func NewIVerilogSimulator(baseWorkDir string, verbose int) *IVerilogSimulator {
-	actualWorkDir := filepath.Join(baseWorkDir, "iverilog_run")
+func NewIVerilogSimulator(actualWorkDir string, verbose int) *IVerilogSimulator {
 	return &IVerilogSimulator{
 		execPath: filepath.Join(actualWorkDir, "module_sim_iv"),
 		workDir:  actualWorkDir,
@@ -63,8 +62,14 @@ func (sim *IVerilogSimulator) CompileSpecific(ctx context.Context) error {
 
 	sim.debug.Debug("Starting IVerilog compile in %s", sim.workDir)
 
-	// Assuming testbench.sv is in the parent directory of sim.workDir
-	sourceTestbenchFile := filepath.Join("..", "testbench.sv")
+	// Determine testbench file extension based on context
+	// If working directory contains "sv2v", use .v testbench for Verilog compatibility
+	testbenchExtension := ".sv"
+	if strings.Contains(sim.workDir, "sv2v") {
+		testbenchExtension = ".v"
+		sim.debug.Debug("Detected sv2v context, using testbench.v instead of testbench.sv")
+	}
+	sourceTestbenchFile := filepath.Join("..", "testbench"+testbenchExtension)
 
 	// Compile directly in the work directory
 	cmdArgs := []string{

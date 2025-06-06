@@ -53,7 +53,7 @@ func EnsureTmpDir() error {
 	return nil
 }
 
-func ensureFileWritten(filename string, err error, expectedSize int) error {
+func EnsureFileWritten(filename string, err error, expectedSize int) error {
 	if err != nil {
 		return fmt.Errorf("failed to write file %s: %v", filename, err)
 	}
@@ -61,7 +61,7 @@ func ensureFileWritten(filename string, err error, expectedSize int) error {
 	if err != nil {
 		return fmt.Errorf("failed to stat file %s: %v", filename, err)
 	}
-	if info.Size() != int64(expectedSize) {
+	if expectedSize != 0 && info.Size() != int64(expectedSize) {
 		return fmt.Errorf("file size mismatch: expected %d, got %d", expectedSize, info.Size())
 	}
 	return nil
@@ -75,7 +75,7 @@ func WriteHexFile(filename string, data uint32) error {
 	hexData := fmt.Sprintf("%08x\n", data)
 	err := os.WriteFile(filename, []byte(hexData), 0o644)
 
-	return ensureFileWritten(filename, err, len(hexData))
+	return EnsureFileWritten(filename, err, len(hexData))
 }
 
 // Thread-safe version of WriteBinFile
@@ -84,7 +84,7 @@ func WriteBinFile(filename string, data uint8) error {
 	defer fileOpMutex.Unlock()
 
 	err := os.WriteFile(filename, []byte{data + '0'}, 0o644)
-	return ensureFileWritten(filename, err, 1)
+	return EnsureFileWritten(filename, err, 1)
 }
 
 // Thread-safe version of ReadFileContent
@@ -114,7 +114,7 @@ func WriteFileContent(path string, content string) error {
 	}
 
 	err := os.WriteFile(path, []byte(content), 0o644)
-	return ensureFileWritten(path, err, len(content))
+	return EnsureFileWritten(path, err, len(content))
 }
 
 // TmpPath returns the path within the temporary directory
@@ -144,7 +144,7 @@ func CopyFile(src, dst string) error {
 
 	// Write destination file
 	err = os.WriteFile(dst, data, 0o644)
-	return ensureFileWritten(dst, err, len(data))
+	return EnsureFileWritten(dst, err, len(data))
 }
 
 // FileExists checks if a file exists and is not a directory
