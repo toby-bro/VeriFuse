@@ -1630,6 +1630,12 @@ func (v *VerilogFile) typeDependenciesParser() error {
 			v.DependencyMap[module.Name].DependsOn,
 			moduleInstantiations...)
 
+		// Check for package imports in module body
+		packageImports := matchPackageImportsFromString(v, module.Body)
+		v.DependencyMap[module.Name].DependsOn = append(
+			v.DependencyMap[module.Name].DependsOn,
+			packageImports...)
+
 		// Check for user-defined type dependencies in module body
 		vars := matchUserDefinedVariablesFromString(v, module.Body)
 		for _, matchedVariable := range vars {
@@ -1674,6 +1680,12 @@ func (v *VerilogFile) createDependencyMap() {
 	for _, interfaceName := range v.Interfaces {
 		v.DependencyMap[interfaceName.Name] = &DependencyNode{
 			Name:      interfaceName.Name,
+			DependsOn: []string{},
+		}
+	}
+	for _, packageName := range v.Packages {
+		v.DependencyMap[packageName.Name] = &DependencyNode{
+			Name:      packageName.Name,
 			DependsOn: []string{},
 		}
 	}
@@ -1727,6 +1739,10 @@ func ParseVerilog(content string, verbose int) (*VerilogFile, error) {
 	err = verilogFile.ParseInterfaces(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse interfaces: %v", err)
+	}
+	err = verilogFile.ParsePackages(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse packages: %v", err)
 	}
 	verilogFile.createDependencyMap()
 	err = verilogFile.typeDependenciesParser()
@@ -1803,4 +1819,34 @@ func matchModuleInstantiationsFromString(vf *VerilogFile, content string) []stri
 	}
 
 	return foundModules
+}
+
+// matchPackageImportsFromString finds package import statements in the form "import package_name::*;" or "import package_name::item;"
+func matchPackageImportsFromString(vf *VerilogFile, content string) []string {
+	packageNames := []string{}
+	for _, pkg := range vf.Packages {
+		packageNames = append(packageNames, pkg.Name)
+	}
+
+	if len(packageNames) == 0 {
+		return []string{}
+	}
+
+	// Create regex pattern to match import statements like "import operation_pkg::*;" or "import operation_pkg::item;"
+	// Pattern matches: import package_name::
+	packageNamesConcat := strings.Join(packageNames, "|")
+	regexpString := fmt.Sprintf(`(?m)^\s*import\s+(%s)::\s*(?:\*|[\w]+)\s*;`, packageNamesConcat)
+	regex := regexp.MustCompile(regexpString)
+
+	matches := regex.FindAllStringSubmatch(content, -1)
+	foundPackages := []string{}
+
+	for _, match := range matches {
+		if len(match) >= 2 {
+			packageName := match[1]
+			foundPackages = append(foundPackages, packageName)
+		}
+	}
+
+	return foundPackages
 }
