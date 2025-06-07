@@ -459,7 +459,6 @@ func (sch *Scheduler) setupSimulators(
 			workerID,
 			vFilePath,
 		)
-
 		// Parse the .v file to create a VerilogFile object
 		vFileContent, err := os.ReadFile(vFilePath)
 		if err != nil {
@@ -470,82 +469,83 @@ func (sch *Scheduler) setupSimulators(
 				sch.debug.Warn("[%s] Failed to parse .v file %s: %v", workerID, vFilePath, err)
 			} else {
 				vFile.Name = vFileName
-
-				// 1. Icarus Verilog sv2v variant
-				ivWorkDir2 := filepath.Join(baseWorkerDir, "icarus_sv2v") // Use different directory
-				if err := os.MkdirAll(ivWorkDir2, 0o755); err != nil {
-					sch.debug.Warn(
-						"[%s] Failed to create IVerilog sv2v directory %s: %v",
-						workerID,
-						ivWorkDir2,
-						err,
-					)
-					setupErrors = append(setupErrors, fmt.Sprintf("iverilog_sv2v_mkdir: %v", err))
-				} else {
-					// Copy .v file to sv2v directory
-					ivVFilePath := filepath.Join(ivWorkDir2, vFileName)
-					if err := utils.CopyFile(vFilePath, ivVFilePath); err != nil {
+				/*
+					// 1. Icarus Verilog sv2v variant
+					ivWorkDir2 := filepath.Join(baseWorkerDir, "icarus_sv2v") // Use different directory
+					if err := os.MkdirAll(ivWorkDir2, 0o755); err != nil {
 						sch.debug.Warn(
-							"[%s] Failed to copy .v file to IVerilog sv2v directory: %v",
+							"[%s] Failed to create IVerilog sv2v directory %s: %v",
 							workerID,
+							ivWorkDir2,
 							err,
 						)
+						setupErrors = append(setupErrors, fmt.Sprintf("iverilog_sv2v_mkdir: %v", err))
 					} else {
-						ivsim2 := simulator.NewIVerilogSimulator(ivWorkDir2, sch.verbose)
-						sch.debug.Debug("[%s] Compiling IVerilog sv2v simulator in %s", workerID, ivWorkDir2)
-
-						compileCtx2, compileCancel2 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
-						defer compileCancel2()
-
-						if err := ivsim2.Compile(compileCtx2); err != nil {
-							sch.debug.Warn("[%s] Failed to compile IVerilog sv2v: %v", workerID, err)
-							setupErrors = append(setupErrors, fmt.Sprintf("iverilog_sv2v: %v", err))
+						// Copy .v file to sv2v directory
+						ivVFilePath := filepath.Join(ivWorkDir2, vFileName)
+						if err := utils.CopyFile(vFilePath, ivVFilePath); err != nil {
+							sch.debug.Warn(
+								"[%s] Failed to copy .v file to IVerilog sv2v directory: %v",
+								workerID,
+								err,
+							)
 						} else {
-							sch.debug.Debug("[%s] IVerilog sv2v compiled successfully.", workerID)
+							ivsim2 := simulator.NewIVerilogSimulator(ivWorkDir2, sch.verbose)
+							sch.debug.Debug("[%s] Compiling IVerilog sv2v simulator in %s", workerID, ivWorkDir2)
+
+							compileCtx2, compileCancel2 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
+							defer compileCancel2()
+
+							if err := ivsim2.Compile(compileCtx2); err != nil {
+								sch.debug.Warn("[%s] Failed to compile IVerilog sv2v: %v", workerID, err)
+								setupErrors = append(setupErrors, fmt.Sprintf("iverilog_sv2v: %v", err))
+							} else {
+								sch.debug.Debug("[%s] IVerilog sv2v compiled successfully.", workerID)
+								compiledSims = append(compiledSims, &SimInstance{
+									Name:      "icaru2",
+									Simulator: ivsim2,
+									Prefix:    "iv2_",
+								})
+							}
+						}
+					}
+
+					// 2. Verilator O0 sv2v variant
+					vlO0WorkDir2 := filepath.Join(baseWorkerDir, "vl_O0_sv2v")
+					if err := os.MkdirAll(vlO0WorkDir2, 0o755); err != nil {
+						sch.debug.Warn(
+							"[%s] Failed to create Verilator O0 sv2v directory %s: %v",
+							workerID,
+							vlO0WorkDir2,
+							err,
+						)
+						setupErrors = append(setupErrors, fmt.Sprintf("verilator_O0_sv2v_mkdir: %v", err))
+					} else {
+						vlsim0_2 := simulator.NewVerilatorSimulator(
+							vlO0WorkDir2,
+							vFile,
+							workerModuleName,
+							false,
+							sch.verbose,
+						)
+						sch.debug.Debug("[%s] Compiling Verilator O0 sv2v simulator in %s", workerID, vlO0WorkDir2)
+
+						compileCtx0_2, compileCancel0_2 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
+						defer compileCancel0_2()
+
+						if err := vlsim0_2.Compile(compileCtx0_2); err != nil {
+							sch.debug.Warn("[%s] Failed to compile Verilator O0 sv2v: %v", workerID, err)
+							setupErrors = append(setupErrors, fmt.Sprintf("verilator_O0_sv2v: %v", err))
+						} else {
+							sch.debug.Debug("[%s] Verilator O0 sv2v compiled successfully.", workerID)
 							compiledSims = append(compiledSims, &SimInstance{
-								Name:      "icaru2",
-								Simulator: ivsim2,
-								Prefix:    "iv2_",
+								Name:      "vtor20",
+								Simulator: vlsim0_2,
+								Prefix:    "vl20_",
 							})
 						}
 					}
-				}
-
-				// 2. Verilator O0 sv2v variant
-				vlO0WorkDir2 := filepath.Join(baseWorkerDir, "vl_O0_sv2v")
-				if err := os.MkdirAll(vlO0WorkDir2, 0o755); err != nil {
-					sch.debug.Warn(
-						"[%s] Failed to create Verilator O0 sv2v directory %s: %v",
-						workerID,
-						vlO0WorkDir2,
-						err,
-					)
-					setupErrors = append(setupErrors, fmt.Sprintf("verilator_O0_sv2v_mkdir: %v", err))
-				} else {
-					vlsim0_2 := simulator.NewVerilatorSimulator(
-						vlO0WorkDir2,
-						vFile,
-						workerModuleName,
-						false,
-						sch.verbose,
-					)
-					sch.debug.Debug("[%s] Compiling Verilator O0 sv2v simulator in %s", workerID, vlO0WorkDir2)
-
-					compileCtx0_2, compileCancel0_2 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
-					defer compileCancel0_2()
-
-					if err := vlsim0_2.Compile(compileCtx0_2); err != nil {
-						sch.debug.Warn("[%s] Failed to compile Verilator O0 sv2v: %v", workerID, err)
-						setupErrors = append(setupErrors, fmt.Sprintf("verilator_O0_sv2v: %v", err))
-					} else {
-						sch.debug.Debug("[%s] Verilator O0 sv2v compiled successfully.", workerID)
-						compiledSims = append(compiledSims, &SimInstance{
-							Name:      "vtor20",
-							Simulator: vlsim0_2,
-							Prefix:    "vl20_",
-						})
-					}
-				}
+				*/
 
 				// 3. Verilator O3 sv2v variant
 				vlO3WorkDir2 := filepath.Join(baseWorkerDir, "vl_O3_sv2v")
@@ -582,148 +582,149 @@ func (sch *Scheduler) setupSimulators(
 						})
 					}
 				}
-
-				// 4. CXXRTL sv2v variant
-				cxxrtlWorkDir2 := filepath.Join(baseWorkerDir, "cxxrtl_sim_sv2v")
-				if err := os.MkdirAll(cxxrtlWorkDir2, 0o755); err != nil {
-					sch.debug.Warn(
-						"[%s] Failed to create CXXRTL sv2v directory %s: %v",
-						workerID,
-						cxxrtlWorkDir2,
-						err,
-					)
-					setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL_sv2v_mkdir: %v", err))
-				} else {
-					// Determine includeDir (same logic as original CXXRTL)
-					yosysCmd := exec.Command("yosys-config", "--datdir")
-					var yosysOut bytes.Buffer
-					var yosysErr bytes.Buffer
-					yosysCmd.Stdout = &yosysOut
-					yosysCmd.Stderr = &yosysErr
-
-					var includeDir string
-					if err := yosysCmd.Run(); err == nil {
-						yosysDatDir := strings.TrimSpace(yosysOut.String())
-						potentialPath := filepath.Join(
-							yosysDatDir,
-							"include",
-							"backends",
-							"cxxrtl",
-							"runtime",
-						)
-						if _, statErr := os.Stat(potentialPath); statErr == nil {
-							includeDir = potentialPath
-						}
-					}
-
-					cxsim2 := simulator.NewCXXRTLSimulator(
-						cxxrtlWorkDir2,
-						vFile.Name,
-						workerModuleName,
-						includeDir,
-						false, // optimized
-						false, // useSlang
-						sch.verbose,
-					)
-					sch.debug.Debug("[%s] Compiling CXXRTL sv2v simulator in %s", workerID, cxxrtlWorkDir2)
-
-					compileCtxCXX2, compileCancelCXX2 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
-					defer compileCancelCXX2()
-
-					if err := cxsim2.Compile(compileCtxCXX2); err != nil {
+				/*
+					// 4. CXXRTL sv2v variant
+					cxxrtlWorkDir2 := filepath.Join(baseWorkerDir, "cxxrtl_sim_sv2v")
+					if err := os.MkdirAll(cxxrtlWorkDir2, 0o755); err != nil {
 						sch.debug.Warn(
-							"[%s] CXXRTL sv2v compilation failed in %s: %v",
+							"[%s] Failed to create CXXRTL sv2v directory %s: %v",
 							workerID,
 							cxxrtlWorkDir2,
 							err,
 						)
-						setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL_sv2v compile error: %v", err))
+						setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL_sv2v_mkdir: %v", err))
 					} else {
-						sch.debug.Debug(
-							"[%s] Successfully compiled CXXRTL sv2v simulator in %s.",
-							workerID,
+						// Determine includeDir (same logic as original CXXRTL)
+						yosysCmd := exec.Command("yosys-config", "--datdir")
+						var yosysOut bytes.Buffer
+						var yosysErr bytes.Buffer
+						yosysCmd.Stdout = &yosysOut
+						yosysCmd.Stderr = &yosysErr
+
+						var includeDir string
+						if err := yosysCmd.Run(); err == nil {
+							yosysDatDir := strings.TrimSpace(yosysOut.String())
+							potentialPath := filepath.Join(
+								yosysDatDir,
+								"include",
+								"backends",
+								"cxxrtl",
+								"runtime",
+							)
+							if _, statErr := os.Stat(potentialPath); statErr == nil {
+								includeDir = potentialPath
+							}
+						}
+
+						cxsim2 := simulator.NewCXXRTLSimulator(
 							cxxrtlWorkDir2,
+							vFile.Name,
+							workerModuleName,
+							includeDir,
+							false, // optimized
+							false, // useSlang
+							sch.verbose,
 						)
-						compiledSims = append(compiledSims, &SimInstance{
-							Name:      "CXXRT2",
-							Simulator: cxsim2,
-							Prefix:    "cxx2_vanilla_",
-						})
-					}
-				}
+						sch.debug.Debug("[%s] Compiling CXXRTL sv2v simulator in %s", workerID, cxxrtlWorkDir2)
 
-				// 5. CXXRTL with Slang sv2v variant
-				cxxrtlSlangWorkDir2 := filepath.Join(baseWorkerDir, "cxxrtl_slang_sim_sv2v")
-				if err := os.MkdirAll(cxxrtlSlangWorkDir2, 0o755); err != nil {
-					sch.debug.Warn(
-						"[%s] Failed to create CXXRTL Slang sv2v directory %s: %v",
-						workerID,
-						cxxrtlSlangWorkDir2,
-						err,
-					)
-					setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL_slang_sv2v_mkdir: %v", err))
-				} else {
-					// Use same includeDir determination logic
-					yosysCmd := exec.Command("yosys-config", "--datdir")
-					var yosysOut bytes.Buffer
-					var yosysErr bytes.Buffer
-					yosysCmd.Stdout = &yosysOut
-					yosysCmd.Stderr = &yosysErr
+						compileCtxCXX2, compileCancelCXX2 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
+						defer compileCancelCXX2()
 
-					var includeDir string
-					if err := yosysCmd.Run(); err == nil {
-						yosysDatDir := strings.TrimSpace(yosysOut.String())
-						potentialPath := filepath.Join(
-							yosysDatDir,
-							"include",
-							"backends",
-							"cxxrtl",
-							"runtime",
-						)
-						if _, statErr := os.Stat(potentialPath); statErr == nil {
-							includeDir = potentialPath
+						if err := cxsim2.Compile(compileCtxCXX2); err != nil {
+							sch.debug.Warn(
+								"[%s] CXXRTL sv2v compilation failed in %s: %v",
+								workerID,
+								cxxrtlWorkDir2,
+								err,
+							)
+							setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL_sv2v compile error: %v", err))
+						} else {
+							sch.debug.Debug(
+								"[%s] Successfully compiled CXXRTL sv2v simulator in %s.",
+								workerID,
+								cxxrtlWorkDir2,
+							)
+							compiledSims = append(compiledSims, &SimInstance{
+								Name:      "CXXRT2",
+								Simulator: cxsim2,
+								Prefix:    "cxx2_vanilla_",
+							})
 						}
 					}
 
-					cxSlangSim2 := simulator.NewCXXRTLSimulator(
-						cxxrtlSlangWorkDir2,
-						vFile.Name,
-						workerModuleName,
-						includeDir,
-						false, // optimized
-						true,  // useSlang
-						sch.verbose,
-					)
-					sch.debug.Debug(
-						"[%s] Compiling CXXRTL Slang sv2v simulator in %s",
-						workerID,
-						cxxrtlSlangWorkDir2,
-					)
-
-					compileCtxSlang2, compileCancelSlang2 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
-					defer compileCancelSlang2()
-
-					if err := cxSlangSim2.Compile(compileCtxSlang2); err != nil {
+					// 5. CXXRTL with Slang sv2v variant
+					cxxrtlSlangWorkDir2 := filepath.Join(baseWorkerDir, "cxxrtl_slang_sim_sv2v")
+					if err := os.MkdirAll(cxxrtlSlangWorkDir2, 0o755); err != nil {
 						sch.debug.Warn(
-							"[%s] CXXRTL Slang sv2v compilation failed in %s: %v",
+							"[%s] Failed to create CXXRTL Slang sv2v directory %s: %v",
 							workerID,
 							cxxrtlSlangWorkDir2,
 							err,
 						)
-						setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL_slang_sv2v compile error: %v", err))
+						setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL_slang_sv2v_mkdir: %v", err))
 					} else {
+						// Use same includeDir determination logic
+						yosysCmd := exec.Command("yosys-config", "--datdir")
+						var yosysOut bytes.Buffer
+						var yosysErr bytes.Buffer
+						yosysCmd.Stdout = &yosysOut
+						yosysCmd.Stderr = &yosysErr
+
+						var includeDir string
+						if err := yosysCmd.Run(); err == nil {
+							yosysDatDir := strings.TrimSpace(yosysOut.String())
+							potentialPath := filepath.Join(
+								yosysDatDir,
+								"include",
+								"backends",
+								"cxxrtl",
+								"runtime",
+							)
+							if _, statErr := os.Stat(potentialPath); statErr == nil {
+								includeDir = potentialPath
+							}
+						}
+
+						cxSlangSim2 := simulator.NewCXXRTLSimulator(
+							cxxrtlSlangWorkDir2,
+							vFile.Name,
+							workerModuleName,
+							includeDir,
+							false, // optimized
+							true,  // useSlang
+							sch.verbose,
+						)
 						sch.debug.Debug(
-							"[%s] Successfully compiled CXXRTL Slang sv2v simulator in %s.",
+							"[%s] Compiling CXXRTL Slang sv2v simulator in %s",
 							workerID,
 							cxxrtlSlangWorkDir2,
 						)
-						compiledSims = append(compiledSims, &SimInstance{
-							Name:      "CXXSL2",
-							Simulator: cxSlangSim2,
-							Prefix:    "cxx2_slang_",
-						})
+
+						compileCtxSlang2, compileCancelSlang2 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
+						defer compileCancelSlang2()
+
+						if err := cxSlangSim2.Compile(compileCtxSlang2); err != nil {
+							sch.debug.Warn(
+								"[%s] CXXRTL Slang sv2v compilation failed in %s: %v",
+								workerID,
+								cxxrtlSlangWorkDir2,
+								err,
+							)
+							setupErrors = append(setupErrors, fmt.Sprintf("CXXRTL_slang_sv2v compile error: %v", err))
+						} else {
+							sch.debug.Debug(
+								"[%s] Successfully compiled CXXRTL Slang sv2v simulator in %s.",
+								workerID,
+								cxxrtlSlangWorkDir2,
+							)
+							compiledSims = append(compiledSims, &SimInstance{
+								Name:      "CXXSL2",
+								Simulator: cxSlangSim2,
+								Prefix:    "cxx2_slang_",
+							})
+						}
 					}
-				}
+				*/
 			}
 		}
 	} else {
