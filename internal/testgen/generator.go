@@ -128,7 +128,8 @@ func (g *Generator) generateSVModuleInstantiation() string {
 
 		for _, param := range g.module.Parameters {
 			// Skip parameters without a name or type qualifiers incorrectly parsed as parameters
-			if param.Name == "" || param.Name == "unsigned" || param.Name == "signed" {
+			if param.Name == "" || param.Name == "unsigned" || param.Name == "signed" ||
+				param.DefaultValue != "" {
 				continue
 			}
 
