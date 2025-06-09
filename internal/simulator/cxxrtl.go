@@ -246,7 +246,6 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 
 	// Use improved timeout mechanism for g++
 	if err := timeoutWithForceKill(ctx, cmdGXX, "g++ compilation"); err != nil {
-		sim.logger.Warn("g++ compilation failed: %v\nStderr: %s", err, stderrGXX.String())
 		return fmt.Errorf("g++ compilation failed: %v - %s", err, stderrGXX.String())
 	}
 
