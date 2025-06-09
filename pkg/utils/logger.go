@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	"golang.org/x/term"
 )
 
 // ANSI color codes
@@ -31,6 +33,7 @@ type DebugLogger struct {
 	verbose   int
 	logger    *log.Logger
 	errLogger *log.Logger
+	isTTY     bool
 }
 
 func NewDebugLogger(verbose int) *DebugLogger {
@@ -40,6 +43,7 @@ func NewDebugLogger(verbose int) *DebugLogger {
 		verbose:   verbose,
 		logger:    customLogger,
 		errLogger: errorLogger,
+		isTTY:     isTTY(),
 	}
 }
 
@@ -55,41 +59,72 @@ func (d *DebugLogger) GetVerboseLevel() int {
 	return d.verbose
 }
 
+func isTTY() bool {
+	return term.IsTerminal(int(os.Stdout.Fd())) || term.IsTerminal(int(os.Stderr.Fd()))
+}
+
+func bold(s string) string {
+	if !isTTY() {
+		return s
+	}
+	return BoldStart + s + BoldEnd
+}
+
+func (d *DebugLogger) genPrint(stderr bool, color string, format string, v ...interface{}) {
+	msg := fmt.Sprintf(" "+format, v...)
+	if d.isTTY {
+		msg = color + msg + ColorReset
+	}
+	if stderr {
+		d.errLogger.Print(msg)
+	} else {
+		d.logger.Print(msg)
+	}
+}
+
+func (d *DebugLogger) printStdOut(color string, format string, v ...interface{}) {
+	d.genPrint(false, color, format, v...)
+}
+
+func (d *DebugLogger) printStdErr(color string, format string, v ...interface{}) {
+	d.genPrint(true, color, format, v...)
+}
+
 func (d *DebugLogger) Debug(format string, v ...interface{}) {
 	if d.verbose >= VerbosityDebug {
-		msg := fmt.Sprintf("%s[+] DEBUG:%s", BoldStart, BoldEnd)
+		msg := bold("[+] DEBUG:")
 		msg += fmt.Sprintf(" "+format, v...)
-		d.logger.Print(ColorGrey + msg + ColorReset)
+		d.printStdOut(ColorGrey, msg)
 	}
 }
 
 func (d *DebugLogger) Info(format string, v ...interface{}) {
 	if d.verbose >= VerbosityInfo {
-		msg := fmt.Sprintf("%s[+] INFO :%s", BoldStart, BoldEnd)
+		msg := bold("[+] INFO :")
 		msg += fmt.Sprintf(" "+format, v...)
-		d.logger.Print(ColorGreen + msg + ColorReset)
+		d.printStdOut(ColorGreen, msg)
 	}
 }
 
 func (d *DebugLogger) Warn(format string, v ...interface{}) {
 	if d.verbose >= VerbosityWarning {
-		msg := fmt.Sprintf("%s[+] WARN :%s", BoldStart, BoldEnd)
+		msg := bold("[+] WARN :")
 		msg += fmt.Sprintf(" "+format, v...)
-		d.logger.Print(ColorYellow + msg + ColorReset)
+		d.printStdOut(ColorYellow, msg)
 	}
 }
 
 func (d *DebugLogger) Error(format string, v ...interface{}) {
 	if d.verbose >= VerbosityError {
-		msg := fmt.Sprintf("%s[+] ERROR:%s", BoldStart, BoldEnd)
+		msg := bold("[+] ERROR:")
 		msg += fmt.Sprintf(" "+format, v...)
-		d.errLogger.Print(ColorRed + msg + ColorReset)
+		d.printStdErr(ColorRed, msg)
 	}
 }
 
 func (d *DebugLogger) Fatal(format string, v ...interface{}) {
-	msg := fmt.Sprintf("%s[+] FATAL:%s", BoldStart, BoldEnd)
+	msg := bold("[+] FATAL:")
 	msg += fmt.Sprintf(" "+format, v...)
-	d.errLogger.Print(ColorRed + msg + ColorReset)
+	d.printStdErr(ColorRed, msg)
 	os.Exit(1)
 }
