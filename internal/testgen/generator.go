@@ -451,9 +451,9 @@ func (g *Generator) GenerateSVTestbench(outputDir string) error {
 	return nil
 }
 
-// getCXXRTLPortType returns a string representation of the C++ type for CXXRTL port access.
-// It now takes the whole port to infer width for types like 'int'.
-func getCXXRTLPortType(port *verilog.Port) string {
+// getCXXRTLTestbenchVarType returns the C++ variable type for testbench variables
+// These are simple C++ types used to hold values before applying them to CXXRTL ports
+func getCXXRTLTestbenchVarType(port *verilog.Port) string {
 	width := port.Width
 
 	// Correct width for specific Verilog types if parser defaults width to 0 or an incorrect value.
@@ -469,7 +469,7 @@ func getCXXRTLPortType(port *verilog.Port) string {
 	if width == 1 {
 		return "bool"
 	}
-	// For multi-bit ports, use CXXRTL value types for wide signals
+	// For multi-bit ports, use standard C++ types
 	switch {
 	case width <= 8:
 		return "uint8_t"
@@ -485,12 +485,70 @@ func getCXXRTLPortType(port *verilog.Port) string {
 	}
 }
 
+// getCXXRTLPortType returns the appropriate CXXRTL type for port access
+// Since CXXRTL can optimize ports to either value<> or wire<> based on analysis,
+// we use a generic approach that works with both
+func getCXXRTLPortType(port *verilog.Port) string {
+	width := port.Width
+
+	// Correct width for specific Verilog types if parser defaults width to 0 or an incorrect value.
+	switch {
+	case port.Type == verilog.INT || port.Type == verilog.INTEGER:
+		width = 32
+	case (port.Type == verilog.LOGIC || port.Type == verilog.BIT || port.Type == verilog.REG || port.Type == verilog.WIRE) && width == 0:
+		width = 1
+	case width == 0:
+		width = 1
+	}
+
+	// Return a generic description - the actual type will be determined by CXXRTL
+	return fmt.Sprintf("cxxrtl_port<%d>", width)
+}
+
+// getCXXRTLAccessMethod returns template-based function name for reading port values
+func getCXXRTLAccessMethod(port *verilog.Port) string {
+	// Return template-based function name for bit access or value access
+	return "_get_port_value"
+}
+
+// getCXXRTLSetMethod returns template-based function name to set port values
+func getCXXRTLSetMethod(port *verilog.Port) string {
+	width := port.Width
+
+	// Correct width for specific Verilog types
+	switch {
+	case port.Type == verilog.INT || port.Type == verilog.INTEGER:
+		width = 32
+	case (port.Type == verilog.LOGIC || port.Type == verilog.BIT || port.Type == verilog.REG || port.Type == verilog.WIRE) && width == 0:
+		width = 1
+	case width == 0:
+		width = 1
+	}
+
+	// Return template-based function name that works with both value<> and wire<>
+	if width == 1 {
+		return "_set_port_value<bool>"
+	}
+	switch {
+	case width <= 8:
+		return "_set_port_value<uint8_t>"
+	case width <= 16:
+		return "_set_port_value<uint16_t>"
+	case width <= 32:
+		return "_set_port_value<uint32_t>"
+	case width <= 64:
+		return "_set_port_value<uint64_t>"
+	default:
+		return "_set_port_value_wide"
+	}
+}
+
 func (g *Generator) generateCXXRTLInputDeclarations() string {
 	var inputDecls strings.Builder
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
-			varDeclType := getCXXRTLPortType(&port) // Pass pointer to port
+			varDeclType := getCXXRTLTestbenchVarType(&port) // Use testbench variable type
 			inputDecls.WriteString(fmt.Sprintf("    %s %s;\n", varDeclType, portName))
 		}
 	}
@@ -504,7 +562,7 @@ func (g *Generator) generateCXXRTLInputReads() string {
 			portName := strings.TrimSpace(port.Name)
 			fileName := fmt.Sprintf("input_%s.hex", portName)
 			cppFilePath := strings.ReplaceAll(fileName, "\\", "\\\\")
-			varDeclType := getCXXRTLPortType(&port)
+			varDeclType := getCXXRTLTestbenchVarType(&port)
 
 			// Determine effective width
 			width := port.Width
@@ -677,21 +735,21 @@ func (g *Generator) generateCXXRTLInputApply(instanceName string) string {
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
-			cppType := getCXXRTLPortType(&port)
 			mangledPortName := cxxrtlManglePortName(portName)
+			setMethod := getCXXRTLSetMethod(&port)
 
-			if strings.HasPrefix(cppType, "cxxrtl::value<") {
-				// Wide signal - use direct assignment
-				inputApply.WriteString(
-					fmt.Sprintf("    %s.%s = %s;\n", instanceName, mangledPortName, portName),
-				)
-			} else {
-				// Standard types - use set method
-				inputApply.WriteString(fmt.Sprintf("    %s.%s.set<%s>(%s);\n", instanceName, mangledPortName, cppType, portName))
-			}
+			inputApply.WriteString(
+				fmt.Sprintf(
+					"    %s(%s.%s, %s);\n",
+					setMethod,
+					instanceName,
+					mangledPortName,
+					portName,
+				),
+			)
 		}
 	}
-	inputApply.WriteString(" // 6. Input application\n")
+	inputApply.WriteString("    // Input application\n")
 	return inputApply.String()
 }
 
@@ -772,55 +830,45 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 
 	for _, clockPort := range clockPortNames {
 		mangledClockPortName := cxxrtlManglePortName(clockPort)
-		// Find the actual port to get its type
-		clockPortType := "bool" // default
+		// Find the actual port to get its set method
+		var setMethodLow string
 		for _, port := range g.module.Ports {
 			if strings.TrimSpace(port.Name) == clockPort {
-				clockPortType = getCXXRTLPortType(&port)
+				setMethodLow = getCXXRTLSetMethod(&port)
 				break
 			}
 		}
 
-		if strings.HasPrefix(clockPortType, "cxxrtl::value<") {
-			// Wide clock signal - use value assignment
-			clockLogic.WriteString(
-				fmt.Sprintf(
-					"        %s.%s = %s{0u};\n",
-					instanceName,
-					mangledClockPortName,
-					clockPortType,
-				),
-			)
-		} else {
-			clockLogic.WriteString(fmt.Sprintf("        %s.%s.set<%s>(false);\n", instanceName, mangledClockPortName, clockPortType))
-		}
+		clockLogic.WriteString(
+			fmt.Sprintf(
+				"        %s(%s.%s, false);\n",
+				setMethodLow,
+				instanceName,
+				mangledClockPortName,
+			),
+		)
 	}
 	clockLogic.WriteString(fmt.Sprintf("        %s.step(); // clock low\n", instanceName))
 
 	for _, clockPort := range clockPortNames {
 		mangledClockPortName := cxxrtlManglePortName(clockPort)
-		// Find the actual port to get its type
-		clockPortType := "bool" // default
+		// Find the actual port to get its set method
+		var setMethodHigh string
 		for _, port := range g.module.Ports {
 			if strings.TrimSpace(port.Name) == clockPort {
-				clockPortType = getCXXRTLPortType(&port)
+				setMethodHigh = getCXXRTLSetMethod(&port)
 				break
 			}
 		}
 
-		if strings.HasPrefix(clockPortType, "cxxrtl::value<") {
-			// Wide clock signal - use value assignment
-			clockLogic.WriteString(
-				fmt.Sprintf(
-					"        %s.%s = %s{1u};\n",
-					instanceName,
-					mangledClockPortName,
-					clockPortType,
-				),
-			)
-		} else {
-			clockLogic.WriteString(fmt.Sprintf("        %s.%s.set<%s>(true);\n", instanceName, mangledClockPortName, clockPortType))
-		}
+		clockLogic.WriteString(
+			fmt.Sprintf(
+				"        %s(%s.%s, true);\n",
+				setMethodHigh,
+				instanceName,
+				mangledClockPortName,
+			),
+		)
 	}
 	clockLogic.WriteString(fmt.Sprintf("        %s.step(); // clock high\n", instanceName))
 	clockLogic.WriteString("    }\n")
@@ -868,8 +916,8 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string) string {
 
 			// Determine the width for writing logic
 			effectiveWidth := port.Width
-			cppType := getCXXRTLPortType(&port)
 			mangledPortName := cxxrtlManglePortName(portName)
+			accessMethod := getCXXRTLAccessMethod(&port)
 
 			if port.Type == verilog.INT || port.Type == verilog.INTEGER {
 				effectiveWidth = 32
@@ -877,56 +925,31 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string) string {
 				effectiveWidth = 1
 			}
 
-			switch {
-			case strings.HasPrefix(cppType, "cxxrtl::value<"):
-				// Wide signal - access the port directly, write MSB to LSB to match other simulators
+			// Use template-based helper to get port value and write bits MSB to LSB
+			if effectiveWidth > 1 {
 				outputWrites.WriteString(
 					fmt.Sprintf("    for (int i = %d; i >= 0; --i) {\n", effectiveWidth-1),
 				)
 				outputWrites.WriteString(
 					fmt.Sprintf(
-						"        %s_file << (%s.%s.bit(i) ? '1' : '0');\n",
+						"        %s_file << (%s(%s.%s, i) ? '1' : '0');\n",
 						portName,
+						accessMethod,
 						instanceName,
 						mangledPortName,
 					),
 				)
 				outputWrites.WriteString("    }\n")
 				outputWrites.WriteString(fmt.Sprintf("    %s_file << std::endl;\n", portName))
-			case effectiveWidth > 1:
-				// Multi-bit standard types
-				outputWrites.WriteString(
-					fmt.Sprintf(
-						"    %s value_%s = %s.%s.get<%s>();\n",
-						cppType,
-						portName,
-						instanceName,
-						mangledPortName,
-						cppType,
-					),
-				)
-				outputWrites.WriteString(
-					fmt.Sprintf("    for (int i = %d; i >= 0; i--) {\n", effectiveWidth-1),
-				)
-				outputWrites.WriteString(
-					fmt.Sprintf("        %s_file << ((value_%s >> i) & 1);\n", portName, portName),
-				)
-				outputWrites.WriteString("    }\n")
-				outputWrites.WriteString(
-					fmt.Sprintf(
-						"    %s_file << std::endl; // Add a newline at the end of the bit string\n",
-						portName,
-					),
-				)
-			default:
+			} else {
 				// Single-bit ports
 				outputWrites.WriteString(
 					fmt.Sprintf(
-						"    %s_file << (%s.%s.get<%s>() ? 1 : 0) << std::endl;\n",
+						"    %s_file << (%s(%s.%s, 0) ? '1' : '0') << std::endl;\n",
 						portName,
+						accessMethod,
 						instanceName,
 						mangledPortName,
-						cppType,
 					),
 				)
 			}
