@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec" // Added for running yosys-config
 	"path/filepath"
@@ -469,7 +470,9 @@ func (sch *Scheduler) setupSimulators(
 				sch.debug.Warn("[%s] Failed to parse .v file %s: %v", workerID, vFilePath, err)
 			} else {
 				vFile.Name = vFileName
-				/*
+
+				switch rand.Intn(5) {
+				case 0:
 					// 1. Icarus Verilog sv2v variant
 					ivWorkDir2 := filepath.Join(baseWorkerDir, "icarus_sv2v") // Use different directory
 					if err := os.MkdirAll(ivWorkDir2, 0o755); err != nil {
@@ -510,6 +513,7 @@ func (sch *Scheduler) setupSimulators(
 						}
 					}
 
+				case 1:
 					// 2. Verilator O0 sv2v variant
 					vlO0WorkDir2 := filepath.Join(baseWorkerDir, "vl_O0_sv2v")
 					if err := os.MkdirAll(vlO0WorkDir2, 0o755); err != nil {
@@ -545,44 +549,44 @@ func (sch *Scheduler) setupSimulators(
 							})
 						}
 					}
-				*/
 
-				// 3. Verilator O3 sv2v variant
-				vlO3WorkDir2 := filepath.Join(baseWorkerDir, "vl_O3_sv2v")
-				if err := os.MkdirAll(vlO3WorkDir2, 0o755); err != nil {
-					sch.debug.Warn(
-						"[%s] Failed to create Verilator O3 sv2v directory %s: %v",
-						workerID,
-						vlO3WorkDir2,
-						err,
-					)
-					setupErrors = append(setupErrors, fmt.Sprintf("verilator_O3_sv2v_mkdir: %v", err))
-				} else {
-					vlsim3_2 := simulator.NewVerilatorSimulator(
-						vlO3WorkDir2,
-						vFile,
-						workerModuleName,
-						true,
-						sch.verbose,
-					)
-					sch.debug.Debug("[%s] Compiling Verilator O3 sv2v simulator in %s", workerID, vlO3WorkDir2)
-
-					compileCtx3_2, compileCancel3_2 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
-					defer compileCancel3_2()
-
-					if err := vlsim3_2.Compile(compileCtx3_2); err != nil {
-						sch.debug.Warn("[%s] Failed to compile Verilator O3 sv2v: %v", workerID, err)
-						setupErrors = append(setupErrors, fmt.Sprintf("verilator_O3_sv2v: %v", err))
+				case 2:
+					// 3. Verilator O3 sv2v variant
+					vlO3WorkDir2 := filepath.Join(baseWorkerDir, "vl_O3_sv2v")
+					if err := os.MkdirAll(vlO3WorkDir2, 0o755); err != nil {
+						sch.debug.Warn(
+							"[%s] Failed to create Verilator O3 sv2v directory %s: %v",
+							workerID,
+							vlO3WorkDir2,
+							err,
+						)
+						setupErrors = append(setupErrors, fmt.Sprintf("verilator_O3_sv2v_mkdir: %v", err))
 					} else {
-						sch.debug.Debug("[%s] Verilator O3 sv2v compiled successfully.", workerID)
-						compiledSims = append(compiledSims, &SimInstance{
-							Name:      "vtor23",
-							Simulator: vlsim3_2,
-							Prefix:    "vl23_",
-						})
+						vlsim3_2 := simulator.NewVerilatorSimulator(
+							vlO3WorkDir2,
+							vFile,
+							workerModuleName,
+							true,
+							sch.verbose,
+						)
+						sch.debug.Debug("[%s] Compiling Verilator O3 sv2v simulator in %s", workerID, vlO3WorkDir2)
+
+						compileCtx3_2, compileCancel3_2 := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
+						defer compileCancel3_2()
+
+						if err := vlsim3_2.Compile(compileCtx3_2); err != nil {
+							sch.debug.Warn("[%s] Failed to compile Verilator O3 sv2v: %v", workerID, err)
+							setupErrors = append(setupErrors, fmt.Sprintf("verilator_O3_sv2v: %v", err))
+						} else {
+							sch.debug.Debug("[%s] Verilator O3 sv2v compiled successfully.", workerID)
+							compiledSims = append(compiledSims, &SimInstance{
+								Name:      "vtor23",
+								Simulator: vlsim3_2,
+								Prefix:    "vl23_",
+							})
+						}
 					}
-				}
-				/*
+				case 3:
 					// 4. CXXRTL sv2v variant
 					cxxrtlWorkDir2 := filepath.Join(baseWorkerDir, "cxxrtl_sim_sv2v")
 					if err := os.MkdirAll(cxxrtlWorkDir2, 0o755); err != nil {
@@ -651,7 +655,7 @@ func (sch *Scheduler) setupSimulators(
 							})
 						}
 					}
-
+				case 4:
 					// 5. CXXRTL with Slang sv2v variant
 					cxxrtlSlangWorkDir2 := filepath.Join(baseWorkerDir, "cxxrtl_slang_sim_sv2v")
 					if err := os.MkdirAll(cxxrtlSlangWorkDir2, 0o755); err != nil {
@@ -724,7 +728,7 @@ func (sch *Scheduler) setupSimulators(
 							})
 						}
 					}
-				*/
+				}
 			}
 		}
 	} else {
