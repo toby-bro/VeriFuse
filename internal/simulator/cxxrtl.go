@@ -207,7 +207,6 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 
 	// Use improved timeout mechanism
 	if err := timeoutWithForceKill(ctx, cmdYosys, "yosys conversion"); err != nil {
-		sim.logger.Warn("Yosys command failed: %v\nStderr: %s", err, stderrYosys.String())
 		return fmt.Errorf("yosys conversion failed: %v - %s", err, stderrYosys.String())
 	}
 	sim.logger.Debug("Yosys conversion successful. Output: %s", yosysOutputCCFile)
