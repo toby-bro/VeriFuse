@@ -219,7 +219,7 @@ var generalVariableRegex = regexp.MustCompile(
 	),
 )
 
-var scopeChangeRegex = regexp.MustCompile(`(function|task|always|class)`)
+var scopeChangeRegex = regexp.MustCompile(`(function|task|always|class|clocking)`)
 
 // ===============================================
 // Advanced SystemVerilog Construct Regex Patterns
@@ -288,7 +288,7 @@ var coverStatementRegex = regexp.MustCompile(
 	`(?s)(?:^|\s)cover\s*\((.*?)\)(?:\s*;)?`,
 )
 
-// Interface modport patterns for interface port declarations  
+// Interface modport patterns for interface port declarations
 var modportRegex = regexp.MustCompile(
 	`(?s)(?:^|\s)modport\s+(\w+)\s*\((.*?)\)\s*;`,
 )
@@ -409,7 +409,7 @@ var programBlockRegex = regexp.MustCompile(
 )
 
 // ===============================================
-// End of Advanced SystemVerilog Construct Patterns  
+// End of Advanced SystemVerilog Construct Patterns
 // ===============================================
 
 func MatchAllModulesFromString(content string) [][]string {
@@ -2086,7 +2086,7 @@ func (v *VerilogFile) ParsePackages(content string) error {
 			Body:       bodyStr,
 			Typedefs:   []string{},
 			Imports:    []string{},
-					Variables:  []*Variable{},
+			Variables:  []*Variable{},
 			Parameters: []Parameter{},
 		}
 
