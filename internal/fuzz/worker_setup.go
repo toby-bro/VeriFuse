@@ -173,16 +173,8 @@ func (sch *Scheduler) performWorkerAttempt(
 			err,
 		)
 	}
-
-	// Check if CXXRTL is intended to be used and generate its testbench
-	for _, sim_dir := range []string{"cxxrtl_sim", "cxxrtl_slang_sim", "cxxrtl_sim_sv2v", "cxxrtl_slang_sim_sv2v"} {
-		cxxrtlSimDir := filepath.Join(workerDir, sim_dir)
-		if err := os.MkdirAll(cxxrtlSimDir, 0o755); err != nil {
-			return false, fmt.Errorf("[%s] failed to create cxxrtl_sim dir: %w", workerID, err)
-		}
-		if err := gen.GenerateCXXRTLTestbench(cxxrtlSimDir); err != nil { // Pass cxxrtlSimDir
-			return false, fmt.Errorf("[%s] failed to generate CXXRTL testbench: %w", workerID, err)
-		}
+	if err := gen.GenerateCXXRTLTestbench(workerDir); err != nil { // Pass cxxrtlSimDir
+		return false, fmt.Errorf("[%s] failed to generate CXXRTL testbench: %w", workerID, err)
 	}
 
 	sch.debug.Debug("[%s] Testbenches generated.", workerID)
@@ -381,6 +373,11 @@ func (sch *Scheduler) setupCXXRTLSimulator(
 		false, // optimized
 		useSlang,
 		sch.verbose,
+	)
+
+	utils.CopyFile(
+		filepath.Join(baseWorkerDir, "testbench.cpp"),
+		filepath.Join(workDir, "testbench.cpp"),
 	)
 
 	if err := sch.compileSimulatorWithTimeout(ctx, workerID, cxsim, config); err != nil {
