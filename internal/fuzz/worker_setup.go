@@ -233,20 +233,12 @@ func (sch *Scheduler) performWorkerAttempt(
 	return true, nil
 }
 
-// SimulatorConfig holds configuration for a simulator type
-type SimulatorConfig struct {
-	Name      string
-	WorkDir   string
-	Prefix    string
-	ErrorName string
-}
-
 // compileSimulatorWithTimeout is a helper function that handles compilation with timeout
 func (sch *Scheduler) compileSimulatorWithTimeout(
 	ctx context.Context,
 	workerID string,
 	sim simulator.Simulator,
-	config SimulatorConfig,
+	config simulator.Config,
 ) error {
 	compileCtx, compileCancel := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
 	defer compileCancel()
@@ -305,7 +297,7 @@ func (sch *Scheduler) getCXXRTLIncludeDir(workerID string) string {
 func (sch *Scheduler) setupIVerilogSimulator(
 	ctx context.Context,
 	workerID, baseWorkerDir string,
-	config SimulatorConfig,
+	config simulator.Config,
 ) (*SimInstance, error) {
 	workDir := baseWorkerDir
 	if config.WorkDir != "" {
@@ -330,7 +322,7 @@ func (sch *Scheduler) setupVerilatorSimulator(
 	workerID, baseWorkerDir, workerModuleName string,
 	svFile *verilog.VerilogFile,
 	optimized bool,
-	config SimulatorConfig,
+	config simulator.Config,
 ) (*SimInstance, error) {
 	workDir := filepath.Join(baseWorkerDir, config.WorkDir)
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
@@ -358,7 +350,7 @@ func (sch *Scheduler) setupCXXRTLSimulator(
 	workerID, baseWorkerDir, workerModuleName string,
 	verilogFileName, includeDir string,
 	useSlang bool,
-	config SimulatorConfig,
+	config simulator.Config,
 ) (*SimInstance, error) {
 	workDir := filepath.Join(baseWorkerDir, config.WorkDir)
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
@@ -413,12 +405,12 @@ func (sch *Scheduler) setupSimulators(
 		{
 			name: "IVerilog",
 			setupFunc: func() (*SimInstance, error) {
-				return sch.setupIVerilogSimulator(ctx, workerID, baseWorkerDir, SimulatorConfig{
-					Name:      "icarus",
-					WorkDir:   "icarus",
-					Prefix:    "iv_",
-					ErrorName: "iverilog",
-				})
+				return sch.setupIVerilogSimulator(
+					ctx,
+					workerID,
+					baseWorkerDir,
+					simulator.CommonConfigs.IVerilog,
+				)
 			},
 		},
 		// 2. Verilator O0
@@ -432,12 +424,7 @@ func (sch *Scheduler) setupSimulators(
 					workerModuleName,
 					svFileToCompile,
 					false,
-					SimulatorConfig{
-						Name:      "vtor01",
-						WorkDir:   "vl_O0",
-						Prefix:    "vl01_",
-						ErrorName: "verilator_O0",
-					},
+					simulator.CommonConfigs.VerilatorO0,
 				)
 			},
 		},
@@ -452,12 +439,7 @@ func (sch *Scheduler) setupSimulators(
 					workerModuleName,
 					svFileToCompile,
 					true,
-					SimulatorConfig{
-						Name:      "vtor31",
-						WorkDir:   "vl_O3",
-						Prefix:    "vl31_",
-						ErrorName: "verilator_O3",
-					},
+					simulator.CommonConfigs.VerilatorO3,
 				)
 			},
 		},
@@ -473,12 +455,7 @@ func (sch *Scheduler) setupSimulators(
 					svFileToCompile.Name,
 					includeDir,
 					false,
-					SimulatorConfig{
-						Name:      "CXXRTL",
-						WorkDir:   "cxxrtl_sim",
-						Prefix:    "cxx_vanilla_",
-						ErrorName: "CXXRTL",
-					},
+					simulator.CommonConfigs.CXXRTL,
 				)
 			},
 		},
@@ -494,12 +471,7 @@ func (sch *Scheduler) setupSimulators(
 					svFileToCompile.Name,
 					includeDir,
 					true,
-					SimulatorConfig{
-						Name:      "CXXSLG",
-						WorkDir:   "cxxrtl_slang_sim",
-						Prefix:    "cxx_slang_",
-						ErrorName: "CXXRTL (Slang)",
-					},
+					simulator.CommonConfigs.CXXRTLSlang,
 				)
 			},
 		},
@@ -599,12 +571,12 @@ func (sch *Scheduler) setupSV2VVariants(
 					return nil, fmt.Errorf("iverilog_sv2v_copy: %v", err)
 				}
 
-				return sch.setupIVerilogSimulator(ctx, workerID, baseWorkerDir, SimulatorConfig{
-					Name:      "icaru2",
-					WorkDir:   "icarus_sv2v",
-					Prefix:    "iv2_",
-					ErrorName: "iverilog_sv2v",
-				})
+				return sch.setupIVerilogSimulator(
+					ctx,
+					workerID,
+					baseWorkerDir,
+					simulator.CommonConfigs.IVerilogSV2V,
+				)
 			},
 		},
 		{
@@ -617,12 +589,7 @@ func (sch *Scheduler) setupSV2VVariants(
 					workerModuleName,
 					vFile,
 					false,
-					SimulatorConfig{
-						Name:      "vtor20",
-						WorkDir:   "vl_O0_sv2v",
-						Prefix:    "vl20_",
-						ErrorName: "verilator_O0_sv2v",
-					},
+					simulator.CommonConfigs.VerilatorO0SV2V,
 				)
 			},
 		},
@@ -636,12 +603,7 @@ func (sch *Scheduler) setupSV2VVariants(
 					workerModuleName,
 					vFile,
 					true,
-					SimulatorConfig{
-						Name:      "vtor23",
-						WorkDir:   "vl_O3_sv2v",
-						Prefix:    "vl23_",
-						ErrorName: "verilator_O3_sv2v",
-					},
+					simulator.CommonConfigs.VerilatorO3SV2V,
 				)
 			},
 		},
@@ -656,12 +618,7 @@ func (sch *Scheduler) setupSV2VVariants(
 					vFile.Name,
 					includeDir,
 					false,
-					SimulatorConfig{
-						Name:      "CXXRT2",
-						WorkDir:   "cxxrtl_sim_sv2v",
-						Prefix:    "cxx2_vanilla_",
-						ErrorName: "CXXRTL_sv2v",
-					},
+					simulator.CommonConfigs.CXXRTLSV2V,
 				)
 			},
 		},
@@ -676,12 +633,7 @@ func (sch *Scheduler) setupSV2VVariants(
 					vFile.Name,
 					includeDir,
 					true,
-					SimulatorConfig{
-						Name:      "CXXSL2",
-						WorkDir:   "cxxrtl_slang_sim_sv2v",
-						Prefix:    "cxx2_slang_",
-						ErrorName: "CXXRTL_slang_sv2v",
-					},
+					simulator.CommonConfigs.CXXRTLSlangSV2V,
 				)
 			},
 		},
