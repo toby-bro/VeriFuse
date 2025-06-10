@@ -155,6 +155,7 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 		"-Wno-DECLFILENAME",
 		"-Wno-MULTIDRIVEN",
 		"-Wno-NOLATCH",
+		"-Wno-LATCH", // added for the sv2v compatibility
 		"-Wno-UNDRIVEN",
 		"-Wno-UNOPTFLAT",
 		"-Wno-UNUSED",
