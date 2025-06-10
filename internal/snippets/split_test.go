@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
 func TestWriteFileAsSnippets(t *testing.T) {

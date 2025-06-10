@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
-	"github.com/toby-bro/pfuzz/internal/verilog"
+	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
 func (sch *Scheduler) processTestCases(

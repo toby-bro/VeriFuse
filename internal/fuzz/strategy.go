@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/toby-bro/pfuzz/internal/verilog"
+	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
 type Strategy interface {
