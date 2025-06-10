@@ -4522,3 +4522,29 @@ func TestSystemVerilogPatternsWithRealFiles(t *testing.T) {
 // ===============================================
 // End of Tests for Advanced SystemVerilog Construct Patterns
 // ===============================================
+
+func TestParseTransFuzzFile(t *testing.T) {
+	// skip this test
+	t.Skip("Skipping local only test")
+	fmt.Printf("Modules regex, \n%s\n", generalModuleRegex.String())
+	fmt.Printf("Classes regex, \n%s\n", generalClassRegex.String())
+	rootDir, err := utils.GetRootDir()
+	if err != nil {
+		t.Fatalf("Failed to get root directory: %v", err)
+	}
+	filename := filepath.Join(
+		rootDir,
+		"isolated/V3Unknown/HandleOutOfBoundsWrite.sv",
+	)
+	fileContent, err := utils.ReadFileContent(filename)
+	if err != nil {
+		t.Fatalf("Failed to read file content from %s", filename)
+	}
+	svFile, err := ParseVerilog(fileContent, 5)
+	if err != nil {
+		t.Fatalf("Failed to parse file content from %s", filename)
+	}
+	if svFile.DependencyMap == nil {
+		t.Fatalf("Failed to parse dependancy map from %s", filename)
+	}
+}
