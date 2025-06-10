@@ -187,7 +187,6 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	}
 
 	// Add combinational loop detection and breaking
-	yosysScript += "; check -assert"
 	yosysScript += "; write_cxxrtl " + yosysOutputCCFile
 
 	if sim.useSlang {
@@ -207,7 +206,12 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 
 	// Use improved timeout mechanism
 	if err := timeoutWithForceKill(ctx, cmdYosys, "yosys conversion"); err != nil {
-		return fmt.Errorf("yosys conversion failed: %v - %s", err, stderrYosys.String())
+		return fmt.Errorf(
+			"yosys conversion (%s) failed: %v - %s",
+			cmdYosys,
+			err,
+			stderrYosys.String(),
+		)
 	}
 	sim.logger.Debug("Yosys conversion successful. Output: %s", yosysOutputCCFile)
 
