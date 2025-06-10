@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
-	"github.com/toby-bro/pfuzz/internal/testgen"
+	"github.com/toby-bro/pfuzz/pkg/testgen"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
