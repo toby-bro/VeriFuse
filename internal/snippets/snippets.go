@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
 type Snippet struct {

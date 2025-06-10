@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
 // TestbenchConfig holds configuration for safe testbench generation

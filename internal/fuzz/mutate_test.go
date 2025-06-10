@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/toby-bro/pfuzz/internal/snippets"
-	"github.com/toby-bro/pfuzz/internal/verilog"
 	"github.com/toby-bro/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
 func TestMain(m *testing.M) {

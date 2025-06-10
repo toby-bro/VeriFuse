@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/toby-bro/pfuzz/internal/verilog"
+	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
 // TestSnippetPackageDependencyResolution tests that package dependencies are properly included in generated snippets
