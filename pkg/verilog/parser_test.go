@@ -2610,7 +2610,8 @@ endinterface`,
     input addr,
     input we,
     input re,
-    inout data
+    inout data,
+	output ready
   );
   
   modport monitor (
@@ -2632,7 +2633,6 @@ endinterface`,
 							{Name: "data", Direction: INOUT},
 							{Name: "we", Direction: OUTPUT},
 							{Name: "re", Direction: OUTPUT},
-							{Name: "ready", Direction: INPUT},
 						},
 					},
 					{
@@ -2662,7 +2662,33 @@ endinterface`,
 					{Name: "re", Type: LOGIC, Width: 0},
 					{Name: "ready", Type: LOGIC, Width: 0},
 				},
-				Body:        "  logic [31:0] addr;\n  logic [31:0] data;\n  logic we;\n  logic re;\n  logic ready;\n  \n  modport master (\n    output addr,\n    output we,\n    output re,\n    inout data\n  );\n  \n  modport slave (\n    input addr,\n    inout data,\n    input we,\n    input re,\n    output ready\n  );\n  \n  modport monitor (\n    input addr,\n    input data,\n    input we,\n    input re\n  );",
+				Body: `  logic [31:0] addr;
+  logic [31:0] data;
+  logic we;
+  logic re;
+  logic ready;
+  
+  modport master (
+    output addr,
+    output we,
+    output re,
+    inout data
+  );
+  
+  modport slave (
+    input addr,
+    input we,
+    input re,
+    inout data,
+	output ready
+  );
+  
+  modport monitor (
+    input addr,
+    input data,
+    input we,
+    input re
+  );`,
 				IsVirtual:   false,
 				ExtendsFrom: "",
 			},
@@ -2857,6 +2883,31 @@ endinterface`,
 					tc.expectedInterface.ExtendsFrom,
 				)
 			}
+			// sort modports for consistent comparison
+			sort.Slice(parsedInterface.ModPorts, func(i, j int) bool {
+				return parsedInterface.ModPorts[i].Name < parsedInterface.ModPorts[j].Name
+			})
+			sort.Slice(tc.expectedInterface.ModPorts, func(i, j int) bool {
+				return tc.expectedInterface.ModPorts[i].Name < tc.expectedInterface.ModPorts[j].Name
+			})
+
+			// sort the ports for consistent comparison
+			sort.Slice(parsedInterface.Ports, func(i, j int) bool {
+				return parsedInterface.Ports[i].Name < parsedInterface.Ports[j].Name
+			})
+			sort.Slice(tc.expectedInterface.Ports, func(i, j int) bool {
+				return tc.expectedInterface.Ports[i].Name < tc.expectedInterface.Ports[j].Name
+			})
+
+			// sort modport signals for consistent comparison
+			for i := range parsedInterface.ModPorts {
+				sort.Slice(parsedInterface.ModPorts[i].Signals, func(a, b int) bool {
+					return parsedInterface.ModPorts[i].Signals[a].Name < parsedInterface.ModPorts[i].Signals[b].Name
+				})
+				sort.Slice(tc.expectedInterface.ModPorts[i].Signals, func(a, b int) bool {
+					return tc.expectedInterface.ModPorts[i].Signals[a].Name < tc.expectedInterface.ModPorts[i].Signals[b].Name
+				})
+			}
 
 			// Check ports
 			if len(parsedInterface.Ports) != len(tc.expectedInterface.Ports) {
@@ -2901,7 +2952,7 @@ endinterface`,
 				for i, modport := range parsedInterface.ModPorts {
 					expectedModport := tc.expectedInterface.ModPorts[i]
 					if !reflect.DeepEqual(modport, expectedModport) {
-						t.Errorf("Interface modport[%d] = %+v, want %+v", i, modport, expectedModport)
+						t.Errorf("Interface modport[%d] = \n%+v, \nwant \n%+v", i, modport, expectedModport)
 					}
 				}
 			}
@@ -2918,7 +2969,7 @@ endinterface`,
 			expectedBody := strings.TrimSpace(tc.expectedInterface.Body)
 			actualBody := strings.TrimSpace(parsedInterface.Body)
 			if actualBody != expectedBody {
-				t.Errorf("Interface body = %q, want %q", actualBody, expectedBody)
+				t.Errorf("Interface body = \n%q\n, want \n%q", actualBody, expectedBody)
 			}
 
 			// Check variables
@@ -3598,8 +3649,12 @@ endmodule
 	}
 
 	for _, module := range svFile.Modules {
-		if module.Name != "test_module_with_instantiation" && module.Name != "test_module_with_interface_port" {
-			t.Errorf("Expected module name 'test_module_with_instantiation' or 'test_module_with_interface_port', got '%s'", module.Name)
+		if module.Name != "test_module_with_instantiation" &&
+			module.Name != "test_module_with_interface_port" {
+			t.Errorf(
+				"Expected module name 'test_module_with_instantiation' or 'test_module_with_interface_port', got '%s'",
+				module.Name,
+			)
 		}
 	}
 
@@ -3940,8 +3995,13 @@ endmodule`
 		t.Error("Expected to find property definitions")
 	}
 
-	t.Logf("Found %d assert properties, %d assume properties, %d cover properties, %d restrict properties",
-		len(assertProps), len(assumeProps), len(coverProps), len(restrictProps))
+	t.Logf(
+		"Found %d assert properties, %d assume properties, %d cover properties, %d restrict properties",
+		len(assertProps),
+		len(assumeProps),
+		len(coverProps),
+		len(restrictProps),
+	)
 	t.Logf("Found %d assert statements, %d assume statements, %d cover statements",
 		len(assertStmts), len(assumeStmts), len(coverStmts))
 	t.Logf("Found %d property definitions", len(properties))
@@ -4066,7 +4126,7 @@ endmodule`
 		found := false
 		for _, actual := range foundModports {
 			if actual == expected {
-							found = true
+				found = true
 				break
 			}
 		}
@@ -4263,8 +4323,16 @@ endpackage`
 		t.Error("Expected to find DPI task exports")
 	}
 
-	t.Logf("Found %d DPI function imports, %d DPI task imports", len(dpiImports), len(dpiTaskImports))
-	t.Logf("Found %d DPI function exports, %d DPI task exports", len(dpiExports), len(dpiTaskExports))
+	t.Logf(
+		"Found %d DPI function imports, %d DPI task imports",
+		len(dpiImports),
+		len(dpiTaskImports),
+	)
+	t.Logf(
+		"Found %d DPI function exports, %d DPI task exports",
+		len(dpiExports),
+		len(dpiTaskExports),
+	)
 }
 
 func TestSystemVerilogConstraintPatterns(t *testing.T) {
@@ -4357,7 +4425,7 @@ endmodule`
 	}
 
 	t.Logf("Found %d package import statements", len(packageImports))
-	
+
 	// Verify some expected imports are found
 	importFound := false
 	for _, match := range packageImports {
@@ -4383,19 +4451,24 @@ func TestSystemVerilogPatternsWithRealFiles(t *testing.T) {
 		}
 
 		contentStr := string(content)
-		
+
 		// Test assertion patterns
 		assertProps := MatchAssertPropertiesFromString(contentStr)
 		properties := MatchPropertiesFromString(contentStr)
-		
-		t.Logf("Real file test - assert_module.sv: Found %d assert properties, %d property definitions",
-			len(assertProps), len(properties))
-		
+
+		t.Logf(
+			"Real file test - assert_module.sv: Found %d assert properties, %d property definitions",
+			len(assertProps),
+			len(properties),
+		)
+
 		if len(assertProps) == 0 && len(properties) == 0 {
-			t.Log("Note: No assertion patterns found in assert_module.sv - file may use different syntax")
+			t.Log(
+				"Note: No assertion patterns found in assert_module.sv - file may use different syntax",
+			)
 		}
 	}
-	
+
 	// Test with V3Assert files which contain various SystemVerilog constructs
 	v3AssertFiles := []string{
 		"/home/jns/Documents/Berkeley/pfuzz/isolated/V3Assert/assert_property_mod.sv",
@@ -4403,12 +4476,12 @@ func TestSystemVerilogPatternsWithRealFiles(t *testing.T) {
 		"/home/jns/Documents/Berkeley/pfuzz/isolated/V3Assert/assume_property_mod.sv",
 		"/home/jns/Documents/Berkeley/pfuzz/isolated/V3Assert/case_pragmas_mod.sv",
 	}
-	
+
 	totalAssertProps := 0
 	totalCoverProps := 0
 	totalAssumeProps := 0
 	totalPragmas := 0
-	
+
 	for _, filePath := range v3AssertFiles {
 		if _, err := os.Stat(filePath); err == nil {
 			content, err := os.ReadFile(filePath)
@@ -4418,22 +4491,30 @@ func TestSystemVerilogPatternsWithRealFiles(t *testing.T) {
 			}
 
 			contentStr := string(content)
-			
+
 			assertProps := MatchAssertPropertiesFromString(contentStr)
 			coverProps := MatchCoverPropertiesFromString(contentStr)
 			assumeProps := MatchAssumePropertiesFromString(contentStr)
 			pragmas := MatchPragmasFromString(contentStr)
-			
+
 			totalAssertProps += len(assertProps)
 			totalCoverProps += len(coverProps)
 			totalAssumeProps += len(assumeProps)
 			totalPragmas += len(pragmas)
-			
-			t.Logf("Real file test - %s: Found %d assert, %d cover, %d assume properties, %d pragmas",
-				filepath.Base(filePath), len(assertProps), len(coverProps), len(assumeProps), len(pragmas))
+
+			t.Logf(
+				"Real file test - %s: Found %d assert, %d cover, %d assume properties, %d pragmas",
+				filepath.Base(
+					filePath,
+				),
+				len(assertProps),
+				len(coverProps),
+				len(assumeProps),
+				len(pragmas),
+			)
 		}
 	}
-	
+
 	t.Logf("Total across V3Assert files: %d assert, %d cover, %d assume properties, %d pragmas",
 		totalAssertProps, totalCoverProps, totalAssumeProps, totalPragmas)
 }
