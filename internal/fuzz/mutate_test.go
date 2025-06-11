@@ -108,73 +108,6 @@ endmodule
 `
 )
 
-func TestAddCodeToSnippet(t *testing.T) {
-	modifiedSnippet, err := AddCodeToSnippet(originalWithCodeLines, snippetWithInjectMarker)
-	if strings.Contains(err.Error(), "AddCodeToSnippet not implemented yet") {
-		t.Skipf("AddCodeToSnippet not implemented yet: %v", err)
-	}
-	if err != nil {
-		t.Fatalf("AddCodeToSnippet failed: %v", err)
-	}
-
-	if strings.Contains(modifiedSnippet, "//INJECT") {
-		t.Errorf("Modified snippet still contains '//INJECT' marker")
-	}
-
-	line1Part := "assign x = a & 1'b1;"
-	line2Part := "if (a) begin"
-	foundInjectedCode := strings.Contains(modifiedSnippet, line1Part) ||
-		strings.Contains(modifiedSnippet, line2Part)
-
-	if !foundInjectedCode {
-		t.Errorf("Modified snippet does not seem to contain injected code lines")
-	}
-
-	if !strings.Contains(modifiedSnippet, "module GGG_always_comb (") {
-		t.Errorf("Modified snippet missing original module definition")
-	}
-	if !strings.Contains(modifiedSnippet, "GGGout = GGGin;") {
-		t.Errorf("Modified snippet missing original assignment 'GGGout = GGGin;'")
-	}
-
-	originalNoCode := `
-module SourceModule ( input a, output b );
-    // only comments
-    // and declarations
-    input x;
-    output y;
-endmodule
-`
-	modifiedSnippetNoCode, err := AddCodeToSnippet(originalNoCode, snippetWithInjectMarker)
-	if err != nil {
-		t.Fatalf("AddCodeToSnippet failed for no-code case: %v", err)
-	}
-	if strings.Contains(modifiedSnippetNoCode, "//INJECT") {
-		t.Errorf("Modified snippet (no code case) still contains '//INJECT' marker")
-	}
-	if strings.Contains(modifiedSnippetNoCode, "only comments") ||
-		strings.Contains(modifiedSnippetNoCode, "input x") {
-		t.Errorf("Modified snippet (no code case) incorrectly injected comments or declarations")
-	}
-	expectedNoCode := `
-module GGG_always_comb (
-    input logic GGGin,
-    output logic GGGout
-);
-    always_comb begin
-        
-        GGGout = GGGin;
-    end
-endmodule
-`
-	normalize := func(s string) string {
-		return strings.Join(strings.Fields(s), " ")
-	}
-	if normalize(modifiedSnippetNoCode) != normalize(expectedNoCode) {
-		t.Errorf("Modified snippet (no code case) structure differs from expected.")
-	}
-}
-
 func TestMatchVariablesToSnippetPorts(t *testing.T) {
 	moduleContent := `
 module TestModule (
@@ -293,7 +226,7 @@ endmodule
 		ParentFile: snippetFile,
 	}
 
-	err = injectSnippetInModule(module, snippet)
+	err = injectSnippetInModule(module, snippet, false)
 	if err != nil {
 		t.Fatalf("injectSnippetInModule failed: %v", err)
 	}

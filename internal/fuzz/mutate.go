@@ -1,7 +1,6 @@
 package fuzz
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -20,7 +19,11 @@ func loadLogger(v int) {
 	}
 }
 
-func injectSnippetInModule(targetModule *verilog.Module, snippet *snippets.Snippet) error {
+func injectSnippetInModule(
+	targetModule *verilog.Module,
+	snippet *snippets.Snippet,
+	inject bool,
+) error {
 	_, scopeTree, err := verilog.ParseVariables(
 		snippet.ParentFile,
 		targetModule.Body,
@@ -64,11 +67,17 @@ func injectSnippetInModule(targetModule *verilog.Module, snippet *snippets.Snipp
 		return fmt.Errorf("failed to ensure output port for snippet: %v", err)
 	}
 
-	instantiation := generateSnippetInstantiation(snippet, portConnections)
+	var injection string
+	switch inject {
+	case false:
+		injection = generateSnippetInstantiation(snippet, portConnections)
+	case true:
+		injection = generateSnippetInjection(snippet, portConnections)
+	}
 
-	err = insertSnippetIntoModule(
+	err = injectSnippetIntoModule(
 		targetModule,
-		instantiation,
+		injection,
 		newSignalDeclarations,
 		bestScope,
 		scopeTree,
@@ -353,6 +362,28 @@ func ensureOutputPortForSnippet(
 	return nil
 }
 
+// This function replaces the port names in the snippet string with the corresponding signal names
+// from the portConnection map. It returns the modified snippet string.
+func replacePortNames(snippetString string, portConnection map[string]string) string {
+	for portName, signalName := range portConnection {
+		snippetString = strings.ReplaceAll(snippetString, portName, signalName)
+	}
+	return snippetString
+}
+
+// This function changes the names of the port variables in the snippet to match the names given in portConnections
+// It returns a string that can be directly injected into any other module at the given scope level.
+func generateSnippetInjection(
+	snippet *snippets.Snippet,
+	portConnections map[string]string,
+) string {
+	snippetString := snippet.Module.Body
+	snippetString = replacePortNames(snippetString, portConnections)
+	snippetString = strings.TrimSpace(snippetString)
+
+	return snippetString
+}
+
 func generateSnippetInstantiation(
 	snippet *snippets.Snippet,
 	portConnections map[string]string,
@@ -370,7 +401,7 @@ func generateSnippetInstantiation(
 	return instantiation
 }
 
-func insertSnippetIntoModule(
+func injectSnippetIntoModule(
 	module *verilog.Module,
 	instantiation string,
 	newDeclarations []verilog.Port,
@@ -486,10 +517,6 @@ func isDeclarationLine(line string) bool {
 	return false
 }
 
-func AddCodeToSnippet(originalContent, snippet string) (string, error) { //nolint:revive
-	return "", errors.New("AddCodeToSnippet not implemented yet")
-}
-
 func MutateFile(
 	originalSvFile *verilog.VerilogFile,
 	pathToWrite string,
@@ -537,7 +564,8 @@ func MutateFile(
 			moduleToMutate.Name,
 			fileName,
 		)
-		err = injectSnippetInModule(moduleToMutate, snippet)
+		inject := rand.Intn(2) == 0
+		err = injectSnippetInModule(moduleToMutate, snippet, inject)
 		if err != nil {
 			logger.Info(
 				"InjectSnippet failed for module %s: %v. Skipping mutation for this module.",
@@ -548,14 +576,17 @@ func MutateFile(
 		}
 
 		svFile.Modules[moduleName] = moduleToMutate
-		err = snippets.AddDependencies(svFile, snippet)
-		if err != nil {
-			logger.Error(
-				"Failed to add dependencies for snippet %s: %v. Continuing with mutation.",
-				snippet.Name,
-				err,
-			)
+		if !inject {
+			err = snippets.AddDependencies(svFile, snippet)
+			if err != nil {
+				logger.Error(
+					"Failed to add dependencies for snippet %s: %v. Continuing with mutation.",
+					snippet.Name,
+					err,
+				)
+			}
 		}
+
 		mutatedOverall = true
 		logger.Debug(
 			"Mutation applied to module %s in %s",
