@@ -145,9 +145,20 @@ func dfsDependencies(
 	}
 }
 
+func AddDependenciesOfSnippet(targetFile *verilog.VerilogFile, snippet *Snippet) error {
+	return GeneralAddDependencies(targetFile, snippet, false)
+}
+
 func AddDependencies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
-	parentVF := snippet.ParentFile
-	if parentVF == nil {
+	return GeneralAddDependencies(targetFile, snippet, true)
+}
+
+func GeneralAddDependencies(
+	targetFile *verilog.VerilogFile,
+	snippet *Snippet,
+	addItself bool,
+) error {
+	if snippet.ParentFile == nil {
 		return errors.New("snippet parent file is nil")
 	}
 	if targetFile.DependencyMap == nil {
@@ -159,9 +170,11 @@ func AddDependencies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
 			DependsOn: []string{},
 		}
 	}
-	targetFile.Modules[snippet.Module.Name] = snippet.Module
+	if addItself {
+		targetFile.Modules[snippet.Module.Name] = snippet.Module
+	}
 
-	dfsDependencies(snippet.Name, parentVF, targetFile)
+	dfsDependencies(snippet.Name, snippet.ParentFile, targetFile)
 
 	return nil
 }
