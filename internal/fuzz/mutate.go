@@ -413,7 +413,8 @@ func injectSnippetIntoModule(
 	insertionPoint := findEndOfModuleDeclarations(lines)
 
 	if bestScope != nil && moduleScopeTree != nil && bestScope != moduleScopeTree {
-		logger.Debug(
+		// TODO: fix this
+		logger.Warn(
 			"Snippet insertion is based on a nested scope (level %d), but current logic inserts new code at the module level (around line %d). True nested scope textual insertion would require enhancing ScopeNode with source mapping.",
 			bestScope.Level,
 			insertionPoint,
