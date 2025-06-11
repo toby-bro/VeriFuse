@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"runtime"
 
@@ -9,102 +10,196 @@ import (
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
-func main() {
-	// Parse command-line flags
-	numTests := flag.Int("n", 1000, "Number of test cases to run")
-	strategy := flag.String("strategy", "smart", "Fuzzing strategy: random, smart")
-	workers := flag.Int("workers", runtime.NumCPU(), "Number of parallel workers")
-	vFlag := flag.Bool(
-		"v",
-		false,
-		"Verbose output (level 1). Higher levels (-vv, -vvv) take precedence.",
-	)
-	vvFlag := flag.Bool(
-		"vv",
-		false,
-		"Verbose output (level 2). Higher level (-vvv) takes precedence.",
-	)
-	vvvFlag := flag.Bool("vvv", false, "Verbose output (level 3).")
-	keepFiles := flag.Bool(
-		"keep-files",
-		false,
-		"Keep generated files after fuzzing (default: false)",
-	)
-	verilogFile := flag.String("file", "", "Path to Verilog file to fuzz (required)")
-	mutate := flag.Bool("mutate", false, "Mutate enums and structs in the testbench")
-	maxAttempts := flag.Int("max-attempts", -1, "Maximum attempts to create a valid file")
-	checkFile := flag.Bool(
-		"check-file", false, "Check that all the modules in the file are valid",
-	)
-	rewriteAsSnippets := flag.Bool(
-		"rewrite-as-snippets",
-		false,
-		"Rewrite the checked file to snippets if validated",
-	)
-	if *maxAttempts < 1 {
-		switch *mutate {
-		case true:
-			*maxAttempts = 5
-		case false:
-			*maxAttempts = 1
-		}
-	}
-	flag.Parse()
+type Config struct {
+	// Common flags
+	verilogFile  string
+	workers      int
+	verboseLevel int
+	keepFiles    bool
 
-	var verboseLevel int
+	// Operation-specific flags
+	numTests    int
+	strategy    string
+	maxAttempts int
+	operation   fuzz.Operation
+}
+
+func parseVerboseFlags(fs *flag.FlagSet) int {
+	vFlag := fs.Bool("v", false,
+		"Verbose output (level 1). Higher levels (-vv, -vvv) take precedence.")
+	vvFlag := fs.Bool("vv", false,
+		"Verbose output (level 2). Higher level (-vvv) takes precedence.")
+	vvvFlag := fs.Bool("vvv", false, "Verbose output (level 3).")
+
+	fs.Parse(os.Args[2:])
+
 	switch {
 	case *vvvFlag:
-		verboseLevel = 4
+		return 4
 	case *vvFlag:
-		verboseLevel = 3
+		return 3
 	case *vFlag:
-		verboseLevel = 2
+		return 2
 	default:
-		verboseLevel = 1
+		return 1
 	}
-	logger := utils.NewDebugLogger(verboseLevel)
+}
 
-	operation := fuzz.OpFuzz
-	if *mutate {
-		operation = fuzz.OpMutate
+func addCommonFlags(fs *flag.FlagSet, config *Config) {
+	fs.StringVar(&config.verilogFile, "file", "", "Path to Verilog file (required)")
+	fs.IntVar(&config.workers, "workers", runtime.NumCPU(),
+		"Number of parallel workers")
+	fs.BoolVar(&config.keepFiles, "keep-files", false,
+		"Keep generated files after operation (default: false)")
+}
+
+func setupFuzzCommand() (*Config, error) {
+	config := &Config{operation: fuzz.OpFuzz}
+	fs := flag.NewFlagSet("fuzz", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s fuzz [options]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Perform fuzzing on Verilog files\n\n")
+		fs.PrintDefaults()
 	}
+
+	addCommonFlags(fs, config)
+	fs.IntVar(&config.numTests, "n", 1000, "Number of test cases to run")
+	fs.StringVar(&config.strategy, "strategy", "smart",
+		"Fuzzing strategy: random, smart")
+	fs.IntVar(&config.maxAttempts, "max-attempts", 1,
+		"Maximum attempts to create a valid file")
+
+	config.verboseLevel = parseVerboseFlags(fs)
+
+	return config, nil
+}
+
+func setupMutateCommand() (*Config, error) {
+	config := &Config{operation: fuzz.OpMutate}
+	fs := flag.NewFlagSet("mutate", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s mutate [options]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Mutate enums and structs in the testbench\n\n")
+		fs.PrintDefaults()
+	}
+
+	addCommonFlags(fs, config)
+	fs.IntVar(&config.numTests, "n", 1000, "Number of test cases to run")
+	fs.StringVar(&config.strategy, "strategy", "smart",
+		"Fuzzing strategy: random, smart")
+	fs.IntVar(&config.maxAttempts, "max-attempts", 5,
+		"Maximum attempts to create a valid file")
+
+	config.verboseLevel = parseVerboseFlags(fs)
+
+	return config, nil
+}
+
+func setupCheckFileCommand() (*Config, error) {
+	config := &Config{operation: fuzz.OpCheckFile}
+	fs := flag.NewFlagSet("check-file", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s check-file [options]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Check that all modules in the file are valid\n\n")
+		fs.PrintDefaults()
+	}
+
+	addCommonFlags(fs, config)
+	config.maxAttempts = 1
+	config.numTests = config.workers
+
+	config.verboseLevel = parseVerboseFlags(fs)
+
+	return config, nil
+}
+
+func setupRewriteAsSnippetsCommand() (*Config, error) {
+	config := &Config{operation: fuzz.OpRewriteValid}
+	fs := flag.NewFlagSet("rewrite-as-snippets", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s rewrite-as-snippets [options]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr,
+			"Rewrite the checked file to snippets if validated\n\n")
+		fs.PrintDefaults()
+	}
+
+	addCommonFlags(fs, config)
+	config.maxAttempts = 1
+	config.numTests = config.workers
+
+	config.verboseLevel = parseVerboseFlags(fs)
+
+	return config, nil
+}
+
+func printUsage() {
+	fmt.Fprintf(os.Stderr, "Usage: %s <command> [options]\n\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "Commands:\n")
+	fmt.Fprintf(os.Stderr, "  fuzz                 Perform fuzzing on Verilog files\n")
+	fmt.Fprintf(os.Stderr, "  mutate               Mutate enums and structs in the testbench\n")
+	fmt.Fprintf(os.Stderr, "  check-file           Check that all modules in the file are valid\n")
+	fmt.Fprintf(os.Stderr,
+		"  rewrite-as-snippets  Rewrite the checked file to snippets if validated\n\n")
+	fmt.Fprintf(os.Stderr,
+		"Use '%s <command> -h' for more information about a command.\n", os.Args[0])
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		printUsage()
+		os.Exit(1)
+	}
+
+	var config *Config
+	var err error
+
+	switch os.Args[1] {
+	case "fuzz":
+		config, err = setupFuzzCommand()
+	case "mutate":
+		config, err = setupMutateCommand()
+	case "check-file":
+		config, err = setupCheckFileCommand()
+	case "rewrite-as-snippets":
+		config, err = setupRewriteAsSnippetsCommand()
+	case "-h", "--help", "help":
+		printUsage()
+		return
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", os.Args[1])
+		printUsage()
+		os.Exit(1)
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error setting up command: %v\n", err)
+		os.Exit(1)
+	}
+
+	logger := utils.NewDebugLogger(config.verboseLevel)
 
 	// Check if Verilog file is provided
-	if *verilogFile == "" {
+	if config.verilogFile == "" {
 		logger.Fatal("Error: No Verilog file specified. Use -file option.")
-	}
-
-	if *checkFile {
-		logger.Info("Checking Verilog file for valid modules...")
-		*maxAttempts = 1
-		switch *rewriteAsSnippets {
-		case true:
-			operation = fuzz.OpRewriteValid
-		case false:
-			operation = fuzz.OpCheckFile
-		}
-		if *numTests == 1000 {
-			*numTests = *workers
-		}
 	}
 
 	// Create and setup scheduler using the new package structure
 	scheduler := fuzz.NewScheduler(
-		*strategy,
-		*workers,
-		verboseLevel,
-		*verilogFile,
-		operation,
-		*maxAttempts,
-		*keepFiles,
+		config.strategy,
+		config.workers,
+		config.verboseLevel,
+		config.verilogFile,
+		config.operation,
+		config.maxAttempts,
+		config.keepFiles,
 	)
 
 	if err := scheduler.Setup(); err != nil {
 		logger.Fatal("Setup failed: ", err)
 	}
 
-	// Run fuzzing
-	if err := scheduler.Run(*numTests); err != nil {
+	// Run operation
+	if err := scheduler.Run(config.numTests); err != nil {
 		os.Exit(1)
 	}
 }
