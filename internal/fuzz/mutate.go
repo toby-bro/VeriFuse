@@ -22,7 +22,7 @@ func loadLogger(v int) {
 func injectSnippetInModule(
 	targetModule *verilog.Module,
 	snippet *snippets.Snippet,
-	inject bool,
+	instantiate bool,
 ) error {
 	_, scopeTree, err := verilog.ParseVariables(
 		snippet.ParentFile,
@@ -68,10 +68,10 @@ func injectSnippetInModule(
 	}
 
 	var injection string
-	switch inject {
-	case false:
-		injection = generateSnippetInstantiation(snippet, portConnections)
+	switch instantiate {
 	case true:
+		injection = generateSnippetInstantiation(snippet, portConnections)
+	case false:
 		injection = generateSnippetInjection(snippet, portConnections)
 	}
 
@@ -528,56 +528,57 @@ func MutateFile(
 	injectedSnippetParentFiles := make(map[string]*verilog.VerilogFile)
 	loadLogger(verbose)
 
-	for moduleName, currentModule := range svFile.DeepCopy().Modules {
-		moduleToMutate := currentModule.DeepCopy()
-		if moduleToMutate == nil {
-			logger.Warn("Failed to copy module %s for mutation, skipping.", moduleName)
-			continue
-		}
+	for {
+		for moduleName, currentModule := range svFile.DeepCopy().Modules {
+			moduleToMutate := currentModule.DeepCopy()
+			if moduleToMutate == nil {
+				logger.Warn("Failed to copy module %s for mutation, skipping.", moduleName)
+				continue
+			}
 
-		snippet, err := snippets.GetRandomSnippet(verbose)
-		if err != nil {
-			logger.Warn(
-				"Failed to get snippet for module %s: %v. Skipping mutation for this module.",
-				moduleName,
-				err,
-			)
-			continue
-		}
-		if snippet == nil || snippet.Module == nil || snippet.ParentFile == nil {
-			logger.Warn(
-				"Selected snippet, its module, or its parent file is nil for module %s. Skipping.",
-				moduleName,
-			)
-			continue
-		}
-		if snippet.ParentFile.Name == "" {
-			logger.Warn(
-				"Snippet ParentFile name is empty for snippet '%s'. Dependency merging might be affected.",
+			snippet, err := snippets.GetRandomSnippet(verbose)
+			if err != nil {
+				logger.Warn(
+					"Failed to get snippet for module %s: %v. Skipping mutation for this module.",
+					moduleName,
+					err,
+				)
+				continue
+			}
+			if snippet == nil || snippet.Module == nil || snippet.ParentFile == nil {
+				logger.Warn(
+					"Selected snippet, its module, or its parent file is nil for module %s. Skipping.",
+					moduleName,
+				)
+				continue
+			}
+			if snippet.ParentFile.Name == "" {
+				logger.Warn(
+					"Snippet ParentFile name is empty for snippet '%s'. Dependency merging might be affected.",
+					snippet.Name,
+				)
+			}
+
+			logger.Debug(
+				"Attempting to inject snippet %s in module %s from file %s...",
 				snippet.Name,
-			)
-		}
-
-		logger.Debug(
-			"Attempting to inject snippet %s in module %s from file %s...",
-			snippet.Name,
-			moduleToMutate.Name,
-			fileName,
-		)
-		inject := rand.Intn(2) == 0
-		err = injectSnippetInModule(moduleToMutate, snippet, inject)
-		if err != nil {
-			logger.Info(
-				"InjectSnippet failed for module %s: %v. Skipping mutation for this module.",
 				moduleToMutate.Name,
-				err,
+				fileName,
 			)
-			continue
-		}
+			instantiate := rand.Intn(3) == 0
+			err = injectSnippetInModule(moduleToMutate, snippet, instantiate)
+			if err != nil {
+				logger.Info(
+					"InjectSnippet failed for module %s: %v. Skipping mutation for this module.",
+					moduleToMutate.Name,
+					err,
+				)
+				continue
+			}
 
-		svFile.Modules[moduleName] = moduleToMutate
-		if !inject {
-			err = snippets.AddDependencies(svFile, snippet)
+			svFile.Modules[moduleName] = moduleToMutate
+
+			err = snippets.GeneralAddDependencies(svFile, snippet, instantiate)
 			if err != nil {
 				logger.Error(
 					"Failed to add dependencies for snippet %s: %v. Continuing with mutation.",
@@ -585,17 +586,20 @@ func MutateFile(
 					err,
 				)
 			}
+
+			mutatedOverall = true
+			logger.Debug(
+				"Mutation applied to module %s in %s",
+				moduleToMutate.Name,
+				fileName,
+			)
+
+			// Key by snippet.Module.Name so we know exactly which module to DFS
+			injectedSnippetParentFiles[snippet.Name] = snippet.ParentFile
 		}
-
-		mutatedOverall = true
-		logger.Debug(
-			"Mutation applied to module %s in %s",
-			moduleToMutate.Name,
-			fileName,
-		)
-
-		// Key by snippet.Module.Name so we know exactly which module to DFS
-		injectedSnippetParentFiles[snippet.Name] = snippet.ParentFile
+		if rand.Intn(3) == 0 {
+			break
+		}
 	}
 
 	if !mutatedOverall {
