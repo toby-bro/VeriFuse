@@ -71,7 +71,7 @@ func bold(s string) string {
 }
 
 func (d *DebugLogger) genPrint(stderr bool, color string, format string, v ...interface{}) {
-	msg := fmt.Sprintf(" "+format, v...)
+	msg := fmt.Sprintf(format, v...)
 	if d.isTTY {
 		msg = color + msg + ColorReset
 	}
