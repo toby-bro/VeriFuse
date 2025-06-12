@@ -51,6 +51,8 @@ func addCommonFlags(fs *flag.FlagSet, config *Config) {
 		"Number of parallel workers")
 	fs.BoolVar(&config.keepFiles, "keep-files", false,
 		"Keep generated files after operation (default: false)")
+	fs.StringVar(&config.strategy, "strategy", "smart",
+		"Fuzzing strategy: random, smart")
 }
 
 func setupFuzzCommand() (*Config, error) {
@@ -64,8 +66,6 @@ func setupFuzzCommand() (*Config, error) {
 
 	addCommonFlags(fs, config)
 	fs.IntVar(&config.numTests, "n", 1000, "Number of test cases to run")
-	fs.StringVar(&config.strategy, "strategy", "smart",
-		"Fuzzing strategy: random, smart")
 	fs.IntVar(&config.maxAttempts, "max-attempts", 1,
 		"Maximum attempts to create a valid file")
 
