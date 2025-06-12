@@ -37,7 +37,7 @@ module basic_comb (
     input logic [7:0] in2,
     output logic [7:0] out1
 );
-    (* verilator inline_module *) ;
+    /* verilator inline_module */ ;
     logic [7:0] temp_wire;
     assign temp_wire = in1 + in2;
     always_comb begin
@@ -65,13 +65,13 @@ module container_for_inlining (
         .in2(main_data_in + 1),
         .out1(basic_comb_out)
     );
-    (* verilator inline_module *) module_with_class u_module_with_class (
+    /* verilator inline_module */ module_with_class u_module_with_class (
         .clk(main_clk),
         .reset(main_reset),
         .class_in(basic_comb_out),
         .class_out(class_module_out)
     );
-    (* verilator inline_module *) hierarchy_if u_hierarchy_if (
+    /* verilator inline_module */ hierarchy_if u_hierarchy_if (
         .clk(main_clk),
         .main_in(hierarchy_if_out),
         .main_out(hierarchy_if_out)
@@ -173,7 +173,7 @@ module sequential_logic (
     input logic [3:0] data_in,
     output logic [3:0] data_out
 );
-    (* verilator no_inline_module *) ;
+    /* verilator no_inline_module */ ;
     logic [3:0] internal_reg;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
