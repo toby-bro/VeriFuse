@@ -37,7 +37,7 @@ module Mod_BasicOps (
             intermediate_arith = intermediate_arith / in_b;
             intermediate_arith = intermediate_arith % in_b;
         end else begin
-             intermediate_arith = 'x;
+            intermediate_arith = 'x;
         end
         out_arith = intermediate_arith;
         intermediate_bitwise = in_a;

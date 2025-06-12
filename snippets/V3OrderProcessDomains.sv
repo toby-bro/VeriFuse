@@ -1,65 +1,65 @@
 module SequentialLogic (
-  input logic clk,
-  input logic rst,
-  input logic [7:0] data_in,
-  output logic [7:0] data_out
+    input logic clk,
+    input logic rst,
+    input logic [7:0] data_in,
+    output logic [7:0] data_out
 );
-  logic [7:0] internal_reg;
-  always @(posedge clk or negedge rst) begin
-    if (~rst) begin
-      internal_reg <= 8'h00;
-    end else begin
-      internal_reg <= data_in;
+    logic [7:0] internal_reg;
+    always @(posedge clk or negedge rst) begin
+        if (~rst) begin
+            internal_reg <= 8'h00;
+        end else begin
+            internal_reg <= data_in;
+        end
     end
-  end
-  assign data_out = internal_reg;
+    assign data_out = internal_reg;
 endmodule
 module CombinationalLogicImplicit (
-  input logic [3:0] a,
-  input logic [3:0] b,
-  output logic [3:0] sum
+    input logic [3:0] a,
+    input logic [3:0] b,
+    output logic [3:0] sum
 );
-  always @* begin
-    sum = a + b;
-  end
+    always @* begin
+        sum = a + b;
+    end
 endmodule
 module CombinationalLogicExplicit (
-  input logic sel,
-  input logic [15:0] data0,
-  input logic [15:0] data1,
-  output logic [15:0] data_out
+    input logic sel,
+    input logic [15:0] data0,
+    input logic [15:0] data1,
+    output logic [15:0] data_out
 );
-  always @(sel or data0 or data1) begin
-    if (sel) begin
-      data_out = data1;
-    end else begin
-      data_out = data0;
+    always @(sel or data0 or data1) begin
+        if (sel) begin
+            data_out = data1;
+        end else begin
+            data_out = data0;
+        end
     end
-  end
 endmodule
 module MixedLogic (
-  input logic clk,
-  input logic async_reset,
-  input logic seq_in,
-  input logic comb_in1,
-  input logic comb_in2,
-  output logic seq_out,
-  output logic comb_out
+    input logic clk,
+    input logic async_reset,
+    input logic seq_in,
+    input logic comb_in1,
+    input logic comb_in2,
+    output logic seq_out,
+    output logic comb_out
 );
-  logic seq_reg;
-  logic comb_intermediate;
-  always @(posedge clk or negedge async_reset) begin
-    if (!async_reset) begin
-      seq_reg <= 1'b0;
-    end else begin
-      seq_reg <= seq_in;
+    logic seq_reg;
+    logic comb_intermediate;
+    always @(posedge clk or negedge async_reset) begin
+        if (!async_reset) begin
+            seq_reg <= 1'b0;
+        end else begin
+            seq_reg <= seq_in;
+        end
     end
-  end
-  assign seq_out = seq_reg;
-  always @(seq_reg or comb_in1 or comb_in2) begin
-    comb_intermediate = (seq_reg & comb_in1) | (~seq_reg & comb_in2);
-  end
-  assign comb_out = comb_intermediate;
+    assign seq_out = seq_reg;
+    always @(seq_reg or comb_in1 or comb_in2) begin
+        comb_intermediate = (seq_reg & comb_in1) | (~seq_reg & comb_in2);
+    end
+    assign comb_out = comb_intermediate;
 endmodule
 module MultipleClockSensitivity (
     input logic clk_a,
@@ -68,18 +68,18 @@ module MultipleClockSensitivity (
     input logic [7:0] data_b,
     output logic [7:0] data_combined
 );
-  logic [7:0] reg_a_q;
-  logic [7:0] reg_b_q;
-  always @(posedge clk_a or posedge clk_b) begin
-      if (data_a > data_b) begin
-          reg_a_q <= data_a;
-          reg_b_q <= 8'h00;
-      end else begin
-          reg_a_q <= 8'h00;
-          reg_b_q <= data_b;
-      end
-  end
-  assign data_combined = reg_a_q | reg_b_q;
+    logic [7:0] reg_a_q;
+    logic [7:0] reg_b_q;
+    always @(posedge clk_a or posedge clk_b) begin
+        if (data_a > data_b) begin
+            reg_a_q <= data_a;
+            reg_b_q <= 8'h00;
+        end else begin
+            reg_a_q <= 8'h00;
+            reg_b_q <= data_b;
+        end
+    end
+    assign data_combined = reg_a_q | reg_b_q;
 endmodule
 module SimpleAssign (
     input logic [9:0] val_in,

@@ -1,131 +1,131 @@
 module simple_assign (
-  input logic [7:0] in,
-  output logic [7:0] out
+    input logic [7:0] in,
+    output logic [7:0] out
 );
-  assign out = in;
+    assign out = in;
 endmodule
 module always_comb_assign (
-  input logic [15:0] in,
-  output logic [15:0] out
+    input logic [15:0] in,
+    output logic [15:0] out
 );
-  always_comb begin
-    out = in;
-  end
+    always_comb begin
+        out = in;
+    end
 endmodule
 module always_comb_if (
-  input logic [31:0] in1,
-  input logic [31:0] in2,
-  input logic cond,
-  output logic [31:0] out
+    input logic [31:0] in1,
+    input logic [31:0] in2,
+    input logic cond,
+    output logic [31:0] out
 );
-  always_comb begin
-    if (cond) begin
-      out = in1;
-    end else begin
-      out = in2;
+    always_comb begin
+        if (cond) begin
+            out = in1;
+        end else begin
+            out = in2;
+        end
     end
-  end
 endmodule
 module bitwise_ops (
-  input logic [7:0] in1,
-  input logic [7:0] in2,
-  input logic [7:0] in3,
-  output logic [7:0] out
+    input logic [7:0] in1,
+    input logic [7:0] in2,
+    input logic [7:0] in3,
+    output logic [7:0] out
 );
-  assign out = (in1 & in2) | (~in3) ^ (in1 << 2) >> 1;
+    assign out = (in1 & in2) | (~in3) ^ (in1 << 2) >> 1;
 endmodule
 module arith_comp_ops (
-  input logic [15:0] in1,
-  input logic [15:0] in2,
-  input logic [15:0] in3,
-  input logic [15:0] in4,
-  input logic [15:0] in5,
-  output logic out
+    input logic [15:0] in1,
+    input logic [15:0] in2,
+    input logic [15:0] in3,
+    input logic [15:0] in4,
+    input logic [15:0] in5,
+    output logic out
 );
-  assign out = (in1 + in2) * in3 > in4 - in5;
+    assign out = (in1 + in2) * in3 > in4 - in5;
 endmodule
 module reduction_ops (
-  input logic [7:0] in1,
-  input logic [7:0] in2,
-  output logic out
+    input logic [7:0] in1,
+    input logic [7:0] in2,
+    output logic out
 );
-  assign out = &in1 | ^in2;
+    assign out = &in1 | ^in2;
 endmodule
 module constant_sel (
-  input logic [31:0] in,
-  output logic [7:0] out1,
-  output logic out2
+    input logic [31:0] in,
+    output logic [7:0] out1,
+    output logic out2
 );
-  assign out1 = in[15:8];
-  assign out2 = in[3];
+    assign out1 = in[15:8];
+    assign out2 = in[3];
 endmodule
 module variable_sel_mux (
-  input logic [7:0] in,
-  input logic [2:0] index,
-  output logic out
+    input logic [7:0] in,
+    input logic [2:0] index,
+    output logic out
 );
-  assign out = in[index];
+    assign out = in[index];
 endmodule
 module concat_op (
-  input logic [3:0] in_h,
-  input logic [3:0] in_l,
-  output logic [7:0] out_c
+    input logic [3:0] in_h,
+    input logic [3:0] in_l,
+    output logic [7:0] out_c
 );
-  assign out_c = {in_h, in_l};
+    assign out_c = {in_h, in_l};
 endmodule
 module concat_assign (
-  input logic [7:0] in,
-  output logic [3:0] out_h,
-  output logic [3:0] out_l
+    input logic [7:0] in,
+    output logic [3:0] out_h,
+    output logic [3:0] out_l
 );
-  assign {out_h, out_l} = in;
+    assign {out_h, out_l} = in;
 endmodule
 module array_assign_unhandled (
-  input logic [7:0] in,
-  input logic [1:0] index,
-  output logic [7:0] out
+    input logic [7:0] in,
+    input logic [1:0] index,
+    output logic [7:0] out
 );
-  logic [7:0] data_arr [0:3];
-  always_comb begin
-    data_arr[index] = in;
-  end
-  assign out = data_arr[0];
+    logic [7:0] data_arr [0:3];
+    always_comb begin
+        data_arr[index] = in;
+    end
+    assign out = data_arr[0];
 endmodule
 module timed_assign_unhandled (
-  input logic clk,
-  input logic [7:0] in,
-  output logic [7:0] out
+    input logic clk,
+    input logic [7:0] in,
+    output logic [7:0] out
 );
-  always @(posedge clk) begin
-    out <= in;
-  end
+    always @(posedge clk) begin
+        out <= in;
+    end
 endmodule
 module multidriven_unhandled (
-  input logic [7:0] in1,
-  input logic [7:0] in2,
-  output logic [7:0] out
+    input logic [7:0] in1,
+    input logic [7:0] in2,
+    output logic [7:0] out
 );
-  wire [7:0] conflict_wire;
-  assign conflict_wire = in1;
-  assign conflict_wire = in2;
-  assign out = conflict_wire;
+    wire [7:0] conflict_wire;
+    assign conflict_wire = in1;
+    assign conflict_wire = in2;
+    assign out = conflict_wire;
 endmodule
 module mismatched_width_unhandled (
-  input logic [7:0] in,
-  output logic [3:0] out
+    input logic [7:0] in,
+    output logic [3:0] out
 );
-  assign out = in;
+    assign out = in;
 endmodule
 module always_multi_stmt_unhandled (
-  input logic [7:0] in1,
-  input logic [7:0] in2,
-  output logic [7:0] out1,
-  output logic [7:0] out2
+    input logic [7:0] in1,
+    input logic [7:0] in2,
+    output logic [7:0] out1,
+    output logic [7:0] out2
 );
-  always_comb begin
-    out1 = in1;
-    out2 = in2;
-  end
+    always_comb begin
+        out1 = in1;
+        out2 = in2;
+    end
 endmodule
 module more_ops (
     input logic [7:0] a,

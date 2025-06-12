@@ -1,55 +1,55 @@
 primitive combinational_udp_basic ( output out, input in1, in2 );
-  table
-     0   0  : 0;
-     0   1  : 0;
-     1   0  : 0;
-     1   1  : 1;
-  endtable
+    table
+        0   0  : 0;
+        0   1  : 0;
+        1   0  : 0;
+        1   1  : 1;
+    endtable
 endprimitive
 primitive sequential_udp_basic ( output reg out, input clk, data );
-  table
-      p   1  : ?           : 1;
-      p   0  : ?           : 0;
-      n   ?  : ?           : -;
-      ?   ?  : ?           : -;
-  endtable
+    table
+        p   1  : ?           : 1;
+        p   0  : ?           : 0;
+        n   ?  : ?           : -;
+        ?   ?  : ?           : -;
+    endtable
 endprimitive
 primitive combinational_udp_wildcard ( output out, input in1, in2 );
-  table
-      0   ?  : 0;
-      1   0  : 0;
-      1   1  : 1;
-  endtable
+    table
+        0   ?  : 0;
+        1   0  : 0;
+        1   1  : 1;
+    endtable
 endprimitive
 primitive sequential_udp_nochange ( output reg out, input clk, enable );
-  table
-      r   1   : ?           : 1;
-      r   0   : ?           : -;
-      *   ?   : ?           : -;
-      ?   ?   : ?           : -;
-  endtable
+    table
+        r   1   : ?           : 1;
+        r   0   : ?           : -;
+        *   ?   : ?           : -;
+        ?   ?   : ?           : -;
+    endtable
 endprimitive
 primitive combinational_udp_x ( output out, input in1, in2 );
-  table
-      0   0  : 0;
-      0   1  : 1;
-      1   0  : x;
-      1   1  : 1;
-  endtable
+    table
+        0   0  : 0;
+        0   1  : 1;
+        1   0  : x;
+        1   1  : 1;
+    endtable
 endprimitive
 primitive sequential_udp_x ( output reg out, input clk, data );
-  table
-      p   0  : ?           : 0;
-      p   1  : ?           : 1;
-      p   x  : ?           : x;
-      ?   ?  : ?           : -;
-  endtable
+    table
+        p   0  : ?           : 0;
+        p   1  : ?           : 1;
+        p   x  : ?           : x;
+        ?   ?  : ?           : -;
+    endtable
 endprimitive
 primitive combinational_udp_dontcare_input ( output out, input in1, in2 );
-  table
-      -   0  : 0;
-      1   1  : 1;
-  endtable
+    table
+        -   0  : 0;
+        1   1  : 1;
+    endtable
 endprimitive
 module simple_and_gate (
     input logic in1,
