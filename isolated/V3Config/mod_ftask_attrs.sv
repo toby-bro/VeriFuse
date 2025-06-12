@@ -1,18 +1,18 @@
 module mod_ftask_attrs (
+    output logic o_result,
     input wire i_clk,
-    input wire i_start,
-    output logic o_result
+    input wire i_start
 );
     logic r_temp = 1'b0;
-    /* verilator public_task */
-    /* verilator no_inline_task */
+    (* verilator public_task *)
+    (* verilator no_inline_task *)
     task my_task (input bit enable);
         if (enable) begin
             r_temp <= ~r_temp;
         end
     endtask : my_task
-    /* verilator public_func */
-    /* verilator isolate_assignments */
+    (* verilator public_func *)
+    (* verilator isolate_assignments *)
     function automatic logic my_func (input logic data);
         logic func_local_var;
         func_local_var = data ^ r_temp;

@@ -1,12 +1,12 @@
 module monitoroff_mod (
-    input logic trigger_monoff,
-    output logic monoff_out
+    output logic monoff_out,
+    input logic trigger_monoff
 );
     always @(trigger_monoff) begin
-    if (trigger_monoff) begin
-      $monitoroff;
+        if (trigger_monoff) begin
+            $monitoroff;
+        end
     end
-      end
-      assign monoff_out = trigger_monoff;
+    assign monoff_out = trigger_monoff;
 endmodule
 

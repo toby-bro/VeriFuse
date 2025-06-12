@@ -1,8 +1,8 @@
 module mod_module_attrs #(
     parameter int WIDTH = 8
 ) (
-    output logic [7:0] o_out,
-    input wire [7:0] i_in
+    input wire [7:0] i_in,
+    output logic [7:0] o_out
 );
     logic [WIDTH-1:0] r_data;
     always_comb begin

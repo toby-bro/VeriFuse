@@ -4,12 +4,12 @@ module assume_property_mod (
     input logic assume_cond
 );
     property p_assume_simple_concurrent;
-    @(posedge clk) assume_cond;
-      endproperty
-      assume property (p_assume_simple_concurrent);
-      always @(posedge clk) begin
-    assume (assume_cond);
-      end
-      assign assume_out = assume_cond;
+        @(posedge clk) assume_cond;
+    endproperty
+    assume property (p_assume_simple_concurrent);
+    always @(posedge clk) begin
+        assume (assume_cond);
+    end
+    assign assume_out = assume_cond;
 endmodule
 
