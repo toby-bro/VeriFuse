@@ -226,7 +226,7 @@ endmodule
 		ParentFile: snippetFile,
 	}
 
-	err = injectSnippetInModule(module, snippet, false)
+	err = injectSnippetInModule(module, snippet, true)
 	if err != nil {
 		t.Fatalf("injectSnippetInModule failed: %v", err)
 	}

@@ -27,11 +27,11 @@ func TestSV2VTool() error {
 	return nil
 }
 
-// TransformSVToV uses sv2v to transform SystemVerilog to plain Verilog
+// TransformSV2V uses sv2v to transform SystemVerilog to plain Verilog
 // srcPath: path to source SystemVerilog file
 // destDir: destination directory for the output Verilog file
 // Returns the path to the output Verilog file and any error
-func TransformSVToV(
+func TransformSV2V(
 	moduleName, srcPath, newFileName string,
 ) error {
 	// Check if source file exists and is readable
