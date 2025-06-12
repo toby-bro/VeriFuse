@@ -1718,19 +1718,30 @@ func ParseVariables(v *VerilogFile,
 	scopeParams []Parameter,
 ) (map[string]*Variable, *ScopeNode, error) {
 	scopeParamsMap := parametersToMap(scopeParams)
-	allMatchedVariables := MatchAllVariablesFromString(content)
 	variablesMap := make(map[string]*Variable)
 	scopeTree := &ScopeNode{
 		Level:     0,
 		Variables: make(map[string]*Variable),
 		Children:  []*ScopeNode{},
 		Parent:    nil,
+		LastLine:  -1,
 	}
 	scopeNode := scopeTree
-	for _, matchedVariable := range allMatchedVariables {
-		if len(matchedVariable) < 4 {
-			return nil, nil, errors.New("no variable found in the provided text")
+
+	// Process content line by line to track line numbers
+	lines := strings.Split(content, "\n")
+	for lineNumber, line := range lines {
+		// Try to match variable declarations on this line
+		matches := generalVariableRegex.FindStringSubmatch(line)
+		if len(matches) < 6 {
+			continue // No variable declaration on this line
 		}
+
+		matchedVariable := matches
+		if len(matchedVariable) < 4 {
+			continue
+		}
+
 		indent := len(strings.ReplaceAll(matchedVariable[1], "\t", "    ")) / 4
 		varType := GetType(matchedVariable[2])
 		widthStr := matchedVariable[3]
@@ -1798,6 +1809,7 @@ func ParseVariables(v *VerilogFile,
 			variablesMap[varName] = variable
 			if indent == scopeNode.Level {
 				scopeNode.Variables[variable.Name] = variable
+				scopeNode.LastLine = lineNumber
 			} else {
 				for scopeNode.Level > indent {
 					scopeNode = scopeNode.Parent
@@ -1809,6 +1821,7 @@ func ParseVariables(v *VerilogFile,
 					Parent:    scopeNode,
 				}
 				newScopeNode.Variables[variable.Name] = variable
+				newScopeNode.LastLine = lineNumber
 				scopeNode.Children = append(scopeNode.Children, newScopeNode)
 				scopeNode = newScopeNode
 			}

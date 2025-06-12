@@ -194,6 +194,7 @@ type ScopeNode struct {
 	Variables map[string]*Variable
 	Children  []*ScopeNode
 	Parent    *ScopeNode
+	LastLine  int
 }
 
 func NewVerilogFile(name string) *VerilogFile {

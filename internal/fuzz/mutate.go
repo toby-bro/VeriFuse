@@ -80,7 +80,6 @@ func injectSnippetInModule(
 		injection,
 		newSignalDeclarations,
 		bestScope,
-		scopeTree,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert snippet into module: %v", err)
@@ -401,51 +400,66 @@ func generateSnippetInstantiation(
 	return instantiation
 }
 
+func insertTextAtLine(module *verilog.Module, text string, line int) error {
+	lines := strings.Split(module.Body, "\n")
+	if line < 0 || line > len(lines) {
+		return fmt.Errorf("line number %d is out of bounds for module %s", line, module.Name)
+	}
+
+	lines = append(lines[:line], append([]string{text}, lines[line:]...)...)
+	module.Body = strings.Join(lines, "\n")
+	return nil
+}
+
 func injectSnippetIntoModule(
 	module *verilog.Module,
 	instantiation string,
 	newDeclarations []verilog.Port,
 	bestScope *verilog.ScopeNode,
-	moduleScopeTree *verilog.ScopeNode,
 ) error {
-	lines := strings.Split(module.Body, "\n")
-
-	insertionPoint := findEndOfModuleDeclarations(lines)
-
-	if bestScope != nil && moduleScopeTree != nil && bestScope != moduleScopeTree {
-		// TODO: fix this
-		logger.Warn(
-			"Snippet insertion is based on a nested scope (level %d), but current logic inserts new code at the module level (around line %d). True nested scope textual insertion would require enhancing ScopeNode with source mapping.",
+	// Determine the insertion line based on the best scope's LastLine
+	var insertionLine int
+	if bestScope != nil && bestScope.LastLine > -1 {
+		// Insert after the last line where a variable was declared in this scope
+		insertionLine = bestScope.LastLine + 1
+		logger.Debug(
+			"Using scope-based insertion at line %d (scope level %d)",
+			insertionLine,
 			bestScope.Level,
-			insertionPoint,
+		)
+	} else {
+		// Fallback to the old method
+		lines := strings.Split(module.Body, "\n")
+		insertionLine = findEndOfModuleDeclarations(lines)
+		logger.Debug(
+			"Using fallback insertion at line %d (no best scope found)",
+			insertionLine,
 		)
 	}
 
-	var contentToInsert []string
+	// Add new signal declarations first (if needed)
 	if !module.AnsiStyle {
 		for i := len(newDeclarations) - 1; i >= 0; i-- {
 			portToDeclare := newDeclarations[i]
 			declarationString := generateSignalDeclaration(portToDeclare, portToDeclare.Name)
-			contentToInsert = append([]string{declarationString}, contentToInsert...)
+			err := insertTextAtLine(module, declarationString, insertionLine)
+			if err != nil {
+				return fmt.Errorf("failed to insert signal declaration: %v", err)
+			}
+			// Increment insertion line for next declaration
+			insertionLine++
 		}
 	}
+
+	// Add the new ports to the module
 	module.Ports = append(module.Ports, newDeclarations...)
-	contentToInsert = append(contentToInsert, instantiation)
 
-	if insertionPoint < 0 {
-		insertionPoint = 0
+	// Insert the snippet instantiation/injection
+	err := insertTextAtLine(module, instantiation, insertionLine)
+	if err != nil {
+		return fmt.Errorf("failed to insert snippet: %v", err)
 	}
 
-	if insertionPoint > len(lines) {
-		insertionPoint = len(lines)
-	}
-
-	var resultLines []string
-	resultLines = append(resultLines, lines[:insertionPoint]...)
-	resultLines = append(resultLines, contentToInsert...)
-	resultLines = append(resultLines, lines[insertionPoint:]...)
-
-	module.Body = strings.Join(resultLines, "\n")
 	return nil
 }
 
