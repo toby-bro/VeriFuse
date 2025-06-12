@@ -1,8 +1,8 @@
 module ModClockedConditional (
+    output logic data_out,
     input logic clk,
     input logic enable,
-    input logic data_in,
-    output logic data_out
+    input logic data_in
 );
     logic reg_data;
     always @(posedge clk) begin

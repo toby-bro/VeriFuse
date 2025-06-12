@@ -1,9 +1,9 @@
 module ClassAndNullHandling (
-    output int method_result,
-    output int class_op_result,
     input logic create_obj,
     input logic pass_derived,
-    input int method_arg
+    input int method_arg,
+    output int method_result,
+    output int class_op_result
 );
     class Base;
         int data = 10;

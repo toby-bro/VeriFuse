@@ -1,12 +1,12 @@
 module strobe_mod (
-    output logic strobe_out,
-    input logic trigger_strobe
+    input logic trigger_strobe,
+    output logic strobe_out
 );
     always @(trigger_strobe) begin
-    if (trigger_strobe) begin
-      $strobe("This is a strobe message");
+        if (trigger_strobe) begin
+            $strobe("This is a strobe message");
+        end
     end
-      end
-      assign strobe_out = trigger_strobe;
+    assign strobe_out = trigger_strobe;
 endmodule
 

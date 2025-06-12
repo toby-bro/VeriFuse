@@ -1,8 +1,8 @@
 module PackedStructOps (
-    input logic [15:0] packed_in,
     input logic [7:0] byte_val,
     output logic [15:0] packed_out,
-    output logic [7:0] byte_out
+    output logic [7:0] byte_out,
+    input logic [15:0] packed_in
 );
     typedef struct packed {
         logic [7:0] low;
