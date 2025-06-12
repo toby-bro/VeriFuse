@@ -116,10 +116,10 @@ module module_with_unpacked_array (
     output logic [3:0] array_out_val,
     input logic forced_input_driver,
     output logic forced_output_monitor,
-    /* verilator public */ output logic [7:0] public_output_wire
+    (* verilator public *) output logic [7:0] public_output_wire
 );
     logic [3:0] unpacked_reg_array [0:3];
-    /* verilator public */ logic [3:0] public_unpacked_array [0:1];
+    (* verilator public *) logic [3:0] public_unpacked_array [0:1];
     (* wire_force_assign *) logic forced_internal_in;
     (* wire_force_release *) logic forced_internal_out;
     always_ff @(posedge clk) begin
