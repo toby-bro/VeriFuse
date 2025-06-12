@@ -1970,35 +1970,32 @@ func parseModPortsFromBody(bodyStr string) ([]ModPort, error) {
 func parseModPortSignals(signalsList string) ([]ModPortSignal, error) {
 	signals := []ModPortSignal{}
 
-	// Split by comma and newlines to handle multiline declarations
-	lines := strings.Split(signalsList, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
+	// Clean up the signals list and split by comma to handle individual declarations
+	signalsList = strings.ReplaceAll(signalsList, "\n", " ")
+	signalsList = strings.ReplaceAll(signalsList, "\t", " ")
+
+	// Split by comma first to get individual signal declarations
+	parts := strings.Split(signalsList, ",")
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
 			continue
 		}
 
-		// Remove trailing comma
-		line = strings.TrimSuffix(line, ",")
-
-		// Match direction and signal names: "input signal1, signal2"
-		signalRegex := regexp.MustCompile(`(input|output|inout)\s+([\w\s,]+)`)
-		signalMatches := signalRegex.FindStringSubmatch(line)
+		// Match direction and signal name: "input signal_name" or "output signal_name"
+		signalRegex := regexp.MustCompile(`^\s*(input|output|inout)\s+(\w+)\s*$`)
+		signalMatches := signalRegex.FindStringSubmatch(part)
 
 		if len(signalMatches) >= 3 {
 			direction := GetPortDirection(signalMatches[1])
-			signalNames := signalMatches[2]
+			signalName := strings.TrimSpace(signalMatches[2])
 
-			// Parse multiple signal names separated by commas
-			names := strings.Split(signalNames, ",")
-			for _, name := range names {
-				name = strings.TrimSpace(name)
-				if name != "" {
-					signals = append(signals, ModPortSignal{
-						Name:      name,
-						Direction: direction,
-					})
-				}
+			if signalName != "" {
+				signals = append(signals, ModPortSignal{
+					Name:      signalName,
+					Direction: direction,
+				})
 			}
 		}
 	}
