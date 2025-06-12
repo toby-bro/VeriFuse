@@ -1086,6 +1086,7 @@ endinterface`,
 						Signals: []ModPortSignal{
 							{Name: "data", Direction: OUTPUT},
 							{Name: "ready", Direction: INPUT},
+							{Name: "valid", Direction: OUTPUT},
 						},
 					},
 					{
@@ -1093,6 +1094,7 @@ endinterface`,
 						Signals: []ModPortSignal{
 							{Name: "data", Direction: INPUT},
 							{Name: "ready", Direction: OUTPUT},
+							{Name: "valid", Direction: INPUT},
 						},
 					},
 				},
@@ -1104,12 +1106,14 @@ endinterface`,
 			want: `interface modport_if;
     modport master (
         output data,
-        input ready
+        input ready,
+        output valid
     );
 
     modport slave (
         input data,
-        output ready
+        output ready,
+        input valid
     );
 endinterface`,
 		},
@@ -1210,6 +1214,566 @@ endinterface`,
 			got := PrintInterface(tt.intf)
 			if got != tt.want {
 				t.Errorf("PrintInterface() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// Test interfaces from V3SchedVirtIface.sv specifically
+func TestPrintInterface_V3SchedVirtIface(t *testing.T) {
+	tests := []struct {
+		name string
+		intf *Interface
+		want string
+	}{
+		{
+			name: "my_if interface",
+			intf: &Interface{
+				Name:       "my_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "FullAccess",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: INPUT},
+							{Name: "ready", Direction: OUTPUT},
+							{Name: "valid", Direction: OUTPUT},
+						},
+					},
+					{
+						Name: "AccessIn",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: OUTPUT},
+							{Name: "valid", Direction: OUTPUT},
+							{Name: "ready", Direction: INPUT},
+						},
+					},
+					{
+						Name: "AccessOut",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: INPUT},
+							{Name: "valid", Direction: INPUT},
+							{Name: "ready", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "data", Type: LOGIC, Width: 8},
+					{Name: "ready", Type: LOGIC, Width: 0},
+					{Name: "valid", Type: LOGIC, Width: 0},
+				},
+				Body:        "    logic [7:0] data;\n    logic ready;\n    logic valid;\n    modport FullAccess (input data, output ready, output valid);\n    modport AccessIn (output data, output valid, input ready);\n    modport AccessOut (input data, input valid, output ready);",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface my_if;
+    logic [7:0] data;
+    logic ready;
+    logic valid;
+    modport FullAccess (input data, output ready, output valid);
+    modport AccessIn (output data, output valid, input ready);
+    modport AccessOut (input data, input valid, output ready);
+endinterface`,
+		},
+		{
+			name: "cond_if interface",
+			intf: &Interface{
+				Name:       "cond_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "CtrlStat",
+						Signals: []ModPortSignal{
+							{Name: "control_reg", Direction: OUTPUT},
+							{Name: "status_reg", Direction: INPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "control_reg", Type: LOGIC, Width: 16},
+					{Name: "status_reg", Type: LOGIC, Width: 16},
+				},
+				Body:        "    logic [15:0] control_reg;\n    logic [15:0] status_reg;\n    modport CtrlStat (output control_reg, input status_reg);",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface cond_if;
+    logic [15:0] control_reg;
+    logic [15:0] status_reg;
+    modport CtrlStat (output control_reg, input status_reg);
+endinterface`,
+		},
+		{
+			name: "loop_if interface",
+			intf: &Interface{
+				Name:       "loop_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "Ctrl",
+						Signals: []ModPortSignal{
+							{Name: "index", Direction: OUTPUT},
+							{Name: "done", Direction: OUTPUT},
+						},
+					},
+					{
+						Name: "Report",
+						Signals: []ModPortSignal{
+							{Name: "index", Direction: INPUT},
+							{Name: "done", Direction: INPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "index", Type: LOGIC, Width: 4},
+					{Name: "done", Type: LOGIC, Width: 0},
+				},
+				Body:        "    logic [3:0] index;\n    logic done;\n    modport Ctrl (output index, output done);\n    modport Report (input index, input done);",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface loop_if;
+    logic [3:0] index;
+    logic done;
+    modport Ctrl (output index, output done);
+    modport Report (input index, input done);
+endinterface`,
+		},
+		{
+			name: "seq_if interface",
+			intf: &Interface{
+				Name:       "seq_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "PortA",
+						Signals: []ModPortSignal{
+							{Name: "value_a", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "value_a", Type: LOGIC, Width: 32},
+				},
+				Body:        "    logic [31:0] value_a;\n    modport PortA (output value_a);",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface seq_if;
+    logic [31:0] value_a;
+    modport PortA (output value_a);
+endinterface`,
+		},
+		{
+			name: "seq2_if interface",
+			intf: &Interface{
+				Name:       "seq2_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "PortB",
+						Signals: []ModPortSignal{
+							{Name: "status_byte", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "status_byte", Type: LOGIC, Width: 8},
+				},
+				Body:        "    logic [7:0] status_byte;\n    modport PortB (output status_byte);",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface seq2_if;
+    logic [7:0] status_byte;
+    modport PortB (output status_byte);
+endinterface`,
+		},
+		{
+			name: "struct_if interface",
+			intf: &Interface{
+				Name:       "struct_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "Access",
+						Signals: []ModPortSignal{
+							{Name: "packet_field1", Direction: OUTPUT},
+							{Name: "packet_field2", Direction: OUTPUT},
+							{Name: "tx_en", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "packet_field1", Type: LOGIC, Width: 8},
+					{Name: "packet_field2", Type: LOGIC, Width: 8},
+					{Name: "tx_en", Type: LOGIC, Width: 0},
+				},
+				Body:        "    logic [7:0] packet_field1;\n    logic [7:0] packet_field2;\n    logic tx_en;\n    modport Access (output packet_field1, output packet_field2, output tx_en);",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface struct_if;
+    logic [7:0] packet_field1;
+    logic [7:0] packet_field2;
+    logic tx_en;
+    modport Access (output packet_field1, output packet_field2, output tx_en);
+endinterface`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PrintInterface(tt.intf)
+			if got != tt.want {
+				t.Errorf("PrintInterface() for %s =\nGOT:\n%s\nWANT:\n%s", tt.name, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
+	tests := []struct {
+		name    string
+		modport ModPort
+		want    string
+	}{
+		{
+			name: "FullAccess modport from my_if",
+			modport: ModPort{
+				Name: "FullAccess",
+				Signals: []ModPortSignal{
+					{Name: "data", Direction: INPUT},
+					{Name: "ready", Direction: OUTPUT},
+					{Name: "valid", Direction: OUTPUT},
+				},
+			},
+			want: `modport FullAccess (
+    input data,
+    output ready,
+    output valid
+);`,
+		},
+		{
+			name: "AccessIn modport from my_if",
+			modport: ModPort{
+				Name: "AccessIn",
+				Signals: []ModPortSignal{
+					{Name: "data", Direction: OUTPUT},
+					{Name: "valid", Direction: OUTPUT},
+					{Name: "ready", Direction: INPUT},
+				},
+			},
+			want: `modport AccessIn (
+    output data,
+    output valid,
+    input ready
+);`,
+		},
+		{
+			name: "AccessOut modport from my_if",
+			modport: ModPort{
+				Name: "AccessOut",
+				Signals: []ModPortSignal{
+					{Name: "data", Direction: INPUT},
+					{Name: "valid", Direction: INPUT},
+					{Name: "ready", Direction: OUTPUT},
+				},
+			},
+			want: `modport AccessOut (
+    input data,
+    input valid,
+    output ready
+);`,
+		},
+		{
+			name: "CtrlStat modport from cond_if",
+			modport: ModPort{
+				Name: "CtrlStat",
+				Signals: []ModPortSignal{
+					{Name: "control_reg", Direction: OUTPUT},
+					{Name: "status_reg", Direction: INPUT},
+				},
+			},
+			want: `modport CtrlStat (
+    output control_reg,
+    input status_reg
+);`,
+		},
+		{
+			name: "Ctrl modport from loop_if",
+			modport: ModPort{
+				Name: "Ctrl",
+				Signals: []ModPortSignal{
+					{Name: "index", Direction: OUTPUT},
+					{Name: "done", Direction: OUTPUT},
+				},
+			},
+			want: `modport Ctrl (
+    output index,
+    output done
+);`,
+		},
+		{
+			name: "Report modport from loop_if",
+			modport: ModPort{
+				Name: "Report",
+				Signals: []ModPortSignal{
+					{Name: "index", Direction: INPUT},
+					{Name: "done", Direction: INPUT},
+				},
+			},
+			want: `modport Report (
+    input index,
+    input done
+);`,
+		},
+		{
+			name: "PortA modport from seq_if",
+			modport: ModPort{
+				Name: "PortA",
+				Signals: []ModPortSignal{
+					{Name: "value_a", Direction: OUTPUT},
+				},
+			},
+			want: `modport PortA (
+    output value_a
+);`,
+		},
+		{
+			name: "PortB modport from seq2_if",
+			modport: ModPort{
+				Name: "PortB",
+				Signals: []ModPortSignal{
+					{Name: "status_byte", Direction: OUTPUT},
+				},
+			},
+			want: `modport PortB (
+    output status_byte
+);`,
+		},
+		{
+			name: "Access modport from struct_if",
+			modport: ModPort{
+				Name: "Access",
+				Signals: []ModPortSignal{
+					{Name: "packet_field1", Direction: OUTPUT},
+					{Name: "packet_field2", Direction: OUTPUT},
+					{Name: "tx_en", Direction: OUTPUT},
+				},
+			},
+			want: `modport Access (
+    output packet_field1,
+    output packet_field2,
+    output tx_en
+);`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PrintModPort(tt.modport)
+			if got != tt.want {
+				t.Errorf("PrintModPort() for %s =\nGOT:\n%s\nWANT:\n%s", tt.name, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrintInterfacePort_V3SchedVirtIface(t *testing.T) {
+	tests := []struct {
+		name   string
+		port   InterfacePort
+		isLast bool
+		want   string
+	}{
+		{
+			name: "8-bit data signal",
+			port: InterfacePort{
+				Name:      "data",
+				Direction: INTERNAL,
+				Type:      LOGIC,
+				Width:     8,
+				IsSigned:  false,
+			},
+			isLast: false,
+			want:   "logic [7:0] data,",
+		},
+		{
+			name: "ready signal",
+			port: InterfacePort{
+				Name:      "ready",
+				Direction: INTERNAL,
+				Type:      LOGIC,
+				Width:     0,
+				IsSigned:  false,
+			},
+			isLast: false,
+			want:   "logic ready,",
+		},
+		{
+			name: "valid signal",
+			port: InterfacePort{
+				Name:      "valid",
+				Direction: INTERNAL,
+				Type:      LOGIC,
+				Width:     0,
+				IsSigned:  false,
+			},
+			isLast: true,
+			want:   "logic valid",
+		},
+		{
+			name: "16-bit control_reg signal",
+			port: InterfacePort{
+				Name:      "control_reg",
+				Direction: INTERNAL,
+				Type:      LOGIC,
+				Width:     16,
+				IsSigned:  false,
+			},
+			isLast: false,
+			want:   "logic [15:0] control_reg,",
+		},
+		{
+			name: "4-bit index signal",
+			port: InterfacePort{
+				Name:      "index",
+				Direction: INTERNAL,
+				Type:      LOGIC,
+				Width:     4,
+				IsSigned:  false,
+			},
+			isLast: false,
+			want:   "logic [3:0] index,",
+		},
+		{
+			name: "32-bit value_a signal",
+			port: InterfacePort{
+				Name:      "value_a",
+				Direction: INTERNAL,
+				Type:      LOGIC,
+				Width:     32,
+				IsSigned:  false,
+			},
+			isLast: true,
+			want:   "logic [31:0] value_a",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PrintInterfacePort(tt.port, tt.isLast)
+			if got != tt.want {
+				t.Errorf("PrintInterfacePort() for %s =\nGOT: %q\nWANT: %q", tt.name, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrintInterface_EdgeCases_V3SchedVirtIface(t *testing.T) {
+	tests := []struct {
+		name string
+		intf *Interface
+		want string
+	}{
+		{
+			name: "Empty interface",
+			intf: &Interface{
+				Name:        "empty_if",
+				Ports:       []InterfacePort{},
+				Parameters:  []Parameter{},
+				ModPorts:    []ModPort{},
+				Variables:   []*Variable{},
+				Body:        "",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface empty_if;
+endinterface`,
+		},
+		{
+			name: "Interface with only variables (generated from components)",
+			intf: &Interface{
+				Name:       "vars_only_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts:   []ModPort{},
+				Variables: []*Variable{
+					{Name: "test_signal", Type: LOGIC, Width: 8},
+				},
+				Body:        "", // Empty body, should generate from components
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface vars_only_if;
+    logic [7:0] test_signal;
+endinterface`,
+		},
+		{
+			name: "Interface with only modports (generated from components)",
+			intf: &Interface{
+				Name:       "modports_only_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "test_port",
+						Signals: []ModPortSignal{
+							{Name: "test_sig", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables:   []*Variable{},
+				Body:        "", // Empty body, should generate from components
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface modports_only_if;
+    modport test_port (
+        output test_sig
+    );
+endinterface`,
+		},
+		{
+			name: "Interface with body takes precedence over components",
+			intf: &Interface{
+				Name:       "body_precedence_if",
+				Ports:      []InterfacePort{},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "ignored_port",
+						Signals: []ModPortSignal{
+							{Name: "ignored_sig", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "ignored_var", Type: LOGIC, Width: 8},
+				},
+				Body:        "    logic [7:0] actual_signal;\n    modport actual_port (output actual_signal);", // Body takes precedence
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			want: `interface body_precedence_if;
+    logic [7:0] actual_signal;
+    modport actual_port (output actual_signal);
+endinterface`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PrintInterface(tt.intf)
+			if got != tt.want {
+				t.Errorf("PrintInterface() for %s =\nGOT:\n%s\nWANT:\n%s", tt.name, got, tt.want)
 			}
 		})
 	}
@@ -1317,7 +1881,6 @@ endpackage
 				// as the printer should ideally reconstruct it from components.
 				// Let's assume PrintPackage will use the individual fields (Typedefs, Variables etc.)
 				// and not just echo a pre-formatted Body.
-				// If PrintPackage just prints the Body, these tests are less effective for sub-elements.
 				// For this iteration, let's assume PrintPackage is smart.
 			},
 			// This expected output assumes PrintPackage intelligently combines the components.

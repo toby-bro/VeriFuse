@@ -383,45 +383,47 @@ func PrintInterface(i *Interface) string {
 
 	sb.WriteString(";\n")
 
-	// Print variables declared in the interface
-	if len(i.Variables) > 0 {
-		for _, variable := range i.Variables {
-			sb.WriteString("    ")
-			sb.WriteString(PrintVariableDeclaration(variable))
-			sb.WriteString("\n")
-		}
-		if len(i.ModPorts) > 0 {
-			sb.WriteString("\n") // Add spacing before modports
-		}
-	}
-
-	// Print modport declarations
-	if len(i.ModPorts) > 0 {
-		for j, modport := range i.ModPorts {
-			sb.WriteString(printModPortWithIndent(modport, "    "))
-			if j < len(i.ModPorts)-1 {
-				sb.WriteString("\n\n") // Add spacing between modports
-			} else {
+	// Two approaches based on body content:
+	// 1. If body is empty/nil, generate the body from components
+	// 2. If body is a string, just print the body directly
+	if strings.TrimSpace(i.Body) != "" {
+		// Approach 2: Body contains parsed content, print it directly
+		bodyLines := strings.Split(i.Body, "\n")
+		for _, line := range bodyLines {
+			if strings.TrimSpace(line) != "" {
+				// Check if line already has proper indentation
+				if strings.HasPrefix(line, "    ") {
+					sb.WriteString(line)
+				} else {
+					sb.WriteString("    ")
+					sb.WriteString(line)
+				}
 				sb.WriteString("\n")
 			}
 		}
-	}
-
-	// Handle any additional body content that wasn't parsed into structured fields
-	if strings.TrimSpace(i.Body) != "" {
-		// Only include body content that's not already represented by the structured fields
-		// This is a fallback for any unparsed content
-		bodyLines := strings.Split(i.Body, "\n")
-		hasNonEmptyContent := false
-		for _, line := range bodyLines {
-			if strings.TrimSpace(line) != "" {
-				if !hasNonEmptyContent {
-					sb.WriteString("\n") // Add spacing before raw body content
-					hasNonEmptyContent = true
-				}
+	} else {
+		// Approach 1: Body is empty, generate from components
+		// Print variables declared in the interface
+		if len(i.Variables) > 0 {
+			for _, variable := range i.Variables {
 				sb.WriteString("    ")
-				sb.WriteString(line)
+				sb.WriteString(PrintVariableDeclaration(variable))
 				sb.WriteString("\n")
+			}
+			if len(i.ModPorts) > 0 {
+				sb.WriteString("\n") // Add spacing before modports
+			}
+		}
+
+		// Print modport declarations
+		if len(i.ModPorts) > 0 {
+			for j, modport := range i.ModPorts {
+				sb.WriteString(printModPortWithIndent(modport, "    "))
+				if j < len(i.ModPorts)-1 {
+					sb.WriteString("\n\n") // Add spacing between modports
+				} else {
+					sb.WriteString("\n")
+				}
 			}
 		}
 	}
