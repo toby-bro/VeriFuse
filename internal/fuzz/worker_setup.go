@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
+	"github.com/toby-bro/pfuzz/internal/snippets"
 	"github.com/toby-bro/pfuzz/pkg/testgen"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
@@ -38,33 +39,6 @@ func (sch *Scheduler) setupWorker(workerID string) (string, func(), error) {
 		sch.debug.Debug("Cleaned up worker directory: %s", workerDir)
 	}
 	return workerDir, cleanup, nil
-}
-
-func (sch *Scheduler) copyWorkerFiles(workerID, workerDir, verilogFileName string) error {
-	srcPath := filepath.Join(utils.TMP_DIR, verilogFileName)
-	dstPath := filepath.Join(workerDir, verilogFileName)
-	sch.debug.Debug(
-		"[%s] Copying Verilog source file `%s` to `%s`",
-		workerID,
-		srcPath,
-		dstPath,
-	)
-	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
-		return fmt.Errorf("[%s] Source Verilog file %s does not exist", workerID, srcPath)
-	}
-	if err := utils.CopyFile(srcPath, dstPath); err != nil {
-		return fmt.Errorf("failed to copy %s to worker directory: %w", verilogFileName, err)
-	}
-	if fi, err := os.Stat(dstPath); err != nil || fi.Size() == 0 {
-		fileSize := int64(0)
-		if fi != nil {
-			fileSize = fi.Size()
-		}
-		return fmt.Errorf("[%s] Verilog file %s not copied correctly, size: %d, error: %v",
-			workerID, dstPath, fileSize, err)
-	}
-	sch.debug.Debug("[%s] Successfully copied %s", workerID, verilogFileName)
-	return nil
 }
 
 // performWorkerAttempt tries to set up and run tests for one worker attempt.
@@ -102,11 +76,7 @@ func (sch *Scheduler) performWorkerAttempt(
 		}
 	}()
 
-	if err := sch.copyWorkerFiles(workerID, workerDir, sch.svFile.Name); err != nil {
-		return false, fmt.Errorf("failed to copy files for worker %s: %w", workerID, err)
-	}
-
-	workerVerilogPath := filepath.Join(workerDir, sch.svFile.Name)
+	workerVerilogPath := filepath.Join(workerDir, workerModule.Name+".sv")
 	var svFile *verilog.VerilogFile
 	if sch.operation == OpMutate {
 		sch.debug.Debug("[%s] Attempting mutation on %s", workerID, workerVerilogPath)
@@ -116,15 +86,22 @@ func (sch *Scheduler) performWorkerAttempt(
 		sch.debug.Debug("[%s] Mutation applied. Proceeding.", workerID)
 	} else {
 		sch.debug.Debug("[%s] Mutation not requested. Proceeding with original file.", workerID)
-		fileContent, err := utils.ReadFileContent(workerVerilogPath)
-		if err != nil {
-			return false, fmt.Errorf("[%s] failed to read Verilog file: %w", workerID, err)
-		}
-		svFile, err = verilog.ParseVerilog(fileContent, sch.verbose)
-		if err != nil {
-			return false, fmt.Errorf("[%s] failed to parse Verilog file: %w", workerID, err)
-		}
-		svFile.Name = sch.svFile.Name // Ensure basename is correct
+		svFile = sch.svFile
+		svFile.Name = workerModule.Name + ".sv"
+	}
+	sch.debug.Debug(
+		"[%s] Printing minimal file %s for module %s",
+		workerID,
+		svFile.Name,
+		workerModule.Name,
+	)
+	if err := snippets.PrintMinimalVerilogFileInDist(svFile, workerModule, workerDir); err != nil {
+		return false, fmt.Errorf(
+			"[%s] failed to print minimal file for module %s: %w",
+			workerID,
+			workerModule.Name,
+			err,
+		)
 	}
 
 	if err = simulator.TransformSV2V(workerModule.Name, workerVerilogPath, svFile.Name); err != nil {
