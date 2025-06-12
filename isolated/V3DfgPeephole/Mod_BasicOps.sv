@@ -1,23 +1,23 @@
 module Mod_BasicOps (
-    input wire [7:0] in_const1,
-    output logic [7:0] out_and_assoc,
-    output logic [7:0] out_and_swap_const,
-    output logic [7:0] out_xor_assoc,
-    output logic [7:0] out_or_swap_not,
     input wire [7:0] in_b,
     output logic out_logical,
-    input wire [7:0] in_const2,
-    output logic [7:0] out_arith,
     output logic [7:0] out_xor_swap_var,
-    output logic [7:0] out_bitwise,
-    output logic [7:0] out_mul_assoc,
-    input wire [7:0] in_c,
-    output logic [7:0] out_add_assoc,
-    input wire in_bit,
-    output logic [7:0] out_unary_not,
+    output logic [7:0] out_and_assoc,
     input wire [7:0] in_a,
+    output logic [7:0] out_or_swap_not,
     output logic [7:0] out_or_assoc,
-    output logic [7:0] out_negate
+    output logic [7:0] out_unary_not,
+    output logic [7:0] out_arith,
+    input wire [7:0] in_const2,
+    output logic [7:0] out_add_assoc,
+    input wire [7:0] in_const1,
+    output logic [7:0] out_xor_assoc,
+    output logic [7:0] out_bitwise,
+    output logic [7:0] out_negate,
+    input wire [7:0] in_c,
+    input wire in_bit,
+    output logic [7:0] out_mul_assoc,
+    output logic [7:0] out_and_swap_const
 );
     logic [7:0] intermediate_arith;
     logic [7:0] intermediate_bitwise;
@@ -37,7 +37,7 @@ module Mod_BasicOps (
             intermediate_arith = intermediate_arith / in_b;
             intermediate_arith = intermediate_arith % in_b;
         end else begin
-             intermediate_arith = 'x;
+            intermediate_arith = 'x;
         end
         out_arith = intermediate_arith;
         intermediate_bitwise = in_a;

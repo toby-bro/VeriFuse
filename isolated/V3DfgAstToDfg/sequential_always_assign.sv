@@ -1,7 +1,7 @@
 module sequential_always_assign (
-    output logic [7:0] out,
     input logic clk,
-    input logic [7:0] in
+    input logic [7:0] in,
+    output logic [7:0] out
 );
     always @(posedge clk) begin
         out <= in;

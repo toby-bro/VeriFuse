@@ -4,8 +4,8 @@ module multidriven_unhandled (
     input logic [7:0] in2
 );
     wire [7:0] conflict_wire;
-      assign conflict_wire = in1;
-      assign conflict_wire = in2;
-      assign out = conflict_wire;
+    assign conflict_wire = in1;
+    assign conflict_wire = in2;
+    assign out = conflict_wire;
 endmodule
 

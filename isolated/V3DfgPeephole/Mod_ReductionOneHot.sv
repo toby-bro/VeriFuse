@@ -1,21 +1,21 @@
 module Mod_ReductionOneHot (
-    output logic [3:0] out_clog2,
-    input wire in_bit,
-    input wire [7:0] in_vec,
-    output logic out_red_xor,
-    output logic out_red_or,
-    output logic out_red_concat,
-    output logic out_red_bit,
-    output logic [7:0] out_onehot,
-    input wire [7:0] in_vec_a,
-    input wire [7:0] in_vec_b,
+    output logic out_red_and,
     output logic out_or_red,
+    output logic [7:0] out_onehot0,
+    input wire [7:0] in_vec,
+    output logic out_red_bit,
+    input wire [7:0] in_vec_a,
     input wire [7:0] in_red_concat_lhs,
     output logic out_red_cond,
+    output logic out_red_or,
+    output logic [3:0] out_countones,
     input wire in_cond,
-    output logic [7:0] out_onehot0,
-    output logic out_red_and,
-    output logic [3:0] out_countones
+    input wire [7:0] in_vec_b,
+    output logic out_red_xor,
+    input wire in_bit,
+    output logic out_red_concat,
+    output logic [7:0] out_onehot,
+    output logic [3:0] out_clog2
 );
     logic [15:0] intermediate_red_concat_src;
     logic [7:0] intermediate_red_cond_then;

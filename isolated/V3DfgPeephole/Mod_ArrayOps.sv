@@ -1,9 +1,9 @@
 module Mod_ArrayOps (
-    input wire [1:0] in_index,
     input wire [1:0] in_const_index,
     output logic [7:0] out_array_sel_var,
     output logic [7:0] out_array_sel_const,
-    input wire [7:0] in_data
+    input wire [7:0] in_data,
+    input wire [1:0] in_index
 );
     logic [7:0] my_array [3:0];
     always_comb begin

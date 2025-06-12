@@ -1,9 +1,9 @@
 module always_comb_assign (
-    input logic [15:0] in,
-    output logic [15:0] out
+    output logic [15:0] out,
+    input logic [15:0] in
 );
     always_comb begin
-    out = in;
-      end
+        out = in;
+    end
 endmodule
 

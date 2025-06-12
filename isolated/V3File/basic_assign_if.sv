@@ -4,13 +4,13 @@ module basic_assign_if (
     output logic out_c
 );
     logic intermediate_wire;
-      assign intermediate_wire = in_a & in_b;
-      always_comb begin
-    if (intermediate_wire) begin
-      out_c = 1'b1;
-    end else begin
-      out_c = 1'b0;
+    assign intermediate_wire = in_a & in_b;
+    always_comb begin
+        if (intermediate_wire) begin
+            out_c = 1'b1;
+        end else begin
+            out_c = 1'b0;
+        end
     end
-      end
 endmodule
 

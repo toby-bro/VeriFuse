@@ -25,12 +25,12 @@ module dup_nested_if (
                 res = val1 / ((val2 == 0) ? 1 : val2);
             end
         end else if (mode == 3'b100) begin
-             if (val1 != val2) begin
+            if (val1 != val2) begin
                 if (val1 > val2) res = val1;
                 else res = val2;
-             end else begin
+            end else begin
                 res = val1 + val2;
-             end
+            end
         end
         else begin
             res = val1 ^ val2;

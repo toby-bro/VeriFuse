@@ -18,11 +18,11 @@ module deep_function_logic (
             end
         end else begin
             if (mode[2]) begin
-                 if (mode[3]) func_temp = val1 ^ val2;
-                 else func_temp = ~val1;
+                if (mode[3]) func_temp = val1 ^ val2;
+                else func_temp = ~val1;
             end else begin
-                 if (mode[3]) func_temp = val1 << mode[1:0];
-                 else func_temp = val1 >> mode[1:0];
+                if (mode[3]) func_temp = val1 << mode[1:0];
+                else func_temp = val1 >> mode[1:0];
             end
         end
     end else begin
@@ -34,8 +34,8 @@ module deep_function_logic (
                 default: func_temp = val2 / (val1 == 0 ? 16'd1 : val1);
             endcase
         end else begin
-             if (mode[2]) func_temp = {val1[7:0], val2[7:0]};
-             else func_temp = {val2[7:0], val1[7:0]};
+            if (mode[2]) func_temp = {val1[7:0], val2[7:0]};
+            else func_temp = {val2[7:0], val1[7:0]};
         end
     end
     return func_temp;
