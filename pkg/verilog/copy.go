@@ -47,6 +47,7 @@ func (vf *VerilogFile) DeepCopy() *VerilogFile {
 		Name:       vf.Name,
 		Modules:    make(map[string]*Module),
 		Interfaces: make(map[string]*Interface),
+		Packages:   make(map[string]*Package),
 
 		Classes:       make(map[string]*Class),
 		Structs:       make(map[string]*Struct),
@@ -66,6 +67,9 @@ func (vf *VerilogFile) DeepCopy() *VerilogFile {
 	}
 	for name, depNode := range vf.DependencyMap {
 		copiedFile.DependencyMap[name] = depNode.DeepCopy()
+	}
+	for name, pkg := range vf.Packages {
+		copiedFile.Packages[name] = pkg
 	}
 	return copiedFile
 }
