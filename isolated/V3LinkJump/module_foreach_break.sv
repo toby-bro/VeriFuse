@@ -1,7 +1,7 @@
 module module_foreach_break (
+    output logic [7:0] out_sum_partial,
     input logic [7:0] in_seed,
-    input logic [7:0] in_stop,
-    output logic [7:0] out_sum_partial
+    input logic [7:0] in_stop
 );
     logic [3:0][7:0] internal_array; 
     always_comb begin: foreach_break_block

@@ -1,6 +1,6 @@
 module loop_unroll_limit_test (
-    output logic [7:0] large_sum_out,
-    input logic [1:0] large_data_in
+    input logic [1:0] large_data_in,
+    output logic [7:0] large_sum_out
 );
     logic [7:0] current_large_sum;
     always_comb begin

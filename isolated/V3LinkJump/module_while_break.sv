@@ -1,6 +1,6 @@
 module module_while_break (
-    output logic [3:0] out_count,
-    input logic [3:0] in_limit
+    input logic [3:0] in_limit,
+    output logic [3:0] out_count
 );
     always_comb begin: while_block
         logic [3:0] i;

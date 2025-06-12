@@ -1,6 +1,6 @@
 module simple_logic_b (
-    output wire data_d,
-    input wire data_c
+    input wire data_c,
+    output wire data_d
 );
     assign data_d = data_c;
 endmodule

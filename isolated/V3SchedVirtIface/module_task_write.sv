@@ -7,9 +7,9 @@ interface my_if;
     modport AccessOut (input data, input valid, output ready);
 endinterface
 module module_task_write (
+    output logic task_output_valid,
     input logic task_en,
-    input logic [7:0] in_task_data,
-    output logic task_output_valid
+    input logic [7:0] in_task_data
 );
     my_if task_vif_inst();
     task automatic update_vif_signals(input logic en, input logic [7:0] data_val,

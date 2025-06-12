@@ -1,17 +1,17 @@
 class MyClass;
-      int data;
-      function new(int val);
+    int data;
+    function new(int val);
         data = val;
-      endfunction
+    endfunction
 endclass
 
 module module_affinity (
+    input logic [7:0] input_data_aff,
     input logic enable_aff,
     input logic reset_aff,
     input logic clk_aff,
     output logic [7:0] output_comb_aff,
-    output logic [7:0] output_ff_aff,
-    input logic [7:0] input_data_aff
+    output logic [7:0] output_ff_aff
 );
     logic [7:0] comb_var1;
     logic [7:0] comb_var2;
@@ -63,11 +63,11 @@ module module_affinity (
             output_ff_aff <= 8'b0;
             shared_ff1_ff2 <= 8'b0;
         end else begin
-             ff2_var1 <= shared_ff1_ff2;
-             ff2_var2 <= ff2_var1 + (my_class_handle2 != null ? my_class_handle2.data : 0);
-             shared_ff1_ff2 <= ff2_var2;
-             output_ff_aff <= ff2_var2;
-             static_shared_var <= static_shared_var + 1;
+            ff2_var1 <= shared_ff1_ff2;
+            ff2_var2 <= ff2_var1 + (my_class_handle2 != null ? my_class_handle2.data : 0);
+            shared_ff1_ff2 <= ff2_var2;
+            output_ff_aff <= ff2_var2;
+            static_shared_var <= static_shared_var + 1;
         end
     end
 endmodule

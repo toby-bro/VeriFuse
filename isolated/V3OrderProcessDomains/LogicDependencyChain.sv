@@ -1,7 +1,7 @@
 module LogicDependencyChain (
-    output logic q_out,
     input logic d_in,
-    input logic clk
+    input logic clk,
+    output logic q_out
 );
     logic q1, q2;
     always @(posedge clk) begin

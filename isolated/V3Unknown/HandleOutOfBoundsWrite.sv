@@ -1,8 +1,8 @@
 module HandleOutOfBoundsWrite (
-    input logic [3:0] i_addr_write,
-    input logic [7:0] i_data_write,
     output logic [7:0] o_modified_vec,
-    output logic [7:0] o_modified_arr
+    output logic [7:0] o_modified_arr,
+    input logic [3:0] i_addr_write,
+    input logic [7:0] i_data_write
 );
     parameter VEC_SIZE = 8;
     parameter ARR_SIZE = 4;

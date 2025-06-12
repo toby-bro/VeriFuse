@@ -1,7 +1,7 @@
 module module_foreach_continue (
+    input logic [7:0] in_seed,
     input logic [7:0] in_skip,
-    output logic [7:0] out_sum_filtered,
-    input logic [7:0] in_seed
+    output logic [7:0] out_sum_filtered
 );
     logic [3:0][7:0] internal_array; 
     always_comb begin: foreach_cont_block

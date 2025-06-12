@@ -7,10 +7,10 @@ interface my_if;
     modport AccessOut (input data, input valid, output ready);
 endinterface
 module module_case_write (
-    output logic case_output_ready,
-    input logic [1:0] select_case,
     input logic [7:0] data_case_a,
-    input logic [7:0] data_case_b
+    input logic [7:0] data_case_b,
+    output logic case_output_ready,
+    input logic [1:0] select_case
 );
     my_if case_vif_inst();
     always_comb begin

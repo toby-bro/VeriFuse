@@ -1,7 +1,7 @@
 module module_latch (
-    output reg [7:0] out_latch_reg,
     input wire [7:0] in_latch_data,
-    input wire in_latch_en
+    input wire in_latch_en,
+    output reg [7:0] out_latch_reg
 );
     always_latch begin
     if (in_latch_en) begin

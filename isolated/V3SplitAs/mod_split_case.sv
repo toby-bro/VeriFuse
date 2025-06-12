@@ -1,8 +1,8 @@
 module mod_split_case (
-    output logic [7:0] out_case_a,
-    output logic [7:0] out_case_b,
     input logic [1:0] sel,
-    input logic [7:0] data_in
+    input logic [7:0] data_in,
+    output logic [7:0] out_case_a,
+    output logic [7:0] out_case_b
 );
     logic [7:0]  split_case_var;
     logic [7:0] other_case_var;

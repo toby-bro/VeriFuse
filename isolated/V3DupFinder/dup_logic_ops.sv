@@ -1,9 +1,9 @@
 module dup_logic_ops (
-    input logic [7:0] d3,
     output logic [7:0] out1,
     input logic [3:0] flags,
     input logic [7:0] d1,
-    input logic [7:0] d2
+    input logic [7:0] d2,
+    input logic [7:0] d3
 );
     logic cond1, cond2, cond3;
     logic complex_cond1, complex_cond2;

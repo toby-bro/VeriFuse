@@ -1,9 +1,9 @@
 module HandleSystemFunctionsAndCasex (
-    output logic [3:0] o_countbits,
-    output logic [1:0] o_case_result,
     input logic [3:0] i_val_sf,
     input logic [2:0] i_val_case,
-    output logic o_isunknown
+    output logic o_isunknown,
+    output logic [3:0] o_countbits,
+    output logic [1:0] o_case_result
 );
     assign o_isunknown = $isunknown(i_val_sf);
     assign o_countbits = $countbits(1, i_val_sf);

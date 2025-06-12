@@ -6,6 +6,9 @@ module mod_automatic_task (
         out_v = in_v * 2;
     endtask
     always_comb begin
-        update_val(i_val, o_val);
+        int temp_val;
+        update_val(i_val, temp_val);
+        o_val = temp_val;
     end
 endmodule
+

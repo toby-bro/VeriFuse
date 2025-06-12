@@ -1,8 +1,8 @@
 module SelectSlice (
-    output wire [3:0] out_slice,
     output wire out_bit,
     input wire [7:0] data_in,
-    input wire sel_en
+    input wire sel_en,
+    output wire [3:0] out_slice
 );
     wire [7:0] tri_bus;
     assign tri_bus = sel_en ? data_in : 8'bz;

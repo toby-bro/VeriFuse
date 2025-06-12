@@ -1,7 +1,7 @@
 module unpacked_array_module (
+    input wire [7:0] in_array_data,
     input wire [1:0] select_idx,
-    output wire [3:0] out_element,
-    input wire [7:0] in_array_data
+    output wire [3:0] out_element
 );
     logic [3:0] data_array [4];
     always @(*) begin
