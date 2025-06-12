@@ -86,8 +86,14 @@ func (sch *Scheduler) performWorkerAttempt(
 		sch.debug.Debug("[%s] Mutation applied. Proceeding.", workerID)
 	} else {
 		sch.debug.Debug("[%s] Mutation not requested. Proceeding with original file.", workerID)
-		svFile = sch.svFile
+		svFile = sch.svFile.DeepCopy()
 		svFile.Name = workerModule.Name + ".sv"
+	}
+	if svFile == sch.svFile {
+		logger.Fatal(
+			"[%s] svFile is the same as original file. This should not happen.",
+			workerID,
+		)
 	}
 	sch.debug.Debug(
 		"[%s] Printing minimal file %s for module %s",
@@ -113,14 +119,6 @@ func (sch *Scheduler) performWorkerAttempt(
 		)
 	}
 
-	sch.debug.Debug(
-		"[%s] Parsed %d modules from file %s (path: %s).",
-		workerID,
-		len(svFile.Modules),
-		svFile.Name,
-		workerVerilogPath,
-	)
-
 	// Ensure workerModule is from the current svFile
 	currentWorkerModule, ok := svFile.Modules[workerModule.Name]
 	if !ok {
@@ -133,9 +131,10 @@ func (sch *Scheduler) performWorkerAttempt(
 	}
 
 	sch.debug.Debug(
-		"[%s] Generating testbenches for module %s in %s",
+		"[%s] Generating testbenches for module %s of %s in %s",
 		workerID,
 		currentWorkerModule.Name,
+		svFile.Name,
 		workerDir,
 	)
 	gen := testgen.NewGenerator(
@@ -313,6 +312,10 @@ func (sch *Scheduler) setupVerilatorSimulator(
 		optimized,
 		sch.verbose,
 	)
+
+	if vlsim == nil {
+		sch.debug.Error("Module %s not found in Verilog file", workerModuleName)
+	}
 
 	if err := sch.compileSimulatorWithTimeout(ctx, workerID, vlsim, config); err != nil {
 		return nil, err
