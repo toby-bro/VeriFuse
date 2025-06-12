@@ -2802,6 +2802,57 @@ endinterface`,
 			expectedOK: true,
 		},
 		{
+			name: "Interface with no external ports but with internal signals and modports",
+			interfaceContent: `interface control_if;
+  logic [7:0] data;
+  logic ready;
+  logic valid;
+  modport FullAccess (input data, output ready, output valid);
+  modport AccessIn (output data, output valid, input ready);
+  modport AccessOut (input data, input valid, output ready);
+endinterface`,
+			expectedInterface: &Interface{
+				Name:       "control_if",
+				Ports:      []InterfacePort{}, // No external ports
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "FullAccess",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: INPUT},
+							{Name: "ready", Direction: OUTPUT},
+							{Name: "valid", Direction: OUTPUT},
+						},
+					},
+					{
+						Name: "AccessIn",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: OUTPUT},
+							{Name: "ready", Direction: INPUT},
+							{Name: "valid", Direction: OUTPUT},
+						},
+					},
+					{
+						Name: "AccessOut",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: INPUT},
+							{Name: "ready", Direction: OUTPUT},
+							{Name: "valid", Direction: INPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "data", Type: LOGIC, Width: 8},
+					{Name: "ready", Type: LOGIC, Width: 0},
+					{Name: "valid", Type: LOGIC, Width: 0},
+				},
+				Body:        "  logic [7:0] data;\n  logic ready;\n  logic valid;\n  modport FullAccess (input data, output ready, output valid);\n  modport AccessIn (output data, output valid, input ready);\n  modport AccessOut (input data, input valid, output ready);",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			expectedOK: true,
+		},
+		{
 			name: "Virtual interface",
 			interfaceContent: `virtual interface axi_if;
   // Virtual interface body would be empty or minimal
