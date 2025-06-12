@@ -79,7 +79,7 @@ module dup_literal_param (
         if (index > 5) begin
             final_result = final_result + 1;
         end else if (index < CONST_C) begin
-             final_result = final_result - 1;
+            final_result = final_result - 1;
         end
         case (index)
             5'd0: final_result = CONST_A;
@@ -109,8 +109,8 @@ module dup_block (
             out_res = inter_res2 / 2;
         end
         inter_res3 = val_a - val_b;
-         if (!mode) begin
-            out_res = out_res + (inter_res3 / 2);
+            if (!mode) begin
+                out_res = out_res + (inter_res3 / 2);
         end else begin
             out_res = out_res + (inter_res3 * 2);
         end
@@ -120,10 +120,10 @@ module dup_block (
             if (mode) out_res = out_res | temp_val;
             else out_res = out_res & temp_val;
         end
-         begin : another_repeated_block
-            logic [7:0] temp_val = val_a & val_b;
-            if (mode) out_res = out_res | temp_val;
-            else out_res = out_res & temp_val;
+            begin : another_repeated_block
+                logic [7:0] temp_val = val_a & val_b;
+                if (mode) out_res = out_res | temp_val;
+                else out_res = out_res & temp_val;
         end
     end
 endmodule
@@ -153,12 +153,12 @@ module dup_nested_if (
                 res = val1 / ((val2 == 0) ? 1 : val2);
             end
         end else if (mode == 3'b100) begin
-             if (val1 != val2) begin
+            if (val1 != val2) begin
                 if (val1 > val2) res = val1;
                 else res = val2;
-             end else begin
+            end else begin
                 res = val1 + val2;
-             end
+            end
         end
         else begin
             res = val1 ^ val2;
@@ -182,12 +182,12 @@ module dup_logic_ops (
         if (complex_cond1) begin
             out1 = d1 + d2;
         end else begin
-             out1 = d1 ^ d3;
+            out1 = d1 ^ d3;
         end
         if (complex_cond2) begin
-             out1 = out1 + d3;
+            out1 = out1 + d3;
         end else begin
-             out1 = out1 - d3;
+            out1 = out1 - d3;
         end
         if ((flags[0] && flags[1]) && (!flags[2] || flags[3])) begin
             out1 = out1 * 2;
@@ -213,9 +213,9 @@ module dup_compare (
             indicators = indicators & 6'b000000;
         end
         if ((val_a < val_b) && (val_b > val_c)) begin
-             indicators[0] = 1;
+            indicators[0] = 1;
         end else if ((val_a >= val_b) || (val_b <= val_c)) begin
-             indicators[1] = 1;
+            indicators[1] = 1;
         end
     end
 endmodule

@@ -52,15 +52,15 @@ always_comb begin
                 end
             end
         end else begin
-             if (dc_select[2]) begin
-                 if (dc_select[3]) begin
-                     temp_result = dcin_b << dc_select[1:0];
-                 end else begin
-                     temp_result = dcin_b >> dc_select[1:0];
-                 end
-             end else begin
-                 temp_result = 8'h55;
-             end
+            if (dc_select[2]) begin
+                if (dc_select[3]) begin
+                    temp_result = dcin_b << dc_select[1:0];
+                end else begin
+                    temp_result = dcin_b >> dc_select[1:0];
+                end
+            end else begin
+                temp_result = 8'h55;
+            end
         end
     end
     dcout_result = temp_result;
@@ -93,7 +93,7 @@ always_comb begin
                     default: case_res = dccc_op1 % (dccc_mode == 0 ? 4'd1 : dccc_mode);
                 endcase
             end else begin
-                 casez (dccc_op2[7:6])
+                casez (dccc_op2[7:6])
                     2'b00: case_res = dccc_op2 + dccc_mode;
                     2'b01: case_res = dccc_op2 - dccc_mode;
                     2'b1?: case_res = dccc_op2 * dccc_mode;
@@ -140,7 +140,7 @@ always_ff @(posedge dffcl_clk or negedge dffcl_rst_n) begin
                         default: dffcl_data_out <= dffcl_data_in1 | dffcl_data_in2;
                     endcase
                 end else begin
-                     case (dffcl_ctrl_mode[1:0])
+                    case (dffcl_ctrl_mode[1:0])
                         2'b00: dffcl_data_out <= dffcl_data_in2 - dffcl_data_in1;
                         2'b01: dffcl_data_out <= dffcl_data_in1 ^ dffcl_data_in2;
                         default: dffcl_data_out <= ~dffcl_data_in1;
@@ -190,11 +190,11 @@ function automatic [15:0] complex_op (input [15:0] val1, input [15:0] val2, inpu
             end
         end else begin
             if (mode[2]) begin
-                 if (mode[3]) func_temp = val1 ^ val2;
-                 else func_temp = ~val1;
+                if (mode[3]) func_temp = val1 ^ val2;
+                else func_temp = ~val1;
             end else begin
-                 if (mode[3]) func_temp = val1 << mode[1:0];
-                 else func_temp = val1 >> mode[1:0];
+                if (mode[3]) func_temp = val1 << mode[1:0];
+                else func_temp = val1 >> mode[1:0];
             end
         end
     end else begin
@@ -206,8 +206,8 @@ function automatic [15:0] complex_op (input [15:0] val1, input [15:0] val2, inpu
                 default: func_temp = val2 / (val1 == 0 ? 16'd1 : val1);
             endcase
         end else begin
-             if (mode[2]) func_temp = {val1[7:0], val2[7:0]};
-             else func_temp = {val2[7:0], val1[7:0]};
+            if (mode[2]) func_temp = {val1[7:0], val2[7:0]};
+            else func_temp = {val2[7:0], val1[7:0]};
         end
     end
     return func_temp;
@@ -245,10 +245,10 @@ task automatic perform_action;
         end
     end
     case (temp_task_calc[1:0])
-       2'b00: calculated_res = temp_task_calc ^ 8'hFF;
-       2'b01: calculated_res = temp_task_calc + 1;
-       2'b10: calculated_res = temp_task_calc - 1;
-       default: calculated_res = temp_task_calc;
+        2'b00: calculated_res = temp_task_calc ^ 8'hFF;
+        2'b01: calculated_res = temp_task_calc + 1;
+        2'b10: calculated_res = temp_task_calc - 1;
+        default: calculated_res = temp_task_calc;
     endcase
 endtask
 always_ff @(posedge dtl_clk or negedge dtl_rst_n) begin

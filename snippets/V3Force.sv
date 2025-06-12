@@ -172,7 +172,7 @@ module module_forceable_attr (
             read_internal <= 1'b0;
         end else begin
             if (i_write_en) begin
-                 forceable_signal <= i_data_in;
+                forceable_signal <= i_data_in;
             end
             read_internal <= forceable_signal;
         end

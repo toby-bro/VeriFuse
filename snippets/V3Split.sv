@@ -140,9 +140,9 @@ module split_input_only_var (
     output logic [7:0] data_out_k
 );
     always @(posedge clk_k) begin
-       if (control_signal_k) begin
-          data_out_k <= data_in_k;
-       end
+        if (control_signal_k) begin
+            data_out_k <= data_in_k;
+        end
     end
 endmodule
 module split_inputs_outputs_only (
@@ -152,8 +152,8 @@ module split_inputs_outputs_only (
     output logic [7:0] out_val_d_l
 );
     always @(*) begin
-       out_val_c_l = in_val_a_l + in_val_b_l;
-       out_val_d_l = in_val_a_l - in_val_b_l;
+        out_val_c_l = in_val_a_l + in_val_b_l;
+        out_val_d_l = in_val_a_l - in_val_b_l;
     end
 endmodule
 module split_nested_if (
@@ -166,15 +166,15 @@ module split_nested_if (
     output logic [7:0] result_m
 );
     always @(posedge clk_m) begin
-       if (cond1_m) begin
-          if (cond2_m) begin
-             result_m <= val_a_m;
-          end else begin
-             result_m <= val_b_m;
-          end
-       end else begin
-          result_m <= val_c_m;
-       end
+        if (cond1_m) begin
+            if (cond2_m) begin
+                result_m <= val_a_m;
+            end else begin
+                result_m <= val_b_m;
+            end
+        end else begin
+            result_m <= val_c_m;
+        end
     end
 endmodule
 module split_multiple_blocking (

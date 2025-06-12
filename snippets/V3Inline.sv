@@ -180,7 +180,7 @@ module container_for_inlining (
         .clk(main_clk),
         .main_in(hierarchy_if_out),
         .main_out(hierarchy_if_out)
-     );
+        );
     sequential_logic u_seq (
         .clk(main_clk),
         .rst_n(!main_reset),

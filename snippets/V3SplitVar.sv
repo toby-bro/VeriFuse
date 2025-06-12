@@ -214,14 +214,14 @@ module module_unpacked_packed_struct_array (
                 elements_upsa[3].value = 3'b000;
             end
         end else begin
-             elements_upsa[0].flag = 1'b0;
-             elements_upsa[0].value = 3'b0;
-             elements_upsa[1].flag = 1'b0;
-             elements_upsa[1].value = 3'b0;
-             elements_upsa[2].flag = 1'b0;
-             elements_upsa[2].value = 3'b0;
-             elements_upsa[3].flag = 1'b0;
-             elements_upsa[3].value = 3'b0;
+            elements_upsa[0].flag = 1'b0;
+            elements_upsa[0].value = 3'b0;
+            elements_upsa[1].flag = 1'b0;
+            elements_upsa[1].value = 3'b0;
+            elements_upsa[2].flag = 1'b0;
+            elements_upsa[2].value = 3'b0;
+            elements_upsa[3].flag = 1'b0;
+            elements_upsa[3].value = 3'b0;
         end
         temp_flags_upsa[0] = elements_upsa[0].flag;
         temp_flags_upsa[1] = elements_upsa[1].flag;
@@ -287,8 +287,8 @@ module module_sensitivity_list (
         state_sl = enable_sl ^ data_in_sl ^ data_split_sl[0];
     end
     always_comb begin
-       data_split_sl[0] = data_in_sl & enable_sl;
-       data_split_sl[1] = data_in_sl | enable_sl;
+        data_split_sl[0] = data_in_sl & enable_sl;
+        data_split_sl[1] = data_in_sl | enable_sl;
     end
     assign state_out_sl = state_sl;
     assign data_split_out_sl = data_split_sl[0];
