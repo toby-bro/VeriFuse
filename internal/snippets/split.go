@@ -3,6 +3,7 @@ package snippets
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
@@ -81,6 +82,55 @@ func WriteFileAsSnippets(svFile *verilog.VerilogFile) error {
 	err = writeSnippetsToFile(snippets)
 	if err != nil {
 		return fmt.Errorf("failed to write snippets to file: %v", err)
+	}
+	return nil
+}
+
+func PrintMinimalVerilogFileInDist(
+	parentFile *verilog.VerilogFile,
+	module *verilog.Module,
+	workerDir string,
+) error {
+	if module == nil {
+		return errors.New("module is nil")
+	}
+	if parentFile == nil {
+		return errors.New("parent file is nil")
+	}
+
+	baseName := parentFile.Name
+	if len(baseName) > 3 && baseName[len(baseName)-3:] == ".sv" {
+		baseName = baseName[:len(baseName)-3]
+	}
+
+	svFile := verilog.NewVerilogFile(module.Name + ".sv")
+
+	snippet := &Snippet{
+		Name:       module.Name,
+		ParentFile: parentFile,
+		Module:     module,
+	}
+
+	err := AddDependencies(svFile, snippet)
+	if err != nil {
+		return fmt.Errorf("failed to add dependencies: %v", err)
+	}
+	content, err := verilog.PrintVerilogFile(svFile)
+	if err != nil {
+		return fmt.Errorf("failed to print Verilog file: %v", err)
+	}
+	path, err := utils.GetRootDir()
+	if err != nil {
+		return fmt.Errorf("failed to get root directory: %v", err)
+	}
+	filePath := filepath.Join(path, workerDir)
+	err = utils.EnsureDirWithPath(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to create directory for Verilog file: %v", err)
+	}
+	err = utils.WriteFileContent(filePath+"/"+svFile.Name, content)
+	if err != nil {
+		return fmt.Errorf("failed to write Verilog file: %v", err)
 	}
 	return nil
 }
