@@ -219,7 +219,7 @@ var generalVariableRegex = regexp.MustCompile(
 	),
 )
 
-var scopeChangeRegex = regexp.MustCompile(`(function|task|always|class|clocking)`)
+var scopeChangeRegex = regexp.MustCompile(`^\s*(function|task|always|class|clocking)`)
 
 // ===============================================
 // Advanced SystemVerilog Construct Regex Patterns
@@ -1047,7 +1047,7 @@ func extractANSIPortDeclarations(
 				InterfaceName: interfaceName,
 				ModportName:   modportName,
 			}
-		} else if matches := ansiPortRegex.FindStringSubmatch(portDecl); len(matches) > 5 {
+		} else if matches := ansiPortRegex.FindStringSubmatch(portDecl); len(matches) > 5 && matches[0] != matches[5] {
 			// Full ANSI declaration found
 			directionStr := strings.TrimSpace(matches[1])
 			portStr := strings.TrimSpace(matches[2])
@@ -1257,9 +1257,24 @@ func mergePortInfo(
 		if headerPort, exists := finalPortsMap[name]; exists {
 			// Port exists in both, bodyPort details take precedence
 			finalPort := headerPort // Start with header info
-			finalPort.Direction = bodyPort.Direction
-			finalPort.Type = bodyPort.Type
-			finalPort.Width = bodyPort.Width
+			if bodyPort.Direction != INTERNAL {
+				finalPort.Direction = bodyPort.Direction
+			}
+			if bodyPort.Type != UNKNOWN {
+				finalPort.Type = bodyPort.Type
+			}
+			if bodyPort.Width > 0 {
+				finalPort.Width = bodyPort.Width
+			}
+			if bodyPort.Array != "" {
+				finalPort.Array = bodyPort.Array
+			}
+			if bodyPort.InterfaceName != "" {
+				finalPort.InterfaceName = bodyPort.InterfaceName
+			}
+			if bodyPort.ModportName != "" {
+				finalPort.ModportName = bodyPort.ModportName
+			}
 			finalPort.IsSigned = bodyPort.IsSigned
 			finalPortsMap[name] = finalPort
 		} else {
