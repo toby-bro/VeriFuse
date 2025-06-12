@@ -127,7 +127,7 @@ func (sch *Scheduler) performWorkerAttempt(
 		svFile.Name = sch.svFile.Name // Ensure basename is correct
 	}
 
-	if err = simulator.TransformSVToV(workerModule.Name, workerVerilogPath, svFile.Name); err != nil {
+	if err = simulator.TransformSV2V(workerModule.Name, workerVerilogPath, svFile.Name); err != nil {
 		sch.debug.Warn(
 			"[%s] Failed to transform SystemVerilog to Verilog for module %s: %v",
 			workerID,
@@ -560,17 +560,6 @@ func (sch *Scheduler) setupSV2VVariants(
 		{
 			name: "IVerilog sv2v",
 			setupFunc: func() (*SimInstance, error) {
-				workDir := filepath.Join(baseWorkerDir, "icarus_sv2v")
-				if err := os.MkdirAll(workDir, 0o755); err != nil {
-					return nil, fmt.Errorf("iverilog_sv2v_mkdir: %v", err)
-				}
-
-				// Copy .v file to sv2v directory
-				ivVFilePath := filepath.Join(workDir, vFileName)
-				if err := utils.CopyFile(vFilePath, ivVFilePath); err != nil {
-					return nil, fmt.Errorf("iverilog_sv2v_copy: %v", err)
-				}
-
 				return sch.setupIVerilogSimulator(
 					ctx,
 					workerID,
