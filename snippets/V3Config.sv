@@ -17,15 +17,15 @@ module mod_ftask_attrs (
     output logic o_result
 );
     logic r_temp = 1'b0;
-    (* verilator public_task *)
-    (* verilator no_inline_task *)
+    /* verilator public_task */
+    /* verilator no_inline_task */
     task my_task (input bit enable);
         if (enable) begin
             r_temp <= ~r_temp;
         end
     endtask : my_task
-    (* verilator public_func *)
-    (* verilator isolate_assignments *)
+    /* verilator public_func */
+    /* verilator isolate_assignments */
     function automatic logic my_func (input logic data);
         logic func_local_var;
         func_local_var = data ^ r_temp;
@@ -42,13 +42,13 @@ module mod_var_attrs (
     input wire [7:0] i_data,
     output logic [7:0] o_data
 );
-    (* verilator public *)
+    /* verilator public */
     logic [7:0] r_internal_pub;
-    (* verilator forceable *)
+    /* verilator forceable */
     logic [7:0] r_internal_force;
-    (* verilator isolate_assignments *)
+    /* verilator isolate_assignments */
     logic r_isolate_me;
-    (* verilator public_flat_rw *)
+    /* verilator public_flat_rw */
     logic [7:0] r_flat_rw;
     always_comb begin
         r_flat_rw = i_data + 1;
@@ -60,7 +60,7 @@ module mod_var_attrs (
         o_data = r_internal_force;
     end
     task modify_vars (input bit en);
-        (* verilator public *)
+        /* verilator public */
         logic [3:0] task_local_pub;
         if (en) begin
             task_local_pub = i_data[3:0];
@@ -88,9 +88,9 @@ module mod_case_block_attrs (
         end
     end
 endmodule
-(* verilator inline *)
-(* verilator public_module *)
-(* verilator hier_params *)
+/* verilator inline */
+/* verilator public_module */
+/* verilator hier_params */
 module mod_module_attrs # (
     parameter int WIDTH = 8
 ) (
@@ -103,7 +103,7 @@ module mod_module_attrs # (
     end
     assign o_out = r_data;
 endmodule
-(* verilator no_inline *)
+/* verilator no_inline */
 module mod_no_inline_module (
     input wire i_go,
     output logic o_done_ni
