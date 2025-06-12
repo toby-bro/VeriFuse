@@ -6,11 +6,11 @@ interface my_if;
     modport AccessIn (output data, output valid, input ready);
     modport AccessOut (input data, input valid, output ready);
 endinterface
-module module_fork_join (
-    output logic fork_status,
+module module_fork_join_none (
     input logic fork_en,
     input logic [7:0] data_a,
-    input logic [7:0] data_b
+    input logic [7:0] data_b,
+    output logic fork_status
 );
     my_if vif_split();
     always_comb begin
@@ -22,7 +22,7 @@ module module_fork_join (
             fork
                 vif_split.data = data_a;
                 vif_split.ready = 1'b1;
-            join
+            join_none
             fork_status = 1'b1;
         end else begin
             fork_status = 1'b0;
