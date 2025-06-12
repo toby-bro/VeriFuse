@@ -194,8 +194,7 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 
 		if retryErr := sim.timeoutWithForceKill(ctx, cmd, "verilator compilation retry"); retryErr != nil {
 			return fmt.Errorf(
-				"[%s] verilator compilation failed after retry: %v\n%s",
-				sim.workDir,
+				"verilator compilation failed after retry: %v\n%s",
 				retryErr,
 				stderr.String(),
 			)
