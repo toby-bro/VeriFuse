@@ -17,12 +17,12 @@ module dup_logic_ops (
         if (complex_cond1) begin
             out1 = d1 + d2;
         end else begin
-             out1 = d1 ^ d3;
+            out1 = d1 ^ d3;
         end
         if (complex_cond2) begin
-             out1 = out1 + d3;
+            out1 = out1 + d3;
         end else begin
-             out1 = out1 - d3;
+            out1 = out1 - d3;
         end
         if ((flags[0] && flags[1]) && (!flags[2] || flags[3])) begin
             out1 = out1 * 2;

@@ -177,8 +177,8 @@ module div_mod_ops (
     output logic [15:0] quotient,
     output logic [7:0] remainder
 );
-    assign quotient = numerator / denominator;
-    assign remainder = dividend_mod % divisor_mod;
+    assign quotient = (denominator == 0) ? 16'hFFFF : (numerator / denominator); // or some error value
+    assign remainder = (divisor_mod == 0) ? 8'hFF : (dividend_mod % divisor_mod); // or some error value
 endmodule
 module remaining_reduction_ops (
     input logic [7:0] in1,

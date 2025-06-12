@@ -1,8 +1,8 @@
 module deep_comb_case_complex (
-    input wire [7:0] dccc_op2,
-    output logic [7:0] dccc_output_val,
     input wire [3:0] dccc_mode,
-    input wire [7:0] dccc_op1
+    input wire [7:0] dccc_op1,
+    input wire [7:0] dccc_op2,
+    output logic [7:0] dccc_output_val
 );
     always_comb begin
     logic [7:0] case_res = 8'd0;
@@ -25,7 +25,7 @@ module deep_comb_case_complex (
                     default: case_res = dccc_op1 % (dccc_mode == 0 ? 4'd1 : dccc_mode);
                 endcase
             end else begin
-                 casez (dccc_op2[7:6])
+                casez (dccc_op2[7:6])
                     2'b00: case_res = dccc_op2 + dccc_mode;
                     2'b01: case_res = dccc_op2 - dccc_mode;
                     2'b1?: case_res = dccc_op2 * dccc_mode;

@@ -1,7 +1,7 @@
 module LintLatch (
+    output logic out_l,
     input logic in_j,
-    input logic in_k,
-    output logic out_l
+    input logic in_k
 );
     always_comb begin
         if (in_j) begin

@@ -1,10 +1,10 @@
 module deep_ff_control_logic (
-    input wire [15:0] dffcl_data_in1,
-    input wire [15:0] dffcl_data_in2,
-    output logic [15:0] dffcl_data_out,
     input wire dffcl_clk,
     input wire dffcl_rst_n,
-    input wire [3:0] dffcl_ctrl_mode
+    input wire [3:0] dffcl_ctrl_mode,
+    input wire [15:0] dffcl_data_in1,
+    input wire [15:0] dffcl_data_in2,
+    output logic [15:0] dffcl_data_out
 );
     always_ff @(posedge dffcl_clk or negedge dffcl_rst_n) begin
     if (!dffcl_rst_n) begin
@@ -20,7 +20,7 @@ module deep_ff_control_logic (
                         default: dffcl_data_out <= dffcl_data_in1 | dffcl_data_in2;
                     endcase
                 end else begin
-                     case (dffcl_ctrl_mode[1:0])
+                    case (dffcl_ctrl_mode[1:0])
                         2'b00: dffcl_data_out <= dffcl_data_in2 - dffcl_data_in1;
                         2'b01: dffcl_data_out <= dffcl_data_in1 ^ dffcl_data_in2;
                         default: dffcl_data_out <= ~dffcl_data_in1;

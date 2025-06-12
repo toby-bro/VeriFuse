@@ -1,8 +1,8 @@
 module dup_compare (
+    val_c,
+    output logic [5:0] indicators,
     input int val_a,
-    input int val_b,
-    input int val_c,
-    output logic [5:0] indicators
+    val_b
 );
     always_comb begin
         indicators = '0;
@@ -19,9 +19,9 @@ module dup_compare (
             indicators = indicators & 6'b000000;
         end
         if ((val_a < val_b) && (val_b > val_c)) begin
-             indicators[0] = 1;
+            indicators[0] = 1;
         end else if ((val_a >= val_b) || (val_b <= val_c)) begin
-             indicators[1] = 1;
+            indicators[1] = 1;
         end
     end
 endmodule

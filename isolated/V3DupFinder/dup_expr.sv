@@ -1,8 +1,8 @@
 module dup_expr (
-    input logic [7:0] in1,
-    input logic [7:0] in2,
+    in2,
     output logic [7:0] out1,
-    output logic [7:0] out2
+    out2,
+    input logic [7:0] in1
 );
     logic [7:0] temp_add;
     logic [7:0] temp_mult;

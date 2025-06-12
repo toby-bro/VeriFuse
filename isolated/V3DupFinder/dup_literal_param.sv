@@ -17,7 +17,7 @@ module dup_literal_param (
         if (index > 5) begin
             final_result = final_result + 1;
         end else if (index < CONST_C) begin
-             final_result = final_result - 1;
+            final_result = final_result - 1;
         end
         case (index)
             5'd0: final_result = CONST_A;

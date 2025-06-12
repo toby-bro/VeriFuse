@@ -1,9 +1,9 @@
 module dup_cond (
+    data_b,
     output logic [7:0] result1,
-    output logic [7:0] result2,
+    result2,
     input logic [3:0] control,
-    input logic [7:0] data_a,
-    input logic [7:0] data_b
+    input logic [7:0] data_a
 );
     always_comb begin
         result1 = '0;
