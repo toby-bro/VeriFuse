@@ -7,8 +7,8 @@ interface my_if;
     modport AccessOut (input data, input valid, output ready);
 endinterface
 module module_assign_blocking (
-    input logic [7:0] in_data,
-    output logic out_valid_status
+    output logic out_valid_status,
+    input logic [7:0] in_data
 );
     my_if vif_inst();
     always_comb begin

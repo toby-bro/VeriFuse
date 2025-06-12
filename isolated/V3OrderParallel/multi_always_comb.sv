@@ -1,8 +1,8 @@
 module multi_always_comb (
+    output wire [7:0] out1,
     output wire [7:0] out2,
     input wire [7:0] in1,
-    input wire [7:0] in2,
-    output wire [7:0] out1
+    input wire [7:0] in2
 );
     logic [7:0] intermediate1;
     logic [7:0] intermediate2;

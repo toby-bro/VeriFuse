@@ -4,9 +4,9 @@ interface cond_if;
     modport CtrlStat (output control_reg, input status_reg);
 endinterface
 module module_conditional_write (
-    input logic condition,
     input logic [15:0] data_in,
-    output logic control_status
+    output logic control_status,
+    input logic condition
 );
     cond_if cif_inst();
     always_comb begin

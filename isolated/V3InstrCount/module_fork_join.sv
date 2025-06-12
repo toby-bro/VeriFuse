@@ -1,7 +1,7 @@
 module module_fork_join (
+    output reg [7:0] out_fj_result,
     input wire in_fj_clk,
-    input wire in_fj_start,
-    output reg [7:0] out_fj_result
+    input wire in_fj_start
 );
     always_ff @(posedge in_fj_clk) begin
     if (in_fj_start) begin

@@ -1,8 +1,8 @@
 module dup_block (
-    val_b,
+    input logic [7:0] val_a,
+    input logic [7:0] val_b,
     input logic mode,
-    output logic [7:0] out_res,
-    input logic [7:0] val_a
+    output logic [7:0] out_res
 );
     logic [7:0] inter_res1;
     logic [7:0] inter_res2;

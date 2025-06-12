@@ -1,10 +1,10 @@
 module IfElseIfChain (
+    input logic [7:0] data1,
     input logic [7:0] data2,
     input logic [7:0] data3,
     output logic [7:0] selected_data,
     input logic [1:0] sel_code,
-    input logic [7:0] data0,
-    input logic [7:0] data1
+    input logic [7:0] data0
 );
     always_comb begin
         if (sel_code == 2'b00) begin

@@ -8,7 +8,7 @@ module module_do_while (
         current_sum = 0;
         i = 0;
         if (in_limit == 0) begin
-             current_sum = 0; 
+            current_sum = 0; 
         end else begin
             i = 0;
             current_sum = 0;

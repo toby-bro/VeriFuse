@@ -1,8 +1,8 @@
 module SequentialLogicPlaceholder (
+    input logic clk,
     input logic rst,
     input logic [15:0] data_in,
-    output logic [15:0] data_out,
-    input logic clk
+    output logic [15:0] data_out
 );
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin

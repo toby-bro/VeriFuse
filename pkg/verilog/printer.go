@@ -457,15 +457,7 @@ func PrintClass(c *Class) string {
 	}
 	sb.WriteString(";\n")
 
-	indentedBody := ""
-	if strings.TrimSpace(c.Body) != "" {
-		for _, line := range strings.Split(c.Body, "\n") {
-			if strings.TrimSpace(line) != "" {
-				indentedBody += "    " + line + "\n"
-			}
-		}
-	}
-	sb.WriteString(indentedBody)
+	sb.WriteString(c.Body)
 
 	sb.WriteString("endclass\n")
 	return sb.String()

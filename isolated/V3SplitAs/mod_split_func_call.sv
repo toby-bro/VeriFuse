@@ -1,9 +1,9 @@
 module mod_split_func_call (
+    input logic clk,
+    input logic reset,
     input logic [7:0] data_in,
     output logic [7:0] out_func_a,
-    output logic [7:0] out_func_b,
-    input logic clk,
-    input logic reset
+    output logic [7:0] out_func_b
 );
     function automatic logic [7:0] dummy_func (input logic [7:0] val);
         return val + 5;

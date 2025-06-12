@@ -1047,7 +1047,7 @@ func extractANSIPortDeclarations(
 				InterfaceName: interfaceName,
 				ModportName:   modportName,
 			}
-		} else if matches := ansiPortRegex.FindStringSubmatch(portDecl); len(matches) > 5 && matches[0] != matches[5] {
+		} else if matches := ansiPortRegex.FindStringSubmatch(portDecl); len(matches) > 5 {
 			// Full ANSI declaration found
 			directionStr := strings.TrimSpace(matches[1])
 			portStr := strings.TrimSpace(matches[2])
@@ -1060,19 +1060,38 @@ func extractANSIPortDeclarations(
 			if directionStr == "" && portStr == "" && signedStr == "" && rangeStr == "" {
 				if len(headerPortOrder) == 0 {
 					logger.Debug("Header port declaration '%s' is empty.", portDecl)
-					continue
-				}
-				// Port is the same as the last port
-				precedingPort := headerPorts[headerPortOrder[len(headerPortOrder)-1]]
-				port = Port{
-					Name:          portName,
-					Direction:     precedingPort.Direction,
-					Type:          precedingPort.Type,
-					Width:         precedingPort.Width,
-					IsSigned:      precedingPort.IsSigned,
-					Array:         precedingPort.Array,
-					InterfaceName: precedingPort.InterfaceName,
-					ModportName:   precedingPort.ModportName,
+					if matches := simplePortRegex.FindStringSubmatch(portDecl); len(matches) <= 2 {
+						continue
+					}
+					// Simple name found (likely non-ANSI or Verilog-1995) or .name(signal)
+					if matches[1] != "" { // .name(signal) case
+						portName = matches[1]
+					} else { // simple name case
+						portName = matches[2]
+					}
+					// Create a placeholder, details expected in body scan
+					port = Port{
+						Name:          portName,
+						Width:         0,
+						Type:          UNKNOWN,
+						Direction:     INTERNAL,
+						IsSigned:      false,
+						InterfaceName: "",
+						ModportName:   "",
+					} // Sensible defaults
+				} else {
+					// Port is the same as the last port
+					precedingPort := headerPorts[headerPortOrder[len(headerPortOrder)-1]]
+					port = Port{
+						Name:          portName,
+						Direction:     precedingPort.Direction,
+						Type:          precedingPort.Type,
+						Width:         precedingPort.Width,
+						IsSigned:      precedingPort.IsSigned,
+						Array:         precedingPort.Array,
+						InterfaceName: precedingPort.InterfaceName,
+						ModportName:   precedingPort.ModportName,
+					}
 				}
 			} else {
 				isSigned := (signedStr == "signed")

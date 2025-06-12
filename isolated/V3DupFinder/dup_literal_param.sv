@@ -1,6 +1,6 @@
 module dup_literal_param (
-    input logic [4:0] index,
-    output logic [7:0] final_result
+    output logic [7:0] final_result,
+    input logic [4:0] index
 );
     parameter CONST_A = 8'd10;
     localparam CONST_B = 8'd20;

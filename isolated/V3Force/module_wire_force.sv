@@ -1,11 +1,11 @@
 module module_wire_force (
+    output logic o_wire_target,
+    input wire i_clk,
     input wire i_rst_n,
     input wire i_data_in,
     input wire i_force_val,
     input logic i_force_en,
-    input logic i_release_en,
-    output logic o_wire_target,
-    input wire i_clk
+    input logic i_release_en
 );
     logic normal_w_target_reg;
     logic w_target;

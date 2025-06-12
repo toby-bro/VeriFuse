@@ -1,17 +1,17 @@
 class MyClass;
-      int data;
-      function new(int val);
+    int data;
+    function new(int val);
         data = val;
-      endfunction
+    endfunction
 endclass
 
 module module_static (
+    output logic [3:0] data_out_static,
+    output logic static_flag,
     input logic [3:0] data_in_static,
     input logic enable_static,
     input logic reset_static,
-    input logic clk_static,
-    output logic [3:0] data_out_static,
-    output logic static_flag
+    input logic clk_static
 );
     static int static_counter;
     static logic [3:0] static_reg;

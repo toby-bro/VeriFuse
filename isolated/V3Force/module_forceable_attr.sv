@@ -1,10 +1,10 @@
 module module_forceable_attr (
-    output logic o_read_signal,
-    input wire i_clk,
-    input wire i_rst_n,
     input logic i_data_in,
     input logic i_write_en,
-    output logic o_forceable_signal
+    output logic o_forceable_signal,
+    output logic o_read_signal,
+    input wire i_clk,
+    input wire i_rst_n
 );
     logic forceable_signal ;
     logic read_internal;
@@ -15,7 +15,7 @@ module module_forceable_attr (
             read_internal <= 1'b0;
         end else begin
             if (i_write_en) begin
-                 forceable_signal <= i_data_in;
+                forceable_signal <= i_data_in;
             end
             read_internal <= forceable_signal;
         end

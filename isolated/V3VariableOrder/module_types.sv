@@ -1,17 +1,17 @@
 class MyClass;
-      int data;
-      function new(int val);
+    int data;
+    function new(int val);
         data = val;
-      endfunction
+    endfunction
 endclass
 
 module module_types (
+    output int int_out,
     output byte byte_out,
     output logic [31:0] real_out_fixed,
     input logic [7:0] data_in_types,
     input shortint si_in,
-    input logic reset_in,
-    output int int_out
+    input logic reset_in
 );
     int var_int_internal;
     byte var_byte_internal;

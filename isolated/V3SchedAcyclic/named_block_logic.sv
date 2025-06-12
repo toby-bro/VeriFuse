@@ -1,7 +1,7 @@
 module named_block_logic (
-    output logic o_out,
     input logic i_in,
-    input logic i_gate
+    input logic i_gate,
+    output logic o_out
 );
     logic r_internal;
     logic r_temp;

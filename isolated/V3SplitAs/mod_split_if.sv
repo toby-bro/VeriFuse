@@ -1,10 +1,10 @@
 module mod_split_if (
+    input logic clk,
     input logic reset,
     input logic cond,
     input logic [7:0] data_in,
     output logic [7:0] out_if_a,
-    output logic [7:0] out_if_b,
-    input logic clk
+    output logic [7:0] out_if_b
 );
     logic [7:0]  split_if_var;
     logic [7:0] other_if_var;
