@@ -177,6 +177,7 @@ func TestPfuzzEndToEnd(t *testing.T) {
 			// Construct command - run pfuzz from within the temp directory
 			// Use the local test file name relative to the temp dir
 			args := []string{
+				"fuzz",
 				"-n", "10", // Keep test runs short
 				"-strategy", "random",
 				"-workers", "1", // Keep workers=1 for simplicity within each parallel test
