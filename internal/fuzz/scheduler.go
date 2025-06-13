@@ -113,24 +113,28 @@ func (sch *Scheduler) Setup() ([]simulator.Type, error) {
 
 	if err := simulator.TestIVerilogTool(); err != nil {
 		sch.debug.Warn("iverilog tool check failed: %v", err)
+	} else {
+		sch.debug.Debug("IVerilog tool found.")
 	}
-	sch.debug.Debug("IVerilog tool found.")
 	availableSimulators = append(availableSimulators, simulator.IVERILOG)
 	if err := simulator.TestVerilatorTool(); err != nil {
 		sch.debug.Warn("verilator tool check failed: %v", err)
+	} else {
+		sch.debug.Debug("Verilator tool found.")
+		availableSimulators = append(availableSimulators, simulator.VERILATOR)
 	}
-	sch.debug.Debug("Verilator tool found.")
-	availableSimulators = append(availableSimulators, simulator.VERILATOR)
 	if err := simulator.TestCXXRTLTool(); err != nil {
 		sch.debug.Warn("cxxrtl tool check failed: %v", err)
+	} else {
+		sch.debug.Debug("CXXRTL tool found.")
+		availableSimulators = append(availableSimulators, simulator.CXXRTL)
 	}
-	sch.debug.Debug("CXXRTL tool found.")
-	availableSimulators = append(availableSimulators, simulator.CXXRTL)
 	if err := simulator.TestSV2VTool(); err != nil {
 		sch.debug.Warn("sv2v tool check failed: %v", err)
+	} else {
+		sch.debug.Debug("SV2V tool found.")
+		availableSimulators = append(availableSimulators, simulator.SV2V)
 	}
-	sch.debug.Debug("SV2V tool found.")
-	availableSimulators = append(availableSimulators, simulator.SV2V)
 	if len(availableSimulators) < 2 {
 		return nil, fmt.Errorf(
 			"at least two simulators are required for fuzzing, but only found %d: %v",
