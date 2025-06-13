@@ -68,10 +68,9 @@ func injectSnippetInModule(
 	}
 
 	var injection string
-	switch instantiate {
-	case true:
+	if instantiate {
 		injection = generateSnippetInstantiation(snippet, portConnections)
-	case false:
+	} else {
 		injection = generateSnippetInjection(snippet, portConnections)
 	}
 
@@ -84,11 +83,19 @@ func injectSnippetInModule(
 	if err != nil {
 		return fmt.Errorf("failed to insert snippet into module: %v", err)
 	}
-	logger.Info(
-		"Injected snippet %s into module %s",
-		snippet.Name,
-		targetModule.Name,
-	)
+	if instantiate {
+		logger.Info(
+			"Instantiated snippet %s into module %s",
+			snippet.Name,
+			targetModule.Name,
+		)
+	} else {
+		logger.Info(
+			"Injected snippet %s into module %s",
+			snippet.Name,
+			targetModule.Name,
+		)
+	}
 
 	return nil
 }
@@ -450,6 +457,12 @@ func injectSnippetIntoModule(
 			insertionLine++
 		}
 	}
+	logger.Debug(
+		"Inserted %d new signal declarations at line %d in module %s",
+		len(newDeclarations),
+		insertionLine,
+		module.Name,
+	)
 
 	// Add the new ports to the module
 	module.Ports = append(module.Ports, newDeclarations...)
