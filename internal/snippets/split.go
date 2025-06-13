@@ -3,7 +3,6 @@ package snippets
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
@@ -119,16 +118,11 @@ func PrintMinimalVerilogFileInDist(
 	if err != nil {
 		return fmt.Errorf("failed to print Verilog file: %v", err)
 	}
-	path, err := utils.GetRootDir()
-	if err != nil {
-		return fmt.Errorf("failed to get root directory: %v", err)
-	}
-	filePath := filepath.Join(path, workerDir)
-	err = utils.EnsureDirWithPath(filePath)
+	err = utils.EnsureDirWithPath(workerDir)
 	if err != nil {
 		return fmt.Errorf("failed to create directory for Verilog file: %v", err)
 	}
-	err = utils.WriteFileContent(filePath+"/"+svFile.Name, content)
+	err = utils.WriteFileContent(workerDir+"/"+svFile.Name, content)
 	if err != nil {
 		return fmt.Errorf("failed to write Verilog file: %v", err)
 	}
