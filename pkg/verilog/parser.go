@@ -1565,11 +1565,8 @@ func splitParametersSmart(parameterListString string) []string {
 			// Only double quotes start/end string literals in Verilog
 			if !inString {
 				inString = true
-			} else {
-				// Check if it's escaped
-				if i > 0 && parameterListString[i-1] != '\\' {
-					inString = false
-				}
+			} else if i > 0 && parameterListString[i-1] != '\\' {
+				inString = false
 			}
 		case '(':
 			if !inString {
@@ -2011,7 +2008,7 @@ func parseModPortSignals(signalsList string) ([]ModPortSignal, error) {
 	// Split by comma first to get individual signal declarations
 	parts := strings.Split(signalsList, ",")
 
-	var currentDirection PortDirection = INTERNAL // Track the current direction for signal lists
+	currentDirection := INTERNAL // Track the current direction for signal lists
 
 	for _, part := range parts {
 		part = strings.TrimSpace(part)

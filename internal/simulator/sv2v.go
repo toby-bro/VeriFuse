@@ -32,7 +32,7 @@ func TestSV2VTool() error {
 // destDir: destination directory for the output Verilog file
 // Returns the path to the output Verilog file and any error
 func TransformSV2V(
-	moduleName, srcPath, newFileName string,
+	moduleName string, srcPath string,
 ) error {
 	// Check if source file exists and is readable
 	srcInfo, err := os.Stat(srcPath)
@@ -49,7 +49,7 @@ func TransformSV2V(
 	}
 
 	// Set the output path
-	newFileName = filepath.Base(srcPath)
+	newFileName := filepath.Base(srcPath)
 	// Replace .sv extension with .v if present
 	if strings.HasSuffix(newFileName, ".sv") {
 		newFileName = strings.TrimSuffix(newFileName, ".sv") + ".v"

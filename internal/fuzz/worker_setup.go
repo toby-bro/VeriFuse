@@ -111,7 +111,7 @@ func (sch *Scheduler) performWorkerAttempt(
 		)
 	}
 
-	if err = simulator.TransformSV2V(workerModule.Name, workerVerilogPath, svFile.Name); err != nil {
+	if err = simulator.TransformSV2V(workerModule.Name, workerVerilogPath); err != nil {
 		sch.debug.Warn(
 			"[%s] Failed to transform SystemVerilog to Verilog for module %s: %v",
 			workerID,
@@ -348,10 +348,12 @@ func (sch *Scheduler) setupCXXRTLSimulator(
 		sch.verbose,
 	)
 
-	utils.CopyFile(
+	if err := utils.CopyFile(
 		filepath.Join(baseWorkerDir, "testbench.cpp"),
 		filepath.Join(workDir, "testbench.cpp"),
-	)
+	); err != nil {
+		return nil, fmt.Errorf("failed to copy testbench.cpp: %v", err)
+	}
 
 	if err := sch.compileSimulatorWithTimeout(ctx, workerID, cxsim, config); err != nil {
 		return nil, err

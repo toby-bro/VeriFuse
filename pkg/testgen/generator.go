@@ -485,28 +485,8 @@ func getCXXRTLTestbenchVarType(port *verilog.Port) string {
 	}
 }
 
-// getCXXRTLPortType returns the appropriate CXXRTL type for port access
-// Since CXXRTL can optimize ports to either value<> or wire<> based on analysis,
-// we use a generic approach that works with both
-func getCXXRTLPortType(port *verilog.Port) string {
-	width := port.Width
-
-	// Correct width for specific Verilog types if parser defaults width to 0 or an incorrect value.
-	switch {
-	case port.Type == verilog.INT || port.Type == verilog.INTEGER:
-		width = 32
-	case (port.Type == verilog.LOGIC || port.Type == verilog.BIT || port.Type == verilog.REG || port.Type == verilog.WIRE) && width == 0:
-		width = 1
-	case width == 0:
-		width = 1
-	}
-
-	// Return a generic description - the actual type will be determined by CXXRTL
-	return fmt.Sprintf("cxxrtl_port<%d>", width)
-}
-
 // getCXXRTLAccessMethod returns template-based function name for reading port values
-func getCXXRTLAccessMethod(port *verilog.Port) string {
+func getCXXRTLAccessMethod() string {
 	// Return template-based function name for bit access or value access
 	return "_get_port_value"
 }
@@ -917,7 +897,7 @@ func (g *Generator) generateCXXRTLOutputWrites(instanceName string) string {
 			// Determine the width for writing logic
 			effectiveWidth := port.Width
 			mangledPortName := cxxrtlManglePortName(portName)
-			accessMethod := getCXXRTLAccessMethod(&port)
+			accessMethod := getCXXRTLAccessMethod()
 
 			if port.Type == verilog.INT || port.Type == verilog.INTEGER {
 				effectiveWidth = 32
