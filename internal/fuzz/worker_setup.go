@@ -52,7 +52,7 @@ func (sch *Scheduler) performWorkerAttempt(
 	testCases <-chan int,
 	workerModule *verilog.Module,
 	strategy Strategy,
-	availableSimulators []simulator.SimulatorType,
+	availableSimulators []simulator.Type,
 ) (setupSuccessful bool, err error) {
 	workerDir, cleanupFunc, setupErr := sch.setupWorker(workerID)
 	if setupErr != nil {
@@ -372,7 +372,7 @@ func (sch *Scheduler) setupSimulators(
 	ctx context.Context,
 	workerID, baseWorkerDir, workerModuleName string,
 	svFileToCompile *verilog.VerilogFile,
-	availableSimulators []simulator.SimulatorType,
+	availableSimulators []simulator.Type,
 ) ([]*SimInstance, error) {
 	sch.debug.Debug(
 		"[%s] Setting up simulators for module %s in %s",
@@ -390,7 +390,7 @@ func (sch *Scheduler) setupSimulators(
 	simulatorConfigs := []struct {
 		setupFunc func() (*SimInstance, error)
 		name      string
-		simType   simulator.SimulatorType
+		simType   simulator.Type
 	}{
 		// 1. Icarus Verilog
 		{
@@ -643,7 +643,7 @@ func (sch *Scheduler) worker(
 	testCases <-chan int,
 	moduleToTest *verilog.Module,
 	workerNum int,
-	availableSimulators []simulator.SimulatorType,
+	availableSimulators []simulator.Type,
 ) error {
 	var lastSetupError error
 	workerID := fmt.Sprintf("worker_%d_%d", workerNum, time.Now().UnixNano())
