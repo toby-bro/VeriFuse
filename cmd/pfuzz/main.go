@@ -31,7 +31,10 @@ func parseVerboseFlags(fs *flag.FlagSet) int {
 		"Verbose output (level 2). Higher level (-vvv) takes precedence.")
 	vvvFlag := fs.Bool("vvv", false, "Verbose output (level 3).")
 
-	fs.Parse(os.Args[2:])
+	if err := fs.Parse(os.Args[2:]); err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing flags: %v\n", err)
+		os.Exit(1)
+	}
 
 	switch {
 	case *vvvFlag:

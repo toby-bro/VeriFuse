@@ -97,11 +97,6 @@ func PrintMinimalVerilogFileInDist(
 		return errors.New("parent file is nil")
 	}
 
-	baseName := parentFile.Name
-	if len(baseName) > 3 && baseName[len(baseName)-3:] == ".sv" {
-		baseName = baseName[:len(baseName)-3]
-	}
-
 	svFile := verilog.NewVerilogFile(module.Name + ".sv")
 
 	snippet := &Snippet{
