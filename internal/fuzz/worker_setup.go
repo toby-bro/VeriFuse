@@ -302,7 +302,9 @@ func (sch *Scheduler) setupIVerilogSimulator(
 // setupVerilatorSimulator sets up a Verilator simulator
 func (sch *Scheduler) setupVerilatorSimulator(
 	ctx context.Context,
-	workerID, baseWorkerDir, workerModuleName string,
+	workerID string,
+	baseWorkerDir string,
+	workerModuleName string,
 	svFile *verilog.VerilogFile,
 	optimized bool,
 	config simulator.Config,
