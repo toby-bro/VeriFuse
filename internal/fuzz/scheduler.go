@@ -115,8 +115,8 @@ func (sch *Scheduler) Setup() ([]simulator.Type, error) {
 		sch.debug.Warn("iverilog tool check failed: %v", err)
 	} else {
 		sch.debug.Debug("IVerilog tool found.")
+		availableSimulators = append(availableSimulators, simulator.IVERILOG)
 	}
-	availableSimulators = append(availableSimulators, simulator.IVERILOG)
 	if err := simulator.TestVerilatorTool(); err != nil {
 		sch.debug.Warn("verilator tool check failed: %v", err)
 	} else {
