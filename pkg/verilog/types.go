@@ -185,8 +185,9 @@ type VerilogFile struct { //nolint:revive
 }
 
 type DependencyNode struct {
-	Name      string
-	DependsOn []string
+	Name       string
+	DependsOn  []string
+	DependedBy []string
 }
 
 type ScopeNode struct {
