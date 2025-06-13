@@ -103,9 +103,10 @@ func (sch *Scheduler) performWorkerAttempt(
 	)
 	if err := snippets.PrintMinimalVerilogFileInDist(svFile, workerModule, workerDir); err != nil {
 		return false, fmt.Errorf(
-			"[%s] failed to print minimal file for module %s: %w",
+			"[%s] failed to print minimal file for module %s in %s: %w",
 			workerID,
 			workerModule.Name,
+			workerDir,
 			err,
 		)
 	}
