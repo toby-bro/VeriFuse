@@ -88,8 +88,6 @@ func setupMutateCommand() (*Config, error) {
 
 	addCommonFlags(fs, config)
 	fs.IntVar(&config.numTests, "n", 1000, "Number of test cases to run")
-	fs.StringVar(&config.strategy, "strategy", "smart",
-		"Fuzzing strategy: random, smart")
 	fs.IntVar(&config.maxAttempts, "max-attempts", 5,
 		"Maximum attempts to create a valid file")
 
