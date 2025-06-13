@@ -4576,7 +4576,7 @@ func TestSystemVerilogPatternsWithRealFiles(t *testing.T) {
 
 func TestParseTransFuzzFile(t *testing.T) {
 	// skip this test
-	// t.Skip("Skipping local only test")
+	t.Skip("Skipping local only test")
 	fmt.Printf("Modules regex, \n%s\n", generalModuleRegex.String())
 	fmt.Printf("Classes regex, \n%s\n", generalClassRegex.String())
 	rootDir, err := utils.GetRootDir()
