@@ -169,8 +169,9 @@ func GeneralAddDependencies(
 	}
 	if _, ok := targetFile.DependencyMap[snippet.Name]; !ok {
 		targetFile.DependencyMap[snippet.Name] = &verilog.DependencyNode{
-			Name:      snippet.Module.Name,
-			DependsOn: []string{},
+			Name:       snippet.Module.Name,
+			DependsOn:  []string{},
+			DependedBy: []string{},
 		}
 	}
 	if addItself {

@@ -1893,10 +1893,10 @@ func (v *VerilogFile) ParseStructs(
 			for _, variable := range variables {
 				if variable.Type == USERDEFINED {
 					if variable.ParentStruct != nil {
-						v.DependencyMap[structName].DependsOn = append(v.DependencyMap[structName].DependsOn, variable.ParentStruct.Name)
+						v.AddDependency(structName, variable.ParentStruct.Name)
 					}
 					if variable.ParentClass != nil {
-						v.DependencyMap[structName].DependsOn = append(v.DependencyMap[structName].DependsOn, variable.ParentClass.Name)
+						v.AddDependency(structName, variable.ParentClass.Name)
 					}
 				}
 			}
@@ -2207,8 +2207,8 @@ func removeDuplicateStrings(slice []string) []string {
 func (v *VerilogFile) typeDependenciesParser() error {
 	for _, class := range v.Classes {
 		if class.extends != "" {
-			v.DependencyMap[class.Name].DependsOn = append(
-				v.DependencyMap[class.Name].DependsOn,
+			v.AddDependency(
+				class.Name,
 				class.extends,
 			)
 		}
@@ -2218,8 +2218,8 @@ func (v *VerilogFile) typeDependenciesParser() error {
 				return errors.New("no variable found in the provided text")
 			}
 			userTypeStr := matchedVariable[2]
-			v.DependencyMap[class.Name].DependsOn = append(
-				v.DependencyMap[class.Name].DependsOn,
+			v.AddDependency(
+				class.Name,
 				userTypeStr,
 			)
 		}
@@ -2229,8 +2229,8 @@ func (v *VerilogFile) typeDependenciesParser() error {
 		for _, port := range module.Ports {
 			if port.IsInterfacePort() {
 				// Add dependency on the interface
-				v.DependencyMap[module.Name].DependsOn = append(
-					v.DependencyMap[module.Name].DependsOn,
+				v.AddDependency(
+					module.Name,
 					port.InterfaceName,
 				)
 			}
@@ -2238,21 +2238,15 @@ func (v *VerilogFile) typeDependenciesParser() error {
 
 		// Check for interface instantiations in module body
 		interfaceInstantiations := matchInterfaceInstantiationsFromString(v, module.Body)
-		v.DependencyMap[module.Name].DependsOn = append(
-			v.DependencyMap[module.Name].DependsOn,
-			interfaceInstantiations...)
+		v.AddDependency(module.Name, interfaceInstantiations...)
 
 		// Check for module instantiations in module body
 		moduleInstantiations := matchModuleInstantiationsFromString(v, module.Body)
-		v.DependencyMap[module.Name].DependsOn = append(
-			v.DependencyMap[module.Name].DependsOn,
-			moduleInstantiations...)
+		v.AddDependency(module.Name, moduleInstantiations...)
 
 		// Check for package imports in module body
 		packageImports := matchPackageImportsFromString(v, module.Body)
-		v.DependencyMap[module.Name].DependsOn = append(
-			v.DependencyMap[module.Name].DependsOn,
-			packageImports...)
+		v.AddDependency(module.Name, packageImports...)
 
 		// Check for user-defined type dependencies in module body
 		vars := matchUserDefinedVariablesFromString(v, module.Body)
@@ -2261,16 +2255,11 @@ func (v *VerilogFile) typeDependenciesParser() error {
 				return errors.New("no variable found in the provided text")
 			}
 			userTypeStr := matchedVariable[2]
-			v.DependencyMap[module.Name].DependsOn = append(
-				v.DependencyMap[module.Name].DependsOn,
+			v.AddDependency(
+				module.Name,
 				userTypeStr,
 			)
 		}
-
-		// Remove duplicates from dependencies
-		v.DependencyMap[module.Name].DependsOn = removeDuplicateStrings(
-			v.DependencyMap[module.Name].DependsOn,
-		)
 	}
 	return nil
 }
@@ -2279,32 +2268,37 @@ func (v *VerilogFile) createDependencyMap() {
 	v.DependencyMap = make(map[string]*DependencyNode)
 	for _, module := range v.Modules {
 		v.DependencyMap[module.Name] = &DependencyNode{
-			Name:      module.Name,
-			DependsOn: []string{},
+			Name:       module.Name,
+			DependsOn:  []string{},
+			DependedBy: []string{},
 		}
 	}
 	for _, structName := range v.Structs {
 		v.DependencyMap[structName.Name] = &DependencyNode{
-			Name:      structName.Name,
-			DependsOn: []string{},
+			Name:       structName.Name,
+			DependsOn:  []string{},
+			DependedBy: []string{},
 		}
 	}
 	for _, className := range v.Classes {
 		v.DependencyMap[className.Name] = &DependencyNode{
-			Name:      className.Name,
-			DependsOn: []string{},
+			Name:       className.Name,
+			DependsOn:  []string{},
+			DependedBy: []string{},
 		}
 	}
 	for _, interfaceName := range v.Interfaces {
 		v.DependencyMap[interfaceName.Name] = &DependencyNode{
-			Name:      interfaceName.Name,
-			DependsOn: []string{},
+			Name:       interfaceName.Name,
+			DependsOn:  []string{},
+			DependedBy: []string{},
 		}
 	}
 	for _, packageName := range v.Packages {
 		v.DependencyMap[packageName.Name] = &DependencyNode{
-			Name:      packageName.Name,
-			DependsOn: []string{},
+			Name:       packageName.Name,
+			DependsOn:  []string{},
+			DependedBy: []string{},
 		}
 	}
 }

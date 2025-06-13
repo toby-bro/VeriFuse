@@ -32,10 +32,12 @@ func (d *DependencyNode) DeepCopy() *DependencyNode {
 		return nil
 	}
 	copiedNode := &DependencyNode{
-		Name:      d.Name,
-		DependsOn: make([]string, len(d.DependsOn)),
+		Name:       d.Name,
+		DependsOn:  make([]string, len(d.DependsOn)),
+		DependedBy: make([]string, len(d.DependedBy)),
 	}
 	copy(copiedNode.DependsOn, d.DependsOn)
+	copy(copiedNode.DependedBy, d.DependedBy)
 	return copiedNode
 }
 
