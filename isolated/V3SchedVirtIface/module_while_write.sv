@@ -5,9 +5,9 @@ interface loop_if;
     modport Report (input index, input done);
 endinterface
 module module_while_write (
+    input logic enable_loop,
     input logic [3:0] start_index,
-    output logic loop_active,
-    input logic enable_loop
+    output logic loop_active
 );
     loop_if lif_inst();
     always_comb begin

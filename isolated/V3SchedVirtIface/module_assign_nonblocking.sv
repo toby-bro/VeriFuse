@@ -7,10 +7,10 @@ interface my_if;
     modport AccessOut (input data, input valid, output ready);
 endinterface
 module module_assign_nonblocking (
-    input logic clk,
-    input logic reset,
     input logic [7:0] in_value,
-    output logic out_data_q
+    output logic out_data_q,
+    input logic clk,
+    input logic reset
 );
     my_if vif_inst();
     logic [7:0] data_q;

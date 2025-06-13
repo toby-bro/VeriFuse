@@ -2011,6 +2011,8 @@ func parseModPortSignals(signalsList string) ([]ModPortSignal, error) {
 	// Split by comma first to get individual signal declarations
 	parts := strings.Split(signalsList, ",")
 
+	var currentDirection PortDirection = INTERNAL // Track the current direction for signal lists
+
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
@@ -2022,14 +2024,29 @@ func parseModPortSignals(signalsList string) ([]ModPortSignal, error) {
 		signalMatches := signalRegex.FindStringSubmatch(part)
 
 		if len(signalMatches) >= 3 {
-			direction := GetPortDirection(signalMatches[1])
+			// Found a part with explicit direction
+			currentDirection = GetPortDirection(signalMatches[1])
 			signalName := strings.TrimSpace(signalMatches[2])
 
 			if signalName != "" {
 				signals = append(signals, ModPortSignal{
 					Name:      signalName,
-					Direction: direction,
+					Direction: currentDirection,
 				})
+			}
+		} else {
+			// Check if this is just a signal name without direction (reuses previous direction)
+			signalNameRegex := regexp.MustCompile(`^\s*(\w+)\s*$`)
+			nameMatches := signalNameRegex.FindStringSubmatch(part)
+
+			if len(nameMatches) >= 2 && currentDirection != INTERNAL {
+				signalName := strings.TrimSpace(nameMatches[1])
+				if signalName != "" {
+					signals = append(signals, ModPortSignal{
+						Name:      signalName,
+						Direction: currentDirection,
+					})
+				}
 			}
 		}
 	}

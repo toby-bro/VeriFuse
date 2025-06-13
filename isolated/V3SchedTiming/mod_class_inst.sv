@@ -1,8 +1,8 @@
 class SimpleClass;
-        int m_val = 10;
-        function int get_val();
-            return m_val;
-        endfunction
+    int m_val = 10;
+    function int get_val();
+        return m_val;
+    endfunction
 endclass
 
 module mod_class_inst (

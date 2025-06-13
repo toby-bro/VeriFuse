@@ -1,12 +1,12 @@
 class ParamClass #(
     parameter int SIZE = 8
 );
-        logic [SIZE-1:0] data_array;
-        int param_member;
-        function new(logic [SIZE-1:0] arr, int pm);
-            data_array = arr;
-            param_member = pm;
-        endfunction
+    logic [SIZE-1:0] data_array;
+    int param_member;
+    function new(logic [SIZE-1:0] arr, int pm);
+        data_array = arr;
+        param_member = pm;
+    endfunction
 endclass
 
 module ModuleWithParamClass (
