@@ -81,9 +81,9 @@ func NewScheduler(
 	return scheduler
 }
 
-func (sch *Scheduler) Setup() error {
+func (sch *Scheduler) Setup() (error, []simulator.SimulatorType) {
 	if err := utils.EnsureDirs(); err != nil {
-		return fmt.Errorf("failed to create directories: %v", err)
+		return fmt.Errorf("failed to create directories: %v", err), nil
 	}
 
 	fileName := sch.svFile.Name
@@ -102,33 +102,46 @@ func (sch *Scheduler) Setup() error {
 	sch.debug.Debug("Copying original Verilog file `%s` to `%s`", fileName, verilogPath)
 
 	if err := utils.CopyFile(fileName, verilogPath); err != nil {
-		return fmt.Errorf("failed to copy original Verilog file: %v", err)
+		return fmt.Errorf("failed to copy original Verilog file: %v", err), nil
 	}
 
 	if _, err := os.Stat(verilogPath); os.IsNotExist(err) {
-		return fmt.Errorf("copied Verilog file does not exist: %v", err)
+		return fmt.Errorf("copied Verilog file does not exist: %v", err), nil
 	}
+
+	availableSimulators := []simulator.SimulatorType{}
 
 	if err := simulator.TestIVerilogTool(); err != nil {
-		return fmt.Errorf("iverilog tool check failed: %v", err)
+		sch.debug.Warn("iverilog tool check failed: %v", err)
 	}
 	sch.debug.Debug("IVerilog tool found.")
+	availableSimulators = append(availableSimulators, simulator.IVERILOG)
 	if err := simulator.TestVerilatorTool(); err != nil {
-		return fmt.Errorf("verilator tool check failed: %v", err)
+		sch.debug.Warn("verilator tool check failed: %v", err)
 	}
 	sch.debug.Debug("Verilator tool found.")
+	availableSimulators = append(availableSimulators, simulator.VERILATOR)
 	if err := simulator.TestCXXRTLTool(); err != nil {
-		return fmt.Errorf("cxxrtl tool check failed: %v", err)
+		sch.debug.Warn("cxxrtl tool check failed: %v", err)
 	}
 	sch.debug.Debug("CXXRTL tool found.")
+	availableSimulators = append(availableSimulators, simulator.CXXRTL)
 	if err := simulator.TestSV2VTool(); err != nil {
-		return fmt.Errorf("sv2v tool check failed: %v", err)
+		sch.debug.Warn("sv2v tool check failed: %v", err)
 	}
 	sch.debug.Debug("SV2V tool found.")
-	return nil
+	availableSimulators = append(availableSimulators, simulator.SV2V)
+	if len(availableSimulators) < 2 {
+		return fmt.Errorf(
+			"at least two simulators are required for fuzzing, but only found %d: %v",
+			len(availableSimulators),
+			availableSimulators,
+		), nil
+	}
+	return nil, availableSimulators
 }
 
-func (sch *Scheduler) Run(numTests int) error {
+func (sch *Scheduler) Run(numTests int, availableSimulators []simulator.SimulatorType) error {
 	sch.debug.Info("Starting fuzzing with %d test cases using strategy: %s",
 		numTests, sch.strategyName)
 	sch.debug.Info("Target file: %s with %d modules", sch.svFile.Name, len(sch.svFile.Modules))
@@ -183,7 +196,7 @@ func (sch *Scheduler) Run(numTests int) error {
 				<-cpuSlots
 				defer func() { cpuSlots <- struct{}{} }()
 
-				if err := sch.worker(ctx, testCases, mod, slotIdx); err != nil {
+				if err := sch.worker(ctx, testCases, mod, slotIdx, availableSimulators); err != nil {
 					errChan <- fmt.Errorf("worker (slot %d) for module %s error: %w", slotIdx, mod.Name, err)
 				}
 			}(currentModule)

@@ -10,6 +10,22 @@ import (
 	"time"
 )
 
+type SimulatorType int
+
+const (
+	VERILATOR SimulatorType = iota
+	IVERILOG
+	CXXRTL
+	SV2V
+	VIVADO
+	QUARTUS
+	YOSYS
+	XCELLIUM
+	GENUS
+	VCS
+	MODELSIM
+)
+
 // Simulator defines the interface for RTL simulators
 type Simulator interface {
 	// Compile compiles the simulator from source files with context for timeout

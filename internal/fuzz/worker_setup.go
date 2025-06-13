@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec" // Added for running yosys-config
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -51,6 +52,7 @@ func (sch *Scheduler) performWorkerAttempt(
 	testCases <-chan int,
 	workerModule *verilog.Module,
 	strategy Strategy,
+	availableSimulators []simulator.SimulatorType,
 ) (setupSuccessful bool, err error) {
 	workerDir, cleanupFunc, setupErr := sch.setupWorker(workerID)
 	if setupErr != nil {
@@ -111,13 +113,16 @@ func (sch *Scheduler) performWorkerAttempt(
 		)
 	}
 
-	if err = simulator.TransformSV2V(workerModule.Name, workerVerilogPath); err != nil {
-		sch.debug.Warn(
-			"[%s] Failed to transform SystemVerilog to Verilog for module %s: %v",
-			workerID,
-			workerModule.Name,
-			err,
-		)
+	// if sv2v in availableSimulators, transform svFile to Verilog
+	if slices.Contains(availableSimulators, simulator.SV2V) {
+		if err = simulator.TransformSV2V(workerModule.Name, workerVerilogPath); err != nil {
+			sch.debug.Warn(
+				"[%s] Failed to transform SystemVerilog to Verilog for module %s: %v",
+				workerID,
+				workerModule.Name,
+				err,
+			)
+		}
 	}
 
 	// Ensure workerModule is from the current svFile
@@ -162,6 +167,7 @@ func (sch *Scheduler) performWorkerAttempt(
 		workerDir,
 		currentWorkerModule.Name,
 		svFile,
+		availableSimulators,
 	) // Pass current svFile
 	if err != nil {
 		// If setupSimulators returns an error, it means no simulators could be compiled.
@@ -366,6 +372,7 @@ func (sch *Scheduler) setupSimulators(
 	ctx context.Context,
 	workerID, baseWorkerDir, workerModuleName string,
 	svFileToCompile *verilog.VerilogFile,
+	availableSimulators []simulator.SimulatorType,
 ) ([]*SimInstance, error) {
 	sch.debug.Debug(
 		"[%s] Setting up simulators for module %s in %s",
@@ -383,10 +390,12 @@ func (sch *Scheduler) setupSimulators(
 	simulatorConfigs := []struct {
 		setupFunc func() (*SimInstance, error)
 		name      string
+		simType   simulator.SimulatorType
 	}{
 		// 1. Icarus Verilog
 		{
-			name: "IVerilog",
+			name:    "IVerilog",
+			simType: simulator.IVERILOG,
 			setupFunc: func() (*SimInstance, error) {
 				return sch.setupIVerilogSimulator(
 					ctx,
@@ -398,7 +407,8 @@ func (sch *Scheduler) setupSimulators(
 		},
 		// 2. Verilator O0
 		{
-			name: "Verilator O0",
+			name:    "Verilator O0",
+			simType: simulator.VERILATOR,
 			setupFunc: func() (*SimInstance, error) {
 				return sch.setupVerilatorSimulator(
 					ctx,
@@ -413,7 +423,8 @@ func (sch *Scheduler) setupSimulators(
 		},
 		// 3. Verilator O3
 		{
-			name: "Verilator O3",
+			name:    "Verilator O3",
+			simType: simulator.VERILATOR,
 			setupFunc: func() (*SimInstance, error) {
 				return sch.setupVerilatorSimulator(
 					ctx,
@@ -428,7 +439,8 @@ func (sch *Scheduler) setupSimulators(
 		},
 		// 4. CXXRTL
 		{
-			name: "CXXRTL",
+			name:    "CXXRTL",
+			simType: simulator.CXXRTL,
 			setupFunc: func() (*SimInstance, error) {
 				return sch.setupCXXRTLSimulator(
 					ctx,
@@ -444,7 +456,8 @@ func (sch *Scheduler) setupSimulators(
 		},
 		// 5. CXXRTL with Slang
 		{
-			name: "CXXRTL (Slang)",
+			name:    "CXXRTL (Slang)",
+			simType: simulator.CXXRTL,
 			setupFunc: func() (*SimInstance, error) {
 				return sch.setupCXXRTLSimulator(
 					ctx,
@@ -462,6 +475,9 @@ func (sch *Scheduler) setupSimulators(
 
 	// Setup each simulator
 	for _, simConfig := range simulatorConfigs {
+		if !slices.Contains(availableSimulators, simConfig.simType) {
+			continue
+		}
 		if simInstance, err := simConfig.setupFunc(); err != nil {
 			setupErrors = append(setupErrors, err.Error())
 		} else {
@@ -470,16 +486,18 @@ func (sch *Scheduler) setupSimulators(
 	}
 
 	// Setup sv2v variants if .v file exists
-	sch.setupSV2VVariants(
-		ctx,
-		workerID,
-		baseWorkerDir,
-		workerModuleName,
-		svFileToCompile,
-		includeDir,
-		&compiledSims,
-		&setupErrors,
-	)
+	if slices.Contains(availableSimulators, simulator.SV2V) {
+		sch.setupSV2VVariants(
+			ctx,
+			workerID,
+			baseWorkerDir,
+			workerModuleName,
+			svFileToCompile,
+			includeDir,
+			&compiledSims,
+			&setupErrors,
+		)
+	}
 
 	if len(compiledSims) == 0 {
 		return nil, fmt.Errorf(
@@ -625,6 +643,7 @@ func (sch *Scheduler) worker(
 	testCases <-chan int,
 	moduleToTest *verilog.Module,
 	workerNum int,
+	availableSimulators []simulator.SimulatorType,
 ) error {
 	var lastSetupError error
 	workerID := fmt.Sprintf("worker_%d_%d", workerNum, time.Now().UnixNano())
@@ -659,6 +678,7 @@ func (sch *Scheduler) worker(
 			testCases,
 			moduleToTest,
 			strategy,
+			availableSimulators,
 		)
 
 		if setupOk {
