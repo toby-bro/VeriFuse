@@ -10,10 +10,10 @@ import (
 	"time"
 )
 
-type SimulatorType int
+type Type int
 
 const (
-	VERILATOR SimulatorType = iota
+	VERILATOR Type = iota
 	IVERILOG
 	CXXRTL
 	SV2V

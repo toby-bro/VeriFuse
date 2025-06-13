@@ -81,9 +81,9 @@ func NewScheduler(
 	return scheduler
 }
 
-func (sch *Scheduler) Setup() (error, []simulator.SimulatorType) {
+func (sch *Scheduler) Setup() ([]simulator.Type, error) {
 	if err := utils.EnsureDirs(); err != nil {
-		return fmt.Errorf("failed to create directories: %v", err), nil
+		return nil, fmt.Errorf("failed to create directories: %v", err)
 	}
 
 	fileName := sch.svFile.Name
@@ -102,14 +102,14 @@ func (sch *Scheduler) Setup() (error, []simulator.SimulatorType) {
 	sch.debug.Debug("Copying original Verilog file `%s` to `%s`", fileName, verilogPath)
 
 	if err := utils.CopyFile(fileName, verilogPath); err != nil {
-		return fmt.Errorf("failed to copy original Verilog file: %v", err), nil
+		return nil, fmt.Errorf("failed to copy original Verilog file: %v", err)
 	}
 
 	if _, err := os.Stat(verilogPath); os.IsNotExist(err) {
-		return fmt.Errorf("copied Verilog file does not exist: %v", err), nil
+		return nil, fmt.Errorf("copied Verilog file does not exist: %v", err)
 	}
 
-	availableSimulators := []simulator.SimulatorType{}
+	availableSimulators := []simulator.Type{}
 
 	if err := simulator.TestIVerilogTool(); err != nil {
 		sch.debug.Warn("iverilog tool check failed: %v", err)
@@ -132,16 +132,16 @@ func (sch *Scheduler) Setup() (error, []simulator.SimulatorType) {
 	sch.debug.Debug("SV2V tool found.")
 	availableSimulators = append(availableSimulators, simulator.SV2V)
 	if len(availableSimulators) < 2 {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"at least two simulators are required for fuzzing, but only found %d: %v",
 			len(availableSimulators),
 			availableSimulators,
-		), nil
+		)
 	}
-	return nil, availableSimulators
+	return availableSimulators, nil
 }
 
-func (sch *Scheduler) Run(numTests int, availableSimulators []simulator.SimulatorType) error {
+func (sch *Scheduler) Run(numTests int, availableSimulators []simulator.Type) error {
 	sch.debug.Info("Starting fuzzing with %d test cases using strategy: %s",
 		numTests, sch.strategyName)
 	sch.debug.Info("Target file: %s with %d modules", sch.svFile.Name, len(sch.svFile.Modules))

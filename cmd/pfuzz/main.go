@@ -197,7 +197,7 @@ func main() {
 		config.keepFiles,
 	)
 
-	err, availableSimulators := scheduler.Setup()
+	availableSimulators, err := scheduler.Setup()
 	if err != nil {
 		logger.Fatal("Setup failed: ", err)
 	}
