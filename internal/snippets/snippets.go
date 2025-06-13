@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
@@ -20,6 +21,8 @@ var (
 	snippets     = []*Snippet{}
 	verilogFiles = []*verilog.VerilogFile{}
 	logger       = *utils.NewDebugLogger(1)
+	loadOnce     sync.Once
+	loadError    error
 )
 
 func findSnippetFiles() ([]string, error) {
@@ -79,11 +82,11 @@ func loadSnippets() error {
 }
 
 func getSnippets() ([]*Snippet, []*verilog.VerilogFile, error) {
-	if len(snippets) == 0 {
-		err := loadSnippets()
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to load snippets: %v", err)
-		}
+	loadOnce.Do(func() {
+		loadError = loadSnippets()
+	})
+	if loadError != nil {
+		return nil, nil, fmt.Errorf("failed to load snippets: %v", loadError)
 	}
 	return snippets, verilogFiles, nil
 }
