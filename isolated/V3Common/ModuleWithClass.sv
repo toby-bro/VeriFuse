@@ -1,12 +1,12 @@
 class MySimpleClass;
-        int member_int;
-        logic member_logic;
-        logic [63:0] member_wide;
-        function new(int i, logic l, logic [63:0] w);
-            member_int = i;
-            member_logic = l;
-            member_wide = w;
-        endfunction
+    int member_int;
+    logic member_logic;
+    logic [63:0] member_wide;
+    function new(int i, logic l, logic [63:0] w);
+        member_int = i;
+        member_logic = l;
+        member_wide = w;
+    endfunction
 endclass
 
 module ModuleWithClass (

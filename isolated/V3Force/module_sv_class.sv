@@ -1,14 +1,14 @@
 class MyDataClass;
-        logic [15:0] data;
-        function new(int initial_val);
-            data = initial_val;
-        endfunction
+    logic [15:0] data;
+    function new(int initial_val);
+        data = initial_val;
+    endfunction
 endclass
 
 module module_sv_class (
+    output logic [15:0] o_class_data,
     input wire i_clk,
-    input wire i_enable_create,
-    output logic [15:0] o_class_data
+    input wire i_enable_create
 );
     MyDataClass my_object = null;
     logic [15:0] stored_data;

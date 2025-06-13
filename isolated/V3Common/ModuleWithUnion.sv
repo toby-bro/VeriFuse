@@ -1,8 +1,8 @@
 module ModuleWithUnion (
-    input int val_int,
-    input byte val_byte,
     output int out_int,
-    input logic select
+    input logic select,
+    input int val_int,
+    input byte val_byte
 );
     typedef union {
         int u_field_int;

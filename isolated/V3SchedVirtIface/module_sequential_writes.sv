@@ -7,9 +7,9 @@ interface my_if;
     modport AccessOut (input data, input valid, output ready);
 endinterface
 module module_sequential_writes (
-    input logic [7:0] addr,
     input logic [7:0] wdata,
-    output logic write_status
+    output logic write_status,
+    input logic [7:0] addr
 );
     my_if vif_bus();
     always_comb begin

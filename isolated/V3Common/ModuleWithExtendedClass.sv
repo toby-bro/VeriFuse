@@ -1,16 +1,16 @@
 class BaseClass;
-        logic base_member;
-        function new(logic b);
-            base_member = b;
-        endfunction
+    logic base_member;
+    function new(logic b);
+        base_member = b;
+    endfunction
 endclass
 
 class DerivedClass extends BaseClass;
-        logic derived_member;
-        function new(logic b, logic d);
-            super.new(b);
-            derived_member = d;
-        endfunction
+    logic derived_member;
+    function new(logic b, logic d);
+        super.new(b);
+        derived_member = d;
+    endfunction
 endclass
 
 module ModuleWithExtendedClass (
