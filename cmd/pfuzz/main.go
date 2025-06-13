@@ -197,12 +197,13 @@ func main() {
 		config.keepFiles,
 	)
 
-	if err := scheduler.Setup(); err != nil {
+	err, availableSimulators := scheduler.Setup()
+	if err != nil {
 		logger.Fatal("Setup failed: ", err)
 	}
 
 	// Run operation
-	if err := scheduler.Run(config.numTests); err != nil {
+	if err := scheduler.Run(config.numTests, availableSimulators); err != nil {
 		os.Exit(1)
 	}
 }
