@@ -87,9 +87,10 @@ func WriteFileAsSnippets(svFile *verilog.VerilogFile) error {
 
 func PrintMinimalVerilogFileInDist(
 	parentFile *verilog.VerilogFile,
-	module *verilog.Module,
+	moduleName string,
 	workerDir string,
 ) error {
+	module := parentFile.Modules[moduleName]
 	if module == nil {
 		return errors.New("module is nil")
 	}

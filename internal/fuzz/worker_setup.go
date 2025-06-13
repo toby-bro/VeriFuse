@@ -103,7 +103,7 @@ func (sch *Scheduler) performWorkerAttempt(
 		svFile.Name,
 		workerModule.Name,
 	)
-	if err := snippets.PrintMinimalVerilogFileInDist(svFile, workerModule, workerDir); err != nil {
+	if err := snippets.PrintMinimalVerilogFileInDist(svFile, workerModule.Name, workerDir); err != nil {
 		return false, fmt.Errorf(
 			"[%s] failed to print minimal file for module %s in %s: %w",
 			workerID,
@@ -121,6 +121,13 @@ func (sch *Scheduler) performWorkerAttempt(
 				workerID,
 				workerModule.Name,
 				err,
+			)
+			// delete sv2v from availableSimulators
+			availableSimulators = slices.DeleteFunc(
+				slices.Clone(availableSimulators),
+				func(t simulator.Type) bool {
+					return t == simulator.SV2V
+				},
 			)
 		}
 	}
@@ -487,7 +494,6 @@ func (sch *Scheduler) setupSimulators(
 		}
 	}
 
-	// Setup sv2v variants if .v file exists
 	if slices.Contains(availableSimulators, simulator.SV2V) {
 		sch.setupSV2VVariants(
 			ctx,
