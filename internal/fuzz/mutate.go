@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/internal/snippets"
@@ -387,7 +388,8 @@ func ensureOutputPortForSnippet(
 // from the portConnection map. It returns the modified snippet string.
 func replacePortNames(snippetString string, portConnection map[string]string) string {
 	for portName, signalName := range portConnection {
-		snippetString = strings.ReplaceAll(snippetString, portName, signalName)
+		re := regexp.MustCompile(`\b` + regexp.QuoteMeta(portName) + `\b`)
+		snippetString = re.ReplaceAllString(snippetString, signalName)
 	}
 	return snippetString
 }
