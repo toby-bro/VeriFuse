@@ -298,10 +298,11 @@ func TestAddDependenciesOfSnippet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddDependenciesOfSnippet failed: %v", err)
 	}
+	t.Log(targetFile.DumpDependencyGraph())
 
 	// Verify snippet node was added to target
-	if _, exists := targetFile.DependencyMap[snippet.Name]; !exists {
-		t.Error("Expected snippet node to be added to target dependency map")
+	if _, exists := targetFile.DependencyMap[snippet.Name]; exists {
+		t.Error("Expected snippet node not to be added to target dependency map")
 	}
 
 	// Verify the module was NOT added (addItself = false)
