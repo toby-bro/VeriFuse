@@ -225,97 +225,97 @@ module deep_task_logic (
     input wire [1:0] dtl_action_sel,
     output logic [7:0] dtl_result_reg
 );
-task automatic perform_action;
-    input [7:0] in_a;
-    input [7:0] in_b;
-    input [1:0] action;
-    output logic [7:0] calculated_res;
-    logic [7:0] temp_task_calc;
-    if (action[0]) begin
-        if (action[1]) begin
-            temp_task_calc = in_a + in_b;
+    task automatic perform_action;
+        input [7:0] in_a;
+        input [7:0] in_b;
+        input [1:0] action;
+        output logic [7:0] calculated_res;
+        logic [7:0] temp_task_calc;
+        if (action[0]) begin
+            if (action[1]) begin
+                temp_task_calc = in_a + in_b;
+            end else begin
+                temp_task_calc = in_a - in_b;
+            end
         end else begin
-            temp_task_calc = in_a - in_b;
+            if (action[1]) begin
+                temp_task_calc = in_a & in_b;
+            end else begin
+                temp_task_calc = in_a | in_b;
+            end
         end
-    end else begin
-        if (action[1]) begin
-            temp_task_calc = in_a & in_b;
+        case (temp_task_calc[1:0])
+            2'b00: calculated_res = temp_task_calc ^ 8'hFF;
+            2'b01: calculated_res = temp_task_calc + 1;
+            2'b10: calculated_res = temp_task_calc - 1;
+            default: calculated_res = temp_task_calc;
+        endcase
+    endtask
+    always_ff @(posedge dtl_clk or negedge dtl_rst_n) begin
+        if (!dtl_rst_n) begin
+            dtl_result_reg <= 8'd0;
         end else begin
-            temp_task_calc = in_a | in_b;
+            logic [7:0] next_dtl_result;
+            if (dtl_en) begin
+                perform_action(dtl_data_a, dtl_data_b, dtl_action_sel, next_dtl_result);
+            end else begin
+                next_dtl_result = dtl_result_reg;
+            end
+            dtl_result_reg <= next_dtl_result;
         end
     end
-    case (temp_task_calc[1:0])
-        2'b00: calculated_res = temp_task_calc ^ 8'hFF;
-        2'b01: calculated_res = temp_task_calc + 1;
-        2'b10: calculated_res = temp_task_calc - 1;
-        default: calculated_res = temp_task_calc;
-    endcase
-endtask
-always_ff @(posedge dtl_clk or negedge dtl_rst_n) begin
-    if (!dtl_rst_n) begin
-        dtl_result_reg <= 8'd0;
-    end else begin
-        logic [7:0] next_dtl_result;
-        if (dtl_en) begin
-            perform_action(dtl_data_a, dtl_data_b, dtl_action_sel, next_dtl_result);
-        end else begin
-            next_dtl_result = dtl_result_reg;
-        end
-        dtl_result_reg <= next_dtl_result;
-    end
-end
 endmodule
 module deep_comb_assign_chain (
     input wire [15:0] dcac_start_val,
     output logic [15:0] dcac_end_val
 );
-logic [15:0] t1, t2, t3, t4, t5, t6, t7, t8, t9, t10;
-logic [15:0] t11, t12, t13, t14, t15, t16, t17, t18, t19, t20;
-logic [15:0] t21, t22, t23, t24, t25, t26, t27, t28, t29, t30;
-logic [15:0] t31, t32, t33, t34, t35, t36, t37, t38, t39, t40;
-always_comb begin
-    t1 = dcac_start_val + 1;
-    t2 = t1 * 2;
-    t3 = t2 - 3;
-    t4 = t3 ^ 4;
-    t5 = t4 | 5;
-    t6 = t5 & 6;
-    t7 = t6 + 7;
-    t8 = t7 - 8;
-    t9 = t8 ^ 9;
-    t10 = t9 | 10;
-    t11 = t10 & 11;
-    t12 = t11 + 12;
-    t13 = t12 - 13;
-    t14 = t13 ^ 14;
-    t15 = t14 | 15;
-    t16 = t15 + 16;
-    t17 = t16 * 17;
-    t18 = t17 - 18;
-    t19 = t18 ^ 19;
-    t20 = t19 | 20;
-    t21 = t20 + 1;
-    t22 = t21 * 2;
-    t23 = t22 - 3;
-    t24 = t23 ^ 4;
-    t25 = t24 | 5;
-    t26 = t25 & 6;
-    t27 = t26 + 7;
-    t28 = t27 - 8;
-    t29 = t28 ^ 9;
-    t30 = t29 | 10;
-    t31 = t30 & 11;
-    t32 = t31 + 12;
-    t33 = t32 - 13;
-    t34 = t33 ^ 14;
-    t35 = t34 | 15;
-    t36 = t35 + 16;
-    t37 = t36 * 17;
-    t38 = t37 - 18;
-    t39 = t38 ^ 19;
-    t40 = t39 | 20;
-    dcac_end_val = t40;
-end
+    logic [15:0] t1, t2, t3, t4, t5, t6, t7, t8, t9, t10;
+    logic [15:0] t11, t12, t13, t14, t15, t16, t17, t18, t19, t20;
+    logic [15:0] t21, t22, t23, t24, t25, t26, t27, t28, t29, t30;
+    logic [15:0] t31, t32, t33, t34, t35, t36, t37, t38, t39, t40;
+    always_comb begin
+        t1 = dcac_start_val + 1;
+        t2 = t1 * 2;
+        t3 = t2 - 3;
+        t4 = t3 ^ 4;
+        t5 = t4 | 5;
+        t6 = t5 & 6;
+        t7 = t6 + 7;
+        t8 = t7 - 8;
+        t9 = t8 ^ 9;
+        t10 = t9 | 10;
+        t11 = t10 & 11;
+        t12 = t11 + 12;
+        t13 = t12 - 13;
+        t14 = t13 ^ 14;
+        t15 = t14 | 15;
+        t16 = t15 + 16;
+        t17 = t16 * 17;
+        t18 = t17 - 18;
+        t19 = t18 ^ 19;
+        t20 = t19 | 20;
+        t21 = t20 + 1;
+        t22 = t21 * 2;
+        t23 = t22 - 3;
+        t24 = t23 ^ 4;
+        t25 = t24 | 5;
+        t26 = t25 & 6;
+        t27 = t26 + 7;
+        t28 = t27 - 8;
+        t29 = t28 ^ 9;
+        t30 = t29 | 10;
+        t31 = t30 & 11;
+        t32 = t31 + 12;
+        t33 = t32 - 13;
+        t34 = t33 ^ 14;
+        t35 = t34 | 15;
+        t36 = t35 + 16;
+        t37 = t36 * 17;
+        t38 = t37 - 18;
+        t39 = t38 ^ 19;
+        t40 = t39 | 20;
+        dcac_end_val = t40;
+    end
 endmodule
 module deep_loop_with_conditionals (
     input wire [7:0] dlwc_data_in,
@@ -324,25 +324,25 @@ module deep_loop_with_conditionals (
     input wire [3:0] dlwc_continue_at,
     output logic [7:0] dlwc_output_sum
 );
-always_comb begin
-    logic [7:0] sum_val = 8'd0;
-    integer i;
-    for (i = 0; i < dlwc_limit; i = i + 1) begin
-        if (i == dlwc_break_at) begin
-            sum_val = sum_val | dlwc_data_in;
-            break;
+    always_comb begin
+        logic [7:0] sum_val = 8'd0;
+        integer i;
+        for (i = 0; i < dlwc_limit; i = i + 1) begin
+            if (i == dlwc_break_at) begin
+                sum_val = sum_val | dlwc_data_in;
+                break;
+            end
+            if (i == dlwc_continue_at) begin
+                sum_val = sum_val + {4'b0, dlwc_limit};
+                continue;
+            end
+            case (i[1:0])
+                2'b00: sum_val = sum_val + dlwc_data_in;
+                2'b01: sum_val = sum_val ^ dlwc_data_in;
+                2'b10: sum_val = sum_val & dlwc_data_in;
+                default: sum_val = sum_val | dlwc_data_in;
+            endcase
         end
-        if (i == dlwc_continue_at) begin
-            sum_val = sum_val + {4'b0, dlwc_limit};
-            continue;
-        end
-        case (i[1:0])
-            2'b00: sum_val = sum_val + dlwc_data_in;
-            2'b01: sum_val = sum_val ^ dlwc_data_in;
-            2'b10: sum_val = sum_val & dlwc_data_in;
-            default: sum_val = sum_val | dlwc_data_in;
-        endcase
+        dlwc_output_sum = sum_val;
     end
-    dlwc_output_sum = sum_val;
-end
 endmodule
