@@ -578,7 +578,17 @@ func MutateFile(
 	workerDir := filepath.Base(filepath.Dir(pathToWrite))
 
 	for {
-		for moduleName, currentModule := range svFile.DeepCopy().Modules {
+		for moduleName, currentModule := range svFile.Modules {
+			if len(svFile.DependencyMap[moduleName].DependedBy) > 0 {
+				logger.Debug(
+					"[%s] Skipping module %s due to dependencies: %v",
+					workerDir,
+					moduleName,
+					svFile.DependencyMap[moduleName].DependedBy,
+				)
+				continue
+			}
+
 			moduleToMutate := currentModule.DeepCopy()
 			if moduleToMutate == nil {
 				logger.Warn(
@@ -648,6 +658,25 @@ func MutateFile(
 					workerDir,
 					snippet.Name,
 					err,
+				)
+			}
+
+			logger.Debug(
+				"[%s] Successfully injected snippet %s into module %s",
+				workerDir,
+				snippet.Name,
+				moduleToMutate.Name,
+			)
+
+			if instantiate {
+				svFile.AddDependency(
+					moduleToMutate.Name,
+					snippet.Module.Name,
+				)
+			} else {
+				svFile.AddDependency(
+					moduleToMutate.Name,
+					snippet.ParentFile.DependencyMap[snippet.Name].DependsOn...,
 				)
 			}
 
