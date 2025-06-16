@@ -104,6 +104,10 @@ func GetRandomSnippet(verbose int) (*Snippet, error) {
 	return snippets[randomIndex], nil
 }
 
+// dfsDependencies recursively traverses the dependency graph of a Verilog file
+// and adds dependencies to the target file's dependency map.
+// It ensures that all dependencies are captured, including those from parent files.
+// It also copies structs, classes, modules, interfaces, and packages from the parent file to the target file.
 func dfsDependencies(
 	nodeName string,
 	parentVF *verilog.VerilogFile,
@@ -116,6 +120,7 @@ func dfsDependencies(
 
 	for _, dep := range parentNode.DependsOn {
 		if _, found := targetFile.DependencyMap[dep]; found {
+			targetFile.AddDependency(nodeName, dep)
 			continue
 		}
 		targetFile.DependencyMap[dep] = parentVF.DependencyMap[dep]
@@ -156,6 +161,10 @@ func AddDependencies(targetFile *verilog.VerilogFile, snippet *Snippet) error {
 	return GeneralAddDependencies(targetFile, snippet, true)
 }
 
+// GeneralAddDependencies adds dependencies of a snippet to the target file.
+// If addItself is true, it also adds the snippet's module to the target file
+// and updates the dependency map accordingly.
+// If addItself is false, it only adds the dependencies without adding the module.
 func GeneralAddDependencies(
 	targetFile *verilog.VerilogFile,
 	snippet *Snippet,
@@ -167,8 +176,8 @@ func GeneralAddDependencies(
 	if targetFile.DependencyMap == nil {
 		targetFile.DependencyMap = make(map[string]*verilog.DependencyNode)
 	}
-	if _, ok := targetFile.DependencyMap[snippet.Name]; !ok {
-		targetFile.DependencyMap[snippet.Name] = &verilog.DependencyNode{
+	if _, ok := targetFile.DependencyMap[snippet.Module.Name]; !ok && addItself {
+		targetFile.DependencyMap[snippet.Module.Name] = &verilog.DependencyNode{
 			Name:       snippet.Module.Name,
 			DependsOn:  []string{},
 			DependedBy: []string{},
