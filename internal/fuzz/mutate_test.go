@@ -64,6 +64,7 @@ endmodule
 		module,
 		snippet,
 		scopeTree,
+		"test",
 	)
 	if err != nil {
 		t.Fatalf("matchVariablesToSnippetPorts failed: %v", err)

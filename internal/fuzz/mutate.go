@@ -3,6 +3,7 @@ package fuzz
 import (
 	"fmt"
 	"math/rand"
+	"path/filepath"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/internal/snippets"
@@ -23,6 +24,7 @@ func injectSnippetInModule(
 	targetModule *verilog.Module,
 	snippet *snippets.Snippet,
 	instantiate bool,
+	workerDir string,
 ) error {
 	_, scopeTree, err := verilog.ParseVariables(
 		snippet.ParentFile,
@@ -30,16 +32,21 @@ func injectSnippetInModule(
 		targetModule.Parameters,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to extract variables from module: %v", err)
+		return fmt.Errorf("[%s] failed to extract variables from module: %v", workerDir, err)
 	}
 	if scopeTree == nil {
-		return fmt.Errorf("failed to parse scope tree for module %s", targetModule.Name)
+		return fmt.Errorf(
+			"[%s] failed to parse scope tree for module %s",
+			workerDir,
+			targetModule.Name,
+		)
 	}
 
 	bestScope := findBestScopeNode(scopeTree, snippet.Module.Ports)
 	if bestScope == nil {
 		logger.Warn(
-			"Could not determine a best scope for snippet %s in module %s. Using module root.",
+			"[%s] Could not determine a best scope for snippet %s in module %s. Using module root.",
+			workerDir,
 			snippet.Name,
 			targetModule.Name,
 		)
@@ -50,13 +57,15 @@ func injectSnippetInModule(
 		targetModule,
 		snippet,
 		scopeTree,
+		workerDir,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to match variables to snippet ports: %v", err)
 	}
 
 	logger.Debug(
-		"Matched ports for snippet %s in module %s: %v",
+		"[%s] Matched ports for snippet %s in module %s: %v",
+		workerDir,
 		snippet.Name,
 		targetModule.Name,
 		portConnections,
@@ -79,19 +88,22 @@ func injectSnippetInModule(
 		injection,
 		newSignalDeclarations,
 		bestScope,
+		workerDir,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert snippet into module: %v", err)
 	}
 	if instantiate {
 		logger.Info(
-			"Instantiated snippet %s into module %s",
+			"[%s] Instantiated snippet %s into module %s",
+			workerDir,
 			snippet.Name,
 			targetModule.Name,
 		)
 	} else {
 		logger.Info(
-			"Injected snippet %s into module %s",
+			"[%s] Injected snippet %s into module %s",
+			workerDir,
 			snippet.Name,
 			targetModule.Name,
 		)
@@ -104,6 +116,7 @@ func matchVariablesToSnippetPorts(
 	module *verilog.Module,
 	snippet *snippets.Snippet,
 	scopeTree *verilog.ScopeNode,
+	debugWorkerDir string,
 ) (map[string]string, []verilog.Port, error) {
 	portConnections := make(map[string]string)
 	newDeclarations := []verilog.Port{}
@@ -117,7 +130,8 @@ func matchVariablesToSnippetPorts(
 	bestScopeForSnippet := findBestScopeNode(scopeTree, snippet.Module.Ports)
 	if bestScopeForSnippet == nil {
 		logger.Warn(
-			"findBestScopeNode returned nil, falling back to module root scope for snippet %s",
+			"[%s] findBestScopeNode returned nil, falling back to module root scope for snippet %s",
+			debugWorkerDir,
 			snippet.Name,
 		)
 		bestScopeForSnippet = scopeTree
@@ -194,7 +208,8 @@ func matchVariablesToSnippetPorts(
 			portConnections[port.Name] = newSignalName
 			// module.Ports = append(module.Ports, newSignalObj)
 			logger.Debug(
-				"Created new signal %s for port %s in snippet %s and AnsiStyle %t",
+				"[%s] Created new signal %s for port %s in snippet %s and AnsiStyle %t",
+				debugWorkerDir,
 				newSignalName,
 				port.Name,
 				snippet.Name,
@@ -423,6 +438,7 @@ func injectSnippetIntoModule(
 	instantiation string,
 	newDeclarations []verilog.Port,
 	bestScope *verilog.ScopeNode,
+	debugWorkerDir string,
 ) error {
 	// Determine the insertion line based on the best scope's LastLine
 	var insertionLine int
@@ -430,7 +446,8 @@ func injectSnippetIntoModule(
 		// Insert after the last line where a variable was declared in this scope
 		insertionLine = bestScope.LastLine + 1
 		logger.Debug(
-			"Using scope-based insertion at line %d (scope level %d)",
+			"[%s] Using scope-based insertion at line %d (scope level %d)",
+			debugWorkerDir,
 			insertionLine,
 			bestScope.Level,
 		)
@@ -439,7 +456,8 @@ func injectSnippetIntoModule(
 		lines := strings.Split(module.Body, "\n")
 		insertionLine = findEndOfModuleDeclarations(lines)
 		logger.Debug(
-			"Using fallback insertion at line %d (no best scope found)",
+			"[%s] Using fallback insertion at line %d (no best scope found)",
+			debugWorkerDir,
 			insertionLine,
 		)
 	}
@@ -458,7 +476,8 @@ func injectSnippetIntoModule(
 		}
 	}
 	logger.Debug(
-		"Inserted %d new signal declarations at line %d in module %s",
+		"[%s] Inserted %d new signal declarations at line %d in module %s",
+		debugWorkerDir,
 		len(newDeclarations),
 		insertionLine,
 		module.Name,
@@ -556,18 +575,25 @@ func MutateFile(
 	injectedSnippetParentFiles := make(map[string]*verilog.VerilogFile)
 	loadLogger(verbose)
 
+	workerDir := filepath.Base(filepath.Dir(pathToWrite))
+
 	for {
 		for moduleName, currentModule := range svFile.DeepCopy().Modules {
 			moduleToMutate := currentModule.DeepCopy()
 			if moduleToMutate == nil {
-				logger.Warn("Failed to copy module %s for mutation, skipping.", moduleName)
+				logger.Warn(
+					"[%s] Failed to copy module %s for mutation, skipping.",
+					workerDir,
+					moduleName,
+				)
 				continue
 			}
 
 			snippet, err := snippets.GetRandomSnippet(verbose)
 			if err != nil {
 				logger.Warn(
-					"Failed to get snippet for module %s: %v. Skipping mutation for this module.",
+					"[%s] Failed to get snippet for module %s: %v. Skipping mutation for this module.",
+					workerDir,
 					moduleName,
 					err,
 				)
@@ -575,29 +601,38 @@ func MutateFile(
 			}
 			if snippet == nil || snippet.Module == nil || snippet.ParentFile == nil {
 				logger.Warn(
-					"Selected snippet, its module, or its parent file is nil for module %s. Skipping.",
+					"[%s] Selected snippet, its module, or its parent file is nil for module %s. Skipping.",
+					workerDir,
 					moduleName,
 				)
 				continue
 			}
 			if snippet.ParentFile.Name == "" {
 				logger.Warn(
-					"Snippet ParentFile name is empty for snippet '%s'. Dependency merging might be affected.",
+					"[%s] Snippet ParentFile name is empty for snippet '%s'. Dependency merging might be affected.",
+					workerDir,
 					snippet.Name,
 				)
 			}
 
 			logger.Debug(
-				"Attempting to inject snippet %s in module %s from file %s...",
+				"[%s] Attempting to inject snippet %s in module %s from file %s...",
+				workerDir,
 				snippet.Name,
 				moduleToMutate.Name,
 				fileName,
 			)
 			instantiate := rand.Intn(3) == 0
-			err = injectSnippetInModule(moduleToMutate, snippet, instantiate)
+			err = injectSnippetInModule(
+				moduleToMutate,
+				snippet,
+				instantiate,
+				workerDir,
+			)
 			if err != nil {
 				logger.Info(
-					"InjectSnippet failed for module %s: %v. Skipping mutation for this module.",
+					"[%s] InjectSnippet failed for module %s: %v. Skipping mutation for this module.",
+					workerDir,
 					moduleToMutate.Name,
 					err,
 				)
@@ -609,7 +644,8 @@ func MutateFile(
 			err = snippets.GeneralAddDependencies(svFile, snippet, instantiate)
 			if err != nil {
 				logger.Error(
-					"Failed to add dependencies for snippet %s: %v. Continuing with mutation.",
+					"[%s] Failed to add dependencies for snippet %s: %v. Continuing with mutation.",
+					workerDir,
 					snippet.Name,
 					err,
 				)
@@ -617,7 +653,8 @@ func MutateFile(
 
 			mutatedOverall = true
 			logger.Debug(
-				"Mutation applied to module %s in %s",
+				"[%s] Mutation applied to module %s in %s",
+				workerDir,
 				moduleToMutate.Name,
 				fileName,
 			)
@@ -632,7 +669,8 @@ func MutateFile(
 
 	if !mutatedOverall {
 		logger.Info(
-			"No successful mutations applied to file %s. Writing original or partially modified content if other steps occurred.",
+			"[%s] No successful mutations applied to file %s. Writing original or partially modified content if other steps occurred.",
+			workerDir,
 			pathToWrite,
 		)
 	}
@@ -640,7 +678,8 @@ func MutateFile(
 	finalMutatedContent, err := verilog.PrintVerilogFile(svFile)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"failed to print Verilog file %s after mutation: %v",
+			"[%s] failed to print Verilog file %s after mutation: %v",
+			workerDir,
 			pathToWrite,
 			err,
 		)
@@ -652,9 +691,9 @@ func MutateFile(
 	}
 
 	if mutatedOverall {
-		logger.Debug("Successfully mutated and rewrote file %s", pathToWrite)
+		logger.Debug("[%s] Successfully mutated and rewrote file %s", workerDir, pathToWrite)
 	} else {
-		logger.Warn("File %s rewritten (no mutations applied or all failed).", pathToWrite)
+		logger.Warn("[%s] File %s rewritten (no mutations applied or all failed).", workerDir, pathToWrite)
 	}
 
 	return svFile, nil
