@@ -5,11 +5,11 @@ module mod_always_event (
     input logic in
 );
     always @(posedge clk or negedge rst) begin
-    if (!rst) begin
-        out <= 1'b0;
-    end else begin
-        out <= in;
-    end
+        if (!rst) begin
+            out <= 1'b0;
+        end else begin
+            out <= in;
+        end
     end
 endmodule
 
