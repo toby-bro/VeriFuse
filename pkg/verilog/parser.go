@@ -2187,21 +2187,6 @@ func (v *VerilogFile) ParsePackages(content string) error {
 	return nil
 }
 
-// removeDuplicateStrings removes duplicate strings from a slice while preserving order
-func removeDuplicateStrings(slice []string) []string {
-	keys := make(map[string]bool)
-	result := []string{}
-
-	for _, item := range slice {
-		if !keys[item] {
-			keys[item] = true
-			result = append(result, item)
-		}
-	}
-
-	return result
-}
-
 // Only parses the dependencies of the classes
 // Probably overengineered and should only see if the name of a class or a struct just happens to be there but too late I already wrote it
 func (v *VerilogFile) typeDependenciesParser() error {

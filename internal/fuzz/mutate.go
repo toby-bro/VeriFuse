@@ -400,7 +400,7 @@ func generateSnippetInjection(
 	snippet *snippets.Snippet,
 	portConnections map[string]string,
 ) string {
-	snippetString := fmt.Sprintf("// %s\n", snippet.Name)
+	snippetString := fmt.Sprintf("// %s\n", strings.TrimSpace(snippet.Name))
 	snippetString += snippet.Module.Body
 	snippetString = replacePortNames(snippetString, portConnections)
 	snippetString = strings.TrimSpace(snippetString)
