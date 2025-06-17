@@ -402,7 +402,7 @@ func generateSnippetInjection(
 ) string {
 	snippetString := snippet.Module.Body
 	snippetString = replacePortNames(snippetString, portConnections)
-	snippetString = strings.TrimSpace(snippetString)
+	snippetString = utils.TrimEmptyLines(snippetString)
 	snippetString = fmt.Sprintf(
 		"// BEGIN: %s\n%s\n// END: %s\n",
 		strings.TrimSpace(snippet.Name),
