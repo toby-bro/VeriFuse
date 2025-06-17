@@ -89,3 +89,14 @@ func EnhancedCopyFile(src, dst string) error {
 	}
 	return nil
 }
+
+func TrimEmptyLines(input string) string {
+	lines := strings.Split(input, "\n")
+	if lines[0] == "" {
+		lines = lines[1:] // Remove leading empty line
+	}
+	if lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1] // Remove trailing empty line
+	}
+	return strings.Join(lines, "\n")
+}
