@@ -90,6 +90,7 @@ func EnhancedCopyFile(src, dst string) error {
 	return nil
 }
 
+// TrimEmptyLines removes leading and trailing empty lines from a string
 func TrimEmptyLines(input string) string {
 	lines := strings.Split(input, "\n")
 	if lines[0] == "" {
