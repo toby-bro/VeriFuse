@@ -201,7 +201,7 @@ func (sch *Scheduler) Run(numTests int, availableSimulators []simulator.Type) er
 				defer func() { cpuSlots <- struct{}{} }()
 
 				if err := sch.worker(ctx, testCases, mod, slotIdx, availableSimulators); err != nil {
-					errChan <- fmt.Errorf("[worker_%d] for module %s error: \n%s[-] ERROR:%s %w", slotIdx, mod.Name, utils.BoldStart, utils.BoldEnd, err)
+					errChan <- fmt.Errorf("[worker_%d] for module %s error: \n[-] ERROR: %w", slotIdx, mod.Name, err)
 				}
 			}(currentModule)
 		}
