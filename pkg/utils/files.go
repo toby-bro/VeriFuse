@@ -117,11 +117,6 @@ func WriteFileContent(path string, content string) error {
 	return EnsureFileWritten(path, err, len(content))
 }
 
-// TmpPath returns the path within the temporary directory
-func TmpPath(filename string) string {
-	return filepath.Join(TMP_DIR, filename)
-}
-
 // CopyFile copies a file from src to dst
 func CopyFile(src, dst string) error {
 	fileOpMutex.Lock()
@@ -157,18 +152,6 @@ func FileExists(path string) bool {
 		return false
 	}
 	return !info.IsDir()
-}
-
-// TrimWhitespace removes whitespace, newlines, and tabs from a string
-func TrimWhitespace(s string) string {
-	// Custom implementation to handle whitespace
-	result := ""
-	for _, c := range s {
-		if c != ' ' && c != '\n' && c != '\r' && c != '\t' {
-			result += string(c)
-		}
-	}
-	return result
 }
 
 func GetRootDir() (string, error) {

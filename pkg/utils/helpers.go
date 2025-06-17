@@ -7,11 +7,6 @@ import (
 	"strings"
 )
 
-// JoinStrings joins strings with a separator
-func JoinStrings(elements []string, sep string) string {
-	return strings.Join(elements, sep)
-}
-
 // CopyDir recursively copies a directory
 func CopyDir(src string, dst string) error {
 	// Get properties of source directory
