@@ -18,7 +18,7 @@ endpackage
 `
 
 	vf := &VerilogFile{}
-	err := vf.ParsePackages(content)
+	err := vf.parsePackages(content)
 	if err != nil {
 		t.Fatalf("Failed to parse package: %v", err)
 	}
@@ -69,7 +69,7 @@ endpackage
 `
 
 	vf := &VerilogFile{}
-	err := vf.ParsePackages(content)
+	err := vf.parsePackages(content)
 	if err != nil {
 		t.Fatalf("Failed to parse package: %v", err)
 	}
@@ -116,7 +116,7 @@ endpackage
 `
 
 	vf := &VerilogFile{}
-	err := vf.ParsePackages(content)
+	err := vf.parsePackages(content)
 	if err != nil {
 		t.Fatalf("Failed to parse package: %v", err)
 	}
@@ -185,7 +185,7 @@ endpackage
 `
 
 	vf := &VerilogFile{}
-	err := vf.ParsePackages(content)
+	err := vf.parsePackages(content)
 	if err != nil {
 		t.Fatalf("Failed to parse packages: %v", err)
 	}
@@ -225,7 +225,7 @@ endpackage
 `
 
 	vf := &VerilogFile{}
-	err := vf.ParsePackages(content)
+	err := vf.parsePackages(content)
 	if err != nil {
 		t.Fatalf("Failed to parse empty package: %v", err)
 	}
@@ -292,7 +292,7 @@ endpackage
 `
 
 	vf := &VerilogFile{}
-	err := vf.ParsePackages(content)
+	err := vf.parsePackages(content)
 	if err != nil {
 		t.Fatalf("Failed to parse complex package: %v", err)
 	}
@@ -369,13 +369,13 @@ endmodule
 	vf := &VerilogFile{}
 
 	// Parse packages first
-	err := vf.ParsePackages(content)
+	err := vf.parsePackages(content)
 	if err != nil {
 		t.Fatalf("Failed to parse packages: %v", err)
 	}
 
 	// Parse modules
-	err = vf.ParseModules(content)
+	err = vf.parseModules(content)
 	if err != nil {
 		t.Fatalf("Failed to parse modules: %v", err)
 	}
@@ -483,7 +483,7 @@ endpackage
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			vf := &VerilogFile{}
-			err := vf.ParsePackages(tc.content)
+			err := vf.parsePackages(tc.content)
 
 			if tc.expectError && err == nil {
 				t.Error("Expected error but got none")
@@ -522,7 +522,7 @@ class test_class;
 endclass
 `
 
-	matches := MatchAllPackagesFromString(content)
+	matches := matchAllPackagesFromString(content)
 
 	if len(matches) != 2 {
 		t.Errorf("Expected 2 package matches, got %d", len(matches))
@@ -573,7 +573,7 @@ endpackage
 `
 
 	vf := &VerilogFile{}
-	err := vf.ParsePackages(enumCollisionContent)
+	err := vf.parsePackages(enumCollisionContent)
 	if err != nil {
 		t.Fatalf("Failed to parse enum collision package: %v", err)
 	}
@@ -606,7 +606,7 @@ endpackage
 `
 
 	vf2 := &VerilogFile{}
-	err = vf2.ParsePackages(operationPkgContent)
+	err = vf2.parsePackages(operationPkgContent)
 	if err != nil {
 		t.Fatalf("Failed to parse operation package: %v", err)
 	}
@@ -661,7 +661,7 @@ endpackage
 `
 
 	vf := &VerilogFile{}
-	err := vf.ParsePackages(content)
+	err := vf.parsePackages(content)
 	if err != nil {
 		t.Fatalf("Failed to parse complex package: %v", err)
 	}
@@ -722,13 +722,13 @@ endmodule
 	vf := &VerilogFile{}
 
 	// Parse packages first
-	err := vf.ParsePackages(content)
+	err := vf.parsePackages(content)
 	if err != nil {
 		t.Fatalf("Failed to parse packages: %v", err)
 	}
 
 	// Parse modules
-	err = vf.ParseModules(content)
+	err = vf.parseModules(content)
 	if err != nil {
 		t.Fatalf("Failed to parse modules: %v", err)
 	}
@@ -765,7 +765,7 @@ endpackage
 `
 
 	vf2 := &VerilogFile{}
-	err := vf2.ParsePackages(operationPkgContent)
+	err := vf2.parsePackages(operationPkgContent)
 	if err != nil {
 		t.Fatalf("Failed to parse operation package: %v", err)
 	}
@@ -800,7 +800,7 @@ endpackage
 `
 
 	vf := &VerilogFile{}
-	err := vf.ParsePackages(operationPkgContent)
+	err := vf.parsePackages(operationPkgContent)
 	if err != nil {
 		t.Fatalf("Failed to parse operation package: %v", err)
 	}

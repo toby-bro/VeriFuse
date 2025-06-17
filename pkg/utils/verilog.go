@@ -8,21 +8,21 @@ import (
 	"strings"
 )
 
-// GenerateRandomBitString generates a Verilog-style random bit string
-func GenerateRandomBitString(width int) string {
+// generateRandomBitString generates a Verilog-style random bit string
+func generateRandomBitString(width int) string { //nolint: unused
 	val := rand.Uint64() & ((1 << width) - 1)
 	return fmt.Sprintf("%d'b%b", width, val)
 }
 
-// GenerateRandomHexString generates a Verilog-style random hex string
-func GenerateRandomHexString(width int) string {
+// generateRandomHexString generates a Verilog-style random hex string
+func generateRandomHexString(width int) string { //nolint: unused
 	bytes := (width + 3) / 4
 	val := rand.Uint64() & ((1 << (bytes * 4)) - 1)
 	return fmt.Sprintf("%d'h%x", width, val)
 }
 
-// GenerateRandomBitsOfWidth generates a random binary pattern of exactly the specified width
-func GenerateRandomBitsOfWidth(width int) string {
+// generateRandomBitsOfWidth generates a random binary pattern of exactly the specified width
+func generateRandomBitsOfWidth(width int) string { //nolint: unused
 	// Handle invalid width
 	if width <= 0 {
 		return "0"
@@ -41,8 +41,8 @@ func GenerateRandomBitsOfWidth(width int) string {
 	return string(bits)
 }
 
-// GenerateRandomHexOfWidth generates a random hex pattern of exactly the specified bit width
-func GenerateRandomHexOfWidth(width int) string {
+// generateRandomHexOfWidth generates a random hex pattern of exactly the specified bit width
+func generateRandomHexOfWidth(width int) string { //nolint: unused
 	// Calculate number of hex characters needed
 	hexDigits := (width + 3) / 4
 

@@ -81,7 +81,7 @@ func formatWidth(width int) string {
 	return fmt.Sprintf("[%d:0]", width-1)
 }
 
-func PortDirectionToString(d PortDirection) string {
+func portDirectionToString(d PortDirection) string {
 	switch d {
 	case INPUT:
 		return "input"
@@ -96,7 +96,7 @@ func PortDirectionToString(d PortDirection) string {
 	}
 }
 
-func TypeToString(pt PortType) string {
+func typeToString(pt PortType) string {
 	switch pt {
 	case REG:
 		return "reg"
@@ -151,8 +151,8 @@ func TypeToString(pt PortType) string {
 	}
 }
 
-// PrintParameter formats a Parameter for module/class headers.
-func PrintParameter(param Parameter, isLast bool) string {
+// printParameter formats a Parameter for module/class headers.
+func printParameter(param Parameter, isLast bool) string {
 	var sb strings.Builder
 	sb.WriteString("parameter ")
 	if param.Type != UNKNOWN {
@@ -174,8 +174,8 @@ func PrintParameter(param Parameter, isLast bool) string {
 	return sb.String()
 }
 
-// PrintPort formats a Port for module headers.
-func PrintPort(port Port, isLast bool, ansiStyle bool) string {
+// printPort formats a Port for module headers.
+func printPort(port Port, isLast bool, ansiStyle bool) string {
 	var sb strings.Builder
 	if !port.AlreadyDeclared && ansiStyle {
 		// Special handling for interface ports
@@ -186,11 +186,11 @@ func PrintPort(port Port, isLast bool, ansiStyle bool) string {
 		} else {
 			// Regular port handling
 			if port.Direction != INTERNAL {
-				sb.WriteString(PortDirectionToString(port.Direction))
+				sb.WriteString(portDirectionToString(port.Direction))
 				sb.WriteString(" ")
 			}
 
-			portTypeStr := TypeToString(port.Type)
+			portTypeStr := typeToString(port.Type)
 			if portTypeStr != "" {
 				// Avoid printing 'logic' if it's the default and no other specifiers exist,
 				// unless it's truly specified. This can be tricky.
@@ -221,10 +221,10 @@ func PrintPort(port Port, isLast bool, ansiStyle bool) string {
 	return sb.String()
 }
 
-// PrintVariableDeclaration formats a Variable declaration (for structs, etc.).
-func PrintVariableDeclaration(v *Variable) string {
+// printVariableDeclaration formats a Variable declaration (for structs, etc.).
+func printVariableDeclaration(v *Variable) string {
 	var sb strings.Builder
-	typeStr := TypeToString(v.Type)
+	typeStr := typeToString(v.Type)
 	if v.Type == USERDEFINED {
 		// This part needs to be smarter, potentially looking up the actual type name
 		// from a VerilogFile context if the variable's Type field doesn't store the name.
@@ -263,14 +263,14 @@ func PrintVariableDeclaration(v *Variable) string {
 	return sb.String()
 }
 
-// PrintStruct converts a Struct object to its Verilog string representation.
-func PrintStruct(s *Struct) string {
+// printStruct converts a Struct object to its Verilog string representation.
+func printStruct(s *Struct) string {
 	var sb strings.Builder
 	sb.WriteString("typedef struct packed {\n")
 	for _, variable := range s.Variables {
 		sb.WriteString("    ")
 		sb.WriteString(
-			PrintVariableDeclaration(variable),
+			printVariableDeclaration(variable),
 		) // Assumes PrintVariableDeclaration is suitable
 		sb.WriteString("\n")
 	}
@@ -280,16 +280,16 @@ func PrintStruct(s *Struct) string {
 	return sb.String()
 }
 
-// PrintInterfacePort formats an InterfacePort for interface port declarations.
-func PrintInterfacePort(port InterfacePort, isLast bool) string {
+// printInterfacePort formats an InterfacePort for interface port declarations.
+func printInterfacePort(port InterfacePort, isLast bool) string {
 	var sb strings.Builder
 
 	if port.Direction != INTERNAL {
-		sb.WriteString(PortDirectionToString(port.Direction))
+		sb.WriteString(portDirectionToString(port.Direction))
 		sb.WriteString(" ")
 	}
 
-	portTypeStr := TypeToString(port.Type)
+	portTypeStr := typeToString(port.Type)
 	if portTypeStr != "" {
 		sb.WriteString(portTypeStr)
 		sb.WriteString(" ")
@@ -312,8 +312,8 @@ func PrintInterfacePort(port InterfacePort, isLast bool) string {
 	return sb.String()
 }
 
-// PrintModPort formats a ModPort declaration for interfaces.
-func PrintModPort(modport ModPort) string {
+// printModPort formats a ModPort declaration for interfaces.
+func printModPort(modport ModPort) string {
 	return printModPortWithIndent(modport, "")
 }
 
@@ -328,7 +328,7 @@ func printModPortWithIndent(modport ModPort, indent string) string {
 	for i, signal := range modport.Signals {
 		sb.WriteString(indent)
 		sb.WriteString("    ") // 4 additional spaces for signal indentation
-		sb.WriteString(PortDirectionToString(signal.Direction))
+		sb.WriteString(portDirectionToString(signal.Direction))
 		sb.WriteString(" ")
 		sb.WriteString(signal.Name)
 		if i < len(modport.Signals)-1 {
@@ -342,7 +342,7 @@ func printModPortWithIndent(modport ModPort, indent string) string {
 	return sb.String()
 }
 
-func PrintInterface(i *Interface) string {
+func printInterface(i *Interface) string {
 	var sb strings.Builder
 
 	// Handle virtual interfaces
@@ -358,7 +358,7 @@ func PrintInterface(i *Interface) string {
 		sb.WriteString(" #(\n")
 		for j, param := range i.Parameters {
 			sb.WriteString("    ")
-			sb.WriteString(PrintParameter(param, j == len(i.Parameters)-1))
+			sb.WriteString(printParameter(param, j == len(i.Parameters)-1))
 			sb.WriteString("\n")
 		}
 		sb.WriteString(")")
@@ -369,7 +369,7 @@ func PrintInterface(i *Interface) string {
 		sb.WriteString(" (\n")
 		for j, port := range i.Ports {
 			sb.WriteString("    ")
-			sb.WriteString(PrintInterfacePort(port, j == len(i.Ports)-1))
+			sb.WriteString(printInterfacePort(port, j == len(i.Ports)-1))
 			sb.WriteString("\n")
 		}
 		sb.WriteString(")")
@@ -407,7 +407,7 @@ func PrintInterface(i *Interface) string {
 		if len(i.Variables) > 0 {
 			for _, variable := range i.Variables {
 				sb.WriteString("    ")
-				sb.WriteString(PrintVariableDeclaration(variable))
+				sb.WriteString(printVariableDeclaration(variable))
 				sb.WriteString("\n")
 			}
 			if len(i.ModPorts) > 0 {
@@ -432,8 +432,8 @@ func PrintInterface(i *Interface) string {
 	return sb.String()
 }
 
-// PrintClass converts a Class object to its Verilog string representation.
-func PrintClass(c *Class) string {
+// printClass converts a Class object to its Verilog string representation.
+func printClass(c *Class) string {
 	var sb strings.Builder
 	if c.isVirtual {
 		sb.WriteString("virtual ")
@@ -450,7 +450,7 @@ func PrintClass(c *Class) string {
 		sb.WriteString(" #(\n")
 		for i, param := range c.Parameters {
 			sb.WriteString("    ")
-			sb.WriteString(PrintParameter(param, i == len(c.Parameters)-1))
+			sb.WriteString(printParameter(param, i == len(c.Parameters)-1))
 			sb.WriteString("\n")
 		}
 		sb.WriteString(")")
@@ -463,8 +463,8 @@ func PrintClass(c *Class) string {
 	return sb.String()
 }
 
-// PrintModule converts a Module object to its Verilog string representation.
-func PrintModule(m *Module) string {
+// printModule converts a Module object to its Verilog string representation.
+func printModule(m *Module) string {
 	var sb strings.Builder
 	sb.WriteString("module ")
 	sb.WriteString(m.Name)
@@ -481,7 +481,7 @@ func PrintModule(m *Module) string {
 		sb.WriteString(" #(\n")
 		for i, param := range ansiParams {
 			sb.WriteString("    ")
-			sb.WriteString(PrintParameter(param, i == len(ansiParams)-1))
+			sb.WriteString(printParameter(param, i == len(ansiParams)-1))
 			sb.WriteString("\n")
 		}
 		sb.WriteString(")")
@@ -491,7 +491,7 @@ func PrintModule(m *Module) string {
 		sb.WriteString(" (\n")
 		for i, port := range m.Ports {
 			sb.WriteString("    ")
-			sb.WriteString(PrintPort(port, i == len(m.Ports)-1, m.AnsiStyle))
+			sb.WriteString(printPort(port, i == len(m.Ports)-1, m.AnsiStyle))
 			sb.WriteString("\n")
 		}
 		sb.WriteString(");\n")
@@ -520,8 +520,8 @@ func PrintModule(m *Module) string {
 	return sb.String()
 }
 
-// PrintPackage converts a Package object to its Verilog string representation.
-func PrintPackage(pkg *Package) string {
+// printPackage converts a Package object to its Verilog string representation.
+func printPackage(pkg *Package) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("package %s;\n", pkg.Name))
 
@@ -565,7 +565,7 @@ func PrintPackage(pkg *Package) string {
 	// Print Variables
 	if len(pkg.Variables) > 0 {
 		for _, v := range pkg.Variables {
-			sb.WriteString(fmt.Sprintf("    %s\n", PrintVariableDeclaration(v)))
+			sb.WriteString(fmt.Sprintf("    %s\n", printVariableDeclaration(v)))
 		}
 		sb.WriteString("\n") // Add a newline after variables if any
 	}
@@ -796,7 +796,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	// Pass 1: Print Packages from sortedNames
 	for _, name := range sortedNames {
 		if pkg, ok := vf.Packages[name]; ok && !printed[name] {
-			sb.WriteString(PrintPackage(pkg))
+			sb.WriteString(printPackage(pkg))
 			sb.WriteString("\n")
 			printed[name] = true
 		}
@@ -805,7 +805,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	// Pass 2: Print Structs from sortedNames
 	for _, name := range sortedNames {
 		if s, ok := vf.Structs[name]; ok && !printed[name] {
-			sb.WriteString(PrintStruct(s))
+			sb.WriteString(printStruct(s))
 			sb.WriteString("\n")
 			printed[name] = true
 		}
@@ -814,7 +814,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	// Pass 3: Print Interfaces from sortedNames
 	for _, name := range sortedNames {
 		if i, ok := vf.Interfaces[name]; ok && !printed[name] {
-			sb.WriteString(PrintInterface(i))
+			sb.WriteString(printInterface(i))
 			sb.WriteString("\n")
 			printed[name] = true
 		}
@@ -823,7 +823,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	// Pass 4: Print Classes from sortedNames
 	for _, name := range sortedNames {
 		if c, ok := vf.Classes[name]; ok && !printed[name] {
-			sb.WriteString(PrintClass(c))
+			sb.WriteString(printClass(c))
 			sb.WriteString("\n")
 			printed[name] = true
 		}
@@ -832,7 +832,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	// Pass 5: Print Modules from sortedNames
 	for _, name := range sortedNames {
 		if m, ok := vf.Modules[name]; ok && !printed[name] {
-			sb.WriteString(PrintModule(m))
+			sb.WriteString(printModule(m))
 			sb.WriteString("\n")
 			printed[name] = true
 		}
@@ -843,7 +843,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	// Print remaining Packages
 	for name, pkg := range vf.Packages {
 		if !printed[name] {
-			sb.WriteString(PrintPackage(pkg))
+			sb.WriteString(printPackage(pkg))
 			sb.WriteString("\n")
 			printed[name] = true
 			logger.Debug("Printed remaining (unsorted/missed) package: %s\n", name)
@@ -852,7 +852,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	// Print remaining Structs
 	for name, s := range vf.Structs {
 		if !printed[name] {
-			sb.WriteString(PrintStruct(s))
+			sb.WriteString(printStruct(s))
 			sb.WriteString("\n")
 			printed[name] = true
 			logger.Debug("Printed remaining (unsorted/missed) struct: %s\n", name)
@@ -861,7 +861,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	// Print remaining Interfaces
 	for name, i := range vf.Interfaces {
 		if !printed[name] {
-			sb.WriteString(PrintInterface(i))
+			sb.WriteString(printInterface(i))
 			sb.WriteString("\n")
 			printed[name] = true
 			logger.Debug("Printed remaining (unsorted/missed) interface: %s\n", name)
@@ -870,7 +870,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	// Print remaining Classes
 	for name, c := range vf.Classes {
 		if !printed[name] {
-			sb.WriteString(PrintClass(c))
+			sb.WriteString(printClass(c))
 			sb.WriteString("\n")
 			printed[name] = true
 			logger.Debug("Printed remaining (unsorted/missed) class: %s\n", name)
@@ -879,7 +879,7 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	// Print remaining Modules
 	for name, m := range vf.Modules {
 		if !printed[name] {
-			sb.WriteString(PrintModule(m))
+			sb.WriteString(printModule(m))
 			sb.WriteString("\n")
 			printed[name] = true
 			logger.Debug("Printed remaining (unsorted/missed) module: %s\n", name)

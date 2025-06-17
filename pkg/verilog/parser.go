@@ -15,7 +15,7 @@ import (
 var logger *utils.DebugLogger
 
 // TODO: #5 Improve the type for structs, enums, userdefined types...
-func GetType(portTypeString string) PortType {
+func getType(portTypeString string) PortType {
 	// Extract the first word (type keyword) from the string
 	// Handle cases like "logic [7:0] data" -> extract "logic"
 	typeString := strings.TrimSpace(portTypeString)
@@ -95,7 +95,7 @@ func GetWidthForType(portType PortType) int {
 	}
 }
 
-func GetPortDirection(direction string) PortDirection {
+func getPortDirection(direction string) PortDirection {
 	switch strings.ToLower(direction) {
 	case "input":
 		return INPUT
@@ -108,12 +108,12 @@ func GetPortDirection(direction string) PortDirection {
 	}
 }
 
-// GetInterfacePortDirection determines the direction of an interface port based on modport naming conventions
+// getInterfacePortDirection determines the direction of an interface port based on modport naming conventions
 // and explicit direction. If explicit direction is provided, it takes precedence.
-func GetInterfacePortDirection(explicitDirection string) PortDirection {
+func getInterfacePortDirection(explicitDirection string) PortDirection {
 	// If explicit direction is provided, use it
 	if explicitDirection != "" {
-		return GetPortDirection(explicitDirection)
+		return getPortDirection(explicitDirection)
 	}
 
 	// For interface ports, the direction refers to whether the interface instance
@@ -221,525 +221,46 @@ var generalVariableRegex = regexp.MustCompile(
 
 var scopeChangeRegex = regexp.MustCompile(`^\s*(function|task|always|class|clocking)`)
 
-// ===============================================
-// Advanced SystemVerilog Construct Regex Patterns
-// ===============================================
-
-// Generate block patterns for complex generate statements
-var generateBlockRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)generate\s+(.*?)\s+endgenerate`,
-)
-
-var generateIfRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)if\s*\((.*?)\)\s+begin(?:\s*:\s*(\w+))?\s+(.*?)\s+end(?:\s+else\s+begin(?:\s*:\s*(\w+))?\s+(.*?)\s+end)?`,
-)
-
-var generateForRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)for\s*\((.*?)\)\s+begin(?:\s*:\s*(\w+))?\s+(.*?)\s+end`,
-)
-
-var generateCaseRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)case\s*\((.*?)\)\s+(.*?)\s+endcase`,
-)
-
-// Always block patterns for complex always blocks with sensitivity lists
-var alwaysBlockRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)(always|always_comb|always_ff|always_latch)(?:\s*@\s*\((.*?)\))?\s+begin(?:\s*:\s*(\w+))?\s+(.*?)\s+end`,
-)
-
-var alwaysCombRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)always_comb\s+begin(?:\s*:\s*(\w+))?\s+(.*?)\s+end`,
-)
-
-var alwaysFFRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)always_ff\s*@\s*\((.*?)\)\s+begin(?:\s*:\s*(\w+))?\s+(.*?)\s+end`,
-)
-
-var alwaysLatchRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)always_latch\s*@\s*\((.*?)\)\s+begin(?:\s*:\s*(\w+))?\s+(.*?)\s+end`,
-)
-
-// SystemVerilog assertion patterns (assert, assume, cover, restrict properties)
-var assertPropertyRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)assert\s+property\s*\((.*?)\)(?:\s+else\s+(.*?))?(?:\s*;)?`,
-)
-
-var assumePropertyRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)assume\s+property\s*\((.*?)\)(?:\s+else\s+(.*?))?(?:\s*;)?`,
-)
-
-var coverPropertyRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)cover\s+property\s*\((.*?)\)(?:\s*;)?`,
-)
-
-var restrictPropertyRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)restrict\s+property\s*\((.*?)\)(?:\s*;)?`,
-)
-
-var assertStatementRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)assert\s*\((.*?)\)(?:\s+else\s+(.*?))?(?:\s*;)?`,
-)
-
-var assumeStatementRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)assume\s*\((.*?)\)(?:\s+else\s+(.*?))?(?:\s*;)?`,
-)
-
-var coverStatementRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)cover\s*\((.*?)\)(?:\s*;)?`,
-)
-
 // Interface modport patterns for interface port declarations
-var modportRegex = regexp.MustCompile(
+var ModportRegex = regexp.MustCompile(
 	`(?s)(?:^|\s)modport\s+(\w+)\s*\((.*?)\)\s*;`,
 )
 
-var modportPortRegex = regexp.MustCompile(
+var ModportPortRegex = regexp.MustCompile(
 	`(?s)(input|output|inout|ref)\s+(.*?)(?:,|$)`,
-)
-
-// SystemVerilog constraint patterns for randomization constraints
-var constraintRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)constraint\s+(\w+)\s*\{(.*?)\}`,
-)
-
-var constraintBlockRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)constraint\s+(\w+)\s*\{(.*?)\}`,
-)
-
-// Coverage patterns for coverage constructs
-var covergroupRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)covergroup\s+(\w+)(?:\s*@\s*\((.*?)\))?\s*;\s+(.*?)\s+endgroup`,
-)
-
-var coverpointRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)(\w+)\s*:\s*coverpoint\s+(.*?)(?:\s*\{(.*?)\})?(?:\s*;)?`,
-)
-
-var crossCoverageRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)(\w+)\s*:\s*cross\s+(.*?)(?:\s*\{(.*?)\})?(?:\s*;)?`,
-)
-
-// Bind statement patterns
-var bindStatementRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)bind\s+(\w+)(?:\s*\.\s*(\w+))?\s+(\w+)\s+(\w+)\s*\((.*?)\)\s*;`,
-)
-
-var bindModuleRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)bind\s+(\w+)\s+(\w+)\s+(\w+)\s*(?:\s*#\s*\((.*?)\))?\s*\((.*?)\)\s*;`,
-)
-
-// DPI import/export patterns
-var dpiImportRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)import\s+"DPI(?:-C)?"\s+(?:context\s+)?(?:pure\s+)?function\s+(\w+)\s+(\w+)\s*\((.*?)\)\s*;`,
-)
-
-var dpiExportRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)export\s+"DPI(?:-C)?"\s+(?:context\s+)?(?:pure\s+)?function\s+(\w+)\s*;`,
-)
-
-var dpiTaskImportRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)import\s+"DPI(?:-C)?"\s+(?:context\s+)?task\s+(\w+)\s*\((.*?)\)\s*;`,
-)
-
-var dpiTaskExportRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)export\s+"DPI(?:-C)?"\s+(?:context\s+)?task\s+(\w+)\s*;`,
-)
-
-// Property and sequence patterns
-var propertyRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)property\s+(\w+)(?:\s*\((.*?)\))?\s*;\s+(.*?)\s+endproperty`,
-)
-
-var sequenceRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)sequence\s+(\w+)(?:\s*\((.*?)\))?\s*;\s+(.*?)\s+endsequence`,
-)
-
-var propertyExprRegex = regexp.MustCompile(
-	`(?s)@\s*\((.*?)\)\s+(.*?)(?:\s+disable\s+iff\s*\((.*?)\))?`,
-)
-
-// Pragma patterns for synthesis directives
-var pragmaRegex = regexp.MustCompile(
-	`(?s)\(\*\s*(.*?)\s*\*\)`,
-)
-
-var pragmaAttributeRegex = regexp.MustCompile(
-	`(?s)\(\*\s*(\w+)(?:\s*=\s*(.*?))?\s*\*\)`,
-)
-
-var synthesisRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)//\s*(?:synthesis|synopsys)\s+(.*?)$`,
-)
-
-var translateOffRegex = regexp.MustCompile(
-	`(?m)^\s*//\s*(?:synthesis|synopsys)\s+translate_off\s*$`,
-)
-
-var translateOnRegex = regexp.MustCompile(
-	`(?m)^\s*//\s*(?:synthesis|synopsys)\s+translate_on\s*$`,
-)
-
-// Additional SystemVerilog-specific patterns
-var packageImportRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)import\s+(\w+)::(\w+|\*)(?:\s*,\s*(\w+)::(\w+|\*))*\s*;`,
-)
-
-var typedefEnumRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)typedef\s+enum\s+(?:(\w+)\s+)?\{(.*?)\}\s+(\w+)\s*;`,
-)
-
-var typedefStructRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)typedef\s+struct\s+(?:packed\s+)?(?:signed\s+)?(?:unsigned\s+)?\{(.*?)\}\s+(\w+)\s*;`,
-)
-
-var typedefUnionRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)typedef\s+union\s+(?:packed\s+)?(?:tagged\s+)?\{(.*?)\}\s+(\w+)\s*;`,
-)
-
-var interfaceInstanceRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)(\w+)(?:\s*#\s*\((.*?)\))?\s+(\w+)\s*\((.*?)\)\s*;`,
-)
-
-var clockingBlockRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)clocking\s+(\w+)\s*@\s*\((.*?)\)\s*;\s+(.*?)\s+endclocking`,
-)
-
-var programBlockRegex = regexp.MustCompile(
-	`(?s)(?:^|\s)program\s+(\w+)(?:\s*\((.*?)\))?\s*;\s+(.*?)\s+endprogram`,
 )
 
 // ===============================================
 // End of Advanced SystemVerilog Construct Patterns
 // ===============================================
 
-func MatchAllModulesFromString(content string) [][]string {
+func matchAllModulesFromString(content string) [][]string {
 	return generalModuleRegex.FindAllStringSubmatch(content, -1)
 }
 
-func MatchAllClassesFromString(content string) [][]string {
+func matchAllClassesFromString(content string) [][]string {
 	return generalClassRegex.FindAllStringSubmatch(content, -1)
 }
 
-func MatchAllStructsFromString(content string) [][]string {
+func matchAllStructsFromString(content string) [][]string {
 	return generalStructRegex.FindAllStringSubmatch(content, -1)
 }
 
-func MatchAllInterfacesFromString(content string) [][]string {
+func matchAllInterfacesFromString(content string) [][]string {
 	return generalInterfaceRegex.FindAllStringSubmatch(content, -1)
 }
 
-func MatchAllPackagesFromString(content string) [][]string {
+func matchAllPackagesFromString(content string) [][]string {
 	return generalPackageRegex.FindAllStringSubmatch(content, -1)
 }
 
-func MatchAllVariablesFromString(content string) [][]string {
+func matchAllVariablesFromString(content string) [][]string { //nolint: unused
 	return generalVariableRegex.FindAllStringSubmatch(content, -1)
 }
 
-func MatchArraysFromString(content string) []string {
+func matchArraysFromString(content string) []string {
 	return arrayRegex.FindStringSubmatch(content)
 }
-
-// ===============================================
-// Advanced SystemVerilog Construct Matching Functions
-// ===============================================
-
-// Generate block matching functions
-func MatchGenerateBlocksFromString(content string) [][]string {
-	return generateBlockRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchGenerateIfsFromString(content string) [][]string {
-	return generateIfRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchGenerateForsFromString(content string) [][]string {
-	return generateForRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchGenerateCasesFromString(content string) [][]string {
-	return generateCaseRegex.FindAllStringSubmatch(content, -1)
-}
-
-// Always block matching functions
-func MatchAlwaysBlocksFromString(content string) [][]string {
-	return alwaysBlockRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchAlwaysCombFromString(content string) [][]string {
-	return alwaysCombRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchAlwaysFFFromString(content string) [][]string {
-	return alwaysFFRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchAlwaysLatchFromString(content string) [][]string {
-	return alwaysLatchRegex.FindAllStringSubmatch(content, -1)
-}
-
-// Assertion matching functions
-func MatchAssertPropertiesFromString(content string) [][]string {
-	return assertPropertyRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchAssumePropertiesFromString(content string) [][]string {
-	return assumePropertyRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchCoverPropertiesFromString(content string) [][]string {
-	return coverPropertyRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchRestrictPropertiesFromString(content string) [][]string {
-	return restrictPropertyRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchAssertStatementsFromString(content string) [][]string {
-	return assertStatementRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchAssumeStatementsFromString(content string) [][]string {
-	return assumeStatementRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchCoverStatementsFromString(content string) [][]string {
-	return coverStatementRegex.FindAllStringSubmatch(content, -1)
-}
-
-// Interface modport matching functions
-func MatchModportsFromString(content string) [][]string {
-	return modportRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchModportPortsFromString(content string) [][]string {
-	return modportPortRegex.FindAllStringSubmatch(content, -1)
-}
-
-// Constraint matching functions
-func MatchConstraintsFromString(content string) [][]string {
-	return constraintRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchConstraintBlocksFromString(content string) [][]string {
-	return constraintBlockRegex.FindAllStringSubmatch(content, -1)
-}
-
-// Coverage matching functions
-func MatchCovergroupsFromString(content string) [][]string {
-	return covergroupRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchCoverpointsFromString(content string) [][]string {
-	return coverpointRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchCrossCoverageFromString(content string) [][]string {
-	return crossCoverageRegex.FindAllStringSubmatch(content, -1)
-}
-
-// Bind statement matching functions
-func MatchBindStatementsFromString(content string) [][]string {
-	return bindStatementRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchBindModulesFromString(content string) [][]string {
-	return bindModuleRegex.FindAllStringSubmatch(content, -1)
-}
-
-// DPI matching functions
-func MatchDPIImportsFromString(content string) [][]string {
-	return dpiImportRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchDPIExportsFromString(content string) [][]string {
-	return dpiExportRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchDPITaskImportsFromString(content string) [][]string {
-	return dpiTaskImportRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchDPITaskExportsFromString(content string) [][]string {
-	return dpiTaskExportRegex.FindAllStringSubmatch(content, -1)
-}
-
-// Property and sequence matching functions
-func MatchPropertiesFromString(content string) [][]string {
-	return propertyRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchSequencesFromString(content string) [][]string {
-	return sequenceRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchPropertyExpressionsFromString(content string) [][]string {
-	return propertyExprRegex.FindAllStringSubmatch(content, -1)
-}
-
-// Pragma matching functions
-func MatchPragmasFromString(content string) [][]string {
-	return pragmaRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchPragmaAttributesFromString(content string) [][]string {
-	return pragmaAttributeRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchSynthesisDirectivesFromString(content string) [][]string {
-	return synthesisRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchTranslateOffFromString(content string) [][]string {
-	return translateOffRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchTranslateOnFromString(content string) [][]string {
-	return translateOnRegex.FindAllStringSubmatch(content, -1)
-}
-
-// Additional SystemVerilog matching functions
-func MatchPackageImportsFromString(content string) [][]string {
-	return packageImportRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchTypedefEnumsFromString(content string) [][]string {
-	return typedefEnumRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchTypedefStructsFromString(content string) [][]string {
-	return typedefStructRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchTypedefUnionsFromString(content string) [][]string {
-	return typedefUnionRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchInterfaceInstancesFromString(content string) [][]string {
-	return interfaceInstanceRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchClockingBlocksFromString(content string) [][]string {
-	return clockingBlockRegex.FindAllStringSubmatch(content, -1)
-}
-
-func MatchProgramBlocksFromString(content string) [][]string {
-	return programBlockRegex.FindAllStringSubmatch(content, -1)
-}
-
-// ===============================================
-// End of Advanced SystemVerilog Matching Functions
-// ===============================================
-
-// ===============================================
-// Test Functions for Advanced SystemVerilog Constructs
-// ===============================================
-
-// TestAdvancedSystemVerilogPatterns validates the new regex patterns
-func TestAdvancedSystemVerilogPatterns() {
-	// This function can be used to test the patterns manually
-	// Individual test functions are provided for automated testing
-}
-
-// Helper function to test SystemVerilog assertion patterns
-func TestAssertionPatterns(content string) map[string][][]string {
-	results := make(map[string][][]string)
-	results["assert_properties"] = MatchAssertPropertiesFromString(content)
-	results["assume_properties"] = MatchAssumePropertiesFromString(content)
-	results["cover_properties"] = MatchCoverPropertiesFromString(content)
-	results["restrict_properties"] = MatchRestrictPropertiesFromString(content)
-	results["assert_statements"] = MatchAssertStatementsFromString(content)
-	results["assume_statements"] = MatchAssumeStatementsFromString(content)
-	results["cover_statements"] = MatchCoverStatementsFromString(content)
-	return results
-}
-
-// Helper function to test SystemVerilog always block patterns
-func TestAlwaysBlockPatterns(content string) map[string][][]string {
-	results := make(map[string][][]string)
-	results["always_blocks"] = MatchAlwaysBlocksFromString(content)
-	results["always_comb"] = MatchAlwaysCombFromString(content)
-	results["always_ff"] = MatchAlwaysFFFromString(content)
-	results["always_latch"] = MatchAlwaysLatchFromString(content)
-	return results
-}
-
-// Helper function to test SystemVerilog generate patterns
-func TestGeneratePatterns(content string) map[string][][]string {
-	results := make(map[string][][]string)
-	results["generate_blocks"] = MatchGenerateBlocksFromString(content)
-	results["generate_ifs"] = MatchGenerateIfsFromString(content)
-	results["generate_fors"] = MatchGenerateForsFromString(content)
-	results["generate_cases"] = MatchGenerateCasesFromString(content)
-	return results
-}
-
-// Helper function to test SystemVerilog interface patterns
-func TestInterfacePatterns(content string) map[string][][]string {
-	results := make(map[string][][]string)
-	results["modports"] = MatchModportsFromString(content)
-	results["modport_ports"] = MatchModportPortsFromString(content)
-	results["interface_instances"] = MatchInterfaceInstancesFromString(content)
-	return results
-}
-
-// Helper function to test SystemVerilog coverage patterns
-func TestCoveragePatterns(content string) map[string][][]string {
-	results := make(map[string][][]string)
-	results["covergroups"] = MatchCovergroupsFromString(content)
-	results["coverpoints"] = MatchCoverpointsFromString(content)
-	results["cross_coverage"] = MatchCrossCoverageFromString(content)
-	return results
-}
-
-// Helper function to test SystemVerilog DPI patterns
-func TestDPIPatterns(content string) map[string][][]string {
-	results := make(map[string][][]string)
-	results["dpi_imports"] = MatchDPIImportsFromString(content)
-	results["dpi_exports"] = MatchDPIExportsFromString(content)
-	results["dpi_task_imports"] = MatchDPITaskImportsFromString(content)
-	results["dpi_task_exports"] = MatchDPITaskExportsFromString(content)
-	return results
-}
-
-// Helper function to test SystemVerilog property and sequence patterns
-func TestPropertySequencePatterns(content string) map[string][][]string {
-	results := make(map[string][][]string)
-	results["properties"] = MatchPropertiesFromString(content)
-	results["sequences"] = MatchSequencesFromString(content)
-	results["property_expressions"] = MatchPropertyExpressionsFromString(content)
-	return results
-}
-
-// Helper function to test SystemVerilog pragma patterns
-func TestPragmaPatterns(content string) map[string][][]string {
-	results := make(map[string][][]string)
-	results["pragmas"] = MatchPragmasFromString(content)
-	results["pragma_attributes"] = MatchPragmaAttributesFromString(content)
-	results["synthesis_directives"] = MatchSynthesisDirectivesFromString(content)
-	results["translate_off"] = MatchTranslateOffFromString(content)
-	results["translate_on"] = MatchTranslateOnFromString(content)
-	return results
-}
-
-// Helper function to test other SystemVerilog patterns
-func TestOtherSystemVerilogPatterns(content string) map[string][][]string {
-	results := make(map[string][][]string)
-	results["package_imports"] = MatchPackageImportsFromString(content)
-	results["typedef_enums"] = MatchTypedefEnumsFromString(content)
-	results["typedef_structs"] = MatchTypedefStructsFromString(content)
-	results["typedef_unions"] = MatchTypedefUnionsFromString(content)
-	results["constraints"] = MatchConstraintsFromString(content)
-	results["bind_statements"] = MatchBindStatementsFromString(content)
-	results["bind_modules"] = MatchBindModulesFromString(content)
-	results["clocking_blocks"] = MatchClockingBlocksFromString(content)
-	results["program_blocks"] = MatchProgramBlocksFromString(content)
-	return results
-}
-
-// ===============================================
-// End of Test Functions for Advanced SystemVerilog Constructs
-// ===============================================
 
 func userDedinedVariablesRegex(verilogFile *VerilogFile) *regexp.Regexp {
 	newTypes := []string{}
@@ -768,7 +289,7 @@ func matchUserDefinedVariablesFromString(vf *VerilogFile, content string) [][]st
 	return userDedinedVariablesRegex(vf).FindAllStringSubmatch(content, -1)
 }
 
-func MatchAllParametersFromString(param string) []string {
+func matchAllParametersFromString(param string) []string {
 	return generalParameterRegex.FindStringSubmatch(param)
 }
 
@@ -829,7 +350,7 @@ func parseVerilogLiteral(literalStr string) (int64, error) {
 }
 
 // Utility functions for bit width parsing
-func ParseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
+func parseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 	// Handle common formats: [7:0], [WIDTH-1:0], etc.
 	rangeStr = strings.TrimSpace(rangeStr)
 
@@ -938,7 +459,7 @@ func parsePortDeclaration(
 		arrayStr := strings.TrimSpace(interfaceMatches[5])
 
 		// Determine direction based on explicit direction or modport naming convention
-		direction = GetInterfacePortDirection(directionStr)
+		direction = getInterfacePortDirection(directionStr)
 
 		port := &Port{
 			Name:            portName,
@@ -960,9 +481,9 @@ func parsePortDeclaration(
 	if len(matches) != 6 {
 		return nil, false // Not a matching port declaration line
 	}
-	direction = GetPortDirection(strings.TrimSpace(matches[1]))
+	direction = getPortDirection(strings.TrimSpace(matches[1]))
 	portTypeStr := strings.TrimSpace(matches[2])
-	portType := GetType(portTypeStr)
+	portType := getType(portTypeStr)
 	signedStr := strings.TrimSpace(matches[3])
 	rangeStr := strings.TrimSpace(matches[4])
 	portName := strings.TrimSpace(matches[5])
@@ -978,7 +499,7 @@ func parsePortDeclaration(
 		portType = LOGIC // Default type if not specified (SystemVerilog) or wire (Verilog)
 	}
 	isSigned := (signedStr == "signed")
-	width, err := ParseRange(rangeStr, parameters)
+	width, err := parseRange(rangeStr, parameters)
 	if err != nil {
 		// If parseRange returns an error, use the returned default width (e.g., 8)
 		// but still log the original error message.
@@ -1035,7 +556,7 @@ func extractANSIPortDeclarations(
 			arrayStr := strings.TrimSpace(interfaceMatches[5])
 
 			// Determine direction based on explicit direction or modport naming convention
-			direction := GetInterfacePortDirection(directionStr)
+			direction := getInterfacePortDirection(directionStr)
 
 			port = Port{
 				Name:          portName,
@@ -1051,7 +572,7 @@ func extractANSIPortDeclarations(
 			// Full ANSI declaration found
 			directionStr := strings.TrimSpace(matches[1])
 			portStr := strings.TrimSpace(matches[2])
-			portType := GetType(portStr)
+			portType := getType(portStr)
 			signedStr := strings.TrimSpace(matches[3])
 			rangeStr := strings.TrimSpace(matches[4])
 			portName = strings.TrimSpace(matches[5])
@@ -1095,7 +616,7 @@ func extractANSIPortDeclarations(
 				}
 			} else {
 				isSigned := (signedStr == "signed")
-				width, err := ParseRange(rangeStr, parameters)
+				width, err := parseRange(rangeStr, parameters)
 				if err != nil {
 					// Use the default width returned by parseRange on error
 					logger.Warn(
@@ -1108,7 +629,7 @@ func extractANSIPortDeclarations(
 				}
 
 				// Determine direction
-				direction := GetPortDirection(directionStr)
+				direction := getPortDirection(directionStr)
 
 				// Handle default widths for types if no range specified AND parseRange didn't error
 				if false && width == 1 && rangeStr == "" && err == nil {
@@ -1407,12 +928,8 @@ func parametersToMap(params []Parameter) map[string]Parameter {
 	return paramMap
 }
 
-func GetDependenciesSnippetNeeds(snippet string) error { //nolint:revive
-	return errors.New("GetDependenciesSnippetNeeds not implemented yet")
-}
-
-func (v *VerilogFile) ParseModules(moduleText string) error {
-	allMatchedModule := MatchAllModulesFromString(moduleText)
+func (v *VerilogFile) parseModules(moduleText string) error {
+	allMatchedModule := matchAllModulesFromString(moduleText)
 	v.Modules = make(map[string]*Module)
 	for _, matchedModule := range allMatchedModule {
 		if len(matchedModule) < 5 {
@@ -1454,8 +971,8 @@ func (v *VerilogFile) ParseModules(moduleText string) error {
 	return nil
 }
 
-func (v *VerilogFile) ParseClasses(classText string) error {
-	allMatchedClasses := MatchAllClassesFromString(classText)
+func (v *VerilogFile) parseClasses(classText string) error {
+	allMatchedClasses := matchAllClassesFromString(classText)
 	v.Classes = make(map[string]*Class)
 	for _, matchedClass := range allMatchedClasses {
 		if len(matchedClass) < 5 {
@@ -1621,13 +1138,13 @@ func parseParameters(parameterListString string, ansiStyle bool) ([]Parameter, e
 			continue
 		}
 
-		matches := MatchAllParametersFromString(trimmedParamStr)
+		matches := matchAllParametersFromString(trimmedParamStr)
 
 		if len(matches) == 7 {
 			paramLocalityStr := strings.TrimSpace(matches[1])
 			paramTypeStr := strings.TrimSpace(matches[2])
 			paramWidthStr := strings.TrimSpace(matches[3])
-			paramWidth, err := ParseRange(paramWidthStr, nil)
+			paramWidth, err := parseRange(paramWidthStr, nil)
 			if err != nil {
 				logger.Warn(
 					"Could not parse range '%s' for parameter '%s'. Using default width %d. Error: %v",
@@ -1650,7 +1167,7 @@ func parseParameters(parameterListString string, ansiStyle bool) ([]Parameter, e
 				)
 				continue
 			}
-			paramType := GetType(paramTypeStr)
+			paramType := getType(paramTypeStr)
 			paramLocality := paramLocalityStr == "localparam"
 
 			if paramTypeStr == "" && paramLocalityStr == "" && paramValue == "" {
@@ -1742,7 +1259,7 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 	return nil
 }
 
-// Be carefull must be parsed third after ParseClass and ParseStruct as the types of the variables might not be defined yet
+// Be carefull must be parsed third after parseClass and parseStruct as the types of the variables might not be defined yet
 // TODO: #16 support arrays which will break the current width checking
 func ParseVariables(v *VerilogFile,
 	content string,
@@ -1774,9 +1291,9 @@ func ParseVariables(v *VerilogFile,
 		}
 
 		indent := len(strings.ReplaceAll(matchedVariable[1], "\t", "    ")) / 4
-		varType := GetType(matchedVariable[2])
+		varType := getType(matchedVariable[2])
 		widthStr := matchedVariable[3]
-		width, err := ParseRange(widthStr, scopeParamsMap)
+		width, err := parseRange(widthStr, scopeParamsMap)
 		if err != nil {
 			if width != 0 {
 				logger.Warn(
@@ -1811,7 +1328,7 @@ func ParseVariables(v *VerilogFile,
 			if decl == "" {
 				continue
 			}
-			arrayMatch := MatchArraysFromString(decl)
+			arrayMatch := matchArraysFromString(decl)
 			if len(arrayMatch) != 3 {
 				logger.Warn(
 					"could not parse variable fragment, missing variable name in: '%s'",
@@ -1861,14 +1378,14 @@ func ParseVariables(v *VerilogFile,
 	return variablesMap, scopeTree, nil
 }
 
-func (v *VerilogFile) ParseStructs(
+func (v *VerilogFile) parseStructs(
 	content string,
 	firstPass bool,
 ) error {
 	if firstPass {
 		v.Structs = make(map[string]*Struct)
 	}
-	allMatchedStructs := MatchAllStructsFromString(content)
+	allMatchedStructs := matchAllStructsFromString(content)
 	for _, matchedStruct := range allMatchedStructs {
 		if len(matchedStruct) < 2 {
 			return errors.New("no struct found in the provided text")
@@ -1935,11 +1452,11 @@ func parseInterfacePorts(
 			rangeStr := strings.TrimSpace(matches[4])
 			portName := strings.TrimSpace(matches[5])
 
-			direction := GetPortDirection(directionStr)
-			portType := GetType(portTypeStr)
+			direction := getPortDirection(directionStr)
+			portType := getType(portTypeStr)
 			isSigned := (signedStr == "signed")
 
-			width, err := ParseRange(rangeStr, parameters)
+			width, err := parseRange(rangeStr, parameters)
 			if err != nil {
 				// For interface ports, width should be 0 when no explicit range is specified
 				width = 0
@@ -1965,8 +1482,7 @@ func parseModPortsFromBody(bodyStr string) ([]ModPort, error) {
 	modports := []ModPort{}
 
 	// Regex to find all modport declarations in the body
-	modportRegex := regexp.MustCompile(`(?s)modport\s+(\w+)\s*\(\s*(.*?)\s*\);`)
-	matches := modportRegex.FindAllStringSubmatch(bodyStr, -1)
+	matches := ModportRegex.FindAllStringSubmatch(bodyStr, -1)
 
 	for _, match := range matches {
 		if len(match) < 3 {
@@ -2022,7 +1538,7 @@ func parseModPortSignals(signalsList string) ([]ModPortSignal, error) {
 
 		if len(signalMatches) >= 3 {
 			// Found a part with explicit direction
-			currentDirection = GetPortDirection(signalMatches[1])
+			currentDirection = getPortDirection(signalMatches[1])
 			signalName := strings.TrimSpace(signalMatches[2])
 
 			if signalName != "" {
@@ -2051,10 +1567,10 @@ func parseModPortSignals(signalsList string) ([]ModPortSignal, error) {
 	return signals, nil
 }
 
-func (v *VerilogFile) ParseInterfaces(
+func (v *VerilogFile) parseInterfaces(
 	content string,
 ) error {
-	allMatchedInterfaces := MatchAllInterfacesFromString(content)
+	allMatchedInterfaces := matchAllInterfacesFromString(content)
 	v.Interfaces = make(map[string]*Interface)
 
 	for _, matchedInterface := range allMatchedInterfaces {
@@ -2127,8 +1643,8 @@ func (v *VerilogFile) ParseInterfaces(
 	return nil
 }
 
-func (v *VerilogFile) ParsePackages(content string) error {
-	allMatchedPackages := MatchAllPackagesFromString(content)
+func (v *VerilogFile) parsePackages(content string) error {
+	allMatchedPackages := matchAllPackagesFromString(content)
 	v.Packages = make(map[string]*Package)
 
 	for _, matchedPackage := range allMatchedPackages {
@@ -2317,27 +1833,27 @@ func ParseVerilog(content string, verbose int) (*VerilogFile, error) {
 	logger = utils.NewDebugLogger(verbose)
 	content = cleanText(content)
 	verilogFile := &VerilogFile{}
-	err := verilogFile.ParseStructs(content, true)
+	err := verilogFile.parseStructs(content, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse structs: %v", err)
 	}
-	err = verilogFile.ParseClasses(content)
+	err = verilogFile.parseClasses(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse classes: %v", err)
 	}
-	err = verilogFile.ParseStructs(content, false)
+	err = verilogFile.parseStructs(content, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse structs: %v", err)
 	}
-	err = verilogFile.ParseModules(content)
+	err = verilogFile.parseModules(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse modules: %v", err)
 	}
-	err = verilogFile.ParseInterfaces(content)
+	err = verilogFile.parseInterfaces(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse interfaces: %v", err)
 	}
-	err = verilogFile.ParsePackages(content)
+	err = verilogFile.parsePackages(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse packages: %v", err)
 	}

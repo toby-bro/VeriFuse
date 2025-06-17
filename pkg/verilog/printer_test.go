@@ -100,7 +100,7 @@ func TestPortDirectionToString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := PortDirectionToString(tt.d); got != tt.want {
+			if got := portDirectionToString(tt.d); got != tt.want {
 				t.Errorf("PortDirectionToString() = %v, want %v", got, tt.want)
 			}
 		})
@@ -122,7 +122,7 @@ func TestPortTypeToString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := TypeToString(tt.pt); got != tt.want {
+			if got := typeToString(tt.pt); got != tt.want {
 				t.Errorf("PortTypeToString() = %v, want %v", got, tt.want)
 			}
 		})
@@ -166,7 +166,7 @@ func TestPrintParameter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := PrintParameter(tt.param, tt.isLast); got != tt.want {
+			if got := printParameter(tt.param, tt.isLast); got != tt.want {
 				t.Errorf("PrintParameter() = %v, want %v", got, tt.want)
 			}
 		})
@@ -219,7 +219,7 @@ func TestPrintPort(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := PrintPort(tt.port, tt.isLast, true); got != tt.want {
+			if got := printPort(tt.port, tt.isLast, true); got != tt.want {
 				// Normalizing whitespace for comparison as subtle differences can occur
 				if normalizeSpace(got) != normalizeSpace(tt.want) {
 					t.Errorf("PrintPort() =\n%q\nwant\n%q", got, tt.want)
@@ -280,7 +280,7 @@ func TestPrintVariableDeclaration(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := PrintVariableDeclaration(tt.v); normalizeSpace(
+			if got := printVariableDeclaration(tt.v); normalizeSpace(
 				got,
 			) != normalizeSpace(
 				tt.want,
@@ -307,7 +307,7 @@ logic [31:0] data;
 } my_struct_t;
 `
 	// Normalize whitespace for comparison
-	got := PrintStruct(s)
+	got := printStruct(s)
 	if normalizeSpace(got) != normalizeSpace(want) {
 		t.Errorf("PrintStruct() =\n%q\nwant\n%q", got, want)
 	}
@@ -362,7 +362,7 @@ endclass
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := PrintClass(tt.c)
+			got := printClass(tt.c)
 			if normalizeSpace(got) != normalizeSpace(tt.want) {
 				t.Errorf("PrintClass() for %s =\n%q\nwant\n%q", tt.name, got, tt.want)
 			}
@@ -474,7 +474,7 @@ endmodule
 			// If parameters should resolve width, PrintModule/PrintPort would need more context.
 			// This test assumes PrintPort prints what it's given.
 
-			got := PrintModule(tt.m)
+			got := printModule(tt.m)
 			if normalizeSpace(got) != normalizeSpace(tt.want) {
 				t.Errorf(
 					"PrintModule() for %s =\n%q\nwant\n%q",
@@ -898,7 +898,7 @@ func TestPrintInterfacePort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := PrintInterfacePort(tt.port, tt.isLast)
+			got := printInterfacePort(tt.port, tt.isLast)
 			if got != tt.want {
 				t.Errorf("PrintInterfacePort() = %v, want %v", got, tt.want)
 			}
@@ -953,7 +953,7 @@ func TestPrintModPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := PrintModPort(tt.modport)
+			got := printModPort(tt.modport)
 			if got != tt.want {
 				t.Errorf("PrintModPort() = %v, want %v", got, tt.want)
 			}
@@ -1211,7 +1211,7 @@ endinterface`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := PrintInterface(tt.intf)
+			got := printInterface(tt.intf)
 			if got != tt.want {
 				t.Errorf("PrintInterface() = %v, want %v", got, tt.want)
 			}
@@ -1430,7 +1430,7 @@ endinterface`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := PrintInterface(tt.intf)
+			got := printInterface(tt.intf)
 			if got != tt.want {
 				t.Errorf("PrintInterface() for %s =\nGOT:\n%s\nWANT:\n%s", tt.name, got, tt.want)
 			}
@@ -1578,7 +1578,7 @@ func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := PrintModPort(tt.modport)
+			got := printModPort(tt.modport)
 			if got != tt.want {
 				t.Errorf("PrintModPort() for %s =\nGOT:\n%s\nWANT:\n%s", tt.name, got, tt.want)
 			}
@@ -1669,7 +1669,7 @@ func TestPrintInterfacePort_V3SchedVirtIface(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := PrintInterfacePort(tt.port, tt.isLast)
+			got := printInterfacePort(tt.port, tt.isLast)
 			if got != tt.want {
 				t.Errorf("PrintInterfacePort() for %s =\nGOT: %q\nWANT: %q", tt.name, got, tt.want)
 			}
@@ -1771,7 +1771,7 @@ endinterface`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := PrintInterface(tt.intf)
+			got := printInterface(tt.intf)
 			if got != tt.want {
 				t.Errorf("PrintInterface() for %s =\nGOT:\n%s\nWANT:\n%s", tt.name, got, tt.want)
 			}
@@ -1901,7 +1901,7 @@ endpackage
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := PrintPackage(tt.pkg) // Now using the actual PrintPackage function
+			got := printPackage(tt.pkg) // Now using the actual PrintPackage function
 
 			if normalizeSpaceFile(got) != normalizeSpaceFile(tt.want) {
 				t.Errorf("PrintPackage() got =\n%v\nwant =\n%v", got, tt.want)
