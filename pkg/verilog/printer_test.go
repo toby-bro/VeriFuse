@@ -494,10 +494,10 @@ endmodule
   parameter DEPTH = 16
 ) (
   input logic clk,
-  input logic rst_n,
-  input logic wr_en,
   input logic [31:0] data_in,
   input logic rd_en,
+  input logic rst_n,
+  input logic wr_en,
   output logic [31:0] data_out
 );
 // FIFO logic here
@@ -663,12 +663,12 @@ func TestPrintVerilogFile(t *testing.T) {
 				},
 			},
 			want: `        module top #(
-    parameter WIDTH = 8,
-    parameter DEPTH = 16
+    parameter DEPTH = 16,
+    parameter WIDTH = 8
 ) (
     input logic clk,
-    input logic rst_n,
     input logic [7:0] data_in,
+    input logic rst_n,
     output logic [7:0] data_out
 );
     initial $display("Hello");
