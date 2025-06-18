@@ -1,5 +1,15 @@
 # pfuzz
 
+P stands for parser and not python which was the original idea and the reason for the name.
+Other suggested names are:
+
+| Name       | Votes |
+| ---------- | ----- |
+| pfuzz      | 0     |
+| parsifuzz  | 0     |
+| parsifluzz | 1     |
+| parsifleur | 0     |
+
 The objective of this project is to create a fuzzing tool to fuzz system verilog simulators.
 
 ## Example usage
