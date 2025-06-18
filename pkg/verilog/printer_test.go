@@ -216,6 +216,55 @@ func TestPrintPort(t *testing.T) {
 			true,
 			"output custom_data",
 		},
+		{
+			"PortWithPragma",
+			Port{
+				Name:      "public_clk",
+				Direction: INPUT,
+				Type:      LOGIC,
+				Width:     1,
+				Pragma:    "verilator public",
+			},
+			false,
+			"(* verilator public *) input logic public_clk,",
+		},
+		{
+			"PortWithPragmaAndWidth",
+			Port{
+				Name:      "pragma_data",
+				Direction: OUTPUT,
+				Type:      WIRE,
+				Width:     8,
+				Pragma:    "wire_force_assign",
+			},
+			true,
+			"(* wire_force_assign *) output wire [7:0] pragma_data",
+		},
+		{
+			"PortWithMultiWordPragma",
+			Port{
+				Name:      "keep_signal",
+				Direction: INPUT,
+				Type:      REG,
+				Width:     16,
+				IsSigned:  true,
+				Pragma:    "synthesis keep = \"true\"",
+			},
+			false,
+			"(* synthesis keep = \"true\" *) input reg signed [15:0] keep_signal,",
+		},
+		{
+			"InternalPortWithPragma",
+			Port{
+				Name:      "internal_pragma",
+				Direction: INTERNAL,
+				Type:      LOGIC,
+				Width:     4,
+				Pragma:    "custom_attr = \"value\"",
+			},
+			true,
+			"(* custom_attr = \"value\" *) logic [3:0] internal_pragma",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -574,7 +623,7 @@ func TestGetPrintOrder(t *testing.T) {
 			sort.Strings(got)
 			sort.Strings(tt.want)
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("getPrintOrder() got = %v, want %v", got, tt.want)
+				t.Errorf("getPrintOrder() got = %v, want = %v", got, tt.want)
 			}
 		})
 	}
@@ -893,6 +942,58 @@ func TestPrintInterfacePort(t *testing.T) {
 			},
 			isLast: true,
 			want:   "logic internal_sig",
+		},
+		{
+			name: "Interface port with pragma",
+			port: InterfacePort{
+				Name:      "public_clk",
+				Direction: INPUT,
+				Type:      LOGIC,
+				Width:     0,
+				IsSigned:  false,
+				Pragma:    "verilator public",
+			},
+			isLast: false,
+			want:   "(* verilator public *) input logic public_clk,",
+		},
+		{
+			name: "Interface port with pragma and width",
+			port: InterfacePort{
+				Name:      "pragma_data",
+				Direction: OUTPUT,
+				Type:      WIRE,
+				Width:     8,
+				IsSigned:  false,
+				Pragma:    "wire_force_assign",
+			},
+			isLast: true,
+			want:   "(* wire_force_assign *) output wire [7:0] pragma_data",
+		},
+		{
+			name: "Interface port with multi-word pragma",
+			port: InterfacePort{
+				Name:      "addr_bus",
+				Direction: INPUT,
+				Type:      REG,
+				Width:     16,
+				IsSigned:  true,
+				Pragma:    "synthesis keep = \"true\"",
+			},
+			isLast: false,
+			want:   "(* synthesis keep = \"true\" *) input reg signed [15:0] addr_bus,",
+		},
+		{
+			name: "Internal port with pragma",
+			port: InterfacePort{
+				Name:      "internal_pragma",
+				Direction: INTERNAL,
+				Type:      LOGIC,
+				Width:     4,
+				IsSigned:  false,
+				Pragma:    "custom_attr = \"value\"",
+			},
+			isLast: true,
+			want:   "(* custom_attr = \"value\" *) logic [3:0] internal_pragma",
 		},
 	}
 

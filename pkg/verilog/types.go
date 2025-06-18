@@ -65,6 +65,7 @@ type InterfacePort struct {
 	Width     int
 	IsSigned  bool
 	Array     string
+	Pragma    string
 }
 
 type Parameter struct {
@@ -84,6 +85,7 @@ type Port struct {
 	IsSigned        bool
 	AlreadyDeclared bool
 	Array           string
+	Pragma          string // pragma information if any
 	// Interface port information
 	InterfaceName string // Name of the interface (e.g., "simple_bus")
 	ModportName   string // Name of the modport (e.g., "slave", "master")

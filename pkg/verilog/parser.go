@@ -162,8 +162,11 @@ var variableRegexTemplate = `(?m)^(\s*)` +
 	`((?:(?:(?:\w+(?:\s+\[[^\]]+\])?\s*,\s*)+)\s*)*` +
 	`(?:\w+(?:\s+\[[^\]]+\])?))(?:\s+=\s+(?:new\([^\)]*\)|null))?\s*;`
 
+var pragmaString = `(?:\(\*([^\*]*)\*\))`
+
 var generalPortRegex = regexp.MustCompile(fmt.Sprintf(
-	`^\s*(input|output|inout)\s+(?:(%s)\s+)?(?:(signed|unsigned)\s+)?(\s*%s)?\s*(\w+)\s*(?:,|;)`,
+	`^\s*%s?\s*(input|output|inout)\s+(?:(%s)\s+)?(?:(signed|unsigned)\s+)?(\s*%s)?\s*(\w+)\s*(?:,|;)`,
+	pragmaString,
 	baseTypes,
 	widthRegex,
 ))
@@ -188,19 +191,20 @@ var verilogBasedLiteralRegex = regexp.MustCompile(
 	`^\(?(?:(\d+)?\s*')?([bodhBODH])\s*([0-9a-fA-F_]+)\)?$`,
 )
 
-var ansiPortRegex = regexp.MustCompile(
-	`^\s*(?:(input|output|inout)\s+)?(?:(` +
-		baseTypes +
-		`)\s+)?(?:(signed|unsigned)\s+)?` +
-		`(?:(\[\s*[\w\-\+\:\s]+\s*\])\s+)?` +
-		`(\w+)\s*` +
-		`(?:\s*\[([^\]:])*\])?\s*$`,
+var ansiPortRegex = regexp.MustCompile(fmt.Sprintf(
+	`^\s*%s?\s*(?:(input|output|inout)\s+)?(?:(`+
+		baseTypes+
+		`)\s+)?(?:(signed|unsigned)\s+)?`+
+		`(?:(\[\s*[\w\-\+\:\s]+\s*\])\s+)?`+
+		`(\w+)\s*`+
+		`(?:\s*\[([^\]:])*\])?\s*$`, pragmaString),
 )
 
 // Regex for interface port declarations (e.g., "simple_bus.slave port_name")
-var interfacePortRegex = regexp.MustCompile(
-	`^\s*(?:(input|output|inout)\s+)?(\w+)\.(\w+)\s+(\w+)\s*(?:\s*\[([^\]:])*\])?\s*;?\s*$`,
-)
+var interfacePortRegex = regexp.MustCompile(fmt.Sprintf(
+	`^\s*%s?\s*(?:(input|output|inout)\s+)?(\w+)\.(\w+)\s+(\w+)\s*(?:\s*\[([^\]:])*\])?\s*;?\s*$`,
+	pragmaString,
+))
 
 var simplePortRegex = regexp.MustCompile(
 	`^\s*(?:\.\s*(\w+)\s*\()?\s*(\w+)\s*\)?\s*$`,
@@ -451,12 +455,13 @@ func parsePortDeclaration(
 
 	// First, try to match interface port (e.g., "simple_bus.slave port_name")
 	interfaceMatches := interfacePortRegex.FindStringSubmatch(line)
-	if len(interfaceMatches) >= 5 {
-		directionStr := strings.TrimSpace(interfaceMatches[1])
-		interfaceName := strings.TrimSpace(interfaceMatches[2])
-		modportName := strings.TrimSpace(interfaceMatches[3])
-		portName := strings.TrimSpace(interfaceMatches[4])
-		arrayStr := strings.TrimSpace(interfaceMatches[5])
+	if len(interfaceMatches) == 7 {
+		pragma := strings.TrimSpace(interfaceMatches[1])
+		directionStr := strings.TrimSpace(interfaceMatches[2])
+		interfaceName := strings.TrimSpace(interfaceMatches[3])
+		modportName := strings.TrimSpace(interfaceMatches[4])
+		portName := strings.TrimSpace(interfaceMatches[5])
+		arrayStr := strings.TrimSpace(interfaceMatches[6])
 
 		// Determine direction based on explicit direction or modport naming convention
 		direction = getInterfacePortDirection(directionStr)
@@ -471,6 +476,7 @@ func parsePortDeclaration(
 			Array:           arrayStr,
 			InterfaceName:   interfaceName,
 			ModportName:     modportName,
+			Pragma:          pragma,
 		}
 
 		return port, true
@@ -478,15 +484,16 @@ func parsePortDeclaration(
 
 	// If not an interface port, try regular port parsing
 	matches = generalPortRegex.FindStringSubmatch(line)
-	if len(matches) != 6 {
+	if len(matches) != 7 {
 		return nil, false // Not a matching port declaration line
 	}
-	direction = getPortDirection(strings.TrimSpace(matches[1]))
-	portTypeStr := strings.TrimSpace(matches[2])
+	pragma := strings.TrimSpace(matches[1])
+	direction = getPortDirection(strings.TrimSpace(matches[2]))
+	portTypeStr := strings.TrimSpace(matches[3])
 	portType := getType(portTypeStr)
-	signedStr := strings.TrimSpace(matches[3])
-	rangeStr := strings.TrimSpace(matches[4])
-	portName := strings.TrimSpace(matches[5])
+	signedStr := strings.TrimSpace(matches[4])
+	rangeStr := strings.TrimSpace(matches[5])
+	portName := strings.TrimSpace(matches[6])
 
 	alreadyDeclared := false
 
@@ -521,6 +528,7 @@ func parsePortDeclaration(
 		AlreadyDeclared: alreadyDeclared,
 		InterfaceName:   "", // Regular ports don't have interface info
 		ModportName:     "",
+		Pragma:          pragma,
 	}
 
 	return port, true
@@ -548,12 +556,13 @@ func extractANSIPortDeclarations(
 		// First check for interface port declaration (e.g., "simple_bus.slave port_name")
 		if interfaceMatches := interfacePortRegex.FindStringSubmatch(portDecl); len(
 			interfaceMatches,
-		) >= 5 {
-			directionStr := strings.TrimSpace(interfaceMatches[1])
-			interfaceName := strings.TrimSpace(interfaceMatches[2])
-			modportName := strings.TrimSpace(interfaceMatches[3])
-			portName = strings.TrimSpace(interfaceMatches[4])
-			arrayStr := strings.TrimSpace(interfaceMatches[5])
+		) == 7 {
+			pragma := strings.TrimSpace(interfaceMatches[1])
+			directionStr := strings.TrimSpace(interfaceMatches[2])
+			interfaceName := strings.TrimSpace(interfaceMatches[3])
+			modportName := strings.TrimSpace(interfaceMatches[4])
+			portName = strings.TrimSpace(interfaceMatches[5])
+			arrayStr := strings.TrimSpace(interfaceMatches[6])
 
 			// Determine direction based on explicit direction or modport naming convention
 			direction := getInterfacePortDirection(directionStr)
@@ -567,16 +576,18 @@ func extractANSIPortDeclarations(
 				Array:         arrayStr,
 				InterfaceName: interfaceName,
 				ModportName:   modportName,
+				Pragma:        pragma,
 			}
-		} else if matches := ansiPortRegex.FindStringSubmatch(portDecl); len(matches) > 5 {
+		} else if matches := ansiPortRegex.FindStringSubmatch(portDecl); len(matches) > 6 {
 			// Full ANSI declaration found
-			directionStr := strings.TrimSpace(matches[1])
-			portStr := strings.TrimSpace(matches[2])
+			pragma := strings.TrimSpace(matches[1])
+			directionStr := strings.TrimSpace(matches[2])
+			portStr := strings.TrimSpace(matches[3])
 			portType := getType(portStr)
-			signedStr := strings.TrimSpace(matches[3])
-			rangeStr := strings.TrimSpace(matches[4])
-			portName = strings.TrimSpace(matches[5])
-			array := strings.TrimSpace(matches[6])
+			signedStr := strings.TrimSpace(matches[4])
+			rangeStr := strings.TrimSpace(matches[5])
+			portName = strings.TrimSpace(matches[6])
+			array := strings.TrimSpace(matches[7])
 
 			if directionStr == "" && portStr == "" && signedStr == "" && rangeStr == "" {
 				if len(headerPortOrder) == 0 {
@@ -645,6 +656,7 @@ func extractANSIPortDeclarations(
 					Array:         array,
 					InterfaceName: "", // Regular ports don't have interface info
 					ModportName:   "",
+					Pragma:        pragma,
 				}
 			}
 		} else if matches := simplePortRegex.FindStringSubmatch(portDecl); len(matches) > 2 {
