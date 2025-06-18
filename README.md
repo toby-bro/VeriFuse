@@ -6,8 +6,8 @@ Other suggested names are:
 | Name       | Votes |
 | ---------- | ----- |
 | pfuzz      | 0     |
-| parsifuzz  | 0     |
-| parsifluzz | 1     |
+| parsifuzz  | #rems     |
+| parsifluzz | #flo     |
 | parsifleur | 0     |
 
 The objective of this project is to create a fuzzing tool to fuzz system verilog simulators.
