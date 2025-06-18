@@ -1,8 +1,8 @@
 module module_with_simple_assign (
-    input logic clk,
-    input logic reset,
     input logic [1:0] state_in,
-    output logic cover_hit
+    output logic cover_hit,
+    input logic clk,
+    input logic reset
 );
     logic [1:0] current_state;
     always_ff @(posedge clk or posedge reset) begin

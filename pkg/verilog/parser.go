@@ -123,7 +123,7 @@ func getInterfacePortDirection(explicitDirection string) PortDirection {
 }
 
 var generalModuleRegex = regexp.MustCompile(fmt.Sprintf(
-	`(?m)^module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\(([^\)]*?)\);((?:\s*(?:%s)*)*)\s*endmodule`,
+	`(?ms)^module\s+(\w+)\s*(?:#\s*\(([\s\S]*?)\))?\s*\((.*?)\);((?:\s*(?:%s)*)*)\s*endmodule`,
 	utils.NegativeLookAhead("endmodule"),
 ))
 
@@ -1833,7 +1833,7 @@ func removeComments(content string) string {
 	// Remove single-line comments
 	content = regexp.MustCompile(`(?Um)//\s.*$`).ReplaceAllString(content, "")
 	// Remove multi-line comments
-	content = regexp.MustCompile(`(?U)/\*[\s\S]*\*/`).ReplaceAllString(content, "")
+	// content = regexp.MustCompile(`(?U)/\*[\s\S]*\*/`).ReplaceAllString(content, "")
 	return content
 }
 
