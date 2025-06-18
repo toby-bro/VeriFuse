@@ -234,6 +234,24 @@ var ModportPortRegex = regexp.MustCompile(
 	`(?s)(input|output|inout|ref)\s+(.*?)(?:,|$)`,
 )
 
+// Regex patterns for detecting blocking constructs
+var (
+	assignRegex            = regexp.MustCompile(`(?m)^\s*assign\s+(\w+)`)
+	wireAssignRegex        = regexp.MustCompile(`(?m)^\s*wire\s+(?:[^;=]*\s+)?(\w+)\s*=`)
+	forceRegex             = regexp.MustCompile(`(?m)^\s*force\s+(\w+)`)
+	alwaysCombRegex        = regexp.MustCompile(`(?s)always_comb\s*begin(.*?)end`)
+	alwaysFFRegex          = regexp.MustCompile(`(?s)always_ff\s*@\([^)]*\)\s*begin(.*?)end`)
+	alwaysRegex            = regexp.MustCompile(`(?s)always\s*@\([^)]*\)\s*begin(.*?)end`)
+	blockingAssignRegex    = regexp.MustCompile(`(?m)^\s*(\w+)\s*(?:\[[^\]]*\])?\s*(?:<=|=)`)
+	nonBlockingAssignRegex = regexp.MustCompile(
+		`(?m)^\s*(\w+)\s*(?:\[[^\]]*\])?\s*<=`,
+	) // nolint: unused
+	moduleInstRegex = regexp.MustCompile(
+		`(?m)^\s*(\w+)\s+(\w+)\s*\(((?:[^()]|\([^)]*\))*)\)\s*;`,
+	)
+	portConnectionRegex = regexp.MustCompile(`\.(\w+)\s*\(\s*(\w+)\s*\)`)
+)
+
 // ===============================================
 // End of Advanced SystemVerilog Construct Patterns
 // ===============================================
@@ -1271,8 +1289,283 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 	return nil
 }
 
-// Be carefull must be parsed third after parseClass and parseStruct as the types of the variables might not be defined yet
-// TODO: #16 support arrays which will break the current width checking
+// isLikelyOutputPort uses heuristics to determine if a port name suggests it's an output port
+func isLikelyOutputPort(portName string) bool {
+	portNameLower := strings.ToLower(portName)
+
+	// Common output port prefixes and patterns
+	outputPatterns := []string{
+		"out", "output", "result", "resp", "data_out", "valid_out",
+		"ready_out", "done", "complete", "status", "flag",
+	}
+
+	// Common input port prefixes and patterns
+	inputPatterns := []string{
+		"in", "input", "clk", "clock", "rst", "reset", "enable", "en",
+		"data_in", "valid_in", "ready_in", "req", "cmd", "addr", "address",
+	}
+
+	// Check for explicit input patterns first (these take precedence)
+	for _, pattern := range inputPatterns {
+		if strings.Contains(portNameLower, pattern) {
+			return false
+		}
+	}
+
+	// Check for output patterns
+	for _, pattern := range outputPatterns {
+		if strings.Contains(portNameLower, pattern) {
+			return true
+		}
+	}
+
+	// If no clear pattern, be conservative and assume it could be an output
+	// This can be refined based on additional heuristics or module definitions
+	return true
+}
+
+// getModulePortDirection gets the actual port direction from the module definition
+// Returns the PortDirection and true if found, or INPUT and false if not found
+func getModulePortDirection(
+	vf *VerilogFile,
+	moduleName string,
+	portName string,
+) (PortDirection, bool) {
+	if vf == nil || vf.Modules == nil {
+		return INPUT, false
+	}
+
+	module, exists := vf.Modules[moduleName]
+	if !exists {
+		return INPUT, false
+	}
+
+	for _, port := range module.Ports {
+		if port.Name == portName {
+			return port.Direction, true
+		}
+	}
+
+	return INPUT, false
+}
+
+// isValidVariableName checks if a string is a valid variable name and not a literal or constant
+func isValidVariableName(name string) bool {
+	// Skip empty names
+	if name == "" {
+		return false
+	}
+
+	// Skip constants and literals
+	if strings.HasPrefix(name, "'") || // Verilog literals like 'h, 'b
+		strings.Contains(name, "'h") || strings.Contains(name, "'b") ||
+		strings.Contains(name, "'d") || strings.Contains(name, "'o") {
+		return false
+	}
+
+	// Skip numeric literals
+	if len(name) > 0 && (name[0] >= '0' && name[0] <= '9') {
+		return false
+	}
+
+	// Skip expressions (containing operators)
+	if strings.ContainsAny(name, "+-*/&|^~<>=!()[]{}") {
+		return false
+	}
+
+	// Must start with letter or underscore and contain only alphanumeric and underscore
+	if len(name) > 0 && (name[0] == '_' ||
+		(name[0] >= 'a' && name[0] <= 'z') ||
+		(name[0] >= 'A' && name[0] <= 'Z')) {
+		for _, char := range name {
+			if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') ||
+				(char >= '0' && char <= '9') || char == '_') {
+				return false
+			}
+		}
+		return true
+	}
+
+	return false
+}
+
+// detectBlockedVariables analyzes the content to find variables that are assigned
+// in blocking constructs and should not be reused in parent scopes
+func detectBlockedVariables(vf *VerilogFile, content string) map[string]bool {
+	blockedVars := make(map[string]bool)
+
+	// Find continuous assignments (assign statements)
+	assignMatches := assignRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range assignMatches {
+		if len(match) >= 2 {
+			varName := strings.TrimSpace(match[1])
+			if varName != "" {
+				blockedVars[varName] = true
+			}
+		}
+	}
+
+	// Find wire assignments
+	wireAssignMatches := wireAssignRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range wireAssignMatches {
+		if len(match) >= 2 {
+			varName := strings.TrimSpace(match[1])
+			if varName != "" {
+				blockedVars[varName] = true
+			}
+		}
+	}
+
+	// Find force statements
+	forceMatches := forceRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range forceMatches {
+		if len(match) >= 2 {
+			varName := strings.TrimSpace(match[1])
+			if varName != "" {
+				blockedVars[varName] = true
+			}
+		}
+	}
+
+	// Find assignments in always_comb blocks
+	alwaysCombMatches := alwaysCombRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range alwaysCombMatches {
+		if len(match) >= 2 {
+			// Find assignments within the always_comb block (use = assignments)
+			blockContent := match[1]
+			assignMatches := blockingAssignRegex.FindAllStringSubmatch(blockContent, -1)
+			for _, assignMatch := range assignMatches {
+				if len(assignMatch) >= 2 {
+					varName := strings.TrimSpace(assignMatch[1])
+					if varName != "" {
+						blockedVars[varName] = true
+					}
+				}
+			}
+		}
+	}
+
+	// Find assignments in always_ff blocks
+	alwaysFFMatches := alwaysFFRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range alwaysFFMatches {
+		if len(match) >= 2 {
+			// Find assignments within the always_ff block (use both = and <= assignments)
+			blockContent := match[1]
+			assignMatches := blockingAssignRegex.FindAllStringSubmatch(blockContent, -1)
+			for _, assignMatch := range assignMatches {
+				if len(assignMatch) >= 2 {
+					varName := strings.TrimSpace(assignMatch[1])
+					if varName != "" {
+						blockedVars[varName] = true
+					}
+				}
+			}
+		}
+	}
+	// Find assignments in general always blocks (always @)
+	alwaysMatches := alwaysRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range alwaysMatches {
+		if len(match) >= 2 {
+			// Find assignments within the always block (use both = and <= assignments)
+			blockContent := match[1]
+			assignMatches := blockingAssignRegex.FindAllStringSubmatch(blockContent, -1)
+			for _, assignMatch := range assignMatches {
+				if len(assignMatch) >= 2 {
+					varName := strings.TrimSpace(assignMatch[1])
+					if varName != "" {
+						blockedVars[varName] = true
+					}
+				}
+			}
+		}
+	}
+	// Find variables assigned through module instantiations
+	moduleInstMatches := moduleInstRegex.FindAllStringSubmatch(content, -1)
+	for _, match := range moduleInstMatches {
+		if len(match) >= 4 {
+			moduleName := strings.TrimSpace(match[1])
+			// Extract port connections from the module instantiation
+			portConnections := match[3]
+			portMatches := portConnectionRegex.FindAllStringSubmatch(portConnections, -1)
+			for _, portMatch := range portMatches {
+				if len(portMatch) >= 3 {
+					portName := strings.TrimSpace(portMatch[1])
+					connectedVar := strings.TrimSpace(portMatch[2])
+
+					// Skip if connected to constants, literals, or expressions
+					if connectedVar != "" && isValidVariableName(connectedVar) {
+						// Use actual port direction from module definition
+						if vf == nil {
+							blockedVars[connectedVar] = false
+						} else if direction, found := getModulePortDirection(vf, moduleName, portName); found {
+							// Block variables connected to output or inout ports
+							if direction == OUTPUT || direction == INOUT {
+								blockedVars[connectedVar] = true
+							}
+						} else {
+							// If we can't find the module definition, use heuristics as fallback
+							if isLikelyOutputPort(portName) {
+								blockedVars[connectedVar] = true
+							}
+							logger.Warn(
+								"Could not determine port direction for '%s' in module '%s'. Assuming %v.",
+								portName,
+								moduleName,
+								blockedVars[connectedVar],
+							)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return blockedVars
+}
+
+// removeBlockedVariablesFromParents removes blocked variables from parent scope nodes
+func removeBlockedVariablesFromParents(scopeNode *ScopeNode, blockedVars map[string]bool) {
+	if scopeNode == nil {
+		return
+	}
+
+	// Process all children first (bottom-up approach)
+	for _, child := range scopeNode.Children {
+		removeBlockedVariablesFromParents(child, blockedVars)
+	}
+
+	// Remove blocked variables from current scope if they exist in parent scopes
+	for varName := range blockedVars {
+		if _, exists := scopeNode.Variables[varName]; exists {
+			// Check if this variable is assigned in a blocking way in any child scope
+			if isVariableBlockedInChildren(scopeNode, varName, blockedVars) {
+				delete(scopeNode.Variables, varName)
+			}
+		}
+	}
+}
+
+// isVariableBlockedInChildren checks if a variable is blocked in any child scope
+func isVariableBlockedInChildren(
+	scopeNode *ScopeNode,
+	varName string,
+	blockedVars map[string]bool,
+) bool {
+	// If the variable is globally blocked, return true
+	if blockedVars[varName] {
+		return true
+	}
+
+	// Check if any child scope has this variable blocked
+	for _, child := range scopeNode.Children {
+		if isVariableBlockedInChildren(child, varName, blockedVars) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func ParseVariables(v *VerilogFile,
 	content string,
 	scopeParams []Parameter,
@@ -1387,6 +1680,11 @@ func ParseVariables(v *VerilogFile,
 			}
 		}
 	}
+
+	// After parsing all variable declarations, detect blocked variables and remove them from parent scopes
+	blockedVars := detectBlockedVariables(v, content)
+	removeBlockedVariablesFromParents(scopeTree, blockedVars)
+
 	return variablesMap, scopeTree, nil
 }
 
