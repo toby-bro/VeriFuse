@@ -1,10 +1,10 @@
 module sequential_logic (
-    input logic [3:0] data_in,
-    output logic [3:0] data_out,
     input logic clk,
-    input logic rst_n
+    input logic [3:0] data_in,
+    input logic rst_n,
+    output logic [3:0] data_out
 );
-    /* verilator no_inline_module */ ;
+    /* verilator inline_module */;
     logic [3:0] internal_reg;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

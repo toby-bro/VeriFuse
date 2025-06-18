@@ -11,10 +11,10 @@ class MySvData;
 endclass
 
 module ModuleClassInstantiation (
-    input int in_data,
-    output int out_data,
     input logic clk,
-    input logic reset
+    input int in_data,
+    input logic reset,
+    output int out_data
 );
     MySvData my_object; 
     logic [7:0] byte_field_reg;

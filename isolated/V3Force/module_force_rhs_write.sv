@@ -1,11 +1,11 @@
 module module_force_rhs_write (
-    input wire i_rst_n,
+    input wire i_clk,
     input logic i_data_for_rhs,
     input logic i_force_en,
     input logic i_release_en,
+    input wire i_rst_n,
     output logic o_force_target,
-    output logic o_rhs_signal_read,
-    input wire i_clk
+    output logic o_rhs_signal_read
 );
     logic force_target;
     logic rhs_signal;

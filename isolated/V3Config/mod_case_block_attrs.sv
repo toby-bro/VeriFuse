@@ -1,7 +1,7 @@
 module mod_case_block_attrs (
+    input wire [1:0] i_sel,
     input wire [3:0] i_val,
-    output logic [3:0] o_out,
-    input wire [1:0] i_sel
+    output logic [3:0] o_out
 );
     logic [3:0] l_temp;
     always_comb begin

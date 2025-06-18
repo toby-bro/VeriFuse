@@ -1,6 +1,6 @@
 module ModuleWithStruct (
-    output int sum_out,
-    input logic [7:0] data_in
+    input logic [7:0] data_in,
+    output int sum_out
 );
     typedef struct {
         int field_a;

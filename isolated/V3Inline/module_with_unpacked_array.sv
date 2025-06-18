@@ -1,11 +1,11 @@
 module module_with_unpacked_array (
+    input logic [3:0] array_in_val,
     input logic [1:0] array_index,
-    output logic [3:0] array_out_val,
-    input logic forced_input_driver,
-    output logic forced_output_monitor,
-    (* verilator public *) output logic [7:0] public_output_wire,
     input logic clk,
-    input logic [3:0] array_in_val
+    input logic forced_input_driver,
+    output logic [3:0] array_out_val,
+    output logic forced_output_monitor,
+    (* verilator public *) output logic [7:0] public_output_wire
 );
     logic [3:0] unpacked_reg_array [0:3];
     (* verilator public *) logic [3:0] public_unpacked_array [0:1];

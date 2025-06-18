@@ -1,9 +1,9 @@
 module module_packed_array (
-    output logic [7:0] output_pa,
-    output logic [7:0] output_pa_element1,
-    input logic [31:0] input_pa,
     input logic enable_pa,
-    input logic [3:0] input_slice_pa
+    input logic [31:0] input_pa,
+    input logic [3:0] input_slice_pa,
+    output logic [7:0] output_pa,
+    output logic [7:0] output_pa_element1
 );
     logic [7:0] my_packed_array[0:3] ;
     always_comb begin

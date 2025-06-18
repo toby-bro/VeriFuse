@@ -1,7 +1,7 @@
 module mod_split_func_call (
     input logic clk,
-    input logic reset,
     input logic [7:0] data_in,
+    input logic reset,
     output logic [7:0] out_func_a,
     output logic [7:0] out_func_b
 );

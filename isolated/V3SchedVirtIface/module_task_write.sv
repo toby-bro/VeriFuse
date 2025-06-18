@@ -8,8 +8,8 @@ interface my_if;
 endinterface
 module module_task_write (
     input logic [7:0] in_task_data,
-    output logic task_output_valid,
-    input logic task_en
+    input logic task_en,
+    output logic task_output_valid
 );
     my_if task_vif_inst();
     task automatic update_vif_signals(input logic en, input logic [7:0] data_val,

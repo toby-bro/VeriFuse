@@ -6,10 +6,10 @@ class MyClass;
 endclass
 
 module module_affinity (
-    input logic [7:0] input_data_aff,
-    input logic enable_aff,
-    input logic reset_aff,
     input logic clk_aff,
+    input logic enable_aff,
+    input logic [7:0] input_data_aff,
+    input logic reset_aff,
     output logic [7:0] output_comb_aff,
     output logic [7:0] output_ff_aff
 );

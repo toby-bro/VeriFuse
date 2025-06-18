@@ -9,8 +9,8 @@ endinterface
 module module_case_write (
     input logic [7:0] data_case_a,
     input logic [7:0] data_case_b,
-    output logic case_output_ready,
-    input logic [1:0] select_case
+    input logic [1:0] select_case,
+    output logic case_output_ready
 );
     my_if case_vif_inst();
     always_comb begin

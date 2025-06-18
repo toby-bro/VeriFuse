@@ -1,7 +1,7 @@
 module mod_ftask_attrs (
-    output logic o_result,
     input wire i_clk,
-    input wire i_start
+    input wire i_start,
+    output logic o_result
 );
     logic r_temp = 1'b0;
     (* verilator public_task *)

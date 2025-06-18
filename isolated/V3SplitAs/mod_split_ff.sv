@@ -1,9 +1,9 @@
 module mod_split_ff (
-    input logic [7:0] data_in,
-    output logic [7:0] out_reg_a,
-    output logic [7:0] out_reg_b,
     input logic clk,
-    input logic reset
+    input logic [7:0] data_in,
+    input logic reset,
+    output logic [7:0] out_reg_a,
+    output logic [7:0] out_reg_b
 );
     logic [7:0]  split_reg_var;
     logic [7:0] other_reg_var;

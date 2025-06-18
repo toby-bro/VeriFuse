@@ -1,10 +1,10 @@
 module split_complex_blocking (
+    input logic [7:0] i1_r,
     input logic [7:0] i2_r,
     input logic [7:0] i3_r,
     output logic [7:0] o1_r,
     output logic [7:0] o2_r,
-    output logic [7:0] o3_r,
-    input logic [7:0] i1_r
+    output logic [7:0] o3_r
 );
     logic [7:0] t1_r, t2_r;
     always @(*) begin

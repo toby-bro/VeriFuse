@@ -6,9 +6,9 @@ class MyDataClass;
 endclass
 
 module module_sv_class (
-    output logic [15:0] o_class_data,
     input wire i_clk,
-    input wire i_enable_create
+    input wire i_enable_create,
+    output logic [15:0] o_class_data
 );
     MyDataClass my_object = null;
     logic [15:0] stored_data;

@@ -7,10 +7,10 @@ interface my_if;
     modport AccessOut (input data, input valid, output ready);
 endinterface
 module module_fork_join (
+    input logic [7:0] data_a,
     input logic [7:0] data_b,
-    output logic fork_status,
     input logic fork_en,
-    input logic [7:0] data_a
+    output logic fork_status
 );
     my_if vif_split();
     always_comb begin

@@ -20,9 +20,9 @@ class SimpleClass;
 endclass
 
 module basic_comb (
-    output logic [7:0] out1,
     input logic [7:0] in1,
-    input logic [7:0] in2
+    input logic [7:0] in2,
+    output logic [7:0] out1
 );
     /* verilator inline_module */ ;
     logic [7:0] temp_wire;
@@ -32,70 +32,10 @@ module basic_comb (
     end
 endmodule
 
-module container_for_inlining (
-    input logic [7:0] main_data_in,
-    output logic [7:0] main_data_out,
-    input logic main_clk,
-    input logic main_reset
-);
-    logic [7:0] basic_comb_out;
-    logic [7:0] class_module_out;
-    logic hierarchy_if_out;
-    logic [3:0] seq_data_out;
-    logic [15:0] func_task_out;
-    logic [3:0] unpacked_array_out;
-    logic [7:0] public_output_wire_val;
-    logic forced_output_val;
-    logic simple_assign_hit_val;
-    basic_comb u_basic_comb (
-        .in1(main_data_in),
-        .in2(main_data_in + 1),
-        .out1(basic_comb_out)
-    );
-    /* verilator inline_module */ module_with_class u_module_with_class (
-        .clk(main_clk),
-        .reset(main_reset),
-        .class_in(basic_comb_out),
-        .class_out(class_module_out)
-    );
-    /* verilator inline_module */ hierarchy_if u_hierarchy_if (
-        .clk(main_clk),
-        .main_in(hierarchy_if_out),
-        .main_out(hierarchy_if_out)
-        );
-    sequential_logic u_seq (
-        .clk(main_clk),
-        .rst_n(!main_reset),
-        .data_in(main_data_in[3:0]),
-        .data_out(seq_data_out)
-    );
-    func_task_typedef u_ft (
-        .val_in({8'h00, main_data_in}),
-        .enable(main_clk),
-        .val_out(func_task_out)
-    );
-    module_with_unpacked_array u_unpacked (
-        .clk(main_clk),
-        .array_in_val(seq_data_out),
-        .array_index(main_data_in[1:0]),
-        .array_out_val(unpacked_array_out),
-        .forced_input_driver(main_reset),
-        .forced_output_monitor(forced_output_val),
-        .public_output_wire(public_output_wire_val)
-    );
-    module_with_simple_assign u_simple_assign (
-        .clk(main_clk),
-        .reset(main_reset),
-        .state_in(main_data_in[1:0]),
-        .cover_hit(simple_assign_hit_val)
-    );
-    assign main_data_out = basic_comb_out + class_module_out + {4'h0, unpacked_array_out} + {8'h00, func_task_out[7:0]};
-endmodule
-
 module func_task_typedef (
-    output logic [15:0] val_out,
+    input logic enable,
     input logic [15:0] val_in,
-    input logic enable
+    output logic [15:0] val_out
 );
     typedef logic [15:0] my_data_t;
     my_data_t temp_val;
@@ -116,10 +56,10 @@ module func_task_typedef (
 endmodule
 
 module module_with_class (
-    output logic [7:0] class_out,
+    input logic [7:0] class_in,
     input logic clk,
     input logic reset,
-    input logic [7:0] class_in
+    output logic [7:0] class_out
 );
     SimpleClass my_object;
     logic [7:0] stored_data;
@@ -138,10 +78,10 @@ module module_with_class (
 endmodule
 
 module module_with_simple_assign (
-    input logic [1:0] state_in,
-    output logic cover_hit,
     input logic clk,
-    input logic reset
+    input logic reset,
+    input logic [1:0] state_in,
+    output logic cover_hit
 );
     logic [1:0] current_state;
     always_ff @(posedge clk or posedge reset) begin
@@ -155,13 +95,13 @@ module module_with_simple_assign (
 endmodule
 
 module module_with_unpacked_array (
+    input logic [3:0] array_in_val,
     input logic [1:0] array_index,
-    output logic [3:0] array_out_val,
-    input logic forced_input_driver,
-    output logic forced_output_monitor,
-    (* verilator public *) output logic [7:0] public_output_wire,
     input logic clk,
-    input logic [3:0] array_in_val
+    input logic forced_input_driver,
+    output logic [3:0] array_out_val,
+    output logic forced_output_monitor,
+    (* verilator public *) output logic [7:0] public_output_wire
 );
     logic [3:0] unpacked_reg_array [0:3];
     (* verilator public *) logic [3:0] public_unpacked_array [0:1];
@@ -181,12 +121,12 @@ module module_with_unpacked_array (
 endmodule
 
 module sequential_logic (
-    input logic [3:0] data_in,
-    output logic [3:0] data_out,
     input logic clk,
-    input logic rst_n
+    input logic [3:0] data_in,
+    input logic rst_n,
+    output logic [3:0] data_out
 );
-    /* verilator no_inline_module */ ;
+    ;
     logic [3:0] internal_reg;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -219,5 +159,65 @@ module hierarchy_if (
         if_inst.data = main_in;
         if_inst.ready = main_out;
     end
+endmodule
+
+module container_for_inlining (
+    input logic main_clk,
+    input logic [7:0] main_data_in,
+    input logic main_reset,
+    output logic [7:0] main_data_out
+);
+    logic [7:0] basic_comb_out;
+    logic [7:0] class_module_out;
+    logic hierarchy_if_out;
+    logic [3:0] seq_data_out;
+    logic [15:0] func_task_out;
+    logic [3:0] unpacked_array_out;
+    logic [7:0] public_output_wire_val;
+    logic forced_output_val;
+    logic simple_assign_hit_val;
+    basic_comb u_basic_comb (
+        .in1(main_data_in),
+        .in2(main_data_in + 1),
+        .out1(basic_comb_out)
+    );
+     module_with_class u_module_with_class (
+        .clk(main_clk),
+        .reset(main_reset),
+        .class_in(basic_comb_out),
+        .class_out(class_module_out)
+    );
+     hierarchy_if u_hierarchy_if (
+        .clk(main_clk),
+        .main_in(hierarchy_if_out),
+        .main_out(hierarchy_if_out)
+        );
+    sequential_logic u_seq (
+        .clk(main_clk),
+        .rst_n(!main_reset),
+        .data_in(main_data_in[3:0]),
+        .data_out(seq_data_out)
+    );
+    func_task_typedef u_ft (
+        .val_in({8'h00, main_data_in}),
+        .enable(main_clk),
+        .val_out(func_task_out)
+    );
+    module_with_unpacked_array u_unpacked (
+        .clk(main_clk),
+        .array_in_val(seq_data_out),
+        .array_index(main_data_in[1:0]),
+        .array_out_val(unpacked_array_out),
+        .forced_input_driver(main_reset),
+        .forced_output_monitor(forced_output_val),
+        .public_output_wire(public_output_wire_val)
+    );
+    module_with_simple_assign u_simple_assign (
+        .clk(main_clk),
+        .reset(main_reset),
+        .state_in(main_data_in[1:0]),
+        .cover_hit(simple_assign_hit_val)
+    );
+    assign main_data_out = basic_comb_out + class_module_out + {4'h0, unpacked_array_out} + {8'h00, func_task_out[7:0]};
 endmodule
 

@@ -1,9 +1,9 @@
 module deep_ff_control_logic (
     input wire dffcl_clk,
-    input wire dffcl_rst_n,
     input wire [3:0] dffcl_ctrl_mode,
     input wire [15:0] dffcl_data_in1,
     input wire [15:0] dffcl_data_in2,
+    input wire dffcl_rst_n,
     output logic [15:0] dffcl_data_out
 );
     always_ff @(posedge dffcl_clk or negedge dffcl_rst_n) begin

@@ -1,6 +1,6 @@
 module stmt_array_sel_postadd_task (
-    input logic [3:0] index_base_in_m5,
     input logic [7:0] data_init_in_m5,
+    input logic [3:0] index_base_in_m5,
     output logic [7:0] data_out_m5,
     output logic [3:0] se_var_out_m5
 );

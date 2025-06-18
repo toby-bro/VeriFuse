@@ -1,7 +1,7 @@
 module split_multiple_blocking (
-    output logic [3:0] data_out2_n,
     input logic [3:0] data_in_n,
-    output logic [3:0] data_out1_n
+    output logic [3:0] data_out1_n,
+    output logic [3:0] data_out2_n
 );
     logic [3:0] temp_n;
     always @(*) begin

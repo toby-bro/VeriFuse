@@ -1,6 +1,6 @@
 module module_repeat (
-    output logic [3:0] out_counter,
-    input logic [3:0] in_times
+    input logic [3:0] in_times,
+    output logic [3:0] out_counter
 );
     always_comb begin: repeat_block
         logic [3:0] count_val;

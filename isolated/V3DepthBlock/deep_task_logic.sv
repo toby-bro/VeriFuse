@@ -1,11 +1,11 @@
 module deep_task_logic (
     input wire [1:0] dtl_action_sel,
-    output logic [7:0] dtl_result_reg,
     input wire dtl_clk,
-    input wire dtl_rst_n,
-    input wire dtl_en,
     input wire [7:0] dtl_data_a,
-    input wire [7:0] dtl_data_b
+    input wire [7:0] dtl_data_b,
+    input wire dtl_en,
+    input wire dtl_rst_n,
+    output logic [7:0] dtl_result_reg
 );
     task automatic perform_action;
         input [7:0] in_a;

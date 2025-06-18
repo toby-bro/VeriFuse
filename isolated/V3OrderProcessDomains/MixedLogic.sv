@@ -1,11 +1,11 @@
 module MixedLogic (
-    input logic seq_in,
+    input logic async_reset,
+    input logic clk,
     input logic comb_in1,
     input logic comb_in2,
-    output logic seq_out,
+    input logic seq_in,
     output logic comb_out,
-    input logic clk,
-    input logic async_reset
+    output logic seq_out
 );
     logic seq_reg;
     logic comb_intermediate;

@@ -1,7 +1,7 @@
 module SequentialLogicPlaceholder (
     input logic clk,
-    input logic rst,
     input logic [15:0] data_in,
+    input logic rst,
     output logic [15:0] data_out
 );
     always_ff @(posedge clk or posedge rst) begin

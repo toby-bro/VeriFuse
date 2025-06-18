@@ -1,6 +1,6 @@
 module task_example (
-    output logic task_out,
-    input logic task_in
+    input logic task_in,
+    output logic task_out
 );
     task automatic process_data (input logic data);
         logic temp;

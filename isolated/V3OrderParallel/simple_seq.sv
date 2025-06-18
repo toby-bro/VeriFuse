@@ -1,7 +1,7 @@
 module simple_seq (
     input wire clk,
-    input wire reset,
     input wire [2:0] count_in,
+    input wire reset,
     output wire [2:0] count_out
 );
     reg [2:0] counter_reg;

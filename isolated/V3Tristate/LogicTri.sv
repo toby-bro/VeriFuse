@@ -1,8 +1,8 @@
 module LogicTri (
-    output wire or_out,
-    output wire and_out,
     input wire a_in,
-    input wire b_en
+    input wire b_en,
+    output wire and_out,
+    output wire or_out
 );
     wire b_tri;
     assign b_tri = b_en ? 1'b1 : 1'bz;

@@ -1,8 +1,8 @@
 module Seq_DFF (
-    input wire [7:0] d_in,
-    output reg [7:0] q_out,
     input wire clk,
-    input wire rst
+    input wire [7:0] d_in,
+    input wire rst,
+    output reg [7:0] q_out
 );
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin

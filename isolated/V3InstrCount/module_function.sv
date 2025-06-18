@@ -1,7 +1,7 @@
 module module_function (
-    output logic [7:0] out_func_result,
     input wire [7:0] in_func_a,
-    input wire [7:0] in_func_b
+    input wire [7:0] in_func_b,
+    output logic [7:0] out_func_result
 );
     function automatic [7:0] add_and_subtract;
     input [7:0] val1;

@@ -1,8 +1,8 @@
 module module_structs (
-    output logic init_done_us,
-    output logic [7:0] us_var_out,
     input logic enable_init,
-    output logic init_done_ps
+    output logic init_done_ps,
+    output logic init_done_us,
+    output logic [7:0] us_var_out
 );
     typedef struct packed {
         logic field_a;

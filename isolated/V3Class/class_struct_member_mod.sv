@@ -1,6 +1,6 @@
 module class_struct_member_mod (
-    output logic [7:0] struct_f1_out,
-    input logic [15:0] struct_in
+    input logic [15:0] struct_in,
+    output logic [7:0] struct_f1_out
 );
     typedef struct packed {
         logic [7:0] f1;

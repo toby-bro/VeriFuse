@@ -1,9 +1,9 @@
 module HandleConstantsAndEquality (
-    output logic o_neq_q,
-    output logic o_eqwild_q,
-    output logic o_neqwild_q,
     input logic [7:0] i_data,
-    output logic o_eq_q
+    output logic o_eq_q,
+    output logic o_eqwild_q,
+    output logic o_neq_q,
+    output logic o_neqwild_q
 );
     parameter P_X_CONST = 8'hXX;
     parameter P_Z_CONST = 8'hZZ;

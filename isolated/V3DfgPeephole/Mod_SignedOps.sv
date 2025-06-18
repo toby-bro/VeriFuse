@@ -1,22 +1,22 @@
 module Mod_SignedOps (
-    output logic signed [7:0] out_sext,
-    input wire signed [3:0] in_shift_sa,
-    input wire [7:0] in_u,
-    input wire [3:0] in_shift_u,
-    output logic out_slte,
-    output logic signed [7:0] out_pow_su,
-    output logic out_sgt,
-    output logic signed [7:0] out_sdiv,
-    output logic signed [7:0] out_smul,
-    output logic [7:0] out_pow_us,
     input wire signed [3:0] in_narrow_sa,
     input wire signed [7:0] in_sa,
-    output logic signed [7:0] out_smod,
-    output logic out_slt,
-    output logic signed [7:0] out_shift_rs_signed,
-    output logic signed [7:0] out_pow_ss,
     input wire signed [7:0] in_sb,
-    output logic out_sgte
+    input wire signed [3:0] in_shift_sa,
+    input wire [3:0] in_shift_u,
+    input wire [7:0] in_u,
+    output logic signed [7:0] out_pow_ss,
+    output logic signed [7:0] out_pow_su,
+    output logic [7:0] out_pow_us,
+    output logic signed [7:0] out_sdiv,
+    output logic signed [7:0] out_sext,
+    output logic out_sgt,
+    output logic out_sgte,
+    output logic signed [7:0] out_shift_rs_signed,
+    output logic out_slt,
+    output logic out_slte,
+    output logic signed [7:0] out_smod,
+    output logic signed [7:0] out_smul
 );
     logic signed [7:0] intermediate_sdiv;
     logic signed [7:0] intermediate_smod;

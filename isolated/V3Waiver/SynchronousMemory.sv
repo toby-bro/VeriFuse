@@ -1,11 +1,11 @@
 module SynchronousMemory (
-    output logic [7:0] read_data,
     input logic clk,
+    input logic [4:0] read_address,
     input logic rst,
     input logic [4:0] write_address,
-    input logic write_en,
     input logic [7:0] write_data,
-    input logic [4:0] read_address
+    input logic write_en,
+    output logic [7:0] read_data
 );
     logic [7:0] mem [0:31];
     always_ff @(posedge clk or posedge rst) begin

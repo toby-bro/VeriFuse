@@ -1,11 +1,11 @@
 module ModMultipleAlways (
-    output logic dout_a,
-    output logic dout_b,
     input logic clk_a,
     input logic clk_b,
-    input logic rst_n,
     input logic din_a,
-    input logic din_b
+    input logic din_b,
+    input logic rst_n,
+    output logic dout_a,
+    output logic dout_b
 );
     always @(posedge clk_a or negedge rst_n) begin 
     if (!rst_n) begin 

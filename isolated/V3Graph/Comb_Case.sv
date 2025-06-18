@@ -3,8 +3,8 @@ module Comb_Case (
     input wire [3:0] in1,
     input wire [3:0] in2,
     input wire [3:0] in3,
-    output reg [3:0] mux_out,
-    input wire [1:0] sel
+    input wire [1:0] sel,
+    output reg [3:0] mux_out
 );
     always_comb begin
         case (sel)

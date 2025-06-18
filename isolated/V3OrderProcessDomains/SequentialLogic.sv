@@ -1,8 +1,8 @@
 module SequentialLogic (
-    input logic rst,
+    input logic clk,
     input logic [7:0] data_in,
-    output logic [7:0] data_out,
-    input logic clk
+    input logic rst,
+    output logic [7:0] data_out
 );
     logic [7:0] internal_reg;
     always @(posedge clk or negedge rst) begin

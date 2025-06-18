@@ -1,8 +1,8 @@
 module dup_compare (
-    output logic [5:0] indicators,
     input int val_a,
     input int val_b,
-    input int val_c
+    input int val_c,
+    output logic [5:0] indicators
 );
     always_comb begin
         indicators = '0;

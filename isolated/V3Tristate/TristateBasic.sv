@@ -1,8 +1,8 @@
 module TristateBasic (
-    inout wire tri_io,
-    output wire out,
+    input wire data,
     input wire en,
-    input wire data
+    output wire out,
+    inout wire tri_io
 );
     assign tri_io = en ? data : 1'bz;
     assign out = tri_io;

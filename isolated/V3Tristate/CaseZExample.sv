@@ -1,6 +1,6 @@
 module CaseZExample (
-    input wire [1:0] sel,
     input wire [3:0] data_in,
+    input wire [1:0] sel,
     output reg [3:0] case_out
 );
     wire [3:0] local_data;

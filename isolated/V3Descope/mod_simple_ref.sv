@@ -1,6 +1,6 @@
 module mod_simple_ref (
-    output logic o_result,
-    input logic i_data
+    input logic i_data,
+    output logic o_result
 );
     logic internal_sig;
     always_comb begin

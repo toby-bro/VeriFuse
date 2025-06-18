@@ -492,6 +492,19 @@ func printModule(m *Module) string {
 		}
 	}
 
+	// sort ansiParams by name for consistent output
+	sort.Slice(ansiParams, func(i, j int) bool {
+		return ansiParams[i].Name < ansiParams[j].Name
+	})
+
+	// sort m.Ports by direction and then by name for consistent output
+	sort.Slice(m.Ports, func(i, j int) bool {
+		if m.Ports[i].Direction != m.Ports[j].Direction {
+			return m.Ports[i].Direction < m.Ports[j].Direction
+		}
+		return m.Ports[i].Name < m.Ports[j].Name
+	})
+
 	if len(ansiParams) > 0 {
 		sb.WriteString(" #(\n")
 		for i, param := range ansiParams {

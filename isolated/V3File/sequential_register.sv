@@ -1,9 +1,9 @@
 module sequential_register (
-    input logic data_in,
-    output logic data_out,
     input logic clk,
+    input logic data_in,
+    input logic enable_in,
     input logic reset_n,
-    input logic enable_in
+    output logic data_out
 );
     always_ff @(posedge clk or negedge reset_n) begin
         if (!reset_n) begin

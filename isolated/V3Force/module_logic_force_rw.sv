@@ -1,13 +1,13 @@
 module module_logic_force_rw (
-    input logic i_data_in,
-    output logic o_read_logic,
-    input logic i_write_en,
     input wire i_clk,
+    input logic i_data_in,
+    input logic i_force_en,
     input logic i_force_val,
-    input wire i_rst_n,
     input logic i_release_en,
+    input wire i_rst_n,
+    input logic i_write_en,
     output logic o_logic_target,
-    input logic i_force_en
+    output logic o_read_logic
 );
     logic normal_l_target_reg;
     logic l_target;

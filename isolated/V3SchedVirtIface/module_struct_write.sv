@@ -5,9 +5,9 @@ interface struct_if;
     modport Access (output packet_field1, output packet_field2, output tx_en);
 endinterface
 module module_struct_write (
-    output logic tx_status,
     input logic [7:0] in_field1,
-    input logic [7:0] in_field2
+    input logic [7:0] in_field2,
+    output logic tx_status
 );
     struct_if stif_inst();
     always_comb begin

@@ -1,8 +1,8 @@
 module stmt_while_task (
     input logic [7:0] data_in_m8,
-    output logic [7:0] out_sum_m8,
+    input logic [3:0] start_idx_m8,
     output logic [3:0] out_index_m8,
-    input logic [3:0] start_idx_m8
+    output logic [7:0] out_sum_m8
 );
     logic [3:0] index_var_m8;
     logic [7:0] sum_m8;

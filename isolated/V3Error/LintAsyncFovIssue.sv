@@ -1,7 +1,7 @@
 module LintAsyncFovIssue (
     input logic clk,
-    input logic rst_n,
     input logic in_h,
+    input logic rst_n,
     output logic out_i
 );
     always_ff @(posedge clk or negedge rst_n) begin

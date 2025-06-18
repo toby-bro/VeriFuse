@@ -1,6 +1,6 @@
 module module_nested_loops_break (
-    input logic [1:0] in_outer_limit,
     input logic [1:0] in_inner_limit,
+    input logic [1:0] in_outer_limit,
     output logic [3:0] out_value
 );
     always_comb begin: nested_break_block

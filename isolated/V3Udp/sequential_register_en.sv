@@ -1,8 +1,8 @@
 module sequential_register_en (
-    output logic [7:0] data_out,
     input logic clk,
+    input logic [7:0] data_in,
     input logic en,
-    input logic [7:0] data_in
+    output logic [7:0] data_out
 );
     always_ff @(posedge clk) begin
         if (en) begin

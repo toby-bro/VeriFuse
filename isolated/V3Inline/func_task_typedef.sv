@@ -1,7 +1,7 @@
 module func_task_typedef (
-    output logic [15:0] val_out,
+    input logic enable,
     input logic [15:0] val_in,
-    input logic enable
+    output logic [15:0] val_out
 );
     typedef logic [15:0] my_data_t;
     my_data_t temp_val;

@@ -6,6 +6,13 @@ interface simple_if (
     modport master (output data, input ready);
     modport slave (input data, output ready);
 endinterface
+module sub_module (
+    input logic sub_in,
+    output logic sub_out
+);
+    assign sub_out = !sub_in;
+endmodule
+
 module hierarchy_if (
     input logic clk,
     input logic main_in,
@@ -20,12 +27,5 @@ module hierarchy_if (
         if_inst.data = main_in;
         if_inst.ready = main_out;
     end
-endmodule
-
-module sub_module (
-    input logic sub_in,
-    output logic sub_out
-);
-    assign sub_out = !sub_in;
 endmodule
 

@@ -1,6 +1,6 @@
 module mod_class_inst (
-    input logic i_enable,
     input logic i_data_in,
+    input logic i_enable,
     output logic o_data_out
 );
     class MyClass;

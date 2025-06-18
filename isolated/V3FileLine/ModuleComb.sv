@@ -1,8 +1,8 @@
 module ModuleComb (
+    input logic [7:0] in1,
     input logic [7:0] in2,
     output logic [7:0] out1,
-    output logic [7:0] out2,
-    input logic [7:0] in1
+    output logic [7:0] out2
 );
     logic [7:0] internal_wire;
     assign internal_wire = in1 + in2;

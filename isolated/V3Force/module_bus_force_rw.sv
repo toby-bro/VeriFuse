@@ -1,13 +1,13 @@
 module module_bus_force_rw (
-    output logic [7:0] o_read_logic_bus,
     input wire i_clk,
-    input logic [7:0] i_force_val_bus,
-    input logic i_force_en,
-    input logic i_write_en,
     input logic [7:0] i_data_in_bus,
-    input wire i_rst_n,
+    input logic i_force_en,
+    input logic [7:0] i_force_val_bus,
     input logic i_release_en,
-    output logic [7:0] o_logic_bus_target
+    input wire i_rst_n,
+    input logic i_write_en,
+    output logic [7:0] o_logic_bus_target,
+    output logic [7:0] o_read_logic_bus
 );
     logic [7:0] normal_l_bus_target_reg;
     logic [7:0] l_bus_target;

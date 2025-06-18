@@ -1,9 +1,9 @@
 module MultipleClockSensitivity (
-    input logic [7:0] data_b,
-    output logic [7:0] data_combined,
     input logic clk_a,
     input logic clk_b,
-    input logic [7:0] data_a
+    input logic [7:0] data_a,
+    input logic [7:0] data_b,
+    output logic [7:0] data_combined
 );
     logic [7:0] reg_a_q;
     logic [7:0] reg_b_q;

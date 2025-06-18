@@ -1,9 +1,9 @@
 module module_task_args (
+    input logic [7:0] arg_in_task,
     input logic [7:0] data_a_init_task,
     input logic start_task,
     output logic [7:0] data_a_out_task,
-    output logic [7:0] data_b_out_task,
-    input logic [7:0] arg_in_task
+    output logic [7:0] data_b_out_task
 );
     logic [7:0] data_a ;
     logic [7:0] data_b ;

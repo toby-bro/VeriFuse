@@ -1,23 +1,23 @@
 module Mod_BasicOps (
-    input wire [7:0] in_b,
-    output logic out_logical,
-    output logic [7:0] out_xor_swap_var,
-    output logic [7:0] out_and_assoc,
     input wire [7:0] in_a,
-    output logic [7:0] out_or_swap_not,
-    output logic [7:0] out_or_assoc,
-    output logic [7:0] out_unary_not,
-    output logic [7:0] out_arith,
+    input wire [7:0] in_b,
+    input wire in_bit,
+    input wire [7:0] in_c,
+    input wire [7:0] in_const1,
     input wire [7:0] in_const2,
     output logic [7:0] out_add_assoc,
-    input wire [7:0] in_const1,
-    output logic [7:0] out_xor_assoc,
+    output logic [7:0] out_and_assoc,
+    output logic [7:0] out_and_swap_const,
+    output logic [7:0] out_arith,
     output logic [7:0] out_bitwise,
-    output logic [7:0] out_negate,
-    input wire [7:0] in_c,
-    input wire in_bit,
+    output logic out_logical,
     output logic [7:0] out_mul_assoc,
-    output logic [7:0] out_and_swap_const
+    output logic [7:0] out_negate,
+    output logic [7:0] out_or_assoc,
+    output logic [7:0] out_or_swap_not,
+    output logic [7:0] out_unary_not,
+    output logic [7:0] out_xor_assoc,
+    output logic [7:0] out_xor_swap_var
 );
     logic [7:0] intermediate_arith;
     logic [7:0] intermediate_bitwise;
