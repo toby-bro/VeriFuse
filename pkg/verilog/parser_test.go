@@ -1021,6 +1021,399 @@ func TestDependencyGraph(t *testing.T) {
 	}
 }
 
+func TestMatchClassInstantiationsFromString(t *testing.T) {
+	// Create a mock VerilogFile with some classes for testing
+	createMockVerilogFile := func(classNames []string) *VerilogFile {
+		vf := &VerilogFile{
+			Classes: make(map[string]*Class),
+		}
+		for _, name := range classNames {
+			vf.Classes[name] = &Class{Name: name}
+		}
+		return vf
+	}
+
+	testCases := []struct {
+		name          string
+		classNames    []string
+		content       string
+		expectedFound []string
+	}{
+		{
+			name:       "No classes defined",
+			classNames: []string{},
+			content: `
+				module test;
+					SomeClass obj = new();
+				endmodule
+			`,
+			expectedFound: []string{},
+		},
+		{
+			name:       "Direct instantiation with declaration",
+			classNames: []string{"MyClass", "AnotherClass"},
+			content: `
+				module test;
+					MyClass obj = new();
+					AnotherClass obj2 = new(param1, param2);
+				endmodule
+			`,
+			expectedFound: []string{"MyClass", "AnotherClass"},
+		},
+		{
+			name:       "Variable declaration then assignment",
+			classNames: []string{"TestClass", "UtilClass"},
+			content: `
+				module test;
+					TestClass test_obj;
+					UtilClass util_obj;
+					
+					initial begin
+						test_obj = new();
+						util_obj = new(arg1, arg2);
+					end
+				endmodule
+			`,
+			expectedFound: []string{"TestClass", "UtilClass"},
+		},
+		{
+			name:       "Mixed direct and assignment patterns",
+			classNames: []string{"DirectClass", "AssignClass"},
+			content: `
+				module test;
+					DirectClass direct_obj = new();
+					AssignClass assign_obj;
+					
+					initial begin
+						assign_obj = new();
+					end
+				endmodule
+			`,
+			expectedFound: []string{"DirectClass", "AssignClass"},
+		},
+		{
+			name:       "Multiple instantiations of same class",
+			classNames: []string{"DuplicateClass"},
+			content: `
+				module test;
+					DuplicateClass obj1 = new();
+					DuplicateClass obj2;
+					
+					initial begin
+						obj2 = new();
+					end
+				endmodule
+			`,
+			expectedFound: []string{"DuplicateClass"}, // Should only appear once
+		},
+		{
+			name:       "Parameterized class instantiation",
+			classNames: []string{"ParamClass"},
+			content: `
+				module test;
+					ParamClass #(.WIDTH(8), .DEPTH(16)) param_obj = new();
+				endmodule
+			`,
+			expectedFound: []string{"ParamClass"},
+		},
+		{
+			name:       "Class instantiation with complex parameters",
+			classNames: []string{"ComplexClass"},
+			content: `
+				module test;
+					ComplexClass complex_obj = new(
+						.param1(value1),
+						.param2(value2),
+						.param3(some_function(arg))
+					);
+				endmodule
+			`,
+			expectedFound: []string{"ComplexClass"},
+		},
+		{
+			name:       "Array of class objects",
+			classNames: []string{"ArrayClass"},
+			content: `
+				module test;
+					ArrayClass array_obj[4];
+					
+					initial begin
+						for (int i = 0; i < 4; i++) begin
+							array_obj[i] = new();
+						end
+					end
+				endmodule
+			`,
+			expectedFound: []string{"ArrayClass"},
+		},
+		{
+			name:       "Class instantiation in function/task",
+			classNames: []string{"FunctionClass", "TaskClass"},
+			content: `
+				module test;
+					function void my_function();
+						FunctionClass func_obj = new();
+					endfunction
+					
+					task my_task();
+						TaskClass task_obj;
+						task_obj = new();
+					endtask
+				endmodule
+			`,
+			expectedFound: []string{"FunctionClass", "TaskClass"},
+		},
+		{
+			name:       "Class instantiation with whitespace variations",
+			classNames: []string{"SpaceClass"},
+			content: `
+				module test;
+					SpaceClass   space_obj1   =   new(  );
+					SpaceClass space_obj2;
+					space_obj2   =   new(   );
+				endmodule
+			`,
+			expectedFound: []string{"SpaceClass"},
+		},
+		{
+			name:       "Class instantiation across multiple lines",
+			classNames: []string{"MultilineClass"},
+			content: `
+				module test;
+					MultilineClass multiline_obj = new(
+						param1,
+						param2,
+						param3
+					);
+				endmodule
+			`,
+			expectedFound: []string{"MultilineClass"},
+		},
+		{
+			name:       "No instantiations found",
+			classNames: []string{"UnusedClass"},
+			content: `
+				module test;
+					// No instantiations here
+					logic signal;
+				endmodule
+			`,
+			expectedFound: []string{},
+		},
+		{
+			name:       "Class name as part of larger identifier (should not match)",
+			classNames: []string{"Class"},
+			content: `
+				module test;
+					MyClass obj = new(); // Should not match "Class"
+					ClassHelper helper = new(); // Should not match "Class"  
+				endmodule
+			`,
+			expectedFound: []string{},
+		},
+		{
+			name:       "Class instantiation in generate block",
+			classNames: []string{"GenClass"},
+			content: `
+				module test;
+					generate
+						for (genvar i = 0; i < 4; i++) begin
+							GenClass gen_obj = new();
+						end
+					endgenerate
+				endmodule
+			`,
+			expectedFound: []string{"GenClass"},
+		},
+		{
+			name:       "Class instantiation in always block",
+			classNames: []string{"AlwaysClass"},
+			content: `
+				module test;
+					AlwaysClass always_obj;
+					
+					always_ff @(posedge clk) begin
+						always_obj = new();
+					end
+				endmodule
+			`,
+			expectedFound: []string{"AlwaysClass"},
+		},
+		{
+			name:       "Multiple classes with some unused",
+			classNames: []string{"UsedClass1", "UsedClass2", "UnusedClass"},
+			content: `
+				module test;
+					UsedClass1 obj1 = new();
+					UsedClass2 obj2;
+					obj2 = new();
+					// UnusedClass is not instantiated
+				endmodule
+			`,
+			expectedFound: []string{"UsedClass1", "UsedClass2"},
+		},
+		{
+			name:       "Class instantiation with inheritance syntax",
+			classNames: []string{"BaseClass", "DerivedClass"},
+			content: `
+				module test;
+					BaseClass base_obj = new();
+					DerivedClass derived_obj = new();
+				endmodule
+			`,
+			expectedFound: []string{"BaseClass", "DerivedClass"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vf := createMockVerilogFile(tc.classNames)
+			found := matchClassInstantiationsFromString(vf, tc.content)
+
+			// Sort both slices to ensure consistent comparison
+			sort.Strings(found)
+			expectedSorted := make([]string, len(tc.expectedFound))
+			copy(expectedSorted, tc.expectedFound)
+			sort.Strings(expectedSorted)
+
+			if !reflect.DeepEqual(found, expectedSorted) {
+				t.Errorf(
+					"matchClassInstantiationsFromString() = %v, want %v",
+					found,
+					expectedSorted,
+				)
+			}
+		})
+	}
+}
+
+func TestMatchClassInstantiationsFromStringEdgeCases(t *testing.T) {
+	// Test edge cases and error conditions
+	testCases := []struct {
+		name          string
+		classNames    []string
+		content       string
+		expectedFound []string
+		description   string
+	}{
+		{
+			name:          "Empty content",
+			classNames:    []string{"TestClass"},
+			content:       "",
+			expectedFound: []string{},
+			description:   "Should handle empty content gracefully",
+		},
+		{
+			name:       "Commented out instantiations",
+			classNames: []string{"CommentClass"},
+			content: `
+				module test;
+					// CommentClass obj = new();
+					/* CommentClass obj2 = new(); */
+				endmodule
+			`,
+			expectedFound: []string{},
+			description:   "Should not match commented out instantiations",
+		},
+		{
+			name:       "String literals containing class names",
+			classNames: []string{"StringClass"},
+			content: `
+				module test;
+					string msg = "StringClass obj = new();";
+				endmodule
+			`,
+			expectedFound: []string{},
+			description:   "Should not match class names in string literals",
+		},
+		{
+			name:       "Case sensitivity",
+			classNames: []string{"CaseSensitive"},
+			content: `
+				module test;
+					casesensitive obj = new(); // lowercase
+					CASESENSITIVE obj2 = new(); // uppercase
+				endmodule
+			`,
+			expectedFound: []string{},
+			description:   "Should be case sensitive - no matches for different cases",
+		},
+		{
+			name:       "Variable name same as class name",
+			classNames: []string{"SameName"},
+			content: `
+				module test;
+					SameName SameName = new();
+				endmodule
+			`,
+			expectedFound: []string{"SameName"},
+			description:   "Should handle case where variable name matches class name",
+		},
+		{
+			name:       "Incomplete instantiation syntax",
+			classNames: []string{"IncompleteClass"},
+			content: `
+				module test;
+					IncompleteClass obj = new // Missing parentheses and semicolon
+					IncompleteClass obj2 = new() // Missing semicolon
+				endmodule
+			`,
+			expectedFound: []string{},
+			description:   "Should not match incomplete instantiation syntax",
+		},
+		{
+			name:       "Nested class instantiations",
+			classNames: []string{"OuterClass", "InnerClass"},
+			content: `
+				module test;
+					OuterClass outer_obj = new(InnerClass inner = new());
+				endmodule
+			`,
+			expectedFound: []string{"OuterClass"},
+			description:   "Should match outer class but might miss nested instantiations",
+		},
+		{
+			name:       "Class instantiation with constructor arguments",
+			classNames: []string{"ConstructorClass"},
+			content: `
+				module test;
+					ConstructorClass obj = new(
+						.width(8),
+						.depth(16),
+						.init_value('hFF)
+					);
+				endmodule
+			`,
+			expectedFound: []string{"ConstructorClass"},
+			description:   "Should handle constructor with named arguments",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			vf := &VerilogFile{
+				Classes: make(map[string]*Class),
+			}
+			for _, name := range tc.classNames {
+				vf.Classes[name] = &Class{Name: name}
+			}
+
+			found := matchClassInstantiationsFromString(vf, tc.content)
+
+			// Sort both slices for consistent comparison
+			sort.Strings(found)
+			expectedSorted := make([]string, len(tc.expectedFound))
+			copy(expectedSorted, tc.expectedFound)
+			sort.Strings(expectedSorted)
+
+			if !reflect.DeepEqual(found, expectedSorted) {
+				t.Errorf("%s: matchClassInstantiationsFromString() = %v, want %v",
+					tc.description, found, expectedSorted)
+			}
+		})
+	}
+}
+
 func TestParseTransFuzzFile(t *testing.T) {
 	// skip this test
 	t.Skip("Skipping local only test")

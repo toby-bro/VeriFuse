@@ -1,6 +1,6 @@
 module Comb_Loop (
-    output wire loop_out,
-    input wire loop_in
+    input wire loop_in,
+    output wire loop_out
 );
     wire loop_wire1;
     wire loop_wire2;
