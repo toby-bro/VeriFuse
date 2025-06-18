@@ -1,7 +1,7 @@
 module ModClockedResetReg (
     input logic clk,
-    input logic rst_n,
     input logic d,
+    input logic rst_n,
     output logic q
 );
     always @(posedge clk or negedge rst_n) begin

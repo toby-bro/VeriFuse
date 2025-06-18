@@ -1,6 +1,6 @@
 module mod_basic (
-    output logic o_done,
-    input wire i_clk
+    input wire i_clk,
+    output logic o_done
 );
     logic r_state;
     parameter int PARAM_BASIC = 42;

@@ -1,11 +1,11 @@
 module mod_split_nested (
+    input logic clk,
+    input logic cond1,
     input logic cond2,
     input logic [7:0] data_in,
-    output logic [7:0] out_nested_a,
-    output logic [7:0] out_nested_b,
-    input logic clk,
     input logic reset,
-    input logic cond1
+    output logic [7:0] out_nested_a,
+    output logic [7:0] out_nested_b
 );
     logic [7:0]  split_nested_var;
     logic [7:0] other_nested_var;

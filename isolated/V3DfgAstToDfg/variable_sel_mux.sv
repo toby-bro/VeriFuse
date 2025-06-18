@@ -1,7 +1,7 @@
 module variable_sel_mux (
-    output logic out,
     input logic [7:0] in,
-    input logic [2:0] index
+    input logic [2:0] index,
+    output logic out
 );
     assign out = in[index];
 endmodule

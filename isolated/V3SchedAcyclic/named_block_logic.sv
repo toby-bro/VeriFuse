@@ -1,6 +1,6 @@
 module named_block_logic (
-    input logic i_in,
     input logic i_gate,
+    input logic i_in,
     output logic o_out
 );
     logic r_internal;

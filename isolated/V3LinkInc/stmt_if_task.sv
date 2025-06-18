@@ -1,7 +1,7 @@
 module stmt_if_task (
     input bit condition_m6,
-    output logic [7:0] out_val_m6,
-    input logic [7:0] in_val_m6
+    input logic [7:0] in_val_m6,
+    output logic [7:0] out_val_m6
 );
     logic [7:0] var_m6;
     task automatic update_conditional_m6(input bit cond, inout logic [7:0] val);

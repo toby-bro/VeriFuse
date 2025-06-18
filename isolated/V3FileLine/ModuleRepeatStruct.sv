@@ -1,7 +1,7 @@
 module ModuleRepeatStruct (
     input logic clk,
-    input logic reset,
     input int in1,
+    input logic reset,
     output int out1
 );
     struct packed {

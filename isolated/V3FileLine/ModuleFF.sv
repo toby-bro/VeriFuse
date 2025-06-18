@@ -1,8 +1,8 @@
 module ModuleFF (
     input logic clk,
-    input logic reset,
     input bit [3:0] in1,
     input bit [3:0] in2,
+    input logic reset,
     output bit [3:0] out1,
     output bit [3:0] out2
 );

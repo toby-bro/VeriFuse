@@ -1,7 +1,7 @@
 module multidriven_unhandled (
-    output logic [7:0] out,
     input logic [7:0] in1,
-    input logic [7:0] in2
+    input logic [7:0] in2,
+    output logic [7:0] out
 );
     wire [7:0] conflict_wire;
     assign conflict_wire = in1;

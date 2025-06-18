@@ -1,6 +1,6 @@
 module typedef_union_mod (
-    output logic [7:0] field0_byte_o,
-    input logic [15:0] packed_in
+    input logic [15:0] packed_in,
+    output logic [7:0] field0_byte_o
 );
     typedef union packed {
         logic [15:0] word;

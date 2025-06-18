@@ -1,7 +1,7 @@
 module unsupported_logand_expr (
-    output logic out_m9,
     input logic [7:0] in_a_m9,
-    input logic [7:0] in_b_m9
+    input logic [7:0] in_b_m9,
+    output logic out_m9
 );
     logic [7:0] var_m9;
     always_comb begin

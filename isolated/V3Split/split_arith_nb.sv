@@ -1,9 +1,9 @@
 module split_arith_nb (
-    output logic [7:0] diff_v,
-    output logic [7:0] prod_v,
     input logic clk_v,
     input logic [7:0] op1_v,
     input logic [7:0] op2_v,
+    output logic [7:0] diff_v,
+    output logic [7:0] prod_v,
     output logic [7:0] sum_v
 );
     always @(posedge clk_v) begin

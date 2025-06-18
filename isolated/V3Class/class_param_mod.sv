@@ -1,6 +1,6 @@
 module class_param_mod (
-    output logic [15:0] param_out,
-    input logic [15:0] param_in
+    input logic [15:0] param_in,
+    output logic [15:0] param_out
 );
     class ParamClass #(parameter int WIDTH = 8);
         logic [WIDTH-1:0] value;

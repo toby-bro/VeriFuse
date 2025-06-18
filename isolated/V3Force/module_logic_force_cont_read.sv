@@ -1,11 +1,11 @@
 module module_logic_force_cont_read (
-    input logic i_data_in,
-    input logic i_force_val,
-    input logic i_force_en,
-    input logic i_release_en,
-    output logic o_simple_read,
     input wire i_clk,
-    input wire i_rst_n
+    input logic i_data_in,
+    input logic i_force_en,
+    input logic i_force_val,
+    input logic i_release_en,
+    input wire i_rst_n,
+    output logic o_simple_read
 );
     logic normal_l_simple_target_reg;
     logic l_simple_target;

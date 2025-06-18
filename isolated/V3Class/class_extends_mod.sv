@@ -1,7 +1,7 @@
 module class_extends_mod (
+    input int base_val_i,
     input int derived_val_i,
-    output int result_o,
-    input int base_val_i
+    output int result_o
 );
     class BaseClass;
         int base_member;

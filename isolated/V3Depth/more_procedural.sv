@@ -1,7 +1,7 @@
 module more_procedural (
-    input logic [1:0] p_mode,
     input logic [31:0] p_in1,
     input logic [31:0] p_in2,
+    input logic [1:0] p_mode,
     output logic [31:0] p_out
 );
     always_comb begin

@@ -7,9 +7,9 @@ interface my_if;
     modport AccessOut (input data, input valid, output ready);
 endinterface
 module module_fork_join_none (
-    input logic fork_en,
     input logic [7:0] data_a,
     input logic [7:0] data_b,
+    input logic fork_en,
     output logic fork_status
 );
     my_if vif_split();

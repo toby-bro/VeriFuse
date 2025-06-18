@@ -6,14 +6,14 @@ class MyClass;
 endclass
 
 module module_sizes (
-    output logic out_1bit,
-    output logic [15:0] out_16bit,
-    output logic [63:0] out_64bit,
-    output logic [31:0] out_real_fixed,
+    input logic clk,
     input logic in1,
     input logic [7:0] in_byte,
-    input logic clk,
-    input logic reset_n
+    input logic reset_n,
+    output logic [15:0] out_16bit,
+    output logic out_1bit,
+    output logic [63:0] out_64bit,
+    output logic [31:0] out_real_fixed
 );
     logic used_as_clock;
     logic var_1bit;

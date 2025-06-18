@@ -1,6 +1,6 @@
 module LogicDependencyChain (
-    input logic d_in,
     input logic clk,
+    input logic d_in,
     output logic q_out
 );
     logic q1, q2;

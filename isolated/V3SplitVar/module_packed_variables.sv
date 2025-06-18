@@ -1,9 +1,9 @@
 module module_packed_variables (
-    input logic [7:0] data_in_pv,
     input logic [15:0] data_in_pa,
+    input logic [7:0] data_in_pv,
     input logic enable_pv,
-    output logic [3:0] data_out_pv,
-    output logic [7:0] data_out_pa
+    output logic [7:0] data_out_pa,
+    output logic [3:0] data_out_pv
 );
     logic [31:0] data_pv ;
     logic [7:0] data_pa[0:1] ;

@@ -1,6 +1,6 @@
 module mod_named_block (
-    output logic o_done,
-    input logic i_start
+    input logic i_start,
+    output logic o_done
 );
     logic top_level_sig;
     my_scope_a: begin

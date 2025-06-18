@@ -1,10 +1,10 @@
 module module_forceable_attr (
+    input wire i_clk,
     input logic i_data_in,
+    input wire i_rst_n,
     input logic i_write_en,
     output logic o_forceable_signal,
-    output logic o_read_signal,
-    input wire i_clk,
-    input wire i_rst_n
+    output logic o_read_signal
 );
     logic forceable_signal ;
     logic read_internal;

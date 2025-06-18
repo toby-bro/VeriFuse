@@ -1,7 +1,7 @@
 module mod_comb_logic (
-    output logic y,
     input logic a,
-    input logic b
+    input logic b,
+    output logic y
 );
     always_comb begin
         y = a & b;

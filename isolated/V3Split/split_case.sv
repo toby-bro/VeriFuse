@@ -1,10 +1,10 @@
 module split_case (
     input logic clk_w,
-    input logic [1:0] sel_w,
     input logic [7:0] d0_w,
     input logic [7:0] d1_w,
     input logic [7:0] d2_w,
     input logic [7:0] d3_w,
+    input logic [1:0] sel_w,
     output logic [7:0] out_w
 );
     always @(posedge clk_w) begin

@@ -1,8 +1,8 @@
 module mod_split_if (
     input logic clk,
-    input logic reset,
     input logic cond,
     input logic [7:0] data_in,
+    input logic reset,
     output logic [7:0] out_if_a,
     output logic [7:0] out_if_b
 );

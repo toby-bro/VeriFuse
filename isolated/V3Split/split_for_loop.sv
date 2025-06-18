@@ -1,7 +1,7 @@
 module split_for_loop (
+    input logic clk_i,
     input logic [7:0] start_val_i,
-    output logic [15:0] sum_out_i,
-    input logic clk_i
+    output logic [15:0] sum_out_i
 );
     always @(posedge clk_i) begin
         sum_out_i <= 0;

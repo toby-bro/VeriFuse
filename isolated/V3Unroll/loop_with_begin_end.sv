@@ -1,7 +1,7 @@
 module loop_with_begin_end (
-    output logic [7:0] accumulated_xor,
     input logic [2:0] count_limit,
-    input logic [7:0] data_in
+    input logic [7:0] data_in,
+    output logic [7:0] accumulated_xor
 );
     logic [7:0] accum_xor_reg;
     always_comb begin

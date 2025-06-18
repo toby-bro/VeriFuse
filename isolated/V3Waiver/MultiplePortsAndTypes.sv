@@ -1,8 +1,8 @@
 module MultiplePortsAndTypes (
     input byte b_in,
-    output int i_out,
     input bit flag,
-    input logic [3:0] small_val
+    input logic [3:0] small_val,
+    output int i_out
 );
     logic [7:0] temp_byte;
     always_comb begin

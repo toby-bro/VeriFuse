@@ -1,8 +1,8 @@
 module stmt_case_task (
-    output logic [7:0] data_out_m7,
-    output logic [1:0] selector_out_m7,
+    input logic [7:0] data_in_m7,
     input logic [1:0] selector_in_m7,
-    input logic [7:0] data_in_m7
+    output logic [7:0] data_out_m7,
+    output logic [1:0] selector_out_m7
 );
     logic [1:0] selector_var_m7;
     logic [7:0] result_m7;

@@ -6,12 +6,12 @@ class MyClass;
 endclass
 
 module module_types (
-    output int int_out,
-    output byte byte_out,
-    output logic [31:0] real_out_fixed,
     input logic [7:0] data_in_types,
+    input logic reset_in,
     input shortint si_in,
-    input logic reset_in
+    output byte byte_out,
+    output int int_out,
+    output logic [31:0] real_out_fixed
 );
     int var_int_internal;
     byte var_byte_internal;

@@ -1,8 +1,8 @@
 module module_ast_sel (
-    output logic [7:0] extracted_byte_as,
-    output logic [7:0] another_byte_out,
+    input logic [7:0] input_byte_as,
     input logic [31:0] raw_data_as,
-    input logic [7:0] input_byte_as
+    output logic [7:0] another_byte_out,
+    output logic [7:0] extracted_byte_as
 );
     logic [31:0] packed_data_as ;
     assign packed_data_as = raw_data_as;

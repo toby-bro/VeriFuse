@@ -1,6 +1,6 @@
 module module_packed_logic (
-    input logic [9:0] data_in_pl,
     input logic data_in_in_pl,
+    input logic [9:0] data_in_pl,
     output logic [4:0] data_out_pl
 );
     logic [15:0] my_packed_logic ;

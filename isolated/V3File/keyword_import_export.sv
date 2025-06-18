@@ -1,6 +1,6 @@
 module keyword_import_export (
-    output logic keyword_out,
-    input logic keyword_in
+    input logic keyword_in,
+    output logic keyword_out
 );
     assign keyword_out = keyword_in;
 endmodule

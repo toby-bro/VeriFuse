@@ -1,10 +1,10 @@
 module split_mixed_cond_seq (
+    input logic clk_e,
     input logic condition_e,
-    input logic [7:0] in_val_e,
     input logic [7:0] in_override_e,
+    input logic [7:0] in_val_e,
     output logic [7:0] out_val_e,
-    output logic status_e,
-    input logic clk_e
+    output logic status_e
 );
     logic [7:0] temp_val_e;
     always @(posedge clk_e) begin

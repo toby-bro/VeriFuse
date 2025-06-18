@@ -1,9 +1,9 @@
 module ModClockedWithSimpleAssign (
+    input logic clk,
+    input logic in_a,
     input logic in_b,
     output logic out_comb,
-    output logic out_reg,
-    input logic clk,
-    input logic in_a
+    output logic out_reg
 );
     logic internal_reg;
     always @(posedge clk) begin 

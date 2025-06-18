@@ -1,8 +1,8 @@
 module MultipleDrivers (
-    output wire out_multi,
     input wire in1,
     input wire in2,
-    input wire in3
+    input wire in3,
+    output wire out_multi
 );
     wire multi_driver_wire;
     assign multi_driver_wire = in1;

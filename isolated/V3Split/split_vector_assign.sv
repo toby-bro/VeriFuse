@@ -1,8 +1,8 @@
 module split_vector_assign (
+    input logic clk_y,
     input logic condition_y,
     input logic [7:0] in_val_y,
-    output logic [7:0] out_vec_y,
-    input logic clk_y
+    output logic [7:0] out_vec_y
 );
     always @(posedge clk_y) begin
         if (condition_y) begin

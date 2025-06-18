@@ -1,6 +1,6 @@
 module module_for_continue (
-    output logic [3:0] out_accumulate,
-    input logic in_odd_only
+    input logic in_odd_only,
+    output logic [3:0] out_accumulate
 );
     always_comb begin: for_cont_block
         out_accumulate = 0;

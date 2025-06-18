@@ -1,6 +1,6 @@
 module mod_hier_func_call (
-    output logic o_processed_value,
-    input logic i_value
+    input logic i_value,
+    output logic o_processed_value
 );
     my_func_scope: begin
         function automatic logic process_it (input logic val_in);

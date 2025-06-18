@@ -1,9 +1,9 @@
 module formatting_stress (
-    input logic sel_fmt,
-    input logic enable_block_fmt,
     input logic [1:0] case_sel_fmt,
-    output logic [7:0] data_out_fmt,
-    input logic [7:0] data_in_fmt
+    input logic [7:0] data_in_fmt,
+    input logic enable_block_fmt,
+    input logic sel_fmt,
+    output logic [7:0] data_out_fmt
 );
     logic [7:0] temp_reg_fmt; 
     always_comb begin : stress_comb_block_label 

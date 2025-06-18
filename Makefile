@@ -92,3 +92,7 @@ checkSnippets:
 .PHONY: addValidSnippets
 addValidSnippets:
 	for i in $$(git status -s | grep -Eo 'snippets/V3\w+\.sv'); do ss=$$(pfuzz -strategy smart -check-file -vv -file $$i 2>/dev/null) ; if [ $$? -eq 0 ]; then echo "[+] success" $$i && git add $$i ; else echo "[-] failure" $$i; fi ; done
+
+.PHONY: isolated
+isolated:
+	for i in snippets/*.sv ; do ss=$(pfuzz rewrite-as-snippets -strategy smart -vv -file $i) ;if [ $? -eq 0 ]; then echo "[+] success" $i ; else echo "[-] failure" $i; fi ; done

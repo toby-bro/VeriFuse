@@ -1,7 +1,7 @@
 module module_nested_loops_continue (
-    output logic [3:0] out_value,
+    input logic [1:0] in_inner_limit,
     input logic [1:0] in_outer_limit,
-    input logic [1:0] in_inner_limit
+    output logic [3:0] out_value
 );
     always_comb begin: nested_cont_block
         logic [1:0] i, j;

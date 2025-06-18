@@ -1,10 +1,10 @@
 module split_combo_blocking (
+    input logic [7:0] a_aa,
     input logic [7:0] b_aa,
     input logic [7:0] c_aa,
     output logic [7:0] x_aa,
     output logic [7:0] y_aa,
-    output logic [7:0] z_aa,
-    input logic [7:0] a_aa
+    output logic [7:0] z_aa
 );
     logic [7:0] temp_aa;
     always @(*) begin

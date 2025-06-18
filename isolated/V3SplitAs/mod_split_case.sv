@@ -1,6 +1,6 @@
 module mod_split_case (
-    input logic [1:0] sel,
     input logic [7:0] data_in,
+    input logic [1:0] sel,
     output logic [7:0] out_case_a,
     output logic [7:0] out_case_b
 );

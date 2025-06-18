@@ -1,8 +1,8 @@
 module mod_generate_if (
+    input logic i_a,
     input logic i_b,
-    output logic o_mux_out,
     input logic i_select,
-    input logic i_a
+    output logic o_mux_out
 );
     logic internal_common;
     generate

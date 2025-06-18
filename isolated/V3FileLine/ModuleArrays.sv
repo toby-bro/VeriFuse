@@ -1,8 +1,8 @@
 module ModuleArrays (
-    output logic [7:0] out_packed_array,
-    output logic [7:0] out_unpacked_array,
     input logic [7:0] in_array_val,
-    input int in_index
+    input int in_index,
+    output logic [7:0] out_packed_array,
+    output logic [7:0] out_unpacked_array
 );
     logic [15:0][7:0] packed_array;
     logic [7:0] unpacked_array [0:7];

@@ -1,10 +1,10 @@
 module mod_split_multiple_vars (
+    input logic clk,
+    input logic [7:0] data_in,
+    input logic reset,
     output logic [7:0] out_mv_a,
     output logic [7:0] out_mv_b,
-    output logic [7:0] out_mv_c,
-    input logic clk,
-    input logic reset,
-    input logic [7:0] data_in
+    output logic [7:0] out_mv_c
 );
     logic [7:0]  split_mv_var;
     logic [7:0] other_mv_var1;

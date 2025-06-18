@@ -1,6 +1,6 @@
 module expr_preadd_comb (
-    input logic [7:0] in_val_m1,
     input logic [7:0] add_val_m1,
+    input logic [7:0] in_val_m1,
     output logic [7:0] out_sum_m1,
     output logic [7:0] var_out_m1
 );

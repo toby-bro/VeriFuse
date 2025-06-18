@@ -1,8 +1,8 @@
 module module_task (
-    input wire in_task_rst,
+    input wire in_task_clk,
     input wire [3:0] in_task_data,
-    output reg [3:0] out_task_reg,
-    input wire in_task_clk
+    input wire in_task_rst,
+    output reg [3:0] out_task_reg
 );
     task automatic compute_next_reg_value;
     input [3:0] current_reg;
