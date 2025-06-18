@@ -1457,12 +1457,13 @@ func parseInterfacePorts(
 
 		// Use similar regex as ANSI port parsing
 		matches := ansiPortRegex.FindStringSubmatch(portDecl)
-		if len(matches) > 5 {
-			directionStr := strings.TrimSpace(matches[1])
-			portTypeStr := strings.TrimSpace(matches[2])
-			signedStr := strings.TrimSpace(matches[3])
-			rangeStr := strings.TrimSpace(matches[4])
-			portName := strings.TrimSpace(matches[5])
+		if len(matches) != 7 {
+			pragma := strings.TrimSpace(matches[1])
+			directionStr := strings.TrimSpace(matches[2])
+			portTypeStr := strings.TrimSpace(matches[3])
+			signedStr := strings.TrimSpace(matches[4])
+			rangeStr := strings.TrimSpace(matches[5])
+			portName := strings.TrimSpace(matches[6])
 
 			direction := getPortDirection(directionStr)
 			portType := getType(portTypeStr)
@@ -1480,6 +1481,7 @@ func parseInterfacePorts(
 				Type:      portType,
 				Width:     width,
 				IsSigned:  isSigned,
+				Pragma:    pragma,
 			}
 
 			ports = append(ports, port)

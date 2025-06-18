@@ -472,6 +472,46 @@ endinterface`,
 			},
 			expectedOK: true,
 		},
+		{
+			name: "simple interface",
+			interfaceContent: `interface simple_if (input logic clk);
+    logic data;
+    logic ready;
+    modport master (output data, input ready);
+    modport slave (input data, output ready);
+endinterface`,
+			expectedInterface: &Interface{
+				Name: "simple_if",
+				Ports: []InterfacePort{
+					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
+				},
+				Parameters: []Parameter{},
+				ModPorts: []ModPort{
+					{
+						Name: "master",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: OUTPUT},
+							{Name: "ready", Direction: INPUT},
+						},
+					},
+					{
+						Name: "slave",
+						Signals: []ModPortSignal{
+							{Name: "data", Direction: INPUT},
+							{Name: "ready", Direction: OUTPUT},
+						},
+					},
+				},
+				Variables: []*Variable{
+					{Name: "data", Type: LOGIC, Width: 0},
+					{Name: "ready", Type: LOGIC, Width: 0},
+				},
+				Body:        "    logic data;\n    logic ready;\n    modport master (output data, input ready);\n    modport slave (input data, output ready);",
+				IsVirtual:   false,
+				ExtendsFrom: "",
+			},
+			expectedOK: true,
+		},
 	}
 
 	for _, tc := range testCases {
