@@ -1763,6 +1763,10 @@ func (v *VerilogFile) typeDependenciesParser() error {
 		packageImports := matchPackageImportsFromString(v, module.Body)
 		v.AddDependency(module.Name, packageImports...)
 
+		// Check for class instantiations in module body
+		classInstantiations := matchClassInstantiationsFromString(v, module.Body)
+		v.AddDependency(module.Name, classInstantiations...)
+
 		// Check for user-defined type dependencies in module body
 		vars := matchUserDefinedVariablesFromString(v, module.Body)
 		for _, matchedVariable := range vars {
@@ -1833,7 +1837,7 @@ func removeComments(content string) string {
 	// Remove single-line comments
 	content = regexp.MustCompile(`(?Um)//\s.*$`).ReplaceAllString(content, "")
 	// Remove multi-line comments
-	// content = regexp.MustCompile(`(?U)/\*[\s\S]*\*/`).ReplaceAllString(content, "")
+	content = regexp.MustCompile(`(?U)/\*[\s\S]*\*/`).ReplaceAllString(content, "")
 	return content
 }
 
@@ -1976,4 +1980,101 @@ func matchPackageImportsFromString(vf *VerilogFile, content string) []string {
 	}
 
 	return foundPackages
+}
+
+// matchClassInstantiationsFromString finds class instantiations in the form "ClassName obj = new(...)" or "obj = new(...)" where obj was declared as ClassName
+func matchClassInstantiationsFromString(vf *VerilogFile, content string) []string {
+	classNames := []string{}
+	for _, class := range vf.Classes {
+		classNames = append(classNames, class.Name)
+	}
+
+	if len(classNames) == 0 {
+		return []string{}
+	}
+
+	// Pre-process content to remove comments and string literals to avoid false matches
+	cleanContent := removeCommentsAndStrings(content)
+
+	foundClasses := []string{}
+
+	// Pattern 1: Direct instantiation with declaration "ClassName obj = new(...)"
+	classNamesConcat := strings.Join(classNames, "|")
+	// This pattern matches: ClassName [#(...)] variable_name = new(...);
+	// Handle nested parentheses in parameter lists using a more flexible approach
+	regexpString1 := fmt.Sprintf(
+		`(?s)\b(%s)(?:\s*#[^=]*?)?\s+\w+\s*=\s*new\s*\([^;]*\)\s*;`,
+		classNamesConcat,
+	)
+	regex1 := regexp.MustCompile(regexpString1)
+	matches1 := regex1.FindAllStringSubmatch(cleanContent, -1)
+
+	for _, match := range matches1 {
+		if len(match) >= 2 {
+			className := match[1]
+			// Avoid duplicates
+			found := false
+			for _, existing := range foundClasses {
+				if existing == className {
+					found = true
+					break
+				}
+			}
+			if !found {
+				foundClasses = append(foundClasses, className)
+			}
+		}
+	}
+
+	// Pattern 2: Look for variable declarations and then find instantiations "obj = new(...)"
+	// First, find all class variable declarations with word boundaries
+	classVarRegex := fmt.Sprintf(`(?m)^\s*\b(%s)\b\s+(\w+)\s*(?:\[[^\]]*\])?\s*;`, classNamesConcat)
+	varRegex := regexp.MustCompile(classVarRegex)
+	varMatches := varRegex.FindAllStringSubmatch(cleanContent, -1)
+
+	// Build a map of variable names to their class types
+	varToClass := make(map[string]string)
+	for _, varMatch := range varMatches {
+		if len(varMatch) >= 3 {
+			className := varMatch[1]
+			varName := varMatch[2]
+			varToClass[varName] = className
+		}
+	}
+
+	// Pattern 3: Look for instantiations of declared class variables "variable_name = new(...)"
+	// Handle array access patterns like array_obj[i] = new()
+	for varName, className := range varToClass {
+		instantiationRegex := fmt.Sprintf(
+			`(?s)\b%s(?:\[[^\]]*\])?\s*=\s*new\s*\([^;]*\)\s*;`,
+			varName,
+		)
+		instRegex := regexp.MustCompile(instantiationRegex)
+		if instRegex.MatchString(cleanContent) {
+			// Avoid duplicates
+			found := false
+			for _, existing := range foundClasses {
+				if existing == className {
+					found = true
+					break
+				}
+			}
+			if !found {
+				foundClasses = append(foundClasses, className)
+			}
+		}
+	}
+
+	return foundClasses
+}
+
+// removeCommentsAndStrings removes single-line comments, multi-line comments, and string literals
+// to avoid false matches in class instantiation detection
+func removeCommentsAndStrings(content string) string {
+	content = removeComments(content)
+	// Remove string literals (both single and double quoted)
+	stringLiteral := regexp.MustCompile(`"[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*'`)
+	content = stringLiteral.ReplaceAllString(content, `""`)
+
+	return content
 }

@@ -1,7 +1,7 @@
 module Bit_Manip (
+    output reg [7:0] selected_byte,
     input wire [31:0] wide_data,
-    input wire [1:0] byte_idx,
-    output reg [7:0] selected_byte
+    input wire [1:0] byte_idx
 );
     always_comb begin
         case (byte_idx)

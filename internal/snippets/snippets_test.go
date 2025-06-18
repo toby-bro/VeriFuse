@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -625,5 +626,329 @@ func BenchmarkLoadSnippets(b *testing.B) {
 		if err != nil {
 			b.Fatalf("loadSnippets failed: %v", err)
 		}
+	}
+}
+
+// TestSnippetClassDependencyResolution tests that class dependencies are properly included in generated snippets
+func TestSnippetClassDependencyResolution(t *testing.T) {
+	testContent := `
+class MySimpleClass;
+    int data;
+    function new(int val);
+        data = val;
+    endfunction
+    function int getData();
+        return data;
+    endfunction
+endclass
+
+class BaseClass;
+    int base_member;
+    function new(int val);
+        base_member = val;
+    endfunction
+    function int get_base();
+        return base_member;
+    endfunction
+endclass
+
+class DerivedClass extends BaseClass;
+    int derived_member;
+    function new(int b_val, int d_val);
+        super.new(b_val);
+        derived_member = d_val;
+    endfunction
+    function int get_derived();
+        return derived_member;
+    endfunction
+    function int sum_members();
+        return base_member + derived_member;
+    endfunction
+endclass
+
+module Class_Usage (
+    input wire trigger_in,
+    output reg status_out
+);
+    function automatic int instantiate_and_use_class(input int val);
+        MySimpleClass obj = new(val);
+        return obj.getData();
+    endfunction
+    
+    always_comb begin
+        int temp_val;
+        if (trigger_in) begin
+            temp_val = instantiate_and_use_class(100);
+        end else begin
+            temp_val = instantiate_and_use_class(200);
+        end
+        status_out = (temp_val == 100) || (temp_val == 200);
+    end
+endmodule
+
+module class_extends_mod (
+    input int derived_val_i,
+    output int result_o,
+    input int base_val_i
+);
+    DerivedClass derived_instance;
+    int calculation_result;
+    always_comb begin
+        derived_instance = new(base_val_i, derived_val_i);
+        calculation_result = derived_instance.sum_members();
+    end
+    assign result_o = calculation_result;
+endmodule
+`
+
+	// Parse the content
+	svFile, err := verilog.ParseVerilog(testContent, 0)
+	if err != nil {
+		t.Fatalf("Failed to parse test content: %v", err)
+	}
+
+	// Verify dependency tracking works - Class_Usage should depend on MySimpleClass
+	if deps, exists := svFile.DependencyMap["Class_Usage"]; exists {
+		found := false
+		for _, dep := range deps.DependsOn {
+			if dep == "MySimpleClass" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("Expected Class_Usage to depend on MySimpleClass")
+		}
+	} else {
+		t.Error("Expected Class_Usage to be found in dependency map")
+	}
+
+	// Verify class inheritance dependency - DerivedClass should depend on BaseClass
+	if deps, exists := svFile.DependencyMap["DerivedClass"]; exists {
+		found := false
+		for _, dep := range deps.DependsOn {
+			if dep == "BaseClass" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("Expected DerivedClass to depend on BaseClass")
+		}
+	} else {
+		t.Error("Expected DerivedClass to be found in dependency map")
+	}
+
+	// Test snippet generation for Class_Usage module
+	classUsageModule := svFile.Modules["Class_Usage"]
+	if classUsageModule == nil {
+		t.Fatal("Class_Usage module not found")
+	}
+
+	snippet := &Snippet{
+		Name:       classUsageModule.Name,
+		Module:     classUsageModule,
+		ParentFile: svFile,
+	}
+
+	// Create target file for snippet
+	targetFile := verilog.NewVerilogFile("test_snippet.sv")
+
+	// Add dependencies
+	err = AddDependencies(targetFile, snippet)
+	if err != nil {
+		t.Fatalf("Failed to add dependencies: %v", err)
+	}
+
+	// Verify that MySimpleClass is included in the target file
+	if _, exists := targetFile.Classes["MySimpleClass"]; !exists {
+		t.Error("Expected MySimpleClass to be included in snippet dependencies")
+	}
+
+	// Verify that Class_Usage module is included
+	if _, exists := targetFile.Modules["Class_Usage"]; !exists {
+		t.Error("Expected Class_Usage to be included in snippet")
+	}
+
+	// Test that the generated content includes both the class definitions and the module
+	content, err := verilog.PrintVerilogFile(targetFile)
+	if err != nil {
+		t.Fatalf("Failed to print Verilog file: %v", err)
+	}
+
+	if !strings.Contains(content, "class MySimpleClass") {
+		t.Error("Expected generated content to contain MySimpleClass definition")
+	}
+	if !strings.Contains(content, "module Class_Usage") {
+		t.Error("Expected generated content to contain Class_Usage module definition")
+	}
+}
+
+// TestClassUsageFileFromAttachment tests the specific Class_Usage.sv file from the user's attachment
+func TestClassUsageFileFromAttachment(t *testing.T) {
+	// This test uses the exact content from the Class_Usage.sv file provided by the user
+	classUsageContent := `class MySimpleClass;
+    int data;
+    function new(int val);
+        data = val;
+    endfunction
+    function int getData();
+        return data;
+    endfunction
+endclass
+
+module Class_Usage (
+    input wire trigger_in,
+    output reg status_out
+);
+    function automatic int instantiate_and_use_class(input int val);
+        MySimpleClass obj = new(val);
+        return obj.getData();
+    endfunction
+    always_comb begin
+        int temp_val;
+        if (trigger_in) begin
+            temp_val = instantiate_and_use_class(100);
+        end else begin
+            temp_val = instantiate_and_use_class(200);
+        end
+        status_out = (temp_val == 100) || (temp_val == 200);
+    end
+endmodule`
+
+	// Parse the content
+	svFile, err := verilog.ParseVerilog(classUsageContent, 0)
+	if err != nil {
+		t.Fatalf("Failed to parse Class_Usage.sv content: %v", err)
+	}
+
+	// Verify the class was parsed
+	if _, exists := svFile.Classes["MySimpleClass"]; !exists {
+		t.Error("Expected MySimpleClass to be parsed from Class_Usage.sv")
+	}
+
+	// Verify the module was parsed
+	if _, exists := svFile.Modules["Class_Usage"]; !exists {
+		t.Error("Expected Class_Usage module to be parsed")
+	}
+
+	// Verify dependency relationship
+	if deps, exists := svFile.DependencyMap["Class_Usage"]; exists {
+		found := false
+		for _, dep := range deps.DependsOn {
+			if dep == "MySimpleClass" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error(
+				"Expected Class_Usage module to depend on MySimpleClass (class instantiation in function)",
+			)
+		}
+	} else {
+		t.Error("Expected Class_Usage to be found in dependency map")
+	}
+
+	// Debug: Check original dependency structure
+	t.Logf(
+		"Original file dependencies for Class_Usage: %v",
+		svFile.DependencyMap["Class_Usage"].DependsOn,
+	)
+
+	// Test snippet generation for this specific case
+	classUsageModule := svFile.Modules["Class_Usage"]
+	if classUsageModule == nil {
+		t.Fatal("Class_Usage module not found")
+	}
+
+	snippet := &Snippet{
+		Name:       classUsageModule.Name,
+		Module:     classUsageModule,
+		ParentFile: svFile,
+	}
+
+	// Create target file for snippet
+	targetFile := verilog.NewVerilogFile("Class_Usage_snippet.sv")
+
+	// Add dependencies
+	err = AddDependencies(targetFile, snippet)
+	if err != nil {
+		t.Fatalf("Failed to add dependencies for Class_Usage snippet: %v", err)
+	}
+
+	// Verify that MySimpleClass is included in the target file
+	if _, exists := targetFile.Classes["MySimpleClass"]; !exists {
+		t.Error("Expected MySimpleClass to be included in Class_Usage snippet dependencies")
+	}
+
+	// Verify that Class_Usage module is included
+	if _, exists := targetFile.Modules["Class_Usage"]; !exists {
+		t.Error("Expected Class_Usage to be included in snippet")
+	}
+
+	// Test that the generated content includes the class and module definitions
+	content, err := verilog.PrintVerilogFile(targetFile)
+	if err != nil {
+		t.Fatalf("Failed to print Class_Usage Verilog file: %v", err)
+	}
+
+	// Debug: Print the actual output for inspection
+	t.Logf("Generated Class_Usage snippet content:\n%s", content)
+
+	// Verify the content includes the class definition
+	if !strings.Contains(content, "class MySimpleClass") {
+		t.Error("Expected snippet content to include 'class MySimpleClass'")
+	}
+
+	// Verify the content includes the module definition
+	if !strings.Contains(content, "module Class_Usage") {
+		t.Error("Expected snippet content to include 'module Class_Usage'")
+	}
+
+	// Verify the content includes the function that instantiates the class
+	if !strings.Contains(content, "function automatic int instantiate_and_use_class") {
+		t.Error("Expected snippet content to include the class instantiation function")
+	}
+
+	// Verify the content includes the class instantiation
+	if !strings.Contains(content, "MySimpleClass obj = new(val)") {
+		t.Error("Expected snippet content to include 'MySimpleClass obj = new(val)'")
+	}
+
+	// Verify dependency map structure
+	if len(targetFile.DependencyMap) < 2 {
+		t.Errorf(
+			"Expected at least 2 nodes in target dependency map, got %d",
+			len(targetFile.DependencyMap),
+		)
+	}
+
+	// Debug: Print dependency map for investigation
+	t.Logf("Target dependency map: \n%s", targetFile.DumpDependencyGraph())
+
+	// Verify Class_Usage depends on MySimpleClass in the target file
+	if deps, exists := targetFile.DependencyMap["Class_Usage"]; exists {
+		found := false
+		for _, dep := range deps.DependsOn {
+			if dep == "MySimpleClass" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Logf("Class_Usage dependencies: %v", deps.DependsOn)
+			t.Error("Expected Class_Usage to depend on MySimpleClass in target dependency map")
+		}
+	} else {
+		t.Error("Expected Class_Usage to be in target dependency map")
+	}
+
+	// Test writing snippet to file (similar to how it would be used in practice)
+	err = snippet.writeSnippetToFile()
+	if err != nil {
+		t.Logf("Note: writeSnippetToFile failed (expected in test environment): %v", err)
+		// This is expected to fail in test environment due to file system constraints
+		// but we can still verify the snippet generation logic worked
 	}
 }

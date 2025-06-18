@@ -1,4 +1,4 @@
-package verilog_ext
+package verilogExt
 
 import (
 	"os"
