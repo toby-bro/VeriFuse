@@ -1,4 +1,4 @@
-package verilogExt
+package verilog_ext // nolint: revive
 
 import (
 	"regexp"

@@ -34,6 +34,7 @@ tests: test-go
 lint:
 	@echo "Running linters..."
 	@golangci-lint run ./... --timeout 10s --color=always --fix
+	@find snippets -name '*.sv' -exec ./fix-indent.sh {} \;
 
 .PHONY: bash-tests
 bash-tests: build-fuzzer clean test-go
