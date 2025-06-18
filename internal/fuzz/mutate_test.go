@@ -135,7 +135,7 @@ endmodule
 		ParentFile: snippetFile,
 	}
 
-	err = injectSnippetInModule(module, snippet, true, "test")
+	err = injectSnippetInModule(module, verilogFile, snippet, true, "test")
 	if err != nil {
 		t.Fatalf("injectSnippetInModule failed: %v", err)
 	}

@@ -23,12 +23,13 @@ func loadLogger(v int) {
 
 func injectSnippetInModule(
 	targetModule *verilog.Module,
+	targetFile *verilog.VerilogFile,
 	snippet *snippets.Snippet,
 	instantiate bool,
 	workerDir string,
 ) error {
 	_, scopeTree, err := verilog.ParseVariables(
-		snippet.ParentFile,
+		targetFile,
 		targetModule.Body,
 		targetModule.Parameters,
 	)
@@ -643,6 +644,7 @@ func MutateFile(
 			instantiate := rand.Intn(3) == 0
 			err = injectSnippetInModule(
 				moduleToMutate,
+				svFile,
 				snippet,
 				instantiate,
 				workerDir,
