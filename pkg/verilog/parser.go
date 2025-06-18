@@ -1394,7 +1394,18 @@ func isValidVariableName(name string) bool {
 func detectBlockedVariables(vf *VerilogFile, content string) map[string]bool {
 	blockedVars := make(map[string]bool)
 
-	// Find continuous assignments (assign statements)
+	// Detect variables blocked by different types of assignments
+	detectContinuousAssignments(content, blockedVars)
+	detectWireAssignments(content, blockedVars)
+	detectForceStatements(content, blockedVars)
+	detectAlwaysBlockAssignments(content, blockedVars)
+	detectModuleInstantiationOutputs(vf, content, blockedVars)
+
+	return blockedVars
+}
+
+// detectContinuousAssignments finds variables assigned in continuous assignments (assign statements)
+func detectContinuousAssignments(content string, blockedVars map[string]bool) {
 	assignMatches := assignRegex.FindAllStringSubmatch(content, -1)
 	for _, match := range assignMatches {
 		if len(match) >= 2 {
@@ -1404,8 +1415,10 @@ func detectBlockedVariables(vf *VerilogFile, content string) map[string]bool {
 			}
 		}
 	}
+}
 
-	// Find wire assignments
+// detectWireAssignments finds variables assigned in wire assignments
+func detectWireAssignments(content string, blockedVars map[string]bool) {
 	wireAssignMatches := wireAssignRegex.FindAllStringSubmatch(content, -1)
 	for _, match := range wireAssignMatches {
 		if len(match) >= 2 {
@@ -1415,8 +1428,10 @@ func detectBlockedVariables(vf *VerilogFile, content string) map[string]bool {
 			}
 		}
 	}
+}
 
-	// Find force statements
+// detectForceStatements finds variables assigned in force statements
+func detectForceStatements(content string, blockedVars map[string]bool) {
 	forceMatches := forceRegex.FindAllStringSubmatch(content, -1)
 	for _, match := range forceMatches {
 		if len(match) >= 2 {
@@ -1426,101 +1441,129 @@ func detectBlockedVariables(vf *VerilogFile, content string) map[string]bool {
 			}
 		}
 	}
+}
 
-	// Find assignments in always_comb blocks
+// detectAlwaysBlockAssignments finds variables assigned in always blocks (always_comb, always_ff, always @)
+func detectAlwaysBlockAssignments(content string, blockedVars map[string]bool) {
+	detectAlwaysCombAssignments(content, blockedVars)
+	detectAlwaysFFAssignments(content, blockedVars)
+	detectGeneralAlwaysAssignments(content, blockedVars)
+}
+
+// detectAlwaysCombAssignments finds variables assigned in always_comb blocks
+func detectAlwaysCombAssignments(content string, blockedVars map[string]bool) {
 	alwaysCombMatches := alwaysCombRegex.FindAllStringSubmatch(content, -1)
 	for _, match := range alwaysCombMatches {
 		if len(match) >= 2 {
-			// Find assignments within the always_comb block (use = assignments)
 			blockContent := match[1]
-			assignMatches := blockingAssignRegex.FindAllStringSubmatch(blockContent, -1)
-			for _, assignMatch := range assignMatches {
-				if len(assignMatch) >= 2 {
-					varName := strings.TrimSpace(assignMatch[1])
-					if varName != "" {
-						blockedVars[varName] = true
-					}
-				}
-			}
+			extractAssignmentsFromBlock(blockContent, blockedVars)
 		}
 	}
+}
 
-	// Find assignments in always_ff blocks
+// detectAlwaysFFAssignments finds variables assigned in always_ff blocks
+func detectAlwaysFFAssignments(content string, blockedVars map[string]bool) {
 	alwaysFFMatches := alwaysFFRegex.FindAllStringSubmatch(content, -1)
 	for _, match := range alwaysFFMatches {
 		if len(match) >= 2 {
-			// Find assignments within the always_ff block (use both = and <= assignments)
 			blockContent := match[1]
-			assignMatches := blockingAssignRegex.FindAllStringSubmatch(blockContent, -1)
-			for _, assignMatch := range assignMatches {
-				if len(assignMatch) >= 2 {
-					varName := strings.TrimSpace(assignMatch[1])
-					if varName != "" {
-						blockedVars[varName] = true
-					}
-				}
-			}
+			extractAssignmentsFromBlock(blockContent, blockedVars)
 		}
 	}
-	// Find assignments in general always blocks (always @)
+}
+
+// detectGeneralAlwaysAssignments finds variables assigned in general always blocks (always @)
+func detectGeneralAlwaysAssignments(content string, blockedVars map[string]bool) {
 	alwaysMatches := alwaysRegex.FindAllStringSubmatch(content, -1)
 	for _, match := range alwaysMatches {
 		if len(match) >= 2 {
-			// Find assignments within the always block (use both = and <= assignments)
 			blockContent := match[1]
-			assignMatches := blockingAssignRegex.FindAllStringSubmatch(blockContent, -1)
-			for _, assignMatch := range assignMatches {
-				if len(assignMatch) >= 2 {
-					varName := strings.TrimSpace(assignMatch[1])
-					if varName != "" {
-						blockedVars[varName] = true
-					}
-				}
+			extractAssignmentsFromBlock(blockContent, blockedVars)
+		}
+	}
+}
+
+// extractAssignmentsFromBlock extracts variable assignments from a block of code
+func extractAssignmentsFromBlock(blockContent string, blockedVars map[string]bool) {
+	assignMatches := blockingAssignRegex.FindAllStringSubmatch(blockContent, -1)
+	for _, assignMatch := range assignMatches {
+		if len(assignMatch) >= 2 {
+			varName := strings.TrimSpace(assignMatch[1])
+			if varName != "" {
+				blockedVars[varName] = true
 			}
 		}
 	}
-	// Find variables assigned through module instantiations
+}
+
+// detectModuleInstantiationOutputs finds variables assigned through module instantiation output/inout ports
+func detectModuleInstantiationOutputs(
+	vf *VerilogFile,
+	content string,
+	blockedVars map[string]bool,
+) {
 	moduleInstMatches := moduleInstRegex.FindAllStringSubmatch(content, -1)
 	for _, match := range moduleInstMatches {
 		if len(match) >= 4 {
 			moduleName := strings.TrimSpace(match[1])
-			// Extract port connections from the module instantiation
 			portConnections := match[3]
-			portMatches := portConnectionRegex.FindAllStringSubmatch(portConnections, -1)
-			for _, portMatch := range portMatches {
-				if len(portMatch) >= 3 {
-					portName := strings.TrimSpace(portMatch[1])
-					connectedVar := strings.TrimSpace(portMatch[2])
+			processModulePortConnections(vf, moduleName, portConnections, blockedVars)
+		}
+	}
+}
 
-					// Skip if connected to constants, literals, or expressions
-					if connectedVar != "" && isValidVariableName(connectedVar) {
-						// Use actual port direction from module definition
-						if vf == nil {
-							blockedVars[connectedVar] = false
-						} else if direction, found := getModulePortDirection(vf, moduleName, portName); found {
-							// Block variables connected to output or inout ports
-							if direction == OUTPUT || direction == INOUT {
-								blockedVars[connectedVar] = true
-							}
-						} else {
-							// If we can't find the module definition, use heuristics as fallback
-							if isLikelyOutputPort(portName) {
-								blockedVars[connectedVar] = true
-							}
-							logger.Warn(
-								"Could not determine port direction for '%s' in module '%s'. Assuming %v.",
-								portName,
-								moduleName,
-								blockedVars[connectedVar],
-							)
-						}
-					}
-				}
+// processModulePortConnections processes port connections for a module instantiation
+func processModulePortConnections(
+	vf *VerilogFile,
+	moduleName string,
+	portConnections string,
+	blockedVars map[string]bool,
+) {
+	portMatches := portConnectionRegex.FindAllStringSubmatch(portConnections, -1)
+	for _, portMatch := range portMatches {
+		if len(portMatch) >= 3 {
+			portName := strings.TrimSpace(portMatch[1])
+			connectedVar := strings.TrimSpace(portMatch[2])
+
+			// Skip if connected to constants, literals, or expressions
+			if connectedVar != "" && isValidVariableName(connectedVar) {
+				determinePortBlockingStatus(vf, moduleName, portName, connectedVar, blockedVars)
 			}
 		}
 	}
+}
 
-	return blockedVars
+// determinePortBlockingStatus determines if a variable should be blocked based on port direction
+func determinePortBlockingStatus(
+	vf *VerilogFile,
+	moduleName string,
+	portName string,
+	connectedVar string,
+	blockedVars map[string]bool,
+) {
+	// Use actual port direction from module definition
+	if vf == nil {
+		blockedVars[connectedVar] = false
+		return
+	}
+
+	if direction, found := getModulePortDirection(vf, moduleName, portName); found {
+		// Block variables connected to output or inout ports
+		if direction == OUTPUT || direction == INOUT {
+			blockedVars[connectedVar] = true
+		}
+	} else {
+		// If we can't find the module definition, use heuristics as fallback
+		if isLikelyOutputPort(portName) {
+			blockedVars[connectedVar] = true
+		}
+		logger.Warn(
+			"Could not determine port direction for '%s' in module '%s'. Assuming %v.",
+			portName,
+			moduleName,
+			blockedVars[connectedVar],
+		)
+	}
 }
 
 // removeBlockedVariablesFromParents removes blocked variables from parent scope nodes
