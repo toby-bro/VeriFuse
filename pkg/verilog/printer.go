@@ -177,6 +177,14 @@ func printParameter(param Parameter, isLast bool) string {
 // printPort formats a Port for module headers.
 func printPort(port Port, isLast bool, ansiStyle bool) string {
 	var sb strings.Builder
+
+	// Add pragma if present
+	if port.Pragma != "" {
+		sb.WriteString("(* ")
+		sb.WriteString(port.Pragma)
+		sb.WriteString(" *) ")
+	}
+
 	if !port.AlreadyDeclared && ansiStyle {
 		// Special handling for interface ports
 		if port.IsInterfacePort() {
@@ -283,6 +291,13 @@ func printStruct(s *Struct) string {
 // printInterfacePort formats an InterfacePort for interface port declarations.
 func printInterfacePort(port InterfacePort, isLast bool) string {
 	var sb strings.Builder
+
+	// Add pragma if present
+	if port.Pragma != "" {
+		sb.WriteString("(* ")
+		sb.WriteString(port.Pragma)
+		sb.WriteString(" *) ")
+	}
 
 	if port.Direction != INTERNAL {
 		sb.WriteString(portDirectionToString(port.Direction))
