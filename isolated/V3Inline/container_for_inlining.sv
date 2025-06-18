@@ -3,39 +3,26 @@ interface simple_if (
 );
     logic data;
     logic ready;
-
-    modport master (
-        output data,
-        output input ready
-    );
-
-    modport slave (
-        input data,
-        input output ready
-    );
-
-    logic data;
-        logic ready;
-        modport master (output data, input ready);
-        modport slave (input data, output ready);
+    modport master (output data, input ready);
+    modport slave (input data, output ready);
 endinterface
 class SimpleClass;
-        logic [7:0] internal_data;
-        function new();
-            internal_data = 8'h0;
-        endfunction
-        function void set_data(logic [7:0] val);
-            internal_data = val;
-        endfunction
-        function logic [7:0] get_data();
-            return internal_data;
-        endfunction
+    logic [7:0] internal_data;
+    function new();
+        internal_data = 8'h0;
+    endfunction
+    function void set_data(logic [7:0] val);
+        internal_data = val;
+    endfunction
+    function logic [7:0] get_data();
+        return internal_data;
+    endfunction
 endclass
 
 module basic_comb (
+    output logic [7:0] out1,
     input logic [7:0] in1,
-    input logic [7:0] in2,
-    output logic [7:0] out1
+    input logic [7:0] in2
 );
     /* verilator inline_module */ ;
     logic [7:0] temp_wire;
@@ -46,10 +33,10 @@ module basic_comb (
 endmodule
 
 module container_for_inlining (
+    input logic [7:0] main_data_in,
     output logic [7:0] main_data_out,
     input logic main_clk,
-    input logic main_reset,
-    input logic [7:0] main_data_in
+    input logic main_reset
 );
     logic [7:0] basic_comb_out;
     logic [7:0] class_module_out;
@@ -75,7 +62,7 @@ module container_for_inlining (
         .clk(main_clk),
         .main_in(hierarchy_if_out),
         .main_out(hierarchy_if_out)
-     );
+        );
     sequential_logic u_seq (
         .clk(main_clk),
         .rst_n(!main_reset),
@@ -106,9 +93,9 @@ module container_for_inlining (
 endmodule
 
 module func_task_typedef (
+    output logic [15:0] val_out,
     input logic [15:0] val_in,
-    input logic enable,
-    output logic [15:0] val_out
+    input logic enable
 );
     typedef logic [15:0] my_data_t;
     my_data_t temp_val;
@@ -129,10 +116,10 @@ module func_task_typedef (
 endmodule
 
 module module_with_class (
+    output logic [7:0] class_out,
     input logic clk,
     input logic reset,
-    input logic [7:0] class_in,
-    output logic [7:0] class_out
+    input logic [7:0] class_in
 );
     SimpleClass my_object;
     logic [7:0] stored_data;
@@ -151,10 +138,10 @@ module module_with_class (
 endmodule
 
 module module_with_simple_assign (
+    input logic [1:0] state_in,
     output logic cover_hit,
     input logic clk,
-    input logic reset,
-    input logic [1:0] state_in
+    input logic reset
 );
     logic [1:0] current_state;
     always_ff @(posedge clk or posedge reset) begin
@@ -167,11 +154,37 @@ module module_with_simple_assign (
     assign cover_hit = (current_state inside {2'b00, 2'b11});
 endmodule
 
-module sequential_logic (
+module module_with_unpacked_array (
+    input logic [1:0] array_index,
+    output logic [3:0] array_out_val,
+    input logic forced_input_driver,
+    output logic forced_output_monitor,
+    (* verilator public *) output logic [7:0] public_output_wire,
     input logic clk,
-    input logic rst_n,
+    input logic [3:0] array_in_val
+);
+    logic [3:0] unpacked_reg_array [0:3];
+    (* verilator public *) logic [3:0] public_unpacked_array [0:1];
+    (* wire_force_assign *) logic forced_internal_in;
+    (* wire_force_release *) logic forced_internal_out;
+    always_ff @(posedge clk) begin
+        unpacked_reg_array[array_index] <= array_in_val;
+        public_unpacked_array[0] <= array_in_val;
+        public_unpacked_array[1] <= array_out_val;
+    end
+    assign array_out_val = unpacked_reg_array[array_index];
+    assign public_output_wire = public_unpacked_array[0] + public_unpacked_array[1];
+    logic local_clk_ref;
+    assign local_clk_ref = clk;
+    assign forced_internal_in = forced_input_driver;
+    assign forced_output_monitor = forced_internal_out;
+endmodule
+
+module sequential_logic (
     input logic [3:0] data_in,
-    output logic [3:0] data_out
+    output logic [3:0] data_out,
+    input logic clk,
+    input logic rst_n
 );
     /* verilator no_inline_module */ ;
     logic [3:0] internal_reg;
@@ -186,8 +199,8 @@ module sequential_logic (
 endmodule
 
 module sub_module (
-    output logic sub_out,
-    input logic sub_in
+    input logic sub_in,
+    output logic sub_out
 );
     assign sub_out = !sub_in;
 endmodule

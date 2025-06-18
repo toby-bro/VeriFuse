@@ -1,21 +1,21 @@
 class SimpleClass;
-        logic [7:0] internal_data;
-        function new();
-            internal_data = 8'h0;
-        endfunction
-        function void set_data(logic [7:0] val);
-            internal_data = val;
-        endfunction
-        function logic [7:0] get_data();
-            return internal_data;
-        endfunction
+    logic [7:0] internal_data;
+    function new();
+        internal_data = 8'h0;
+    endfunction
+    function void set_data(logic [7:0] val);
+        internal_data = val;
+    endfunction
+    function logic [7:0] get_data();
+        return internal_data;
+    endfunction
 endclass
 
 module module_with_class (
+    output logic [7:0] class_out,
     input logic clk,
     input logic reset,
-    input logic [7:0] class_in,
-    output logic [7:0] class_out
+    input logic [7:0] class_in
 );
     SimpleClass my_object;
     logic [7:0] stored_data;

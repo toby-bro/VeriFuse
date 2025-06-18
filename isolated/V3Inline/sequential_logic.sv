@@ -1,8 +1,8 @@
 module sequential_logic (
-    input logic clk,
-    input logic rst_n,
     input logic [3:0] data_in,
-    output logic [3:0] data_out
+    output logic [3:0] data_out,
+    input logic clk,
+    input logic rst_n
 );
     /* verilator no_inline_module */ ;
     logic [3:0] internal_reg;
