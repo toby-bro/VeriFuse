@@ -184,7 +184,10 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 	// Use improved timeout handling with process groups
 	if err := sim.timeoutWithForceKill(ctx, cmd, "verilator compilation"); err != nil {
 		// retry once on failure
-		sim.logger.Warn("[%s] Verilator compilation failed, retrying...", sim.workDir)
+		sim.logger.Warn(
+			"[%s] Verilator compilation failed, retrying...",
+			strings.Split(sim.workDir, "/")[1],
+		)
 		time.Sleep(10 * time.Millisecond)
 
 		// Retry with timeout
