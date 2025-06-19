@@ -428,13 +428,7 @@ func generateSnippetInstantiation(
 	instantiation += strings.Join(connectionLines, ",\n")
 	instantiation += "\n);"
 
-	instantiationLines := strings.Split(instantiation, "\n")
-	for i := range instantiationLines {
-		instantiationLines[i] = "    " + instantiationLines[i]
-	}
-	instantiation = strings.Join(instantiationLines, "\n")
-
-	return instantiation
+	return utils.Indent(instantiation)
 }
 
 func insertTextAtLine(module *verilog.Module, text string, line int, indentLevel int) error {
@@ -443,15 +437,14 @@ func insertTextAtLine(module *verilog.Module, text string, line int, indentLevel
 		return fmt.Errorf("line number %d is out of bounds for module %s", line, module.Name)
 	}
 
-	indentation := strings.Repeat("    ", indentLevel)
-	textLines := strings.Split(text, "\n")
-	for i, t := range textLines {
-		textLines[i] = indentation + t
+	for range indentLevel {
+		text = utils.Indent(text)
 	}
-	text = strings.Join(textLines, "\n")
+	textLines := strings.Split(text, "\n")
 
-	lines = append(lines[:line], append([]string{text}, lines[line:]...)...)
+	lines = append(lines[:line], append(textLines, lines[line:]...)...)
 	module.Body = strings.Join(lines, "\n")
+
 	return nil
 }
 

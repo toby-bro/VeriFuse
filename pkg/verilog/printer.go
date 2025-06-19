@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 // String returns the Verilog keyword for the port direction.
@@ -527,24 +529,11 @@ func printModule(m *Module) string {
 		sb.WriteString("();\n") // ANSI style for module with no ports
 	}
 
-	bodyToPrint := strings.TrimSpace(m.Body)
-	if bodyToPrint != "" {
-		var indentedBody strings.Builder
-		for _, line := range strings.Split(bodyToPrint, "\n") {
-			// Avoid double indenting if lines in body are already indented.
-			// This simple indent might not be perfect if body has mixed indentation.
-			if strings.HasPrefix(line, "    ") {
-				indentedBody.WriteString(line)
-			} else {
-				indentedBody.WriteString("    ")
-				indentedBody.WriteString(line)
-			}
-			indentedBody.WriteString("\n")
-		}
-		sb.WriteString(indentedBody.String())
+	if m.Body != "" {
+		sb.WriteString(utils.TrimEmptyLines(m.Body))
 	}
 
-	sb.WriteString("endmodule\n")
+	sb.WriteString("\nendmodule\n")
 	return sb.String()
 }
 
