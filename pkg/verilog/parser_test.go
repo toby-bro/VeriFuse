@@ -469,6 +469,12 @@ func TestParseVariables(t *testing.T) {
 			},
 			Children: []*ScopeNode{},
 		},
+		&ScopeNode{
+			Level:     1,
+			Parent:    expectedTree.Children[1].Children[0],
+			Variables: map[string]*Variable{},
+			Children:  []*ScopeNode{},
+		},
 	)
 	expectedTree.Children[1].Children = append(expectedTree.Children[1].Children, &ScopeNode{
 		Level:     0,
@@ -510,10 +516,12 @@ func TestParseVariables(t *testing.T) {
 
 	// Compare scope trees
 	if err := compareScopeTrees(scopeTree, expectedTree); err != nil {
-		t.Errorf("Scope tree mismatch: %v", err)
-		// For detailed visualization if the trees are small enough or for debugging:
-		t.Logf("Actual Scope Tree: %+v", scopeTree)
-		t.Logf("Expected Scope Tree: %+v", expectedTree)
+		t.Errorf(
+			"Scope tree mismatch: %v, \nExpected: \n%s\nGot:\n%s",
+			err,
+			expectedTree.Dump(1),
+			scopeTree.Dump(1),
+		)
 	}
 }
 

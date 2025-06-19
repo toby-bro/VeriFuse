@@ -1628,14 +1628,30 @@ func ParseVariables(v *VerilogFile,
 	lines := strings.Split(content, "\n")
 	for lineNumber, line := range lines {
 		// Try to match variable declarations on this line
-		matches := generalVariableRegex.FindStringSubmatch(line)
-		if len(matches) < 6 {
+		matchedVariable := generalVariableRegex.FindStringSubmatch(line)
+		if len(matchedVariable) < 6 {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			line = strings.ReplaceAll(line, "\t", "    ")
+			indentation := (len(line) - len(strings.TrimLeft(line, " "))) / 4
+			if indentation == scopeNode.Level {
+				scopeNode.LastLine = lineNumber // choice to be done on only using the variable last lines or all the scope's lines
+			} else {
+				for scopeNode.Level > indentation {
+					scopeNode = scopeNode.Parent
+					// scopeNode.LastLine = lineNumber // Not used for the moment but might come in handy later
+				}
+				newScopeNode := &ScopeNode{
+					Level:     indentation,
+					Variables: make(map[string]*Variable),
+					Children:  []*ScopeNode{},
+					Parent:    scopeNode,
+				}
+				scopeNode.Children = append(scopeNode.Children, newScopeNode)
+				scopeNode = newScopeNode
+			}
 			continue // No variable declaration on this line
-		}
-
-		matchedVariable := matches
-		if len(matchedVariable) < 4 {
-			continue
 		}
 
 		indent := len(strings.ReplaceAll(matchedVariable[1], "\t", "    ")) / 4

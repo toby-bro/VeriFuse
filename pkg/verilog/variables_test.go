@@ -1453,3 +1453,175 @@ func TestAlwaysBlockDetectionDebug(t *testing.T) {
 	blockedVars := detectBlockedVariables(vf, content)
 	t.Logf("Blocked variables: %v", blockedVars)
 }
+
+func TestScopeDetectionWithNonVariableLines(t *testing.T) {
+	// Test case based on the original issue: variables in different scopes
+	// should be correctly separated even when there are non-variable lines
+	// affecting the scope structure
+	content := `
+task my_task;
+    logic [7:0] a;
+    assign a = 4'h5;
+endtask
+
+always_comb begin
+    logic [7:0] b;
+    b = 5'h6;
+end
+
+logic [7:0] c;
+`
+
+	variables, scopeTree, err := ParseVariables(nil, content, nil)
+	if err != nil {
+		t.Fatalf("ParseVariables failed: %v", err)
+	}
+
+	// Check that all variables were found
+	expectedVars := []string{"a", "b", "c"}
+	if len(variables) != len(expectedVars) {
+		t.Fatalf(
+			"Expected %d variables, got %d: %v",
+			len(expectedVars),
+			len(variables),
+			getVariableNames(variables),
+		)
+	}
+
+	for _, varName := range expectedVars {
+		if _, exists := variables[varName]; !exists {
+			t.Errorf("Expected variable '%s' not found in parsed variables", varName)
+		}
+	}
+
+	// Check scope structure
+	if scopeTree == nil {
+		t.Fatal("Scope tree is nil")
+	}
+
+	// Verify that variables are in different scopes
+	// Variable 'a' should be in a nested scope (inside task)
+	// Variable 'b' should be in a nested scope (inside always_comb)
+	// Variable 'c' should be in the root scope
+
+	// Find variable 'a' in the scope tree
+	varAScopeLevel := findVariableInScopeTree(scopeTree, "a")
+	if varAScopeLevel == -1 {
+		t.Error("Variable 'a' not found in any scope")
+	} else if varAScopeLevel == 0 {
+		t.Error("Variable 'a' should be in a nested scope (task), but found in root scope")
+	} else {
+		t.Logf("Variable 'a' correctly found in scope level %d", varAScopeLevel)
+	}
+
+	// Find variable 'b' in the scope tree
+	varBScopeLevel := findVariableInScopeTree(scopeTree, "b")
+	if varBScopeLevel == -1 {
+		t.Error("Variable 'b' not found in any scope")
+	} else if varBScopeLevel == 0 {
+		t.Error("Variable 'b' should be in a nested scope (always_comb), but found in root scope")
+	} else {
+		t.Logf("Variable 'b' correctly found in scope level %d", varBScopeLevel)
+	}
+
+	// Find variable 'c' in the scope tree
+	varCScopeLevel := findVariableInScopeTree(scopeTree, "c")
+	if varCScopeLevel == -1 {
+		t.Error("Variable 'c' not found in any scope")
+	} else if varCScopeLevel != 0 {
+		t.Errorf("Variable 'c' should be in root scope (level 0), but found in level %d", varCScopeLevel)
+	} else {
+		t.Logf("Variable 'c' correctly found in root scope level %d", varCScopeLevel)
+	}
+
+	// Verify that 'a' and 'b' are in different scopes (they shouldn't be in the same scope)
+	if varAScopeLevel != -1 && varBScopeLevel != -1 {
+		aScope := findScopeForVariable(scopeTree, "a")
+		bScope := findScopeForVariable(scopeTree, "b")
+
+		if aScope != nil && bScope != nil && aScope == bScope {
+			t.Error(
+				"Variables 'a' and 'b' should be in different scopes, but they are in the same scope",
+			)
+		} else if aScope != nil && bScope != nil {
+			t.Logf("Variables 'a' and 'b' are correctly in different scopes")
+		}
+	}
+
+	t.Logf("Scope tree structure: %s", describeScopeTree(scopeTree, 0))
+}
+
+// Helper function to get variable names from a map
+func getVariableNames(variables map[string]*Variable) []string {
+	names := make([]string, 0, len(variables))
+	for name := range variables {
+		names = append(names, name)
+	}
+	return names
+}
+
+// Helper function to find a variable in the scope tree and return its scope level
+func findVariableInScopeTree(node *ScopeNode, varName string) int {
+	if node == nil {
+		return -1
+	}
+
+	// Check if variable is in current scope
+	if _, exists := node.Variables[varName]; exists {
+		return node.Level
+	}
+
+	// Recursively check children
+	for _, child := range node.Children {
+		level := findVariableInScopeTree(child, varName)
+		if level != -1 {
+			return level
+		}
+	}
+
+	return -1
+}
+
+// Helper function to find the actual scope node that contains a variable
+func findScopeForVariable(node *ScopeNode, varName string) *ScopeNode {
+	if node == nil {
+		return nil
+	}
+
+	// Check if variable is in current scope
+	if _, exists := node.Variables[varName]; exists {
+		return node
+	}
+
+	// Recursively check children
+	for _, child := range node.Children {
+		scope := findScopeForVariable(child, varName)
+		if scope != nil {
+			return scope
+		}
+	}
+
+	return nil
+}
+
+// Helper function to describe scope tree structure for debugging
+func describeScopeTree(node *ScopeNode, depth int) string {
+	if node == nil {
+		return ""
+	}
+
+	indent := strings.Repeat("  ", depth)
+	result := "\n" + indent + "Level " + string(rune(node.Level+'0')) + ": "
+
+	varNames := make([]string, 0, len(node.Variables))
+	for name := range node.Variables {
+		varNames = append(varNames, name)
+	}
+	result += "[" + strings.Join(varNames, ", ") + "]"
+
+	for _, child := range node.Children {
+		result += describeScopeTree(child, depth+1)
+	}
+
+	return result
+}

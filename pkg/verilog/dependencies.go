@@ -1,6 +1,9 @@
 package verilog
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func (v *VerilogFile) AddDependency(childName string, parentNames ...string) {
 	if v.DependencyMap == nil {
@@ -65,4 +68,34 @@ func (v *VerilogFile) DumpDependencyGraph() string {
 		}
 	}
 	return result
+}
+
+func (s *ScopeNode) Dump(indent int) string {
+	if s == nil {
+		return ""
+	}
+
+	var sb strings.Builder
+	var begin string
+	if len(s.Children) != 0 || len(s.Variables) != 0 {
+		begin = "╭"
+	} else {
+		begin = "─"
+	}
+	sb.WriteString(
+		fmt.Sprintf("%s%sNode %d:\n", strings.Repeat("│", indent-1), begin, s.Level),
+	)
+	for _, variable := range s.Variables {
+		sb.WriteString(fmt.Sprintf("%s├Variable: %s, Type: %s, Width: %d, Unsigned: %t\n",
+			strings.Repeat("│", indent-1),
+			variable.Name, variable.Type, variable.Width, variable.Unsigned),
+		)
+	}
+	if len(s.Variables) > 0 {
+		sb.WriteString(fmt.Sprintf("%s╰End of variables\n", strings.Repeat("│", indent-1)))
+	}
+	for _, child := range s.Children {
+		sb.WriteString(child.Dump(indent + 1))
+	}
+	return sb.String()
 }
