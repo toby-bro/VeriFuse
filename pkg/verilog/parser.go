@@ -1641,13 +1641,14 @@ func ParseVariables(v *VerilogFile,
 			} else {
 				for scopeNode.Level > indentation {
 					scopeNode = scopeNode.Parent
-					// scopeNode.LastLine = lineNumber // Not used for the moment but might come in handy later
+					scopeNode.LastLine = lineNumber // Not used for the moment but might come in handy later
 				}
 				newScopeNode := &ScopeNode{
 					Level:     indentation,
 					Variables: make(map[string]*Variable),
 					Children:  []*ScopeNode{},
 					Parent:    scopeNode,
+					LastLine:  lineNumber,
 				}
 				scopeNode.Children = append(scopeNode.Children, newScopeNode)
 				scopeNode = newScopeNode
