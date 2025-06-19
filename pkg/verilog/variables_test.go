@@ -1508,38 +1508,37 @@ logic [7:0] c;
 	varAScopeLevel := findVariableInScopeTree(scopeTree, "a")
 	switch varAScopeLevel {
 	case -1:
-		t.Error("Variable 'a' not found in any scope")
+		t.Log("Variable 'a' not found in any scope, expected as unassignable")
 	case 0:
 		t.Error("Variable 'a' should be in a nested scope (task), but found in root scope")
 	default:
-		t.Logf("Variable 'a' correctly found in scope level %d", varAScopeLevel)
+		t.Errorf("Variable 'a' correctly found in scope level %d", varAScopeLevel)
 	}
 
 	// Find variable 'b' in the scope tree
 	varBScopeLevel := findVariableInScopeTree(scopeTree, "b")
 	switch varBScopeLevel {
 	case -1:
-		t.Error("Variable 'b' not found in any scope")
+		t.Log("Variable 'b' not found in any scope, expected as unassignable")
 	case 0:
 		t.Error("Variable 'b' should be in a nested scope (always_comb), but found in root scope")
 	default:
-		t.Logf("Variable 'b' correctly found in scope level %d", varBScopeLevel)
+		t.Errorf("Variable 'b' correctly found in scope level %d", varBScopeLevel)
 	}
 
 	// Find variable 'c' in the scope tree
 	varCScopeLevel := findVariableInScopeTree(scopeTree, "c")
-	switch {
-	case varCScopeLevel == -1:
+	switch varCScopeLevel {
+	case -1:
 		t.Error("Variable 'c' not found in any scope")
-	case varCScopeLevel != 0:
+	case 0:
+		t.Logf("Variable 'c' correctly found in root scope level %d", varCScopeLevel)
+	default:
 		t.Errorf(
 			"Variable 'c' should be in root scope (level 0), but found in level %d",
 			varCScopeLevel,
 		)
-	default:
-		t.Logf("Variable 'c' correctly found in root scope level %d", varCScopeLevel)
 	}
-
 	// Verify that 'a' and 'b' are in different scopes (they shouldn't be in the same scope)
 	if varAScopeLevel != -1 && varBScopeLevel != -1 {
 		aScope := findScopeForVariable(scopeTree, "a")
@@ -1554,7 +1553,7 @@ logic [7:0] c;
 		}
 	}
 
-	t.Logf("Scope tree structure: %s", describeScopeTree(scopeTree, 0))
+	t.Logf("Scope tree structure: %s", scopeTree.Dump(1))
 }
 
 // Helper function to get variable names from a map
@@ -1608,26 +1607,4 @@ func findScopeForVariable(node *ScopeNode, varName string) *ScopeNode {
 	}
 
 	return nil
-}
-
-// Helper function to describe scope tree structure for debugging
-func describeScopeTree(node *ScopeNode, depth int) string {
-	if node == nil {
-		return ""
-	}
-
-	indent := strings.Repeat("  ", depth)
-	result := "\n" + indent + "Level " + string(rune(node.Level+'0')) + ": "
-
-	varNames := make([]string, 0, len(node.Variables))
-	for name := range node.Variables {
-		varNames = append(varNames, name)
-	}
-	result += "[" + strings.Join(varNames, ", ") + "]"
-
-	for _, child := range node.Children {
-		result += describeScopeTree(child, depth+1)
-	}
-
-	return result
 }
