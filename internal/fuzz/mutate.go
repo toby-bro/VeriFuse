@@ -83,6 +83,7 @@ func injectSnippetInModule(
 		injection = generateSnippetInstantiation(snippet, portConnections)
 	} else {
 		injection = generateSnippetInjection(snippet, portConnections)
+		targetModule.Parameters = append(targetModule.Parameters, snippet.Module.Parameters...)
 	}
 
 	err = injectSnippetIntoModule(
