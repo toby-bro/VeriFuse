@@ -92,7 +92,7 @@ func (s *ScopeNode) Dump(indent int) string {
 		)
 	}
 	if len(s.Variables) > 0 {
-		sb.WriteString(fmt.Sprintf("%s╰End of variables\n", strings.Repeat("│", indent-1)))
+		sb.WriteString(strings.Repeat("│", indent-1) + "╰End of variables\n")
 	}
 	for _, child := range s.Children {
 		sb.WriteString(child.Dump(indent + 1))

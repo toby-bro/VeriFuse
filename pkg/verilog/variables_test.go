@@ -1506,31 +1506,37 @@ logic [7:0] c;
 
 	// Find variable 'a' in the scope tree
 	varAScopeLevel := findVariableInScopeTree(scopeTree, "a")
-	if varAScopeLevel == -1 {
+	switch varAScopeLevel {
+	case -1:
 		t.Error("Variable 'a' not found in any scope")
-	} else if varAScopeLevel == 0 {
+	case 0:
 		t.Error("Variable 'a' should be in a nested scope (task), but found in root scope")
-	} else {
+	default:
 		t.Logf("Variable 'a' correctly found in scope level %d", varAScopeLevel)
 	}
 
 	// Find variable 'b' in the scope tree
 	varBScopeLevel := findVariableInScopeTree(scopeTree, "b")
-	if varBScopeLevel == -1 {
+	switch varBScopeLevel {
+	case -1:
 		t.Error("Variable 'b' not found in any scope")
-	} else if varBScopeLevel == 0 {
+	case 0:
 		t.Error("Variable 'b' should be in a nested scope (always_comb), but found in root scope")
-	} else {
+	default:
 		t.Logf("Variable 'b' correctly found in scope level %d", varBScopeLevel)
 	}
 
 	// Find variable 'c' in the scope tree
 	varCScopeLevel := findVariableInScopeTree(scopeTree, "c")
-	if varCScopeLevel == -1 {
+	switch {
+	case varCScopeLevel == -1:
 		t.Error("Variable 'c' not found in any scope")
-	} else if varCScopeLevel != 0 {
-		t.Errorf("Variable 'c' should be in root scope (level 0), but found in level %d", varCScopeLevel)
-	} else {
+	case varCScopeLevel != 0:
+		t.Errorf(
+			"Variable 'c' should be in root scope (level 0), but found in level %d",
+			varCScopeLevel,
+		)
+	default:
 		t.Logf("Variable 'c' correctly found in root scope level %d", varCScopeLevel)
 	}
 
