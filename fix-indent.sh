@@ -99,6 +99,11 @@ BEGIN {
 }' "$input_file" > "${input_file}.tmp"
 
 # Replace original file
+modified=$(diff "$input_file" "${input_file}.tmp")
+if [ -z "$modified" ]; then
+    rm "${input_file}.tmp"
+    exit 0
+fi
 mv "${input_file}.tmp" "$input_file"
 
 echo "Indentation fixed in $input_file (backup saved as ${input_file}.bak)"
