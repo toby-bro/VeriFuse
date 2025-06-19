@@ -243,9 +243,9 @@ var (
 	alwaysFFRegex          = regexp.MustCompile(`(?s)always_ff\s*@\([^)]*\)\s*begin(.*?)end`)
 	alwaysRegex            = regexp.MustCompile(`(?s)always\s*@\([^)]*\)\s*begin(.*?)end`)
 	blockingAssignRegex    = regexp.MustCompile(`(?m)^\s*(\w+)\s*(?:\[[^\]]*\])?\s*(?:<=|=)`)
-	nonBlockingAssignRegex = regexp.MustCompile(
+	nonBlockingAssignRegex = regexp.MustCompile( // nolint: unused
 		`(?m)^\s*(\w+)\s*(?:\[[^\]]*\])?\s*<=`,
-	) // nolint: unused
+	)
 	moduleInstRegex = regexp.MustCompile(
 		`(?m)^\s*(\w+)\s+(\w+)\s*\(((?:[^()]|\([^)]*\))*)\)\s*;`,
 	)
@@ -1378,8 +1378,9 @@ func isValidVariableName(name string) bool {
 		(name[0] >= 'a' && name[0] <= 'z') ||
 		(name[0] >= 'A' && name[0] <= 'Z')) {
 		for _, char := range name {
-			if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') ||
-				(char >= '0' && char <= '9') || char == '_') {
+			if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') &&
+				(char < '0' || char > '9') &&
+				char != '_' {
 				return false
 			}
 		}
