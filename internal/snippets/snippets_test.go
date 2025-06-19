@@ -943,12 +943,4 @@ endmodule`
 	} else {
 		t.Error("Expected Class_Usage to be in target dependency map")
 	}
-
-	// Test writing snippet to file (similar to how it would be used in practice)
-	err = snippet.writeSnippetToFile()
-	if err != nil {
-		t.Logf("Note: writeSnippetToFile failed (expected in test environment): %v", err)
-		// This is expected to fail in test environment due to file system constraints
-		// but we can still verify the snippet generation logic worked
-	}
 }
