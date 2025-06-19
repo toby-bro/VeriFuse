@@ -405,7 +405,7 @@ func generateSnippetInjection(
 	snippetString = replacePortNames(snippetString, portConnections)
 	snippetString = utils.TrimEmptyLines(snippetString)
 	snippetString = fmt.Sprintf(
-		"// BEGIN: %s\n%s\n// END: %s\n",
+		"    // BEGIN: %s\n%s\n    // END: %s\n",
 		strings.TrimSpace(snippet.Name),
 		snippetString,
 		strings.TrimSpace(snippet.Name),
@@ -428,14 +428,27 @@ func generateSnippetInstantiation(
 	instantiation += strings.Join(connectionLines, ",\n")
 	instantiation += "\n);"
 
+	instantiationLines := strings.Split(instantiation, "\n")
+	for i := range instantiationLines {
+		instantiationLines[i] = "    " + instantiationLines[i]
+	}
+	instantiation = strings.Join(instantiationLines, "\n")
+
 	return instantiation
 }
 
-func insertTextAtLine(module *verilog.Module, text string, line int) error {
+func insertTextAtLine(module *verilog.Module, text string, line int, indentLevel int) error {
 	lines := strings.Split(module.Body, "\n")
 	if line < 0 || line > len(lines) {
 		return fmt.Errorf("line number %d is out of bounds for module %s", line, module.Name)
 	}
+
+	indentation := strings.Repeat("    ", indentLevel)
+	textLines := strings.Split(text, "\n")
+	for i, t := range textLines {
+		textLines[i] = indentation + t
+	}
+	text = strings.Join(textLines, "\n")
 
 	lines = append(lines[:line], append([]string{text}, lines[line:]...)...)
 	module.Body = strings.Join(lines, "\n")
@@ -476,7 +489,7 @@ func injectSnippetIntoModule(
 		for i := len(newDeclarations) - 1; i >= 0; i-- {
 			portToDeclare := newDeclarations[i]
 			declarationString := generateSignalDeclaration(portToDeclare, portToDeclare.Name)
-			err := insertTextAtLine(module, declarationString, insertionLine)
+			err := insertTextAtLine(module, declarationString, insertionLine, bestScope.Level)
 			if err != nil {
 				return fmt.Errorf("failed to insert signal declaration: %v", err)
 			}
@@ -496,7 +509,7 @@ func injectSnippetIntoModule(
 	module.Ports = append(module.Ports, newDeclarations...)
 
 	// Insert the snippet instantiation/injection
-	err := insertTextAtLine(module, instantiation, insertionLine)
+	err := insertTextAtLine(module, instantiation, insertionLine, bestScope.Level)
 	if err != nil {
 		return fmt.Errorf("failed to insert snippet: %v", err)
 	}
