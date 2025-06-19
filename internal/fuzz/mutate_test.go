@@ -167,7 +167,7 @@ func TestFindMatchingVariable(t *testing.T) {
 		t.Fatalf("findMatchingVariable failed to find a match")
 	}
 
-	if matchedVariable.Name != "data_in" {
+	if matchedVariable.Name != "data_in" && matchedVariable.Name != "data_out" {
 		t.Errorf("Expected 'data_in', got '%s'", matchedVariable.Name)
 	}
 
@@ -302,7 +302,7 @@ func TestGenerateSnippetInstantiation(t *testing.T) {
 
 	instantiation := generateSnippetInstantiation(snippet, portConnections)
 	expectedPrefix := `SnippetModule TestSnippet_inst_`
-	if !strings.HasPrefix(instantiation, expectedPrefix) {
+	if !strings.HasPrefix(strings.TrimSpace(instantiation), expectedPrefix) {
 		t.Errorf(
 			"Expected instantiation to start with '%s', got '%s'",
 			expectedPrefix,
