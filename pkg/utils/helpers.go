@@ -96,3 +96,13 @@ func TrimEmptyLines(input string) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+func Indent(input string) string {
+	lines := strings.Split(input, "\n")
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = "    " + line
+		}
+	}
+	return strings.Join(lines, "\n")
+}
