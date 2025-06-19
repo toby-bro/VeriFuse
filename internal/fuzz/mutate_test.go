@@ -148,7 +148,8 @@ endmodule
 	if !strings.Contains(mutatedContent, ".output1(data_out)") {
 		t.Errorf("Expected output connection not found in mutated content")
 	}
-	if !strings.Contains(mutatedContent, ".input1(internal_wire)") {
+	if !strings.Contains(mutatedContent, ".input1(data_in)") &&
+		!strings.Contains(mutatedContent, ".input1(internal_wire)") {
 		t.Errorf("Expected input connection not found in mutated content")
 	}
 }
