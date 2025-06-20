@@ -28,7 +28,7 @@ type CXXRTLSimulator struct {
 }
 
 // TestCXXRTLTool checks if Yosys and g++ are available.
-func TestCXXRTLTool() error {
+func TestCXXRTLTool(withSlang bool) error {
 	// Check for Yosys
 	cmdYosys := exec.Command("yosys", "-V") // -V prints version and exits 0
 	var stderrYosys bytes.Buffer
@@ -65,6 +65,19 @@ func TestCXXRTLTool() error {
 	}
 	if !strings.Contains(stderrGXX.String(), "g++") { // Basic check for g++ output
 		return fmt.Errorf("g++ --version did not return expected output: %s", stderrGXX.String())
+	}
+	if withSlang {
+		cmdSlang := exec.Command("yosys", "-m", "slang", "-q", "-p", "help")
+		var stderrSlang bytes.Buffer
+		cmdSlang.Stderr = &stderrSlang
+		cmdSlang.Stdout = &stderrSlang
+		if err := cmdSlang.Run(); err != nil {
+			return fmt.Errorf(
+				"slang check failed. Ensure Slang is installed and available in Yosys: %v - %s",
+				err,
+				stderrSlang.String(),
+			)
+		}
 	}
 	return nil
 }

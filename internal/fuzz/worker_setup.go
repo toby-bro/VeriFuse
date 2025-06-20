@@ -474,7 +474,7 @@ func (sch *Scheduler) setupSimulators(
 		// 5. CXXRTL with Slang
 		{
 			name:    "CXXRTL (Slang)",
-			simType: simulator.CXXRTL,
+			simType: simulator.CXXSLG,
 			setupFunc: func() (*SimInstance, error) {
 				return sch.setupCXXRTLSimulator(
 					ctx,
