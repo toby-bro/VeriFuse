@@ -31,7 +31,7 @@ type CXXRTLSimulator struct {
 func TestCXXRTLTool(withSlang bool) error {
 	// Check for Yosys
 	if synth.TestYosysTool() != nil {
-		return fmt.Errorf("Yosys tool check failed. Ensure Yosys is installed and in PATH")
+		return errors.New("Yosys tool check failed. Ensure Yosys is installed and in PATH")
 	}
 	// Check for g++
 	cmdGXX := exec.Command("g++", "--version")
