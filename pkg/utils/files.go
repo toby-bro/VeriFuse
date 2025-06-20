@@ -199,6 +199,6 @@ func ChangeExtension(path, newExt string) string {
 func AddSuffixToPath(path, suffix string) string {
 	ext := filepath.Ext(path)
 	base := strings.TrimSuffix(path, ext)
-	newPath := fmt.Sprintf("%s%s%s", base, suffix, ext)
+	newPath := fmt.Sprintf("%s-%s%s", base, suffix, ext)
 	return newPath
 }

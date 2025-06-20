@@ -115,9 +115,9 @@ func (sch *Scheduler) performWorkerAttempt(
 		)
 	}
 
-	for _, synthesizer := range availableSynthesizers {
+	for _, synthType := range availableSynthesizers {
 		// if sv2v in availableSimulators, transform svFile to Verilog
-		switch synthesizer {
+		switch synthType { //nolint:exhaustive
 		case synth.SV2V:
 			if err = synth.TransformSV2V(workerModule.Name, workerVerilogPath); err != nil {
 				if matches := synth.Sv2vUnexpectedRegex.FindStringSubmatch(err.Error()); len(
@@ -163,6 +163,13 @@ func (sch *Scheduler) performWorkerAttempt(
 			} else {
 				sch.debug.Debug("[%s] Yosys synthesis successful for module %s", workerID, workerModule.Name)
 			}
+		default:
+			sch.debug.Warn(
+				"[%s] Unsupported synthesizer type %s for module %s",
+				workerID,
+				synthType,
+				workerModule.Name,
+			)
 		}
 	}
 
@@ -529,17 +536,43 @@ func (sch *Scheduler) setupSimulators(
 		}
 	}
 
-	if slices.Contains(availableSynthesizers, synth.SV2V) {
-		sch.setupSV2VVariants(
-			ctx,
-			workerID,
-			baseWorkerDir,
-			workerModuleName,
-			svFileToCompile,
-			includeDir,
-			&compiledSims,
-			&setupErrors,
-		)
+	// Setup synthesizer variants
+	for _, synthType := range availableSynthesizers {
+		switch synthType { //nolint:exhaustive
+		case synth.SV2V:
+			sch.setupSynthVariants(
+				ctx,
+				workerID,
+				baseWorkerDir,
+				workerModuleName,
+				svFileToCompile,
+				includeDir,
+				"sv2v",
+				"v",
+				&compiledSims,
+				&setupErrors,
+			)
+		case synth.YOSYS:
+			sch.setupSynthVariants(
+				ctx,
+				workerID,
+				baseWorkerDir,
+				workerModuleName,
+				svFileToCompile,
+				includeDir,
+				"yosys",
+				"sv",
+				&compiledSims,
+				&setupErrors,
+			)
+		default:
+			sch.debug.Warn(
+				"[%s] Unsupported synthesizer type %s for module %s",
+				workerID,
+				synthType,
+				workerModuleName,
+			)
+		}
 	}
 
 	if len(compiledSims) == 0 {
@@ -554,126 +587,177 @@ func (sch *Scheduler) setupSimulators(
 	return compiledSims, nil
 }
 
-// setupSV2VVariants sets up sv2v simulator variants if a .v file exists
-func (sch *Scheduler) setupSV2VVariants(
+// setupSynthVariants sets up synthesizer variants based on file extension and suffix
+func (sch *Scheduler) setupSynthVariants(
 	ctx context.Context,
 	workerID, baseWorkerDir, workerModuleName string,
 	svFileToCompile *verilog.VerilogFile,
 	includeDir string,
+	synthName, fileExtension string,
 	compiledSims *[]*SimInstance,
 	setupErrors *[]string,
 ) {
-	vFileName := strings.TrimSuffix(svFileToCompile.Name, ".sv") + ".v"
-	vFilePath := filepath.Join(baseWorkerDir, vFileName)
+	synthFileName := utils.ChangeExtension(svFileToCompile.Name, fileExtension)
+	synthFileName = utils.AddSuffixToPath(synthFileName, synthName)
+	synthFilePath := filepath.Join(baseWorkerDir, synthFileName)
 
-	// Check if the .v file exists (sv2v transformation should have created it)
-	if _, err := os.Stat(vFilePath); err != nil {
+	// Check if the synthesized file exists
+	if !utils.FileExists(synthFilePath) {
 		sch.debug.Debug(
-			"[%s] No .v file found at %s, skipping sv2v simulator variants",
+			"[%s] No .%s file found at %s, skipping %s simulator variants",
 			workerID,
-			vFilePath,
+			fileExtension,
+			synthFilePath,
+			synthName,
 		)
 		return
 	}
 
 	sch.debug.Debug(
-		"[%s] Found .v file at %s, creating sv2v simulator variants",
+		"[%s] Found .%s file at %s, creating %s simulator variants",
 		workerID,
-		vFilePath,
+		fileExtension,
+		synthFilePath,
+		synthName,
 	)
 
-	// Parse the .v file to create a VerilogFile object
-	vFileContent, err := os.ReadFile(vFilePath)
-	if err != nil {
-		sch.debug.Warn("[%s] Failed to read .v file %s: %v", workerID, vFilePath, err)
+	var synthFile *verilog.VerilogFile
+	var err error
+
+	// For non-SystemVerilog files, parse and create VerilogFile object
+	synthFileContent, readErr := os.ReadFile(synthFilePath)
+	if readErr != nil {
+		sch.debug.Warn(
+			"[%s] Failed to read .%s file %s: %v",
+			workerID,
+			fileExtension,
+			synthFilePath,
+			readErr,
+		)
 		return
 	}
 
-	vFile, err := verilog.ParseVerilog(string(vFileContent), sch.verbose)
+	synthFile, err = verilog.ParseVerilog(string(synthFileContent), sch.verbose)
 	if err != nil {
-		sch.debug.Warn("[%s] Failed to parse .v file %s: %v", workerID, vFilePath, err)
+		sch.debug.Warn(
+			"[%s] Failed to parse .%s file %s: %v",
+			workerID,
+			fileExtension,
+			synthFilePath,
+			err,
+		)
 		return
 	}
-	vFile.Name = vFileName
+	synthFile.Name = synthFileName
 
-	// Randomly choose one sv2v variant to setup
-	sv2vVariants := []struct {
+	// Define simulator variants for the synthesizer
+	synthVariants := []struct {
 		name      string
 		setupFunc func() (*SimInstance, error)
 	}{
 		{
-			name: "IVerilog sv2v",
+			name: "IVerilog " + synthName,
 			setupFunc: func() (*SimInstance, error) {
+				config := simulator.Config{
+					Name:      "IVerilog " + synthName,
+					WorkDir:   "iverilog_" + synthName,
+					Prefix:    "iv_" + synthName,
+					ErrorName: "iverilog_" + synthName,
+				}
 				return sch.setupIVerilogSimulator(
 					ctx,
 					workerID,
 					baseWorkerDir,
-					simulator.CommonConfigs.IVerilogSV2V,
+					config,
 				)
 			},
 		},
 		{
-			name: "Verilator O0 sv2v",
+			name: "Verilator O0 " + synthName,
 			setupFunc: func() (*SimInstance, error) {
+				config := simulator.Config{
+					Name:      "Verilator O0 " + synthName,
+					WorkDir:   "verilator_o0_" + synthName,
+					Prefix:    "vl_o0_" + synthName,
+					ErrorName: "verilator_o0_" + synthName,
+				}
 				return sch.setupVerilatorSimulator(
 					ctx,
 					workerID,
 					baseWorkerDir,
 					workerModuleName,
-					vFile,
+					synthFile,
 					false,
-					simulator.CommonConfigs.VerilatorO0SV2V,
+					config,
 				)
 			},
 		},
 		{
-			name: "Verilator O3 sv2v",
+			name: "Verilator O3 " + synthName,
 			setupFunc: func() (*SimInstance, error) {
+				config := simulator.Config{
+					Name:      "Verilator O3 " + synthName,
+					WorkDir:   "verilator_o3_" + synthName,
+					Prefix:    "vl_o3_" + synthName,
+					ErrorName: "verilator_o3_" + synthName,
+				}
 				return sch.setupVerilatorSimulator(
 					ctx,
 					workerID,
 					baseWorkerDir,
 					workerModuleName,
-					vFile,
+					synthFile,
 					true,
-					simulator.CommonConfigs.VerilatorO3SV2V,
+					config,
 				)
 			},
 		},
 		{
-			name: "CXXRTL sv2v",
+			name: "CXXRTL " + synthName,
 			setupFunc: func() (*SimInstance, error) {
+				config := simulator.Config{
+					Name:      "CXXRTL " + synthName,
+					WorkDir:   "cxxrtl_" + synthName,
+					Prefix:    "cx_" + synthName,
+					ErrorName: "cxxrtl_" + synthName,
+				}
 				return sch.setupCXXRTLSimulator(
 					ctx,
 					workerID,
 					baseWorkerDir,
 					workerModuleName,
-					vFile.Name,
+					synthFile.Name,
 					includeDir,
 					false,
-					simulator.CommonConfigs.CXXRTLSV2V,
+					config,
 				)
 			},
 		},
 		{
-			name: "CXXRTL Slang sv2v",
+			name: "CXXRTL Slang " + synthName,
 			setupFunc: func() (*SimInstance, error) {
+				config := simulator.Config{
+					Name:      "CXXRTL Slang " + synthName,
+					WorkDir:   "cxxrtl_slang_" + synthName,
+					Prefix:    "cxslg_" + synthName,
+					ErrorName: "cxxrtl_slang_" + synthName,
+				}
 				return sch.setupCXXRTLSimulator(
 					ctx,
 					workerID,
 					baseWorkerDir,
 					workerModuleName,
-					vFile.Name,
+					synthFile.Name,
 					includeDir,
 					true,
-					simulator.CommonConfigs.CXXRTLSlangSV2V,
+					config,
 				)
 			},
 		},
 	}
 
-	// Randomly select one sv2v variant
-	selectedVariant := sv2vVariants[rand.Intn(len(sv2vVariants))]
+	// Randomly select one synthesizer variant
+	selectedVariant := synthVariants[rand.Intn(len(synthVariants))]
 	if simInstance, err := selectedVariant.setupFunc(); err != nil {
 		*setupErrors = append(*setupErrors, err.Error())
 	} else {
