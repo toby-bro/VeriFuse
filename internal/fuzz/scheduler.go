@@ -123,11 +123,17 @@ func (sch *Scheduler) Setup() ([]simulator.Type, error) {
 		sch.debug.Debug("Verilator tool found.")
 		availableSimulators = append(availableSimulators, simulator.VERILATOR)
 	}
-	if err := simulator.TestCXXRTLTool(); err != nil {
+	if err := simulator.TestCXXRTLTool(false); err != nil {
 		sch.debug.Warn("cxxrtl tool check failed: %v", err)
 	} else {
 		sch.debug.Debug("CXXRTL tool found.")
 		availableSimulators = append(availableSimulators, simulator.CXXRTL)
+		if err := simulator.TestCXXRTLTool(true); err != nil {
+			sch.debug.Warn("cxxrtl tool check failed: %v", err)
+		} else {
+			sch.debug.Debug("Slang found.")
+			availableSimulators = append(availableSimulators, simulator.CXXSLG)
+		}
 	}
 	if err := simulator.TestSV2VTool(); err != nil {
 		sch.debug.Warn("sv2v tool check failed: %v", err)
