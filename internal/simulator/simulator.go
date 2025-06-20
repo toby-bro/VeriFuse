@@ -25,6 +25,29 @@ const (
 	MODELSIM
 )
 
+func (t Type) String() string {
+	switch t {
+	case VERILATOR:
+		return "Verilator"
+	case IVERILOG:
+		return "Iverilog"
+	case CXXRTL:
+		return "CXXRTL"
+	case CXXSLG:
+		return "CXXSLG"
+	case QUARTUS:
+		return "Quartus"
+	case XCELLIUM:
+		return "Xcilium"
+	case VCS:
+		return "VCS"
+	case MODELSIM:
+		return "Modelsim"
+	default:
+		return "Unknown Simulator"
+	}
+}
+
 // Simulator defines the interface for RTL simulators
 type Simulator interface {
 	// Compile compiles the simulator from source files with context for timeout

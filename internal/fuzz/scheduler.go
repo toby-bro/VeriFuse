@@ -111,13 +111,13 @@ func (sch *Scheduler) Setup() ([]simulator.Type, []synth.Type, error) {
 	}
 
 	availableSimulators := simulator.TestAvailableSimulators(sch.debug)
+	sch.debug.Info(
+		"Found %d available simulators: %v",
+		len(availableSimulators),
+		availableSimulators,
+	)
 
-	// Check available synthesizers
 	availableSynthesizers := synth.TestAvailableSynthesizers(sch.debug)
-	if err != nil {
-		sch.debug.Warn("Failed to test synthesizers: %v", err)
-		availableSynthesizers = []synth.Type{}
-	}
 	sch.debug.Info(
 		"Found %d available synthesizers: %v",
 		len(availableSynthesizers),
