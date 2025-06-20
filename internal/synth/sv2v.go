@@ -53,6 +53,7 @@ func TransformSV2V(
 	}
 
 	outPath := utils.ChangeExtension(srcPath, "v")
+	outPath = utils.AddSuffixToPath(outPath, "sv2v")
 	// Run sv2v with context for timeout
 	cmd := exec.Command(
 		"sv2v",

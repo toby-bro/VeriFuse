@@ -84,7 +84,7 @@ func YosysSynth(
 		}
 	}
 
-	outputPath := utils.AddSuffixToPath(srcPath, "-yosys")
+	outputPath := utils.AddSuffixToPath(srcPath, "yosys")
 
 	// Try synthesis with current settings first
 	err := attemptYosysSynth(moduleName, srcPath, outputPath, options)
@@ -140,11 +140,11 @@ func attemptYosysSynth(
 	// Write output in requested format
 	switch options.OutputFormat {
 	case SystemVerilog:
-		yosysScript += fmt.Sprintf("; write_verilog -sv -noattr %s", outputPath)
+		yosysScript += "; write_verilog -sv -noattr " + outputPath
 	case Verilog:
 		fallthrough
 	default: // "verilog"
-		yosysScript += fmt.Sprintf("; write_verilog -noattr %s", outputPath)
+		yosysScript += "; write_verilog -noattr " + outputPath
 	}
 
 	// Execute Yosys command
