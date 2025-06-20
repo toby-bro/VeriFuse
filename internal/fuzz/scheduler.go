@@ -12,6 +12,7 @@ import (
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
 	"github.com/toby-bro/pfuzz/internal/snippets"
+	"github.com/toby-bro/pfuzz/internal/synth"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
@@ -135,7 +136,7 @@ func (sch *Scheduler) Setup() ([]simulator.Type, error) {
 			availableSimulators = append(availableSimulators, simulator.CXXSLG)
 		}
 	}
-	if err := simulator.TestSV2VTool(); err != nil {
+	if err := synth.TestSV2VTool(); err != nil {
 		sch.debug.Warn("sv2v tool check failed: %v", err)
 	} else {
 		sch.debug.Debug("SV2V tool found.")

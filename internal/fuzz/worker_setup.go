@@ -14,6 +14,7 @@ import (
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
 	"github.com/toby-bro/pfuzz/internal/snippets"
+	"github.com/toby-bro/pfuzz/internal/synth"
 	"github.com/toby-bro/pfuzz/pkg/testgen"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
@@ -115,8 +116,8 @@ func (sch *Scheduler) performWorkerAttempt(
 
 	// if sv2v in availableSimulators, transform svFile to Verilog
 	if slices.Contains(availableSimulators, simulator.SV2V) {
-		if err = simulator.TransformSV2V(workerModule.Name, workerVerilogPath); err != nil {
-			if matches := simulator.Sv2vUnexpectedRegex.FindStringSubmatch(err.Error()); len(
+		if err = synth.TransformSV2V(workerModule.Name, workerVerilogPath); err != nil {
+			if matches := synth.Sv2vUnexpectedRegex.FindStringSubmatch(err.Error()); len(
 				matches,
 			) > 0 {
 				sch.debug.Info(
