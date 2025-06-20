@@ -6,9 +6,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
+)
+
+var (
+	sv2vUnexpectedString = `\bParse error: unexpected token '(\w+)'\b`
+	Sv2vUnexpectedRegex  = regexp.MustCompile(sv2vUnexpectedString)
 )
 
 // TestSV2VTool checks if sv2v is available.
