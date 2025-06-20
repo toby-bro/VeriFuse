@@ -68,7 +68,6 @@ const (
 func YosysSynth(
 	moduleName string,
 	srcPath string,
-	outputPath string,
 	options *YosysSynthOptions,
 ) error {
 	// Check if source file exists and is readable
@@ -84,6 +83,8 @@ func YosysSynth(
 			OutputFormat: SystemVerilog,
 		}
 	}
+
+	outputPath := utils.AddSuffixToPath(srcPath, "-yosys")
 
 	// Try synthesis with current settings first
 	err := attemptYosysSynth(moduleName, srcPath, outputPath, options)

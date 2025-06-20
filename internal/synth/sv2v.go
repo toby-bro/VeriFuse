@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
@@ -54,14 +52,7 @@ func TransformSV2V(
 		return fmt.Errorf("source file is empty: %s", srcPath)
 	}
 
-	// Set the output path
-	newFileName := filepath.Base(srcPath)
-	// Replace .sv extension with .v if present
-	if strings.HasSuffix(newFileName, ".sv") {
-		newFileName = strings.TrimSuffix(newFileName, ".sv") + ".v"
-	}
-	outPath := filepath.Join(filepath.Dir(srcPath), newFileName)
-
+	outPath := utils.ChangeExtension(srcPath, "v")
 	// Run sv2v with context for timeout
 	cmd := exec.Command(
 		"sv2v",

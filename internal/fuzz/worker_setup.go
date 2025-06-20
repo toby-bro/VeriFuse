@@ -115,33 +115,54 @@ func (sch *Scheduler) performWorkerAttempt(
 		)
 	}
 
-	// if sv2v in availableSimulators, transform svFile to Verilog
-	if slices.Contains(availableSynthesizers, synth.SV2V) {
-		if err = synth.TransformSV2V(workerModule.Name, workerVerilogPath); err != nil {
-			if matches := synth.Sv2vUnexpectedRegex.FindStringSubmatch(err.Error()); len(
-				matches,
-			) > 0 {
-				sch.debug.Info(
-					"[%s] sv2v transformation failed for module %s. Unsupported token: `%s`.",
-					workerID,
-					workerModule.Name,
-					matches[1],
+	for _, synthesizer := range availableSynthesizers {
+		// if sv2v in availableSimulators, transform svFile to Verilog
+		switch synthesizer {
+		case synth.SV2V:
+			if err = synth.TransformSV2V(workerModule.Name, workerVerilogPath); err != nil {
+				if matches := synth.Sv2vUnexpectedRegex.FindStringSubmatch(err.Error()); len(
+					matches,
+				) > 0 {
+					sch.debug.Info(
+						"[%s] sv2v transformation failed for module %s. Unsupported token: `%s`.",
+						workerID,
+						workerModule.Name,
+						matches[1],
+					)
+				} else {
+					sch.debug.Warn(
+						"[%s] Failed to transform SystemVerilog to Verilog for module %s: %v",
+						workerID,
+						workerModule.Name,
+						err,
+					)
+				}
+				// delete sv2v from availableSimulators
+				availableSynthesizers = slices.DeleteFunc(
+					slices.Clone(availableSynthesizers),
+					func(t synth.Type) bool {
+						return t == synth.SV2V
+					},
 				)
-			} else {
+			}
+		case synth.YOSYS:
+			if err := synth.YosysSynth(workerModule.Name, workerVerilogPath, nil); err != nil {
 				sch.debug.Warn(
-					"[%s] Failed to transform SystemVerilog to Verilog for module %s: %v",
+					"[%s] Yosys synthesis failed for module %s: %v",
 					workerID,
 					workerModule.Name,
 					err,
 				)
+				// delete yosys from availableSynthesizers
+				availableSynthesizers = slices.DeleteFunc(
+					slices.Clone(availableSynthesizers),
+					func(t synth.Type) bool {
+						return t == synth.YOSYS
+					},
+				)
+			} else {
+				sch.debug.Debug("[%s] Yosys synthesis successful for module %s", workerID, workerModule.Name)
 			}
-			// delete sv2v from availableSimulators
-			availableSynthesizers = slices.DeleteFunc(
-				slices.Clone(availableSynthesizers),
-				func(t synth.Type) bool {
-					return t == synth.SV2V
-				},
-			)
 		}
 	}
 

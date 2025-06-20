@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -183,4 +184,21 @@ func GetRootDir() (string, error) {
 		}
 		dir = parentDir
 	}
+}
+
+// ChangeExtension changes the file extension of the given path to newExt
+// DO NOT PUT A DOT IN newExt
+func ChangeExtension(path, newExt string) string {
+	ext := filepath.Ext(path)
+	base := strings.TrimSuffix(path, ext)
+	newPath := fmt.Sprintf("%s.%s", base, newExt)
+	return newPath
+}
+
+// AddSuffixToPath adds a suffix before the file extension in the given path
+func AddSuffixToPath(path, suffix string) string {
+	ext := filepath.Ext(path)
+	base := strings.TrimSuffix(path, ext)
+	newPath := fmt.Sprintf("%s%s%s", base, suffix, ext)
+	return newPath
 }
