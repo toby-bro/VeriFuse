@@ -116,11 +116,14 @@ func (sch *Scheduler) performWorkerAttempt(
 	// if sv2v in availableSimulators, transform svFile to Verilog
 	if slices.Contains(availableSimulators, simulator.SV2V) {
 		if err = simulator.TransformSV2V(workerModule.Name, workerVerilogPath); err != nil {
-			if strings.Contains(err.Error(), "Parse error: unexpected token 'new' (KW_new)") {
+			if matches := simulator.Sv2vUnexpectedRegex.FindStringSubmatch(err.Error()); len(
+				matches,
+			) > 0 {
 				sch.debug.Info(
-					"[%s] sv2v transformation failed for module %s. Unsupported `new` keyword in SystemVerilog.",
+					"[%s] sv2v transformation failed for module %s. Unsupported token: `%s`.",
 					workerID,
 					workerModule.Name,
+					matches[1],
 				)
 			} else {
 				sch.debug.Warn(
