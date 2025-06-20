@@ -370,7 +370,6 @@ func (sch *Scheduler) setupCXXRTLSimulator(
 		verilogFileName,
 		workerModuleName,
 		includeDir,
-		false, // optimized
 		useSlang,
 		sch.verbose,
 	)

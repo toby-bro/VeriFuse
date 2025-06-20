@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/toby-bro/pfuzz/internal/synth"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
@@ -22,35 +23,16 @@ type CXXRTLSimulator struct {
 	originalVerilogFileBaseName string // e.g., my_module.v
 	moduleName                  string // Top module name, e.g., my_module
 	cxxrtlIncludeDir            string // Path to CXXRTL runtime include directory
-	optimized                   bool
-	useSlang                    bool // Whether to use Slang with Yosys
+	useSlang                    bool   // Whether to use Slang with Yosys
 	logger                      *utils.DebugLogger
 }
 
 // TestCXXRTLTool checks if Yosys and g++ are available.
 func TestCXXRTLTool(withSlang bool) error {
 	// Check for Yosys
-	cmdYosys := exec.Command("yosys", "-V") // -V prints version and exits 0
-	var stderrYosys bytes.Buffer
-	cmdYosys.Stderr = &stderrYosys
-	cmdYosys.Stdout = &stderrYosys // Some versions print to stdout
-	if err := cmdYosys.Run(); err != nil {
-		// Try `yosys -h` as a fallback for older versions or different behavior
-		cmdYosysHelp := exec.Command("yosys", "-h")
-		var stderrYosysHelp bytes.Buffer
-		cmdYosysHelp.Stderr = &stderrYosysHelp
-		cmdYosysHelp.Stdout = &stderrYosysHelp
-		if errHelp := cmdYosysHelp.Run(); errHelp != nil ||
-			!strings.Contains(stderrYosysHelp.String(), "Usage: yosys") {
-			return fmt.Errorf(
-				"yosys basic check failed. Ensure Yosys is installed and in PATH: %v - %s / %s",
-				err,
-				stderrYosys.String(),
-				stderrYosysHelp.String(),
-			)
-		}
+	if synth.TestYosysTool() != nil {
+		return fmt.Errorf("Yosys tool check failed. Ensure Yosys is installed and in PATH")
 	}
-
 	// Check for g++
 	cmdGXX := exec.Command("g++", "--version")
 	var stderrGXX bytes.Buffer
@@ -67,15 +49,10 @@ func TestCXXRTLTool(withSlang bool) error {
 		return fmt.Errorf("g++ --version did not return expected output: %s", stderrGXX.String())
 	}
 	if withSlang {
-		cmdSlang := exec.Command("yosys", "-m", "slang", "-q", "-p", "help")
-		var stderrSlang bytes.Buffer
-		cmdSlang.Stderr = &stderrSlang
-		cmdSlang.Stdout = &stderrSlang
-		if err := cmdSlang.Run(); err != nil {
+		if err := synth.TestSlangPlugin(); err != nil {
 			return fmt.Errorf(
-				"slang check failed. Ensure Slang is installed and available in Yosys: %v - %s",
+				"Slang plugin check failed. Ensure Slang is installed and available in Yosys: %v",
 				err,
-				stderrSlang.String(),
 			)
 		}
 	}
@@ -94,7 +71,6 @@ func NewCXXRTLSimulator(
 	originalVerilogFileBaseName string,
 	moduleName string,
 	cxxrtlIncludeDir string,
-	optimized bool,
 	useSlang bool, // Added useSlang parameter
 	verbose int,
 ) *CXXRTLSimulator {
@@ -104,7 +80,6 @@ func NewCXXRTLSimulator(
 		originalVerilogFileBaseName: originalVerilogFileBaseName,
 		moduleName:                  moduleName,
 		cxxrtlIncludeDir:            cxxrtlIncludeDir,
-		optimized:                   optimized,
 		useSlang:                    useSlang, // Store useSlang
 		logger:                      utils.NewDebugLogger(verbose),
 	}
@@ -195,10 +170,6 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 		yosysScript = fmt.Sprintf("read_verilog -sv %s; prep -top %s", yosysInputFile, sim.moduleName)
 	}
 
-	if sim.optimized {
-		yosysScript += "; proc; opt; fsm; opt; memory; opt; techmap; opt"
-	}
-
 	// Add combinational loop detection and breaking
 	yosysScript += "; write_cxxrtl " + yosysOutputCCFile
 
@@ -240,11 +211,7 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	sim.execPath = filepath.Join(sim.workDir, executableName)
 
 	gxxArgs := []string{"-std=c++17"}
-	if sim.optimized {
-		gxxArgs = append(gxxArgs, "-O2")
-	} else {
-		gxxArgs = append(gxxArgs, "-O0")
-	}
+	gxxArgs = append(gxxArgs, "-O0")
 	gxxArgs = append(gxxArgs, "-Wall", "-Wextra") // Common warning flags
 	gxxArgs = append(gxxArgs, "-I"+sim.cxxrtlIncludeDir)
 	gxxArgs = append(gxxArgs, "-I.") // For <moduleName>.h in workDir
