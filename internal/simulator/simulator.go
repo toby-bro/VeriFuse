@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
 type Type int
@@ -17,12 +19,8 @@ const (
 	IVERILOG
 	CXXRTL
 	CXXSLG
-	SV2V
-	VIVADO
 	QUARTUS
-	YOSYS
 	XCELLIUM
-	GENUS
 	VCS
 	MODELSIM
 )
@@ -141,4 +139,34 @@ func ReadOutputFile(path string) (string, error) {
 		return "", fmt.Errorf("failed to read file after retries: %v", err)
 	}
 	return "", errors.New("file exists but is empty")
+}
+
+func TestAvailableSimulators(debugger *utils.DebugLogger) []Type {
+	availableSimulators := []Type{}
+
+	if err := TestIVerilogTool(); err != nil {
+		debugger.Warn("iverilog tool check failed: %v", err)
+	} else {
+		debugger.Debug("IVerilog tool found.")
+		availableSimulators = append(availableSimulators, IVERILOG)
+	}
+	if err := TestVerilatorTool(); err != nil {
+		debugger.Warn("verilator tool check failed: %v", err)
+	} else {
+		debugger.Debug("Verilator tool found.")
+		availableSimulators = append(availableSimulators, VERILATOR)
+	}
+	if err := TestCXXRTLTool(false); err != nil {
+		debugger.Warn("cxxrtl tool check failed: %v", err)
+	} else {
+		debugger.Debug("CXXRTL tool found.")
+		availableSimulators = append(availableSimulators, CXXRTL)
+		if err := TestCXXRTLTool(true); err != nil {
+			debugger.Warn("cxxrtl tool check failed: %v", err)
+		} else {
+			debugger.Debug("Slang found.")
+			availableSimulators = append(availableSimulators, CXXSLG)
+		}
+	}
+	return availableSimulators
 }
