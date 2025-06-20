@@ -339,7 +339,7 @@ func (sch *Scheduler) setupIVerilogSimulator(
 		}
 	}
 
-	ivsim := simulator.NewIVerilogSimulator(workDir, sch.verbose)
+	ivsim := simulator.NewIVerilogSimulator(workDir, sch.svFile.Name, sch.verbose)
 
 	if err := sch.compileSimulatorWithTimeout(ctx, workerID, ivsim, config); err != nil {
 		return nil, err

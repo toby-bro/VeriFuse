@@ -14,9 +14,10 @@ import (
 
 // IVerilogSimulator represents the IVerilog simulator
 type IVerilogSimulator struct {
-	execPath string
-	workDir  string // This will be the dedicated subdirectory, e.g., baseWorkDir/iverilog_run
-	debug    *utils.DebugLogger
+	execPath   string
+	workDir    string // This will be the dedicated subdirectory, e.g., baseWorkDir/iverilog_run
+	debug      *utils.DebugLogger
+	svFileName string // Name of the SystemVerilog file to compile
 }
 
 func TestIVerilogTool() error {
@@ -40,11 +41,12 @@ func TestIVerilogTool() error {
 }
 
 // NewIVerilogSimulator creates a new IVerilog simulator instance
-func NewIVerilogSimulator(actualWorkDir string, verbose int) *IVerilogSimulator {
+func NewIVerilogSimulator(actualWorkDir string, svFileName string, verbose int) *IVerilogSimulator {
 	return &IVerilogSimulator{
-		execPath: filepath.Join(actualWorkDir, "module_sim_iv"),
-		workDir:  actualWorkDir,
-		debug:    utils.NewDebugLogger(verbose),
+		execPath:   filepath.Join(actualWorkDir, "module_sim_iv"),
+		workDir:    actualWorkDir,
+		debug:      utils.NewDebugLogger(verbose),
+		svFileName: svFileName,
 	}
 }
 
@@ -78,6 +80,7 @@ func (sim *IVerilogSimulator) CompileSpecific(ctx context.Context) error {
 		"-g2012",
 		"-gsupported-assertions",
 		sourceTestbenchFile,
+		"../" + sim.svFileName, // This is the main module file
 	}
 	sim.debug.Debug("Running iverilog command: iverilog %s in directory %s",
 		strings.Join(cmdArgs, " "), sim.workDir)

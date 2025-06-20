@@ -418,17 +418,13 @@ func (g *Generator) GenerateSVTestbench(outputDir string) error {
 	clockToggleStr := g.generateSVClockToggling(clockPorts)
 	outputWritesStr, outputCount := g.generateSVOutputWrites()
 
-	fileNameWithoutExtension := strings.TrimSuffix(g.fileName, filepath.Ext(g.fileName))
-
 	for _, extension := range []string{".sv", ".v"} {
 		// Include the mocked module file - assumes the verilog file is in the same dir
 		// The path might need adjustment depending on where the worker copies the verilog file relative to testbench.sv
 		// Assuming they are in the same directory (outputDir) for now.
-		includeDirective := fmt.Sprintf("`include \"../%s%s\"", fileNameWithoutExtension, extension)
 
 		// Apply the generated code to the template
 		testbench := fmt.Sprintf(svTestbenchTemplate,
-			includeDirective,
 			declarations,
 			moduleInst,
 			inputCount,
