@@ -54,6 +54,7 @@ func (sch *Scheduler) performWorkerAttempt(
 	workerModule *verilog.Module,
 	strategy Strategy,
 	availableSimulators []simulator.Type,
+	availableSynthesizers []synth.Type,
 ) (setupSuccessful bool, err error) {
 	workerDir, cleanupFunc, setupErr := sch.setupWorker(workerID)
 	if setupErr != nil {
@@ -115,7 +116,7 @@ func (sch *Scheduler) performWorkerAttempt(
 	}
 
 	// if sv2v in availableSimulators, transform svFile to Verilog
-	if slices.Contains(availableSimulators, simulator.SV2V) {
+	if slices.Contains(availableSynthesizers, synth.SV2V) {
 		if err = synth.TransformSV2V(workerModule.Name, workerVerilogPath); err != nil {
 			if matches := synth.Sv2vUnexpectedRegex.FindStringSubmatch(err.Error()); len(
 				matches,
@@ -135,10 +136,10 @@ func (sch *Scheduler) performWorkerAttempt(
 				)
 			}
 			// delete sv2v from availableSimulators
-			availableSimulators = slices.DeleteFunc(
-				slices.Clone(availableSimulators),
-				func(t simulator.Type) bool {
-					return t == simulator.SV2V
+			availableSynthesizers = slices.DeleteFunc(
+				slices.Clone(availableSynthesizers),
+				func(t synth.Type) bool {
+					return t == synth.SV2V
 				},
 			)
 		}
@@ -187,6 +188,7 @@ func (sch *Scheduler) performWorkerAttempt(
 		currentWorkerModule.Name,
 		svFile,
 		availableSimulators,
+		availableSynthesizers,
 	) // Pass current svFile
 	if err != nil {
 		// If setupSimulators returns an error, it means no simulators could be compiled.
@@ -393,6 +395,7 @@ func (sch *Scheduler) setupSimulators(
 	workerID, baseWorkerDir, workerModuleName string,
 	svFileToCompile *verilog.VerilogFile,
 	availableSimulators []simulator.Type,
+	availableSynthesizers []synth.Type,
 ) ([]*SimInstance, error) {
 	sch.debug.Debug(
 		"[%s] Setting up simulators for module %s in %s",
@@ -505,7 +508,7 @@ func (sch *Scheduler) setupSimulators(
 		}
 	}
 
-	if slices.Contains(availableSimulators, simulator.SV2V) {
+	if slices.Contains(availableSynthesizers, synth.SV2V) {
 		sch.setupSV2VVariants(
 			ctx,
 			workerID,
@@ -663,6 +666,7 @@ func (sch *Scheduler) worker(
 	moduleToTest *verilog.Module,
 	workerNum int,
 	availableSimulators []simulator.Type,
+	availableSynthesizers []synth.Type,
 ) error {
 	var lastSetupError error
 	workerID := fmt.Sprintf("worker_%d_%d", workerNum, time.Now().UnixNano())
@@ -698,6 +702,7 @@ func (sch *Scheduler) worker(
 			moduleToTest,
 			strategy,
 			availableSimulators,
+			availableSynthesizers,
 		)
 
 		if setupOk {

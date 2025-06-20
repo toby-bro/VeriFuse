@@ -195,13 +195,13 @@ func main() {
 		config.keepFiles,
 	)
 
-	availableSimulators, err := scheduler.Setup()
+	availableSimulators, availableSynthesizers, err := scheduler.Setup()
 	if err != nil {
 		logger.Fatal("Setup failed: ", err)
 	}
 
 	// Run operation
-	if err := scheduler.Run(config.numTests, availableSimulators); err != nil {
+	if err := scheduler.Run(config.numTests, availableSimulators, availableSynthesizers); err != nil {
 		os.Exit(1)
 	}
 }
