@@ -1608,3 +1608,459 @@ func findScopeForVariable(node *ScopeNode, varName string) *ScopeNode {
 
 	return nil
 }
+
+func TestRemoveTaskClassScopeNodes(t *testing.T) {
+	tests := []struct {
+		name             string
+		content          string
+		expectedVarCount int
+		expectedScopes   []string // Variables that should remain in scopes
+		excludedScopes   []string // Variables that should be excluded from scopes
+	}{
+		{
+			name: "task scope should be removed",
+			content: `
+				logic [7:0] global_var;
+				
+				task my_task;
+					logic [7:0] task_var;
+					logic internal_signal;
+				endtask
+				
+				logic [7:0] another_global;
+			`,
+			expectedVarCount: 4, // All variables should be in variablesMap
+			expectedScopes: []string{
+				"global_var",
+				"another_global",
+			}, // Only these should be in scope tree
+			excludedScopes: []string{
+				"task_var",
+				"internal_signal",
+			}, // These should be excluded from scope tree
+		},
+		{
+			name: "class scope should be removed",
+			content: `
+				logic [7:0] module_var;
+				
+				class MyClass;
+					logic [7:0] class_var;
+					integer count;
+				endclass
+				
+				logic [7:0] final_var;
+			`,
+			expectedVarCount: 4, // All variables should be in variablesMap
+			expectedScopes: []string{
+				"module_var",
+				"final_var",
+			}, // Only these should be in scope tree
+			excludedScopes: []string{
+				"class_var",
+				"count",
+			}, // These should be excluded from scope tree
+		},
+		{
+			name: "mixed task and class scopes should be removed",
+			content: `
+				logic [7:0] root_var;
+				
+				task test_task;
+					logic [7:0] task_local;
+				endtask
+				
+				logic [7:0] middle_var;
+				
+				class TestClass;
+					logic [7:0] class_member;
+					real value;
+				endclass
+				
+				logic [7:0] end_var;
+			`,
+			expectedVarCount: 6, // All variables should be in variablesMap
+			expectedScopes: []string{
+				"root_var",
+				"middle_var",
+				"end_var",
+			}, // Only these should be in scope tree
+			excludedScopes: []string{
+				"task_local",
+				"class_member",
+				"value",
+			}, // These should be excluded from scope tree
+		},
+		{
+			name: "nested task scope should be removed",
+			content: `
+				logic [7:0] outer_var;
+				
+				always_comb begin
+					logic [7:0] always_var;
+					
+					task nested_task;
+						logic [7:0] nested_task_var;
+					endtask
+				end
+			`,
+			expectedVarCount: 3, // All variables should be in variablesMap
+			expectedScopes: []string{
+				"outer_var",
+				"always_var",
+			}, // These should remain in scope tree
+			excludedScopes: []string{
+				"nested_task_var",
+			}, // This should be excluded from scope tree
+		},
+		{
+			name: "no task or class scopes",
+			content: `
+				logic [7:0] var1;
+				
+				always_comb begin
+					logic [7:0] var2;
+				end
+				
+				logic [7:0] var3;
+			`,
+			expectedVarCount: 3,                                // All variables should be in variablesMap
+			expectedScopes:   []string{"var1", "var2", "var3"}, // All should remain in scope tree
+			excludedScopes:   []string{},                       // None should be excluded
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			variables, scopeTree, err := ParseVariables(nil, tt.content, nil)
+			if err != nil {
+				t.Fatalf("ParseVariables failed: %v", err)
+			}
+
+			// Check that all variables are in the variablesMap
+			if len(variables) != tt.expectedVarCount {
+				t.Errorf("Expected %d variables in variablesMap, got %d: %v",
+					tt.expectedVarCount, len(variables), getVariableNames(variables))
+			}
+
+			// Check that expected variables are in the scope tree
+			for _, varName := range tt.expectedScopes {
+				if findVariableInScopeTree(scopeTree, varName) == -1 {
+					t.Errorf("Variable '%s' should be in scope tree but was not found", varName)
+				}
+			}
+
+			// Check that excluded variables are NOT in the scope tree
+			for _, varName := range tt.excludedScopes {
+				if findVariableInScopeTree(scopeTree, varName) != -1 {
+					t.Errorf(
+						"Variable '%s' should be excluded from scope tree but was found",
+						varName,
+					)
+				}
+			}
+
+			// Verify that excluded variables are still in the variablesMap
+			for _, varName := range tt.excludedScopes {
+				if _, exists := variables[varName]; !exists {
+					t.Errorf("Variable '%s' should be in variablesMap but was not found", varName)
+				}
+			}
+		})
+	}
+}
+
+func TestTaskClassScopeDetection(t *testing.T) {
+	tests := []struct {
+		name            string
+		content         string
+		expectedBlocked map[string]bool
+	}{
+		{
+			name: "detect simple task scope",
+			content: `
+				task my_task;
+					logic [7:0] task_var;
+				endtask
+			`,
+			expectedBlocked: map[string]bool{
+				"task_var": true,
+			},
+		},
+		{
+			name: "detect simple class scope",
+			content: `
+				class MyClass;
+					logic [7:0] class_var;
+				endclass
+			`,
+			expectedBlocked: map[string]bool{
+				"class_var": true,
+			},
+		},
+		{
+			name: "detect multiple task/class scopes",
+			content: `
+				task task1;
+					logic var1;
+				endtask
+				
+				class Class1;
+					logic var2;
+				endclass
+				
+				task task2;
+					logic var3;
+				endtask
+			`,
+			expectedBlocked: map[string]bool{
+				"var1": true,
+				"var2": true,
+				"var3": true,
+			},
+		},
+		{
+			name: "detect nested task in class",
+			content: `
+				class OuterClass;
+					logic class_var;
+					
+					task inner_task;
+						logic task_var;
+					endtask
+				endclass
+			`,
+			expectedBlocked: map[string]bool{
+				"class_var": true,
+				"task_var":  true,
+			},
+		},
+		{
+			name: "ignore non-task/class scopes",
+			content: `
+				always_comb begin
+					logic always_var;
+				end
+				
+				function int my_func;
+					logic func_var;
+				endfunction
+			`,
+			expectedBlocked: map[string]bool{
+				"always_var": false,
+				"func_var":   false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			taskClassVars := detectTaskClassScopeVariables(tt.content)
+
+			for varName, shouldBeBlocked := range tt.expectedBlocked {
+				isBlocked := taskClassVars[varName]
+				if isBlocked != shouldBeBlocked {
+					t.Errorf("Variable '%s' blocking status = %v, expected %v",
+						varName, isBlocked, shouldBeBlocked)
+				}
+			}
+		})
+	}
+}
+
+func TestComplexTaskClassScopeRemoval(t *testing.T) {
+	// Test a complex case with mixed scopes
+	content := `
+		logic [7:0] global1;
+		
+		always_comb begin
+			logic [7:0] always_var;
+			
+			if (condition) begin
+				logic [7:0] if_var;
+			end
+		end
+		
+		task complex_task;
+			input logic [7:0] task_input;
+			logic [7:0] task_local1;
+			logic [7:0] task_local2;
+			
+			begin
+				logic [7:0] task_block_var;
+			end
+		endtask
+		
+		logic [7:0] global2;
+		
+		class ComplexClass;
+			logic [7:0] class_member1;
+			
+			function void class_func();
+				logic [7:0] func_local;
+			endfunction
+			
+			logic [7:0] class_member2;
+		endclass
+		
+		logic [7:0] global3;
+	`
+
+	variables, scopeTree, err := ParseVariables(nil, content, nil)
+	if err != nil {
+		t.Fatalf("ParseVariables failed: %v", err)
+	}
+
+	// All variables should be in variablesMap
+	expectedTotalVars := 12 // Count all variables in the content
+	if len(variables) != expectedTotalVars {
+		t.Errorf("Expected %d variables in variablesMap, got %d: %v",
+			expectedTotalVars, len(variables), getVariableNames(variables))
+	}
+
+	// Variables that should remain in scope tree (not in task/class)
+	expectedInScope := []string{
+		"global1", "global2", "global3",
+		"always_var", "if_var",
+	}
+
+	// Variables that should be excluded from scope tree (in task/class)
+	expectedExcluded := []string{
+		"task_input", "task_local1", "task_local2", "task_block_var",
+		"class_member1", "class_member2", "func_local",
+	}
+
+	// Check variables in scope tree
+	for _, varName := range expectedInScope {
+		if findVariableInScopeTree(scopeTree, varName) == -1 {
+			t.Errorf("Variable '%s' should be in scope tree but was not found", varName)
+		}
+	}
+
+	// Check variables excluded from scope tree
+	for _, varName := range expectedExcluded {
+		if findVariableInScopeTree(scopeTree, varName) != -1 {
+			t.Errorf("Variable '%s' should be excluded from scope tree but was found", varName)
+		}
+	}
+
+	// Verify all variables are still in variablesMap
+	allExpectedVars := append(expectedInScope, expectedExcluded...)
+	for _, varName := range allExpectedVars {
+		if _, exists := variables[varName]; !exists {
+			t.Errorf("Variable '%s' should be in variablesMap but was not found", varName)
+		}
+	}
+
+	t.Logf("Successfully processed complex mixed scopes")
+	t.Logf("Variables in scope tree: %v", expectedInScope)
+	t.Logf("Variables excluded from scope tree: %v", expectedExcluded)
+}
+
+func TestTaskClassScopeEdgeCases(t *testing.T) {
+	tests := []struct {
+		name             string
+		content          string
+		expectedInScope  []string
+		expectedExcluded []string
+	}{
+		{
+			name: "task keyword in comment should not affect parsing",
+			content: `
+				logic var1;
+				// This is a comment about task functionality
+				logic var2;
+				/* Another comment mentioning class design */
+				logic var3;
+			`,
+			expectedInScope:  []string{"var1", "var2", "var3"},
+			expectedExcluded: []string{},
+		},
+		{
+			name: "task and class at same indentation level",
+			content: `
+				logic global_var;
+				
+task task1;
+	logic task_var1;
+endtask
+
+class Class1;
+	logic class_var1;
+endclass
+
+				logic another_global;
+			`,
+			expectedInScope:  []string{"global_var", "another_global"},
+			expectedExcluded: []string{"task_var1", "class_var1"},
+		},
+		{
+			name: "empty task and class",
+			content: `
+				logic before_var;
+				
+				task empty_task;
+				endtask
+				
+				class EmptyClass;
+				endclass
+				
+				logic after_var;
+			`,
+			expectedInScope:  []string{"before_var", "after_var"},
+			expectedExcluded: []string{},
+		},
+		{
+			name: "task and class with only non-variable content",
+			content: `
+				logic setup_var;
+				
+				task display_task;
+					$display("Hello World");
+				endtask
+				
+				class UtilClass;
+					parameter WIDTH = 8;
+				endclass
+				
+				logic cleanup_var;
+			`,
+			expectedInScope:  []string{"setup_var", "cleanup_var"},
+			expectedExcluded: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			variables, scopeTree, err := ParseVariables(nil, tt.content, nil)
+			if err != nil {
+				t.Fatalf("ParseVariables failed: %v", err)
+			}
+
+			// Check variables in scope tree
+			for _, varName := range tt.expectedInScope {
+				if findVariableInScopeTree(scopeTree, varName) == -1 {
+					t.Errorf("Variable '%s' should be in scope tree but was not found", varName)
+				}
+			}
+
+			// Check variables excluded from scope tree
+			for _, varName := range tt.expectedExcluded {
+				if findVariableInScopeTree(scopeTree, varName) != -1 {
+					t.Errorf(
+						"Variable '%s' should be excluded from scope tree but was found",
+						varName,
+					)
+				}
+			}
+
+			// Verify all variables are in variablesMap
+			allExpectedVars := append(tt.expectedInScope, tt.expectedExcluded...)
+			for _, varName := range allExpectedVars {
+				if _, exists := variables[varName]; !exists {
+					t.Errorf("Variable '%s' should be in variablesMap but was not found", varName)
+				}
+			}
+		})
+	}
+}
