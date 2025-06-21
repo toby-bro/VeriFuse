@@ -223,7 +223,10 @@ var generalVariableRegex = regexp.MustCompile(
 	),
 )
 
-var scopeChangeRegex = regexp.MustCompile(`^\s*(function|task|always|class|clocking)`)
+var (
+	scopeChangeRegex = regexp.MustCompile(`^\s*(function|task|always|class|clocking)`)
+	taskClassRegex   = regexp.MustCompile(`^\s*(task|class)\b`)
+)
 
 // Interface modport patterns for interface port declarations
 var ModportRegex = regexp.MustCompile(
@@ -1656,7 +1659,8 @@ func ParseVariables(v *VerilogFile,
 			continue // No variable declaration on this line
 		}
 
-		indent := len(strings.ReplaceAll(matchedVariable[1], "\t", "    ")) / 4
+		line = strings.ReplaceAll(line, "\t", "    ")
+		indent := (len(line) - len(strings.TrimLeft(line, " "))) / 4
 		varType := getType(matchedVariable[2])
 		widthStr := matchedVariable[3]
 		width, err := parseRange(widthStr, scopeParamsMap)
@@ -1745,6 +1749,10 @@ func ParseVariables(v *VerilogFile,
 	// After parsing all variable declarations, detect blocked variables and remove them from parent scopes
 	blockedVars := detectBlockedVariables(v, content)
 	removeBlockedVariablesFromParents(scopeTree, blockedVars)
+
+	// Remove task/class variables from scope tree (but keep them in variablesMap)
+	taskClassVars := detectTaskClassScopeVariables(content)
+	removeTaskClassVariablesFromScopes(scopeTree, taskClassVars)
 
 	return variablesMap, scopeTree, nil
 }
@@ -2436,4 +2444,78 @@ func removeCommentsAndStrings(content string) string {
 	content = stringLiteral.ReplaceAllString(content, `""`)
 
 	return content
+}
+
+// removeTaskClassVariablesFromScopes removes variables that are declared in task/class scopes
+// from all scope nodes, but keeps them in the main variablesMap
+func removeTaskClassVariablesFromScopes(scopeNode *ScopeNode, taskClassVars map[string]bool) {
+	if scopeNode == nil {
+		return
+	}
+
+	// Remove task/class variables from current scope
+	for varName := range taskClassVars {
+		delete(scopeNode.Variables, varName)
+	}
+
+	// Recursively process children
+	for _, child := range scopeNode.Children {
+		removeTaskClassVariablesFromScopes(child, taskClassVars)
+	}
+}
+
+// detectTaskClassScopeVariables detects variables that are declared inside task or class scopes
+// This is a helper function primarily used for testing
+func detectTaskClassScopeVariables(content string) map[string]bool {
+	taskClassVars := make(map[string]bool)
+
+	lines := strings.Split(content, "\n")
+	insideTaskOrClass := false
+	taskClassStartLevel := -1
+
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		line = strings.ReplaceAll(line, "\t", "    ")
+		indentation := (len(line) - len(strings.TrimLeft(line, " "))) / 4
+
+		// Check if we're entering a task or class scope
+		if !insideTaskOrClass && taskClassRegex.MatchString(trimmedLine) {
+			insideTaskOrClass = true
+			taskClassStartLevel = indentation
+			continue
+		}
+
+		// Check if we're exiting a task or class scope
+		if insideTaskOrClass && indentation <= taskClassStartLevel && trimmedLine != "" {
+			if strings.Contains(trimmedLine, "endtask") ||
+				strings.Contains(trimmedLine, "endclass") {
+				insideTaskOrClass = false
+				taskClassStartLevel = -1
+				continue
+			}
+		}
+
+		// If we're inside a task or class, check for variable declarations
+		if insideTaskOrClass {
+			matchedVariable := generalVariableRegex.FindStringSubmatch(line)
+			if len(matchedVariable) >= 6 {
+				// Extract variable names from the declaration
+				for _, decl := range strings.Split(matchedVariable[5], ",") {
+					decl = strings.TrimSpace(decl)
+					if decl == "" {
+						continue
+					}
+					arrayMatch := matchArraysFromString(decl)
+					if len(arrayMatch) >= 2 {
+						varName := strings.TrimSpace(arrayMatch[1])
+						if varName != "" {
+							taskClassVars[varName] = true
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return taskClassVars
 }
