@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	sv2vUnexpectedString = `\bParse error: unexpected token '(\w+)'\b`
+	sv2vUnexpectedString = `\bParse error: unexpected token '(\w+)'`
 	Sv2vUnexpectedRegex  = regexp.MustCompile(sv2vUnexpectedString)
 )
 
