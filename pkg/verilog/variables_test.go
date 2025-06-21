@@ -1945,7 +1945,7 @@ func TestComplexTaskClassScopeRemoval(t *testing.T) {
 	}
 
 	// Verify all variables are still in variablesMap
-	allExpectedVars := append(expectedInScope, expectedExcluded...)
+	allExpectedVars := append(expectedInScope, expectedExcluded...) // nolint: gocritic
 	for _, varName := range allExpectedVars {
 		if _, exists := variables[varName]; !exists {
 			t.Errorf("Variable '%s' should be in variablesMap but was not found", varName)
@@ -2055,7 +2055,9 @@ endclass
 			}
 
 			// Verify all variables are in variablesMap
-			allExpectedVars := append(tt.expectedInScope, tt.expectedExcluded...)
+			allExpectedVars := append( // nolint: gocritic
+				tt.expectedInScope,
+				tt.expectedExcluded...)
 			for _, varName := range allExpectedVars {
 				if _, exists := variables[varName]; !exists {
 					t.Errorf("Variable '%s' should be in variablesMap but was not found", varName)
