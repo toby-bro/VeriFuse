@@ -103,6 +103,11 @@ func TestPfuzzEndToEnd(t *testing.T) {
 		t.Fatalf("Failed to find project root: %v", err)
 	}
 
+	// if E2ETEST environment variable is not set, skip this test
+	if os.Getenv("E2ETEST") == "" {
+		t.Skip("Skipping end-to-end test because E2ETEST environment variable is not set")
+	}
+
 	pfuzzBinaryAbs, err := buildPfuzz(projectRoot)
 	if err != nil {
 		t.Fatalf("Failed to ensure pfuzz binary exists: %v", err)
