@@ -3,10 +3,12 @@ package simulator
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
@@ -52,11 +54,6 @@ func NewIVerilogSimulator(actualWorkDir string, svFileName string, verbose int) 
 
 // Compile compiles the verilog files with IVerilog
 func (sim *IVerilogSimulator) Compile(ctx context.Context) error {
-	return sim.CompileSpecific(ctx)
-}
-
-// CompileSpecific compiles only the specified files (or all .sv files if nil)
-func (sim *IVerilogSimulator) CompileSpecific(ctx context.Context) error {
 	sim.debug.Debug("Ensuring IVerilog simulation directory exists: %s", sim.workDir)
 	if err := os.MkdirAll(sim.workDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create iverilog work dir %s: %v", sim.workDir, err)
@@ -148,6 +145,21 @@ func (sim *IVerilogSimulator) CompileSpecific(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+var (
+	iverilogUnsupportedPattern = `sorry: "\w+" expressions not supported yet`
+	iverilogUnsupportedRegex   = regexp.MustCompile(iverilogUnsupportedPattern)
+)
+
+func (sim *IVerilogSimulator) FailedCuzUnsupportedFeature(log error) (bool, error) {
+	if log == nil {
+		return false, nil
+	}
+	if match := iverilogUnsupportedRegex.FindStringSubmatch(log.Error()); len(match) > 0 {
+		return true, errors.New(match[0])
+	}
+	return false, nil
 }
 
 // RunTest runs the simulator with the provided input directory and output paths

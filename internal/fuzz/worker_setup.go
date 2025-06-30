@@ -278,7 +278,16 @@ func (sch *Scheduler) compileSimulatorWithTimeout(
 	sch.debug.Debug("[%s] Compiling %s simulator in %s", workerID, config.Name, config.WorkDir)
 
 	if err := sim.Compile(compileCtx); err != nil {
-		sch.debug.Warn("[%s] Failed to compile %s: %v", workerID, config.Name, err)
+		if unsup, pretext := sim.FailedCuzUnsupportedFeature(err); unsup {
+			sch.debug.Warn(
+				"[%s] %s compilation failed due to unsupported feature: %v",
+				workerID,
+				config.Name,
+				pretext,
+			)
+		} else {
+			sch.debug.Warn("[%s] Failed to compile %s: %v", workerID, config.Name, err)
+		}
 		return fmt.Errorf("%s: %v", config.ErrorName, err)
 	}
 

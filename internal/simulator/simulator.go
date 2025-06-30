@@ -57,6 +57,7 @@ type Simulator interface {
 	// inputDir is the directory containing input files
 	// outputPaths maps port names to output file paths
 	RunTest(ctx context.Context, inputDir string, outputPaths map[string]string) error
+	FailedCuzUnsupportedFeature(log error) (bool, error)
 }
 
 // OutputResult represents the results of a simulation run for any output port
