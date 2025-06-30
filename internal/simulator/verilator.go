@@ -217,6 +217,11 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 	return nil
 }
 
+func (sim *VerilatorSimulator) FailedCuzUnsupportedFeature(log error) (bool, error) {
+	// Not implemented yet
+	return false, nil
+}
+
 // RunTest runs the simulator with provided input directory and output paths
 func (sim *VerilatorSimulator) RunTest(
 	ctx context.Context,

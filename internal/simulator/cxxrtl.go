@@ -246,6 +246,12 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	return nil
 }
 
+// FailedCuzUnsupportedFeature checks if the compilation failed due to unsupported features.
+func (sim *CXXRTLSimulator) FailedCuzUnsupportedFeature(log error) (bool, error) {
+	// Not implemented yet
+	return false, nil
+}
+
 // RunTest runs the compiled CXXRTL simulation.
 // inputDir: directory containing input files (input_<port>.hex).
 // outputPaths: map of port names to their expected output file paths.
