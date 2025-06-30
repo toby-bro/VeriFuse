@@ -63,12 +63,7 @@ func (sim *IVerilogSimulator) Compile(ctx context.Context) error {
 
 	// Determine testbench file extension based on context
 	// If working directory contains "sv2v", use .v testbench for Verilog compatibility
-	testbenchExtension := ".sv"
-	if strings.Contains(sim.workDir, "sv2v") {
-		testbenchExtension = ".v"
-		sim.debug.Debug("Detected sv2v context, using testbench.v instead of testbench.sv")
-	}
-	sourceTestbenchFile := filepath.Join("..", "testbench"+testbenchExtension)
+	sourceTestbenchFile := filepath.Join("..", "testbench.sv")
 
 	// Compile directly in the work directory
 	cmdArgs := []string{
