@@ -55,7 +55,7 @@ endmodule
 		ParentFile: snippetFile,
 	}
 
-	scopeTree, err := verilog.GetScopeTree(verilogFile, module.Body, nil)
+	scopeTree, err := verilog.GetScopeTree(verilogFile, module.Body, nil, module.Ports)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}

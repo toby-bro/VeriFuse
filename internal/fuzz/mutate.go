@@ -32,6 +32,7 @@ func injectSnippetInModule(
 		targetFile,
 		targetModule.Body,
 		targetModule.Parameters,
+		targetModule.Ports,
 	)
 	if err != nil {
 		return fmt.Errorf("[%s] failed to extract variables from module: %v", workerDir, err)
