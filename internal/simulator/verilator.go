@@ -129,19 +129,12 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 	}
 
 	// Determine testbench file extension based on context
-	// If working directory contains "sv2v", use .v testbench for Verilog compatibility
-	testbenchExtension := ".sv"
-	if strings.Contains(sim.workDir, "sv2v") {
-		testbenchExtension = ".v"
-		sim.logger.Debug("Detected sv2v context, using testbench.v instead of testbench.sv")
-	}
-	testbenchPath := filepath.Join(filepath.Dir(sim.workDir), "testbench"+testbenchExtension)
+	testbenchPath := filepath.Join(filepath.Dir(sim.workDir), "testbench.sv")
 
 	// Verify the testbench file exists and has content
 	if info, err := os.Stat(testbenchPath); err != nil || info.Size() == 0 {
 		return fmt.Errorf(
-			"testbench%s is missing or empty in %s",
-			testbenchExtension,
+			"testbench.sv is missing or empty in %s",
 			filepath.Dir(sim.workDir),
 		)
 	}
@@ -165,7 +158,7 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 		"-Wno-MULTITOP",
 		"-Wno-CASEINCOMPLETE",
 		"-Wno-CASEOVERLAP",
-		"../testbench" + testbenchExtension,
+		"../testbench.sv",
 		"../" + sim.svFile.Name,
 	}
 
