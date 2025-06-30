@@ -533,7 +533,7 @@ func TestParseVariablesWithBlockingDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			variables, scopeTree, err := ParseVariables(nil, tt.content, []Parameter{})
+			variables, scopeTree, err := parseVariablesWithScope(nil, tt.content, []Parameter{})
 			if err != nil {
 				t.Fatalf("ParseVariables() error = %v", err)
 			}
@@ -836,7 +836,7 @@ func TestRealWorldModuleInstantiationBlocking(t *testing.T) {
 		endmodule
 	`
 
-	variables, scopeTree, err := ParseVariables(nil, content, []Parameter{})
+	variables, scopeTree, err := parseVariablesWithScope(nil, content, []Parameter{})
 	if err != nil {
 		t.Fatalf("ParseVariables() error = %v", err)
 	}
@@ -1472,7 +1472,7 @@ end
 logic [7:0] c;
 `
 
-	variables, scopeTree, err := ParseVariables(nil, content, nil)
+	variables, scopeTree, err := parseVariablesWithScope(nil, content, nil)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
@@ -1732,7 +1732,7 @@ func TestRemoveTaskClassScopeNodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			variables, scopeTree, err := ParseVariables(nil, tt.content, nil)
+			variables, scopeTree, err := parseVariablesWithScope(nil, tt.content, nil)
 			if err != nil {
 				t.Fatalf("ParseVariables failed: %v", err)
 			}
@@ -1906,7 +1906,7 @@ func TestComplexTaskClassScopeRemoval(t *testing.T) {
 		logic [7:0] global3;
 	`
 
-	variables, scopeTree, err := ParseVariables(nil, content, nil)
+	variables, scopeTree, err := parseVariablesWithScope(nil, content, nil)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
@@ -2032,7 +2032,7 @@ endclass
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			variables, scopeTree, err := ParseVariables(nil, tt.content, nil)
+			variables, scopeTree, err := parseVariablesWithScope(nil, tt.content, nil)
 			if err != nil {
 				t.Fatalf("ParseVariables failed: %v", err)
 			}

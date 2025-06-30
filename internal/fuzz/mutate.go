@@ -28,7 +28,7 @@ func injectSnippetInModule(
 	instantiate bool,
 	workerDir string,
 ) error {
-	_, scopeTree, err := verilog.ParseVariables(
+	scopeTree, err := verilog.GetScopeTree(
 		targetFile,
 		targetModule.Body,
 		targetModule.Parameters,

@@ -739,7 +739,7 @@ func extractNonANSIPortDeclarations(
 		if matched := scopeChangeRegex.MatchString(trimmedLine); matched {
 			break
 		}
-		newParsedVariables, _, err := ParseVariables(nil, trimmedLine, paramList)
+		newParsedVariables, err := ParseVariables(nil, trimmedLine, paramList)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing variables: %v", err)
 		}
@@ -1616,6 +1616,25 @@ func isVariableBlockedInChildren(
 func ParseVariables(v *VerilogFile,
 	content string,
 	scopeParams []Parameter,
+) (map[string]*Variable, error) {
+	variables, _, err := parseVariablesWithScope(v, content, scopeParams)
+	return variables, err
+}
+
+func GetScopeTree(v *VerilogFile,
+	content string,
+	scopeParams []Parameter,
+) (*ScopeNode, error) {
+	_, scopeTree, err := parseVariablesWithScope(v, content, scopeParams)
+	if err != nil {
+		return nil, err
+	}
+	return scopeTree, nil
+}
+
+func parseVariablesWithScope(v *VerilogFile,
+	content string,
+	scopeParams []Parameter,
 ) (map[string]*Variable, *ScopeNode, error) {
 	scopeParamsMap := parametersToMap(scopeParams)
 	variablesMap := make(map[string]*Variable)
@@ -1777,7 +1796,7 @@ func (v *VerilogFile) parseStructs(
 			}
 			v.Structs[structName] = s
 		} else {
-			variablesMap, _, err := ParseVariables(v, varList, nil) // TODO: check that we don't have params that need to be sent as args here
+			variablesMap, err := ParseVariables(v, varList, nil) // TODO: check that we don't have params that need to be sent as args here
 			if err != nil {
 				return fmt.Errorf("failed to parse variables in struct '%s': %v", structName, err)
 			}
@@ -1999,7 +2018,7 @@ func (v *VerilogFile) parseInterfaces(
 
 		// Parse variables from body
 		if bodyStr != "" {
-			variablesMap, _, err := ParseVariables(v, bodyStr, i.Parameters)
+			variablesMap, err := ParseVariables(v, bodyStr, i.Parameters)
 			if err != nil {
 				logger.Warn("Failed to parse variables in interface '%s': %v", interfaceName, err)
 			} else {
@@ -2059,7 +2078,7 @@ func (v *VerilogFile) parsePackages(content string) error {
 
 		// Parse variables from body
 		if bodyStr != "" {
-			variablesMap, _, err := ParseVariables(v, bodyStr, pkg.Parameters)
+			variablesMap, err := ParseVariables(v, bodyStr, pkg.Parameters)
 			if err != nil {
 				logger.Warn("Failed to parse variables in package '%s': %v", packageName, err)
 			} else {

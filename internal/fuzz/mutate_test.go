@@ -55,7 +55,7 @@ endmodule
 		ParentFile: snippetFile,
 	}
 
-	_, scopeTree, err := verilog.ParseVariables(verilogFile, module.Body, nil)
+	scopeTree, err := verilog.GetScopeTree(verilogFile, module.Body, nil)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
@@ -202,7 +202,7 @@ endmodule
 		t.Fatalf("Module 'TestModule' not found in parsed file")
 	}
 
-	variables, _, err := verilog.ParseVariables(verilogFile, module.Body, nil)
+	variables, err := verilog.ParseVariables(verilogFile, module.Body, nil)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
