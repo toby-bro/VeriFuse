@@ -486,7 +486,7 @@ func TestParseVariables(t *testing.T) {
 	// and we are not testing user-defined type resolution here.
 	// The `myPacket pkt0, pkt1;` line in `aa` will be skipped by MatchAllVariablesFromString
 	// because `myPacket` is not a built-in type in the generalVariableRegex.
-	parsedVars, scopeTree, err := parseVariablesWithScope(nil, aa, nil)
+	parsedVars, scopeTree, err := parseVariablesWithScope(nil, aa, nil, nil)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}

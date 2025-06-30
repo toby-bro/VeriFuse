@@ -1617,24 +1617,29 @@ func ParseVariables(v *VerilogFile,
 	content string,
 	scopeParams []Parameter,
 ) (map[string]*Variable, error) {
-	variables, _, err := parseVariablesWithScope(v, content, scopeParams)
+	variables, _, err := parseVariablesWithScope(v, content, scopeParams, nil)
 	return variables, err
 }
 
 func GetScopeTree(v *VerilogFile,
 	content string,
 	scopeParams []Parameter,
+	modulePorts []Port,
 ) (*ScopeNode, error) {
-	_, scopeTree, err := parseVariablesWithScope(v, content, scopeParams)
+	_, scopeTree, err := parseVariablesWithScope(v, content, scopeParams, modulePorts)
 	if err != nil {
 		return nil, err
 	}
 	return scopeTree, nil
 }
 
+// parseVariablesWithScope parses variables from the provided content and organizes them into a scope tree.
+// It returns a map of variable names to Variable objects, the root ScopeNode, and any error encountered.
+// The scopeParams are used to resolve parameter ranges, and modulePorts are ONLY used for the scope Tree
 func parseVariablesWithScope(v *VerilogFile,
 	content string,
 	scopeParams []Parameter,
+	modulePorts []Port,
 ) (map[string]*Variable, *ScopeNode, error) {
 	scopeParamsMap := parametersToMap(scopeParams)
 	variablesMap := make(map[string]*Variable)
@@ -1762,6 +1767,23 @@ func parseVariablesWithScope(v *VerilogFile,
 				scopeNode.Children = append(scopeNode.Children, newScopeNode)
 				scopeNode = newScopeNode
 			}
+		}
+	}
+	// Add all module ports to the root of the scope tree
+	for _, port := range modulePorts {
+		if port.Name == "" {
+			logger.Warn("Skipping module port with empty name")
+			continue
+		}
+		if _, exists := scopeTree.Variables[port.Name]; !exists {
+			variable := &Variable{
+				Name:     port.Name,
+				Type:     port.Type,
+				Width:    port.Width,
+				Unsigned: !port.IsSigned,
+				Array:    port.Array,
+			}
+			scopeTree.Variables[port.Name] = variable
 		}
 	}
 
