@@ -345,7 +345,7 @@ module DUT (
 	end
 endmodule
 `
-	
+
 	// Create a VerilogFile with our module
 	verilogFile, err := verilog.ParseVerilog(moduleContent, 5)
 	if err != nil {
@@ -366,20 +366,20 @@ endmodule
 		if err != nil {
 			t.Fatalf("MutateFile failed on iteration %d: %v", i, err)
 		}
-		
+
 		// Count occurrences of BEGIN/END comments to check for duplicates
 		body := mutatedFile.Modules["DUT"].Body
 		beginCount := strings.Count(body, "// BEGIN:")
 		endCount := strings.Count(body, "// END:")
-		
+
 		if beginCount != endCount {
 			t.Errorf("Mismatched BEGIN/END markers: %d BEGIN vs %d END", beginCount, endCount)
 		}
-		
+
 		// Check for specific duplicate patterns that would indicate variable redeclaration
 		lines := strings.Split(body, "\n")
 		beginEndPairs := make(map[string]int)
-		
+
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
 			if strings.HasPrefix(line, "// BEGIN:") {
@@ -387,14 +387,14 @@ endmodule
 				beginEndPairs[snippetName]++
 			}
 		}
-		
+
 		// Verify no snippet appears more than once
 		for snippetName, count := range beginEndPairs {
 			if count > 1 {
 				t.Errorf("Snippet '%s' appears %d times in module, expected at most 1", snippetName, count)
 			}
 		}
-		
+
 		// Reload for next iteration
 		verilogFile, err = verilog.ParseVerilog(moduleContent, 5)
 		if err != nil {
@@ -406,15 +406,15 @@ endmodule
 func TestPreventSpecificDuplicateSnippetInjection(t *testing.T) {
 	// Test the duplicate tracking logic directly
 	moduleSnippetTracker := make(map[string]map[string]bool)
-	
+
 	// Simulate the first injection
 	moduleSnippetTracker["DUT"] = make(map[string]bool)
 	moduleSnippetTracker["DUT"]["simple_loop"] = true
-	
-	// Check that a subsequent "injection" would be blocked  
+
+	// Check that a subsequent "injection" would be blocked
 	testSnippetName := "simple_loop"
 	moduleName := "DUT"
-	
+
 	if moduleSnippetTracker[moduleName] == nil {
 		moduleSnippetTracker[moduleName] = make(map[string]bool)
 	}
@@ -424,7 +424,7 @@ func TestPreventSpecificDuplicateSnippetInjection(t *testing.T) {
 	} else {
 		t.Errorf("Failed to detect that snippet %s was already injected into module %s", testSnippetName, moduleName)
 	}
-	
+
 	// Test that a different snippet would be allowed
 	testSnippetName2 := "different_snippet"
 	if moduleSnippetTracker[moduleName][testSnippetName2] {
