@@ -339,6 +339,7 @@ func (sch *Scheduler) setupIVerilogSimulator(
 	ctx context.Context,
 	workerID, baseWorkerDir string,
 	config simulator.Config,
+	svFileName string,
 ) (*SimInstance, error) {
 	workDir := baseWorkerDir
 	if config.WorkDir != "" {
@@ -348,7 +349,7 @@ func (sch *Scheduler) setupIVerilogSimulator(
 		}
 	}
 
-	ivsim := simulator.NewIVerilogSimulator(workDir, sch.svFile.Name, sch.verbose)
+	ivsim := simulator.NewIVerilogSimulator(workDir, svFileName, sch.verbose)
 
 	if err := sch.compileSimulatorWithTimeout(ctx, workerID, ivsim, config); err != nil {
 		return nil, err
@@ -462,6 +463,7 @@ func (sch *Scheduler) setupSimulators(
 					workerID,
 					baseWorkerDir,
 					simulator.CommonConfigs.IVerilog,
+					svFileToCompile.Name,
 				)
 			},
 		},
@@ -678,6 +680,7 @@ func (sch *Scheduler) setupSynthVariants(
 					workerID,
 					baseWorkerDir,
 					config,
+					synthFile.Name,
 				)
 			},
 		},
