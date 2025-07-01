@@ -15,14 +15,12 @@ module case_pragmas_mod (
             2'b10: internal_out = 3;
             default: internal_out = 4;
         endcase
-        (* unique, priority *)
-        casez (case_expr)
+        priority casez (case_expr)
             2'b1?: internal_out = 5;
             2'b0?: internal_out = 6;
             default: internal_out = 7;
         endcase
-        (* unique0 *)
-        casez (case_expr)
+        unique0 casez (case_expr)
             2'b1?: internal_out = 8;
             2'b0?: internal_out = 9;
         endcase
@@ -39,14 +37,12 @@ module case_pragmas_mod (
             4'd2, 4'd3: internal_out = 15;
             default: internal_out = 18;
         endcase
-        (* unique *)
-        case (case_inside_val)
+        unique case (case_inside_val)
             case_inside_val inside {[range_start:range_end]}: internal_out = 16;
             case_inside_val inside {8}: internal_out = 17;
             default: internal_out = 18;
         endcase
-        (* unique0 *)
-        case (case_inside_val)
+        unique0 case (case_inside_val)
             case_inside_val inside {4'd10, 4'd11}: internal_out = 19;
             case_inside_val inside {4'd12}: internal_out = 20;
         endcase
