@@ -32,6 +32,9 @@ linters:
           - revive
         text: "var-naming: don't use ALL_CAPS in Go names; use CamelCase"
       - linters:
+          - revive
+        text: "var-naming: avoid meaningless package names"
+      - linters:
           - staticcheck
         text: "ST1005"
 formatters:
