@@ -558,7 +558,7 @@ func compareScopeTrees(actual, expected *ScopeNode) error {
 		var actualVarNames []string
 		for _, scopeVar := range actual.Variables {
 			if scopeVar != nil && scopeVar.Variable != nil {
-				actualVarNames = append(actualVarNames, scopeVar.Variable.Name)
+				actualVarNames = append(actualVarNames, scopeVar.Name)
 			} else {
 				actualVarNames = append(actualVarNames, "<nil>")
 			}
@@ -566,7 +566,7 @@ func compareScopeTrees(actual, expected *ScopeNode) error {
 		var expectedVarNames []string
 		for _, scopeVar := range expected.Variables {
 			if scopeVar != nil && scopeVar.Variable != nil {
-				expectedVarNames = append(expectedVarNames, scopeVar.Variable.Name)
+				expectedVarNames = append(expectedVarNames, scopeVar.Name)
 			} else {
 				expectedVarNames = append(expectedVarNames, "<nil>")
 			}

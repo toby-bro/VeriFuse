@@ -1599,18 +1599,18 @@ func MarkVariableAsBlockedInParents(scopeNode *ScopeNode, varName string) {
 	}
 }
 
-func MarkVariableAsBlocked(ScopeNode *ScopeNode, varName string) {
+func MarkVariableAsBlocked(scopeNode *ScopeNode, varName string) {
 	// Mark the variable as blocked in the current scope node
-	if scopeVar, exists := ScopeNode.Variables[varName]; exists {
+	if scopeVar, exists := scopeNode.Variables[varName]; exists {
 		scopeVar.Blocked = true
 	}
 	// Recursively mark the variable as blocked in all parent scope nodes
-	if ScopeNode.Parent != nil {
-		MarkVariableAsBlockedInParents(ScopeNode.Parent, varName)
+	if scopeNode.Parent != nil {
+		MarkVariableAsBlockedInParents(scopeNode.Parent, varName)
 	}
 
 	// Also mark the variable as blocked in all child scope nodes
-	for _, child := range ScopeNode.Children {
+	for _, child := range scopeNode.Children {
 		if scopeVar, exists := child.Variables[varName]; exists {
 			scopeVar.Blocked = true
 		}
