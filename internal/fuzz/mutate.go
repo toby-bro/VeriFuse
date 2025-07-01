@@ -713,8 +713,6 @@ func MutateFile(
 				moduleToMutate.Name,
 			)
 
-			// No longer need to mark this snippet as injected since we allow duplicates with renamed variables
-
 			if instantiate {
 				svFile.AddDependency(
 					moduleToMutate.Name,
