@@ -139,13 +139,13 @@ endmodule
 		ParentFile: snippetFile,
 	}
 
-	err = injectSnippetInModule(module, verilogFile, snippet, true, "test", 0)
+	err = injectSnippetInModule(module, verilogFile, snippet, true, "test")
 	if err != nil {
 		t.Fatalf("injectSnippetInModule failed: %v", err)
 	}
 	mutatedContent := module.Body
 
-	if !strings.Contains(mutatedContent, "SnippetModule SnippetModule_inst_0_") {
+	if !strings.Contains(mutatedContent, "SnippetModule SnippetModule_inst_") {
 		t.Errorf("Expected snippet instantiation not found in mutated content")
 	}
 
@@ -378,7 +378,7 @@ endmodule
 			t.Errorf("Mismatched BEGIN/END markers: %d BEGIN vs %d END", beginCount, endCount)
 		}
 
-		// Check that duplicate injections have unique identifiers (e.g., snippet_inj0, snippet_inj1)
+		// Check that duplicate injections have unique identifiers (e.g., snippet_ts1234567890, snippet_ts1234567891)
 		lines := strings.Split(body, "\n")
 		beginEndPairs := make(map[string]int)
 		snippetBaseName := make(map[string]int)
@@ -389,9 +389,9 @@ endmodule
 				snippetName := strings.TrimSpace(strings.TrimPrefix(line, "// BEGIN:"))
 				beginEndPairs[snippetName]++
 
-				// Extract base name (before _inj suffix)
-				if strings.Contains(snippetName, "_inj") {
-					baseName := strings.Split(snippetName, "_inj")[0]
+				// Extract base name (before _ts suffix)
+				if strings.Contains(snippetName, "_ts") {
+					baseName := strings.Split(snippetName, "_ts")[0]
 					snippetBaseName[baseName]++
 				} else {
 					snippetBaseName[snippetName]++
@@ -430,48 +430,22 @@ endmodule
 }
 
 func TestUniqueVariableNamingForDuplicateInjections(t *testing.T) {
-	// Test the injection counting logic for unique variable naming
-	moduleSnippetCounter := make(map[string]map[string]int)
+	// Test the timestamp-based logic for unique variable naming
 
-	// Simulate multiple injections of the same snippet
-	moduleName := "DUT"
-	testSnippetName := "simple_loop"
-
-	// First injection
-	if moduleSnippetCounter[moduleName] == nil {
-		moduleSnippetCounter[moduleName] = make(map[string]int)
-	}
-	injectionCount1 := moduleSnippetCounter[moduleName][testSnippetName]
-	moduleSnippetCounter[moduleName][testSnippetName]++
-
-	// Second injection
-	injectionCount2 := moduleSnippetCounter[moduleName][testSnippetName]
-	moduleSnippetCounter[moduleName][testSnippetName]++
-
-	// Third injection
-	injectionCount3 := moduleSnippetCounter[moduleName][testSnippetName]
-	moduleSnippetCounter[moduleName][testSnippetName]++
-
-	// Verify injection counts are incremental
-	if injectionCount1 != 0 {
-		t.Errorf("Expected first injection count to be 0, got %d", injectionCount1)
-	}
-	if injectionCount2 != 1 {
-		t.Errorf("Expected second injection count to be 1, got %d", injectionCount2)
-	}
-	if injectionCount3 != 2 {
-		t.Errorf("Expected third injection count to be 2, got %d", injectionCount3)
-	}
-
-	// Test variable name generation with injection counts
 	portName := "val_out"
-	var1 := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(portName), injectionCount1, 100)
-	var2 := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(portName), injectionCount2, 100)
-	var3 := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(portName), injectionCount3, 100)
 
-	expectedVar1 := "inj_val_out_0_100"
-	expectedVar2 := "inj_val_out_1_100"
-	expectedVar3 := "inj_val_out_2_100"
+	// Simulate different timestamps for different injections
+	timestamp1 := int64(1234567890123)
+	timestamp2 := int64(1234567890456)
+	timestamp3 := int64(1234567890789)
+
+	var1 := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(portName), timestamp1, 100)
+	var2 := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(portName), timestamp2, 100)
+	var3 := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(portName), timestamp3, 100)
+
+	expectedVar1 := "inj_val_out_1234567890123_100"
+	expectedVar2 := "inj_val_out_1234567890456_100"
+	expectedVar3 := "inj_val_out_1234567890789_100"
 
 	if var1 != expectedVar1 {
 		t.Errorf("Expected variable name '%s', got '%s'", expectedVar1, var1)
@@ -483,15 +457,32 @@ func TestUniqueVariableNamingForDuplicateInjections(t *testing.T) {
 		t.Errorf("Expected variable name '%s', got '%s'", expectedVar3, var3)
 	}
 
-	t.Logf("Successfully generated unique variable names: %s, %s, %s", var1, var2, var3)
+	t.Logf("Successfully generated unique timestamped variable names: %s, %s, %s", var1, var2, var3)
 
-	// Test that different snippets in the same module have independent counters
-	testSnippetName2 := "different_snippet"
-	injectionCountDiff := moduleSnippetCounter[moduleName][testSnippetName2]
-	if injectionCountDiff != 0 {
-		t.Errorf(
-			"Expected injection count for different snippet to be 0, got %d",
-			injectionCountDiff,
-		)
+	// Test BEGIN/END marker generation with timestamps
+	snippetName := "simple_loop"
+	marker1 := fmt.Sprintf("%s_ts%d", snippetName, timestamp1)
+	marker2 := fmt.Sprintf("%s_ts%d", snippetName, timestamp2)
+	marker3 := fmt.Sprintf("%s_ts%d", snippetName, timestamp3)
+
+	expectedMarker1 := "simple_loop_ts1234567890123"
+	expectedMarker2 := "simple_loop_ts1234567890456"
+	expectedMarker3 := "simple_loop_ts1234567890789"
+
+	if marker1 != expectedMarker1 {
+		t.Errorf("Expected marker '%s', got '%s'", expectedMarker1, marker1)
 	}
+	if marker2 != expectedMarker2 {
+		t.Errorf("Expected marker '%s', got '%s'", expectedMarker2, marker2)
+	}
+	if marker3 != expectedMarker3 {
+		t.Errorf("Expected marker '%s', got '%s'", expectedMarker3, marker3)
+	}
+
+	t.Logf(
+		"Successfully generated unique timestamped markers: %s, %s, %s",
+		marker1,
+		marker2,
+		marker3,
+	)
 }
