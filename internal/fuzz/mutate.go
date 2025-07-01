@@ -559,6 +559,8 @@ func MutateFile(
 	fileName := svFile.Name
 	mutatedOverall := false
 	injectedSnippetParentFiles := make(map[string]*verilog.VerilogFile)
+	// Track which snippets have been injected into each module to prevent duplicates
+	moduleSnippetTracker := make(map[string]map[string]bool)
 	loadLogger(verbose)
 
 	workerDir := filepath.Base(filepath.Dir(pathToWrite))
@@ -611,6 +613,20 @@ func MutateFile(
 				)
 			}
 
+			// Check if this snippet has already been injected into this module
+			if moduleSnippetTracker[moduleName] == nil {
+				moduleSnippetTracker[moduleName] = make(map[string]bool)
+			}
+			if moduleSnippetTracker[moduleName][snippet.Name] {
+				logger.Debug(
+					"[%s] Snippet %s already injected into module %s, skipping to prevent duplicate injection",
+					workerDir,
+					snippet.Name,
+					moduleName,
+				)
+				continue
+			}
+
 			logger.Debug(
 				"[%s] Attempting to inject snippet %s in module %s from file %s...",
 				workerDir,
@@ -654,6 +670,9 @@ func MutateFile(
 				snippet.Name,
 				moduleToMutate.Name,
 			)
+
+			// Mark this snippet as injected into this module to prevent duplicates
+			moduleSnippetTracker[moduleName][snippet.Name] = true
 
 			if instantiate {
 				svFile.AddDependency(
