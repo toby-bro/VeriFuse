@@ -394,10 +394,9 @@ func (g *Generator) generateSVOutputWrites() (string, int) {
 				)
 				outputWrites.WriteString("        end\n")
 				outputWrites.WriteString(
-					"        $fwrite(fd, \"\\n\"); // Add a newline at the end of the bit string\n",
+					"        $fwrite(fd, \"\\n\");",
 				)
 			} else { // effectiveWidth is 1
-				// For single-bit ports, write the bit followed by a newline
 				outputWrites.WriteString(fmt.Sprintf("        $fwrite(fd, \"%%b\\n\", %s);\n", portName))
 			}
 
