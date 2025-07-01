@@ -29,8 +29,6 @@ func injectSnippetInModule(
 	instantiate bool,
 	workerDir string,
 ) error {
-	// Generate timestamp for unique naming
-	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
 	scopeTree, err := verilog.GetScopeTree(
 		targetFile,
 		targetModule.Body,
@@ -64,7 +62,6 @@ func injectSnippetInModule(
 		snippet,
 		workerDir,
 		bestScope,
-		timestamp,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to match variables to snippet ports: %v", err)
@@ -85,9 +82,9 @@ func injectSnippetInModule(
 
 	var injection string
 	if instantiate {
-		injection = generateSnippetInstantiation(snippet, portConnections, timestamp)
+		injection = generateSnippetInstantiation(snippet, portConnections)
 	} else {
-		injection = generateSnippetInjection(snippet, portConnections, timestamp)
+		injection = generateSnippetInjection(snippet, portConnections)
 		targetModule.Parameters = append(targetModule.Parameters, snippet.Module.Parameters...)
 	}
 
@@ -125,7 +122,6 @@ func matchVariablesToSnippetPorts(
 	snippet *snippets.Snippet,
 	debugWorkerDir string,
 	bestScopeForSnippet *verilog.ScopeNode,
-	timestamp int64,
 ) (map[string]string, []verilog.Port, error) {
 	portConnections := make(map[string]string)
 	newDeclarations := []verilog.Port{}
@@ -190,6 +186,8 @@ func matchVariablesToSnippetPorts(
 		}
 
 		if !foundMatch {
+			// Generate timestamp only where we actually need it for renaming
+			timestamp := time.Now().UnixNano() / int64(time.Millisecond)
 			newSignalName := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(port.Name), timestamp, rand.Intn(1000))
 			newSignalObj := verilog.Port{
 				Name:            newSignalName,
@@ -377,13 +375,13 @@ func replacePortNames(snippetString string, portConnection map[string]string) st
 func generateSnippetInjection(
 	snippet *snippets.Snippet,
 	portConnections map[string]string,
-	timestamp int64,
 ) string {
 	snippetString := snippet.Module.Body
 	snippetString = replacePortNames(snippetString, portConnections)
 	snippetString = utils.TrimEmptyLines(snippetString)
 	
-	// Make BEGIN/END comments unique by including timestamp
+	// Generate timestamp only where we actually need it for unique naming
+	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
 	snippetIdentifier := fmt.Sprintf("%s_ts%d", strings.TrimSpace(snippet.Name), timestamp)
 	snippetString = fmt.Sprintf(
 		"    // BEGIN: %s\n%s\n    // END: %s\n",
@@ -398,8 +396,9 @@ func generateSnippetInjection(
 func generateSnippetInstantiation(
 	snippet *snippets.Snippet,
 	portConnections map[string]string,
-	timestamp int64,
 ) string {
+	// Generate timestamp only where we actually need it for unique naming
+	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
 	instanceName := fmt.Sprintf("%s_inst_%d_%d", snippet.Name, timestamp, rand.Intn(10000))
 	instantiation := fmt.Sprintf("%s %s (\n", snippet.Module.Name, instanceName)
 
