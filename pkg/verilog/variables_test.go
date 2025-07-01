@@ -272,15 +272,18 @@ func TestRemoveBlockedVariablesFromParents(t *testing.T) {
 			name: "remove blocked variable from parent",
 			initialScope: &ScopeNode{
 				Level: 0,
-				Variables: map[string]*Variable{
-					"data": {Name: "data", Type: LOGIC},
-					"clk":  {Name: "clk", Type: LOGIC},
+				Variables: map[string]*ScopeVariable{
+					"data": {Variable: &Variable{Name: "data", Type: LOGIC}, Blocked: false},
+					"clk":  {Variable: &Variable{Name: "clk", Type: LOGIC}, Blocked: false},
 				},
 				Children: []*ScopeNode{
 					{
 						Level: 1,
-						Variables: map[string]*Variable{
-							"temp": {Name: "temp", Type: LOGIC},
+						Variables: map[string]*ScopeVariable{
+							"temp": {
+								Variable: &Variable{Name: "temp", Type: LOGIC},
+								Blocked:  false,
+							},
 						},
 						Children: []*ScopeNode{},
 						Parent:   nil, // will be set properly in test
@@ -293,14 +296,17 @@ func TestRemoveBlockedVariablesFromParents(t *testing.T) {
 			},
 			expected: &ScopeNode{
 				Level: 0,
-				Variables: map[string]*Variable{
-					"clk": {Name: "clk", Type: LOGIC},
+				Variables: map[string]*ScopeVariable{
+					"clk": {Variable: &Variable{Name: "clk", Type: LOGIC}, Blocked: false},
 				},
 				Children: []*ScopeNode{
 					{
 						Level: 1,
-						Variables: map[string]*Variable{
-							"temp": {Name: "temp", Type: LOGIC},
+						Variables: map[string]*ScopeVariable{
+							"temp": {
+								Variable: &Variable{Name: "temp", Type: LOGIC},
+								Blocked:  false,
+							},
 						},
 						Children: []*ScopeNode{},
 						Parent:   nil,
@@ -313,8 +319,11 @@ func TestRemoveBlockedVariablesFromParents(t *testing.T) {
 			name: "no variables to remove",
 			initialScope: &ScopeNode{
 				Level: 0,
-				Variables: map[string]*Variable{
-					"safe_var": {Name: "safe_var", Type: LOGIC},
+				Variables: map[string]*ScopeVariable{
+					"safe_var": {
+						Variable: &Variable{Name: "safe_var", Type: LOGIC},
+						Blocked:  false,
+					},
 				},
 				Children: []*ScopeNode{},
 				Parent:   nil,
@@ -324,8 +333,11 @@ func TestRemoveBlockedVariablesFromParents(t *testing.T) {
 			},
 			expected: &ScopeNode{
 				Level: 0,
-				Variables: map[string]*Variable{
-					"safe_var": {Name: "safe_var", Type: LOGIC},
+				Variables: map[string]*ScopeVariable{
+					"safe_var": {
+						Variable: &Variable{Name: "safe_var", Type: LOGIC},
+						Blocked:  false,
+					},
 				},
 				Children: []*ScopeNode{},
 				Parent:   nil,
@@ -335,21 +347,33 @@ func TestRemoveBlockedVariablesFromParents(t *testing.T) {
 			name: "multiple levels with blocked variables",
 			initialScope: &ScopeNode{
 				Level: 0,
-				Variables: map[string]*Variable{
-					"global_var":  {Name: "global_var", Type: LOGIC},
-					"blocked_var": {Name: "blocked_var", Type: LOGIC},
+				Variables: map[string]*ScopeVariable{
+					"global_var": {
+						Variable: &Variable{Name: "global_var", Type: LOGIC},
+						Blocked:  false,
+					},
+					"blocked_var": {
+						Variable: &Variable{Name: "blocked_var", Type: LOGIC},
+						Blocked:  false,
+					},
 				},
 				Children: []*ScopeNode{
 					{
 						Level: 1,
-						Variables: map[string]*Variable{
-							"local_var": {Name: "local_var", Type: LOGIC},
+						Variables: map[string]*ScopeVariable{
+							"local_var": {
+								Variable: &Variable{Name: "local_var", Type: LOGIC},
+								Blocked:  false,
+							},
 						},
 						Children: []*ScopeNode{
 							{
 								Level: 2,
-								Variables: map[string]*Variable{
-									"nested_var": {Name: "nested_var", Type: LOGIC},
+								Variables: map[string]*ScopeVariable{
+									"nested_var": {
+										Variable: &Variable{Name: "nested_var", Type: LOGIC},
+										Blocked:  false,
+									},
 								},
 								Children: []*ScopeNode{},
 								Parent:   nil,
@@ -365,20 +389,29 @@ func TestRemoveBlockedVariablesFromParents(t *testing.T) {
 			},
 			expected: &ScopeNode{
 				Level: 0,
-				Variables: map[string]*Variable{
-					"global_var": {Name: "global_var", Type: LOGIC},
+				Variables: map[string]*ScopeVariable{
+					"global_var": {
+						Variable: &Variable{Name: "global_var", Type: LOGIC},
+						Blocked:  false,
+					},
 				},
 				Children: []*ScopeNode{
 					{
 						Level: 1,
-						Variables: map[string]*Variable{
-							"local_var": {Name: "local_var", Type: LOGIC},
+						Variables: map[string]*ScopeVariable{
+							"local_var": {
+								Variable: &Variable{Name: "local_var", Type: LOGIC},
+								Blocked:  false,
+							},
 						},
 						Children: []*ScopeNode{
 							{
 								Level: 2,
-								Variables: map[string]*Variable{
-									"nested_var": {Name: "nested_var", Type: LOGIC},
+								Variables: map[string]*ScopeVariable{
+									"nested_var": {
+										Variable: &Variable{Name: "nested_var", Type: LOGIC},
+										Blocked:  false,
+									},
 								},
 								Children: []*ScopeNode{},
 								Parent:   nil,
@@ -419,7 +452,7 @@ func TestIsVariableBlockedInChildren(t *testing.T) {
 			name: "variable is globally blocked",
 			scopeNode: &ScopeNode{
 				Level:     0,
-				Variables: map[string]*Variable{},
+				Variables: map[string]*ScopeVariable{},
 				Children:  []*ScopeNode{},
 				Parent:    nil,
 			},
@@ -433,7 +466,7 @@ func TestIsVariableBlockedInChildren(t *testing.T) {
 			name: "variable is not blocked",
 			scopeNode: &ScopeNode{
 				Level:     0,
-				Variables: map[string]*Variable{},
+				Variables: map[string]*ScopeVariable{},
 				Children:  []*ScopeNode{},
 				Parent:    nil,
 			},
@@ -447,11 +480,11 @@ func TestIsVariableBlockedInChildren(t *testing.T) {
 			name: "variable blocked in child scope",
 			scopeNode: &ScopeNode{
 				Level:     0,
-				Variables: map[string]*Variable{},
+				Variables: map[string]*ScopeVariable{},
 				Children: []*ScopeNode{
 					{
 						Level:     1,
-						Variables: map[string]*Variable{},
+						Variables: map[string]*ScopeVariable{},
 						Children:  []*ScopeNode{},
 						Parent:    nil,
 					},
@@ -602,12 +635,14 @@ func compareScopeNodesForBlocking(actual, expected *ScopeNode) bool {
 	if len(actual.Variables) != len(expected.Variables) {
 		return false
 	}
-	for name, actualVar := range actual.Variables {
-		expectedVar, exists := expected.Variables[name]
+	for name, actualScopeVar := range actual.Variables {
+		expectedScopeVar, exists := expected.Variables[name]
 		if !exists {
 			return false
 		}
-		if actualVar.Name != expectedVar.Name || actualVar.Type != expectedVar.Type {
+		if actualScopeVar.Variable.Name != expectedScopeVar.Variable.Name ||
+			actualScopeVar.Variable.Type != expectedScopeVar.Variable.Type ||
+			actualScopeVar.Blocked != expectedScopeVar.Blocked {
 			return false
 		}
 	}

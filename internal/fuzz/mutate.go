@@ -45,7 +45,7 @@ func injectSnippetInModule(
 		)
 	}
 
-	bestScope := findBestScopeNode(scopeTree, snippet.Module.Ports)
+	bestScope := findBestScopeNode(scopeTree)
 	if bestScope == nil {
 		logger.Warn(
 			"[%s] Could not determine a best scope for snippet %s in module %s. Using module root.",
@@ -59,8 +59,8 @@ func injectSnippetInModule(
 	portConnections, newSignalDeclarations, err := matchVariablesToSnippetPorts(
 		targetModule,
 		snippet,
-		scopeTree,
 		workerDir,
+		bestScope,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to match variables to snippet ports: %v", err)
@@ -119,35 +119,29 @@ func injectSnippetInModule(
 func matchVariablesToSnippetPorts(
 	module *verilog.Module,
 	snippet *snippets.Snippet,
-	scopeTree *verilog.ScopeNode,
 	debugWorkerDir string,
+	bestScopeForSnippet *verilog.ScopeNode,
 ) (map[string]string, []verilog.Port, error) {
 	portConnections := make(map[string]string)
 	newDeclarations := []verilog.Port{}
 
 	usedInternalVars := make(map[string]bool)
 	usedModuleInputPorts := make(map[string]bool)
-	usedModuleOutputPorts := make(map[string]bool)
 	// Tracks module variable names (from scope or module ports) already connected to a snippet port
 	overallAssignedModuleVarNames := make(map[string]bool)
-
-	bestScopeForSnippet := findBestScopeNode(scopeTree, snippet.Module.Ports)
-	if bestScopeForSnippet == nil {
-		logger.Warn(
-			"[%s] findBestScopeNode returned nil, falling back to module root scope for snippet %s",
-			debugWorkerDir,
-			snippet.Name,
-		)
-		bestScopeForSnippet = scopeTree
-	}
-
-	varsAccessibleInBestScope := collectAccessibleVars(bestScopeForSnippet)
 
 	for _, port := range snippet.Module.Ports {
 		foundMatch := false
 		var connectedVarName string
 
-		if len(varsAccessibleInBestScope) > 0 {
+		if len(bestScopeForSnippet.Variables) > 0 {
+			var varsAccessibleInBestScope map[string]*verilog.Variable
+			if port.Direction == verilog.INPUT {
+				varsAccessibleInBestScope = collectAccessibleVarsForInput(bestScopeForSnippet)
+			} else {
+				varsAccessibleInBestScope = collectAccessibleVarsForOutput(bestScopeForSnippet)
+			}
+
 			matchedVarFromScope := findMatchingVariable(
 				port,
 				varsAccessibleInBestScope,
@@ -161,6 +155,11 @@ func matchVariablesToSnippetPorts(
 				usedInternalVars[connectedVarName] = true              // Mark as used for this strategy
 				overallAssignedModuleVarNames[connectedVarName] = true // Mark as globally assigned
 				foundMatch = true
+
+				// If this is an output port, mark the variable as blocked
+				if port.Direction == verilog.OUTPUT {
+					verilog.MarkVariableAsBlocked(bestScopeForSnippet, connectedVarName)
+				}
 			}
 		}
 
@@ -180,22 +179,9 @@ func matchVariablesToSnippetPorts(
 						break
 					}
 				}
-			} else if port.Direction == verilog.OUTPUT {
-				for _, modulePort := range module.Ports {
-					if modulePort.Direction == verilog.OUTPUT &&
-						modulePort.Type == port.Type &&
-						modulePort.Width == port.Width &&
-						!usedModuleOutputPorts[modulePort.Name] && // Ensure this module output port isn't already used by this strategy
-						!overallAssignedModuleVarNames[modulePort.Name] { // Ensure this module port name isn't globally assigned
-						connectedVarName = modulePort.Name
-						portConnections[port.Name] = connectedVarName
-						usedModuleOutputPorts[connectedVarName] = true         // Mark as used for this strategy
-						overallAssignedModuleVarNames[connectedVarName] = true // Mark as globally assigned
-						foundMatch = true
-						break
-					}
-				}
 			}
+			// Note: OUTPUT ports are never matched to existing module output ports
+			// They always get new variables created to avoid multiple drivers
 		}
 
 		if !foundMatch {
@@ -210,7 +196,7 @@ func matchVariablesToSnippetPorts(
 			}
 			newDeclarations = append(newDeclarations, newSignalObj)
 			portConnections[port.Name] = newSignalName
-			// module.Ports = append(module.Ports, newSignalObj)
+
 			logger.Debug(
 				"[%s] Created new signal %s for port %s in snippet %s and AnsiStyle %t",
 				debugWorkerDir,
@@ -228,69 +214,38 @@ func matchVariablesToSnippetPorts(
 
 func findBestScopeNode(
 	rootNode *verilog.ScopeNode,
-	requiredPorts []verilog.Port,
 ) *verilog.ScopeNode {
 	if rootNode == nil {
 		return nil
 	}
 	bestScope := rootNode
-	maxSatisfiedCount := -1
-	var perfectMatchScope *verilog.ScopeNode
+	maxVariableCount := -1
 
 	var dfs func(currentNode *verilog.ScopeNode, parentAccessibleVars map[string]*verilog.Variable)
 	dfs = func(currentNode *verilog.ScopeNode, parentAccessibleVars map[string]*verilog.Variable) {
-		if perfectMatchScope != nil {
-			return
-		}
-
 		currentScopeAndParentVars := make(
 			map[string]*verilog.Variable,
 		)
-		maps.Copy(currentScopeAndParentVars, currentNode.Variables)
+		// Copy current node variables from ScopeVariable to Variable map
+		for name, scopeVar := range currentNode.Variables {
+			currentScopeAndParentVars[name] = scopeVar.Variable
+		}
 		maps.Copy(currentScopeAndParentVars, parentAccessibleVars)
 
-		tempUsedInCheck := make(map[string]bool)
-		currentSatisfied := 0
-		allRequiredSatisfied := true
+		currentVariableCount := len(currentScopeAndParentVars)
 
-		if len(requiredPorts) == 0 {
-			perfectMatchScope = currentNode
-			maxSatisfiedCount = 0
-			bestScope = currentNode
-			return
-		}
-
-		for _, port := range requiredPorts {
-			portIsSatisfied := false
-			for _, v := range currentScopeAndParentVars {
-				if !tempUsedInCheck[v.Name] && v.Type == port.Type && v.Width == port.Width {
-					currentSatisfied++
-					tempUsedInCheck[v.Name] = true
-					portIsSatisfied = true
-					break
-				}
-			}
-			if !portIsSatisfied {
-				allRequiredSatisfied = false
-			}
-		}
-
-		if allRequiredSatisfied {
-			perfectMatchScope = currentNode
-			maxSatisfiedCount = currentSatisfied
-			bestScope = currentNode
-			return
-		}
-
-		if currentSatisfied > maxSatisfiedCount {
-			maxSatisfiedCount = currentSatisfied
+		if currentVariableCount > maxVariableCount {
+			maxVariableCount = currentVariableCount
 			bestScope = currentNode
 		}
 
 		varsForChildren := make(
 			map[string]*verilog.Variable,
 		)
-		maps.Copy(varsForChildren, currentNode.Variables)
+		// Copy current node variables from ScopeVariable to Variable map
+		for name, scopeVar := range currentNode.Variables {
+			varsForChildren[name] = scopeVar.Variable
+		}
 		maps.Copy(
 			varsForChildren,
 			parentAccessibleVars,
@@ -298,30 +253,44 @@ func findBestScopeNode(
 
 		for _, child := range currentNode.Children {
 			dfs(child, varsForChildren)
-			if perfectMatchScope != nil {
-				return
-			}
 		}
 	}
 
 	dfs(rootNode, make(map[string]*verilog.Variable))
 
-	if perfectMatchScope != nil {
-		return perfectMatchScope
-	}
 	return bestScope
 }
 
-func collectAccessibleVars(node *verilog.ScopeNode) map[string]*verilog.Variable {
+// This function collects all accessible variables from the given scope node and its parents.
+// It returns a map of variable names to their corresponding Variable objects.
+// This is useful for matching snippet ports to existing variables in the module.
+func collectAccessibleVarsForInput(node *verilog.ScopeNode) map[string]*verilog.Variable {
 	collectedVars := make(map[string]*verilog.Variable)
 	curr := node
 	for curr != nil {
-		maps.Copy(collectedVars, curr.Variables)
+		for name, scopeVar := range curr.Variables {
+			collectedVars[name] = scopeVar.Variable
+		}
 		curr = curr.Parent
 	}
 	return collectedVars
 }
 
+func collectAccessibleVarsForOutput(node *verilog.ScopeNode) map[string]*verilog.Variable {
+	collectedVars := make(map[string]*verilog.Variable)
+	curr := node
+	for curr != nil {
+		for name, scopeVar := range curr.Variables {
+			if !scopeVar.Blocked {
+				collectedVars[name] = scopeVar.Variable
+			}
+		}
+		curr = curr.Parent
+	}
+	return collectedVars
+}
+
+// This function finds a matching variable for a given port in the provided variables map.
 func findMatchingVariable(
 	port verilog.Port,
 	variables map[string]*verilog.Variable,

@@ -60,11 +60,13 @@ endmodule
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
 
+	bestScope := findBestScopeNode(scopeTree)
+
 	portConnections, newDeclarations, err := matchVariablesToSnippetPorts(
 		module,
 		snippet,
-		scopeTree,
 		"test",
+		bestScope,
 	)
 	if err != nil {
 		t.Fatalf("matchVariablesToSnippetPorts failed: %v", err)

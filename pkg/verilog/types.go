@@ -122,6 +122,12 @@ type Variable struct {
 	ParentClass  *Class
 }
 
+// ScopeVariable extends Variable with usage tracking for scope analysis
+type ScopeVariable struct {
+	*Variable
+	Blocked bool // true if variable is already used as output and can only be used as input
+}
+
 type Struct struct {
 	Name      string
 	Variables []*Variable
@@ -194,7 +200,7 @@ type DependencyNode struct {
 
 type ScopeNode struct {
 	Level     int
-	Variables map[string]*Variable
+	Variables map[string]*ScopeVariable
 	Children  []*ScopeNode
 	Parent    *ScopeNode
 	LastLine  int

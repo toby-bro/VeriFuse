@@ -1570,6 +1570,83 @@ func determinePortBlockingStatus(
 	}
 }
 
+// MarkVariableAsBlocked marks a variable as blocked (used as output) in the scope tree
+func MarkVariableAsBlockedInChildren(scopeNode *ScopeNode, varName string) {
+	// Search through all scope nodes to find and mark the variable as blocked
+	var markInNode func(*ScopeNode)
+	markInNode = func(node *ScopeNode) {
+		if scopeVar, exists := node.Variables[varName]; exists {
+			scopeVar.Blocked = true
+		}
+		for _, child := range node.Children {
+			markInNode(child)
+		}
+	}
+	markInNode(scopeNode)
+}
+
+func MarkVariableAsBlockedInParents(scopeNode *ScopeNode, varName string) {
+	if scopeNode == nil {
+		return
+	}
+	// Mark the variable as blocked in the current scope node
+	if scopeVar, exists := scopeNode.Variables[varName]; exists {
+		scopeVar.Blocked = true
+	}
+	// Recursively mark the variable as blocked in all parent scope nodes
+	if scopeNode.Parent != nil {
+		MarkVariableAsBlockedInParents(scopeNode.Parent, varName)
+	}
+}
+
+func MarkVariableAsBlocked(ScopeNode *ScopeNode, varName string) {
+	// Mark the variable as blocked in the current scope node
+	if scopeVar, exists := ScopeNode.Variables[varName]; exists {
+		scopeVar.Blocked = true
+	}
+	// Recursively mark the variable as blocked in all parent scope nodes
+	if ScopeNode.Parent != nil {
+		MarkVariableAsBlockedInParents(ScopeNode.Parent, varName)
+	}
+
+	// Also mark the variable as blocked in all child scope nodes
+	for _, child := range ScopeNode.Children {
+		if scopeVar, exists := child.Variables[varName]; exists {
+			scopeVar.Blocked = true
+		}
+		// Recursively mark in children
+		MarkVariableAsBlocked(child, varName)
+	}
+}
+
+// GetAvailableVariablesForOutput returns variables that can be used as outputs (not blocked)
+func GetAvailableVariablesForOutput(node *ScopeNode) map[string]*ScopeVariable {
+	available := make(map[string]*ScopeVariable)
+	curr := node
+	for curr != nil {
+		for name, scopeVar := range curr.Variables {
+			if !scopeVar.Blocked {
+				available[name] = scopeVar
+			}
+		}
+		curr = curr.Parent
+	}
+	return available
+}
+
+// GetAvailableVariablesForInput returns all variables that can be used as inputs (including blocked ones)
+func GetAvailableVariablesForInput(node *ScopeNode) map[string]*ScopeVariable {
+	available := make(map[string]*ScopeVariable)
+	curr := node
+	for curr != nil {
+		for name, scopeVar := range curr.Variables {
+			available[name] = scopeVar
+		}
+		curr = curr.Parent
+	}
+	return available
+}
+
 // removeBlockedVariablesFromParents removes blocked variables from parent scope nodes
 func removeBlockedVariablesFromParents(scopeNode *ScopeNode, blockedVars map[string]bool) {
 	if scopeNode == nil {
@@ -1645,7 +1722,7 @@ func parseVariablesWithScope(v *VerilogFile,
 	variablesMap := make(map[string]*Variable)
 	scopeTree := &ScopeNode{
 		Level:     0,
-		Variables: make(map[string]*Variable),
+		Variables: make(map[string]*ScopeVariable),
 		Children:  []*ScopeNode{},
 		Parent:    nil,
 		LastLine:  -1,
@@ -1672,7 +1749,7 @@ func parseVariablesWithScope(v *VerilogFile,
 				}
 				newScopeNode := &ScopeNode{
 					Level:     indentation,
-					Variables: make(map[string]*Variable),
+					Variables: make(map[string]*ScopeVariable),
 					Children:  []*ScopeNode{},
 					Parent:    scopeNode,
 					LastLine:  lineNumber,
@@ -1749,8 +1826,15 @@ func parseVariablesWithScope(v *VerilogFile,
 				Array:        arrayMatch[2],
 			}
 			variablesMap[varName] = variable
+
+			// Create ScopeVariable wrapper for scope tracking
+			scopeVariable := &ScopeVariable{
+				Variable: variable,
+				Blocked:  false, // Initially not blocked
+			}
+
 			if indent == scopeNode.Level {
-				scopeNode.Variables[variable.Name] = variable
+				scopeNode.Variables[variable.Name] = scopeVariable
 				scopeNode.LastLine = lineNumber
 			} else {
 				for scopeNode.Level > indent {
@@ -1758,11 +1842,11 @@ func parseVariablesWithScope(v *VerilogFile,
 				}
 				newScopeNode := &ScopeNode{
 					Level:     indent,
-					Variables: make(map[string]*Variable),
+					Variables: make(map[string]*ScopeVariable),
 					Children:  []*ScopeNode{},
 					Parent:    scopeNode,
 				}
-				newScopeNode.Variables[variable.Name] = variable
+				newScopeNode.Variables[variable.Name] = scopeVariable
 				newScopeNode.LastLine = lineNumber
 				scopeNode.Children = append(scopeNode.Children, newScopeNode)
 				scopeNode = newScopeNode
@@ -1775,6 +1859,9 @@ func parseVariablesWithScope(v *VerilogFile,
 			logger.Warn("Skipping module port with empty name")
 			continue
 		}
+		if port.Type != PortType(INPUT) {
+			continue
+		}
 		if _, exists := scopeTree.Variables[port.Name]; !exists {
 			variable := &Variable{
 				Name:     port.Name,
@@ -1783,7 +1870,12 @@ func parseVariablesWithScope(v *VerilogFile,
 				Unsigned: !port.IsSigned,
 				Array:    port.Array,
 			}
-			scopeTree.Variables[port.Name] = variable
+			// Create ScopeVariable wrapper for module ports
+			scopeVariable := &ScopeVariable{
+				Variable: variable,
+				Blocked:  false, // Module input ports start unblocked
+			}
+			scopeTree.Variables[port.Name] = scopeVariable
 		}
 	}
 
@@ -2487,7 +2579,7 @@ func removeCommentsAndStrings(content string) string {
 	return content
 }
 
-// removeTaskClassVariablesFromScopes removes variables that are declared in task/class scopes
+// removeTaskClassVariablesFromScopes removes variables that are declared in task or class scopes
 // from all scope nodes, but keeps them in the main variablesMap
 func removeTaskClassVariablesFromScopes(scopeNode *ScopeNode, taskClassVars map[string]bool) {
 	if scopeNode == nil {
