@@ -247,7 +247,7 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 }
 
 // FailedCuzUnsupportedFeature checks if the compilation failed due to unsupported features.
-func (sim *CXXRTLSimulator) FailedCuzUnsupportedFeature(log error) (bool, error) {
+func (sim *CXXRTLSimulator) FailedCuzUnsupportedFeature(_ error) (bool, error) {
 	// Not implemented yet
 	return false, nil
 }

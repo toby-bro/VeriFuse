@@ -211,7 +211,7 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 	return nil
 }
 
-func (sim *VerilatorSimulator) FailedCuzUnsupportedFeature(log error) (bool, error) {
+func (sim *VerilatorSimulator) FailedCuzUnsupportedFeature(_ error) (bool, error) {
 	// Not implemented yet
 	return false, nil
 }

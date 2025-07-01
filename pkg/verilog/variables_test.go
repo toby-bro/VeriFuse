@@ -640,8 +640,8 @@ func compareScopeNodesForBlocking(actual, expected *ScopeNode) bool {
 		if !exists {
 			return false
 		}
-		if actualScopeVar.Variable.Name != expectedScopeVar.Variable.Name ||
-			actualScopeVar.Variable.Type != expectedScopeVar.Variable.Type ||
+		if actualScopeVar.Name != expectedScopeVar.Name ||
+			actualScopeVar.Type != expectedScopeVar.Type ||
 			actualScopeVar.Blocked != expectedScopeVar.Blocked {
 			return false
 		}
