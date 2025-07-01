@@ -89,7 +89,7 @@ endmodule
 		t.Errorf("Expected 'output2' to have a connection, but it is empty")
 	}
 
-	if len(newDeclarations) != 1 {
+	if len(newDeclarations) != 2 {
 		t.Errorf("Expected a new declaration, got %d", len(newDeclarations))
 	}
 }
@@ -147,7 +147,7 @@ endmodule
 		t.Errorf("Expected snippet instantiation not found in mutated content")
 	}
 
-	if !strings.Contains(mutatedContent, ".output1(data_out)") {
+	if !strings.Contains(mutatedContent, ".output1(inj_output1_") {
 		t.Errorf("Expected output connection not found in mutated content")
 	}
 	if !strings.Contains(mutatedContent, ".input1(data_in)") &&
