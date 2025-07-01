@@ -17,12 +17,12 @@ import (
 
 // VerilatorSimulator represents the Verilator simulator
 type VerilatorSimulator struct {
-	execPath  string
-	workDir   string
-	svFile    *verilog.VerilogFile
-	module    *verilog.Module
-	optimized bool
-	logger    *utils.DebugLogger
+	execPath   string
+	workDir    string
+	svFileName string
+	module     *verilog.Module
+	optimized  bool
+	logger     *utils.DebugLogger
 }
 
 func TestVerilatorTool() error {
@@ -51,12 +51,12 @@ func NewVerilatorSimulator(
 		return nil
 	}
 	return &VerilatorSimulator{
-		execPath:  filepath.Join(workDir, "obj_dir", "Vtestbench"),
-		workDir:   workDir,
-		svFile:    svFile,
-		module:    svFile.Modules[moduleName],
-		optimized: optimized,
-		logger:    utils.NewDebugLogger(verbose),
+		execPath:   filepath.Join(workDir, "obj_dir", "Vtestbench"),
+		workDir:    workDir,
+		svFileName: svFile.Name,
+		module:     svFile.Modules[moduleName],
+		optimized:  optimized,
+		logger:     utils.NewDebugLogger(verbose),
 	}
 }
 
@@ -160,7 +160,7 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 		"-Wno-CASEOVERLAP",
 		"-Wno-ASCRANGE",
 		"../testbench.sv",
-		"../" + sim.svFile.Name,
+		"../" + sim.svFileName,
 	}
 
 	if sim.optimized {
