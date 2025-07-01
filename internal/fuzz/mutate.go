@@ -370,6 +370,16 @@ func replacePortNames(snippetString string, portConnection map[string]string) st
 	return snippetString
 }
 
+// This function replaces variable names in the snippet string with their timestamped versions
+// to avoid naming conflicts when the same snippet is injected multiple times.
+func replaceVariableNames(snippetString string, variableRenameMap map[string]string) string {
+	for originalName, timestampedName := range variableRenameMap {
+		re := regexp.MustCompile(`\b` + regexp.QuoteMeta(originalName) + `\b`)
+		snippetString = re.ReplaceAllString(snippetString, timestampedName)
+	}
+	return snippetString
+}
+
 // This function changes the names of the port variables in the snippet to match the names given in portConnections
 // It returns a string that can be directly injected into any other module at the given scope level.
 func generateSnippetInjection(
@@ -378,8 +388,41 @@ func generateSnippetInjection(
 ) string {
 	snippetString := snippet.Module.Body
 	snippetString = replacePortNames(snippetString, portConnections)
+
+	// Parse all variables in the snippet body to rename internal variables with timestamp
+	snippetVariables, err := verilog.ParseVariables(nil, snippetString, snippet.Module.Parameters)
+	if err != nil {
+		logger.Debug("Failed to parse variables from snippet %s: %v", snippet.Name, err)
+	} else {
+		// Generate timestamp for unique variable naming
+		timestamp := time.Now().UnixNano() / int64(time.Millisecond)
+
+		// Create a mapping of original variable names to timestamped versions
+		variableRenameMap := make(map[string]string)
+		for varName := range snippetVariables {
+			// Skip ports as they are already handled by portConnections
+			isPort := false
+			for _, port := range snippet.Module.Ports {
+				if port.Name == varName {
+					isPort = true
+					break
+				}
+			}
+			if !isPort {
+				timestampedVarName := fmt.Sprintf("%s_ts%d", varName, timestamp)
+				variableRenameMap[varName] = timestampedVarName
+			}
+		}
+
+		// Replace all internal variable names with timestamped versions
+		snippetString = replaceVariableNames(snippetString, variableRenameMap)
+
+		logger.Debug("Renamed %d internal variables in snippet %s with timestamp %d",
+			len(variableRenameMap), snippet.Name, timestamp)
+	}
+
 	snippetString = utils.TrimEmptyLines(snippetString)
-	
+
 	// Generate timestamp only where we actually need it for unique naming
 	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
 	snippetIdentifier := fmt.Sprintf("%s_ts%d", strings.TrimSpace(snippet.Name), timestamp)
