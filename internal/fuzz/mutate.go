@@ -188,7 +188,12 @@ func matchVariablesToSnippetPorts(
 		if !foundMatch {
 			// Generate timestamp only where we actually need it for renaming
 			timestamp := time.Now().UnixNano() / int64(time.Millisecond)
-			newSignalName := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(port.Name), timestamp, rand.Intn(1000))
+			newSignalName := fmt.Sprintf(
+				"inj_%s_%d_%d",
+				strings.ToLower(port.Name),
+				timestamp,
+				rand.Intn(1000),
+			)
 			newSignalObj := verilog.Port{
 				Name:            newSignalName,
 				Type:            port.Type,
