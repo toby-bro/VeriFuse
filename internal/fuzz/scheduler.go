@@ -36,7 +36,7 @@ type TimeoutConfig struct {
 // DefaultTimeoutConfig returns sensible default timeout values
 func DefaultTimeoutConfig() TimeoutConfig {
 	return TimeoutConfig{
-		CompilationTimeout: 1 * time.Minute,
+		CompilationTimeout: 30 * time.Second,
 		TestTimeout:        30 * time.Second,
 		OverallTimeout:     5 * time.Minute,
 	}
