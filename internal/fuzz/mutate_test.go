@@ -68,7 +68,6 @@ endmodule
 		snippet,
 		"test",
 		bestScope,
-		0, // injectionCount for test
 	)
 	if err != nil {
 		t.Fatalf("matchVariablesToSnippetPorts failed: %v", err)
@@ -304,8 +303,8 @@ func TestGenerateSnippetInstantiation(t *testing.T) {
 		"output1": "data_out",
 	}
 
-	instantiation := generateSnippetInstantiation(snippet, portConnections, 0)
-	expectedPrefix := `SnippetModule TestSnippet_inst_0_`
+	instantiation := generateSnippetInstantiation(snippet, portConnections)
+	expectedPrefix := `SnippetModule TestSnippet_inst_`
 	if !strings.HasPrefix(strings.TrimSpace(instantiation), expectedPrefix) {
 		t.Errorf(
 			"Expected instantiation to start with '%s', got '%s'",
