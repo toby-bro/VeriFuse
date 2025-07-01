@@ -27,6 +27,7 @@ func injectSnippetInModule(
 	snippet *snippets.Snippet,
 	instantiate bool,
 	workerDir string,
+	injectionCount int,
 ) error {
 	scopeTree, err := verilog.GetScopeTree(
 		targetFile,
@@ -61,6 +62,7 @@ func injectSnippetInModule(
 		snippet,
 		workerDir,
 		bestScope,
+		injectionCount,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to match variables to snippet ports: %v", err)
@@ -81,9 +83,9 @@ func injectSnippetInModule(
 
 	var injection string
 	if instantiate {
-		injection = generateSnippetInstantiation(snippet, portConnections)
+		injection = generateSnippetInstantiation(snippet, portConnections, injectionCount)
 	} else {
-		injection = generateSnippetInjection(snippet, portConnections)
+		injection = generateSnippetInjection(snippet, portConnections, injectionCount)
 		targetModule.Parameters = append(targetModule.Parameters, snippet.Module.Parameters...)
 	}
 
@@ -121,6 +123,7 @@ func matchVariablesToSnippetPorts(
 	snippet *snippets.Snippet,
 	debugWorkerDir string,
 	bestScopeForSnippet *verilog.ScopeNode,
+	injectionCount int,
 ) (map[string]string, []verilog.Port, error) {
 	portConnections := make(map[string]string)
 	newDeclarations := []verilog.Port{}
@@ -185,7 +188,7 @@ func matchVariablesToSnippetPorts(
 		}
 
 		if !foundMatch {
-			newSignalName := fmt.Sprintf("inj_%s_%d", strings.ToLower(port.Name), rand.Intn(1000))
+			newSignalName := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(port.Name), injectionCount, rand.Intn(1000))
 			newSignalObj := verilog.Port{
 				Name:            newSignalName,
 				Type:            port.Type,
@@ -198,11 +201,12 @@ func matchVariablesToSnippetPorts(
 			portConnections[port.Name] = newSignalName
 
 			logger.Debug(
-				"[%s] Created new signal %s for port %s in snippet %s and AnsiStyle %t",
+				"[%s] Created new signal %s for port %s in snippet %s (injection #%d) and AnsiStyle %t",
 				debugWorkerDir,
 				newSignalName,
 				port.Name,
 				snippet.Name,
+				injectionCount+1,
 				module.AnsiStyle,
 			)
 			// Newly created signals are unique by generation and don't need to be added to overallAssignedModuleVarNames
@@ -371,15 +375,19 @@ func replacePortNames(snippetString string, portConnection map[string]string) st
 func generateSnippetInjection(
 	snippet *snippets.Snippet,
 	portConnections map[string]string,
+	injectionCount int,
 ) string {
 	snippetString := snippet.Module.Body
 	snippetString = replacePortNames(snippetString, portConnections)
 	snippetString = utils.TrimEmptyLines(snippetString)
+	
+	// Make BEGIN/END comments unique by including injection count
+	snippetIdentifier := fmt.Sprintf("%s_inj%d", strings.TrimSpace(snippet.Name), injectionCount)
 	snippetString = fmt.Sprintf(
 		"    // BEGIN: %s\n%s\n    // END: %s\n",
-		strings.TrimSpace(snippet.Name),
+		snippetIdentifier,
 		snippetString,
-		strings.TrimSpace(snippet.Name),
+		snippetIdentifier,
 	)
 
 	return snippetString
@@ -388,8 +396,9 @@ func generateSnippetInjection(
 func generateSnippetInstantiation(
 	snippet *snippets.Snippet,
 	portConnections map[string]string,
+	injectionCount int,
 ) string {
-	instanceName := fmt.Sprintf("%s_inst_%d", snippet.Name, rand.Intn(10000))
+	instanceName := fmt.Sprintf("%s_inst_%d_%d", snippet.Name, injectionCount, rand.Intn(10000))
 	instantiation := fmt.Sprintf("%s %s (\n", snippet.Module.Name, instanceName)
 
 	connectionLines := []string{}
@@ -559,8 +568,8 @@ func MutateFile(
 	fileName := svFile.Name
 	mutatedOverall := false
 	injectedSnippetParentFiles := make(map[string]*verilog.VerilogFile)
-	// Track which snippets have been injected into each module to prevent duplicates
-	moduleSnippetTracker := make(map[string]map[string]bool)
+	// Track injection count per module+snippet for unique variable naming
+	moduleSnippetCounter := make(map[string]map[string]int)
 	loadLogger(verbose)
 
 	workerDir := filepath.Base(filepath.Dir(pathToWrite))
@@ -613,26 +622,20 @@ func MutateFile(
 				)
 			}
 
-			// Check if this snippet has already been injected into this module
-			if moduleSnippetTracker[moduleName] == nil {
-				moduleSnippetTracker[moduleName] = make(map[string]bool)
+			// Initialize injection counter for this module+snippet combination
+			if moduleSnippetCounter[moduleName] == nil {
+				moduleSnippetCounter[moduleName] = make(map[string]int)
 			}
-			if moduleSnippetTracker[moduleName][snippet.Name] {
-				logger.Debug(
-					"[%s] Snippet %s already injected into module %s, skipping to prevent duplicate injection",
-					workerDir,
-					snippet.Name,
-					moduleName,
-				)
-				continue
-			}
+			injectionCount := moduleSnippetCounter[moduleName][snippet.Name]
+			moduleSnippetCounter[moduleName][snippet.Name]++
 
 			logger.Debug(
-				"[%s] Attempting to inject snippet %s in module %s from file %s...",
+				"[%s] Attempting to inject snippet %s in module %s from file %s (injection #%d)...",
 				workerDir,
 				snippet.Name,
 				moduleToMutate.Name,
 				fileName,
+				injectionCount+1,
 			)
 			instantiate := rand.Intn(3) == 0
 			err = injectSnippetInModule(
@@ -641,6 +644,7 @@ func MutateFile(
 				snippet,
 				instantiate,
 				workerDir,
+				injectionCount,
 			)
 			if err != nil {
 				logger.Info(
@@ -665,14 +669,14 @@ func MutateFile(
 			}
 
 			logger.Debug(
-				"[%s] Successfully injected snippet %s into module %s",
+				"[%s] Successfully injected snippet %s into module %s (injection #%d)",
 				workerDir,
 				snippet.Name,
 				moduleToMutate.Name,
+				injectionCount+1,
 			)
 
-			// Mark this snippet as injected into this module to prevent duplicates
-			moduleSnippetTracker[moduleName][snippet.Name] = true
+			// No longer need to mark this snippet as injected since we allow duplicates with renamed variables
 
 			if instantiate {
 				svFile.AddDependency(

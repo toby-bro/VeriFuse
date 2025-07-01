@@ -1,6 +1,7 @@
 package fuzz
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -67,13 +68,14 @@ endmodule
 		snippet,
 		"test",
 		bestScope,
+		0, // injectionCount for test
 	)
 	if err != nil {
 		t.Fatalf("matchVariablesToSnippetPorts failed: %v", err)
 	}
 
 	if len(portConnections) != 4 {
-		t.Errorf("Expected 3 port connections, got %d", len(portConnections))
+		t.Errorf("Expected 4 port connections, got %d", len(portConnections))
 	}
 
 	if (portConnections["input2"] != "data_in2" && portConnections["input1"] != "data_in1") &&
@@ -90,7 +92,7 @@ endmodule
 	}
 
 	if len(newDeclarations) != 2 {
-		t.Errorf("Expected a new declaration, got %d", len(newDeclarations))
+		t.Errorf("Expected 2 new declarations for output ports, got %d", len(newDeclarations))
 	}
 }
 
@@ -137,13 +139,13 @@ endmodule
 		ParentFile: snippetFile,
 	}
 
-	err = injectSnippetInModule(module, verilogFile, snippet, true, "test")
+	err = injectSnippetInModule(module, verilogFile, snippet, true, "test", 0)
 	if err != nil {
 		t.Fatalf("injectSnippetInModule failed: %v", err)
 	}
 	mutatedContent := module.Body
 
-	if !strings.Contains(mutatedContent, "SnippetModule SnippetModule_inst_") {
+	if !strings.Contains(mutatedContent, "SnippetModule SnippetModule_inst_0_") {
 		t.Errorf("Expected snippet instantiation not found in mutated content")
 	}
 
@@ -302,8 +304,8 @@ func TestGenerateSnippetInstantiation(t *testing.T) {
 		"output1": "data_out",
 	}
 
-	instantiation := generateSnippetInstantiation(snippet, portConnections)
-	expectedPrefix := `SnippetModule TestSnippet_inst_`
+	instantiation := generateSnippetInstantiation(snippet, portConnections, 0)
+	expectedPrefix := `SnippetModule TestSnippet_inst_0_`
 	if !strings.HasPrefix(strings.TrimSpace(instantiation), expectedPrefix) {
 		t.Errorf(
 			"Expected instantiation to start with '%s', got '%s'",
@@ -325,7 +327,7 @@ func TestGenerateSnippetInstantiation(t *testing.T) {
 	}
 }
 
-func TestPreventDuplicateSnippetInjection(t *testing.T) {
+func TestAllowDuplicateSnippetInjectionWithUniqueVariables(t *testing.T) {
 	// Create a simple module
 	moduleContent := `
 module DUT (
@@ -354,13 +356,13 @@ endmodule
 
 	// Save the original file to disk for testing
 	tmpFile := "/tmp/test_duplicate_injection.sv"
-	err = os.WriteFile(tmpFile, []byte(moduleContent), 0644)
+	err = os.WriteFile(tmpFile, []byte(moduleContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
 	defer os.Remove(tmpFile)
 
-	// Run mutation multiple times with low verbosity to see if duplicates occur
+	// Run mutation multiple times with low verbosity to see if duplicates occur with unique variables
 	for i := 0; i < 10; i++ {
 		mutatedFile, err := MutateFile(verilogFile, tmpFile, 0)
 		if err != nil {
@@ -376,22 +378,46 @@ endmodule
 			t.Errorf("Mismatched BEGIN/END markers: %d BEGIN vs %d END", beginCount, endCount)
 		}
 
-		// Check for specific duplicate patterns that would indicate variable redeclaration
+		// Check that duplicate injections have unique identifiers (e.g., snippet_inj0, snippet_inj1)
 		lines := strings.Split(body, "\n")
 		beginEndPairs := make(map[string]int)
+		snippetBaseName := make(map[string]int)
 
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
 			if strings.HasPrefix(line, "// BEGIN:") {
 				snippetName := strings.TrimSpace(strings.TrimPrefix(line, "// BEGIN:"))
 				beginEndPairs[snippetName]++
+
+				// Extract base name (before _inj suffix)
+				if strings.Contains(snippetName, "_inj") {
+					baseName := strings.Split(snippetName, "_inj")[0]
+					snippetBaseName[baseName]++
+				} else {
+					snippetBaseName[snippetName]++
+				}
 			}
 		}
 
-		// Verify no snippet appears more than once
+		// Verify all snippet identifiers are unique (even if same base snippet)
 		for snippetName, count := range beginEndPairs {
 			if count > 1 {
-				t.Errorf("Snippet '%s' appears %d times in module, expected at most 1", snippetName, count)
+				t.Errorf(
+					"Snippet identifier '%s' appears %d times in module, expected exactly 1",
+					snippetName,
+					count,
+				)
+			}
+		}
+
+		// Log when we see multiple injections of the same base snippet (this should be allowed now)
+		for baseName, count := range snippetBaseName {
+			if count > 1 {
+				t.Logf(
+					"Base snippet '%s' injected %d times with unique identifiers (this is expected behavior)",
+					baseName,
+					count,
+				)
 			}
 		}
 
@@ -403,33 +429,69 @@ endmodule
 	}
 }
 
-func TestPreventSpecificDuplicateSnippetInjection(t *testing.T) {
-	// Test the duplicate tracking logic directly
-	moduleSnippetTracker := make(map[string]map[string]bool)
+func TestUniqueVariableNamingForDuplicateInjections(t *testing.T) {
+	// Test the injection counting logic for unique variable naming
+	moduleSnippetCounter := make(map[string]map[string]int)
 
-	// Simulate the first injection
-	moduleSnippetTracker["DUT"] = make(map[string]bool)
-	moduleSnippetTracker["DUT"]["simple_loop"] = true
-
-	// Check that a subsequent "injection" would be blocked
-	testSnippetName := "simple_loop"
+	// Simulate multiple injections of the same snippet
 	moduleName := "DUT"
+	testSnippetName := "simple_loop"
 
-	if moduleSnippetTracker[moduleName] == nil {
-		moduleSnippetTracker[moduleName] = make(map[string]bool)
+	// First injection
+	if moduleSnippetCounter[moduleName] == nil {
+		moduleSnippetCounter[moduleName] = make(map[string]int)
 	}
-	if moduleSnippetTracker[moduleName][testSnippetName] {
-		// This is the expected behavior - the snippet should be blocked
-		t.Logf("Successfully prevented duplicate injection of snippet %s into module %s", testSnippetName, moduleName)
-	} else {
-		t.Errorf("Failed to detect that snippet %s was already injected into module %s", testSnippetName, moduleName)
+	injectionCount1 := moduleSnippetCounter[moduleName][testSnippetName]
+	moduleSnippetCounter[moduleName][testSnippetName]++
+
+	// Second injection
+	injectionCount2 := moduleSnippetCounter[moduleName][testSnippetName]
+	moduleSnippetCounter[moduleName][testSnippetName]++
+
+	// Third injection
+	injectionCount3 := moduleSnippetCounter[moduleName][testSnippetName]
+	moduleSnippetCounter[moduleName][testSnippetName]++
+
+	// Verify injection counts are incremental
+	if injectionCount1 != 0 {
+		t.Errorf("Expected first injection count to be 0, got %d", injectionCount1)
+	}
+	if injectionCount2 != 1 {
+		t.Errorf("Expected second injection count to be 1, got %d", injectionCount2)
+	}
+	if injectionCount3 != 2 {
+		t.Errorf("Expected third injection count to be 2, got %d", injectionCount3)
 	}
 
-	// Test that a different snippet would be allowed
+	// Test variable name generation with injection counts
+	portName := "val_out"
+	var1 := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(portName), injectionCount1, 100)
+	var2 := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(portName), injectionCount2, 100)
+	var3 := fmt.Sprintf("inj_%s_%d_%d", strings.ToLower(portName), injectionCount3, 100)
+
+	expectedVar1 := "inj_val_out_0_100"
+	expectedVar2 := "inj_val_out_1_100"
+	expectedVar3 := "inj_val_out_2_100"
+
+	if var1 != expectedVar1 {
+		t.Errorf("Expected variable name '%s', got '%s'", expectedVar1, var1)
+	}
+	if var2 != expectedVar2 {
+		t.Errorf("Expected variable name '%s', got '%s'", expectedVar2, var2)
+	}
+	if var3 != expectedVar3 {
+		t.Errorf("Expected variable name '%s', got '%s'", expectedVar3, var3)
+	}
+
+	t.Logf("Successfully generated unique variable names: %s, %s, %s", var1, var2, var3)
+
+	// Test that different snippets in the same module have independent counters
 	testSnippetName2 := "different_snippet"
-	if moduleSnippetTracker[moduleName][testSnippetName2] {
-		t.Errorf("Incorrectly blocked injection of different snippet %s into module %s", testSnippetName2, moduleName)
-	} else {
-		t.Logf("Correctly allowing injection of different snippet %s into module %s", testSnippetName2, moduleName)
+	injectionCountDiff := moduleSnippetCounter[moduleName][testSnippetName2]
+	if injectionCountDiff != 0 {
+		t.Errorf(
+			"Expected injection count for different snippet to be 0, got %d",
+			injectionCountDiff,
+		)
 	}
 }
