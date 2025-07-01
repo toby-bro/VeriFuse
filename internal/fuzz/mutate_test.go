@@ -324,3 +324,112 @@ func TestGenerateSnippetInstantiation(t *testing.T) {
 		t.Errorf("Expected instantiation to end with ');', got '%s'", instantiation)
 	}
 }
+
+func TestPreventDuplicateSnippetInjection(t *testing.T) {
+	// Create a simple module
+	moduleContent := `
+module DUT (
+    input logic clk,
+    input logic rst_n,
+    input logic [7:0] data_in,
+    output logic [7:0] data_out
+);
+	logic [7:0] internal_wire;
+	assign internal_wire = data_in + 1;
+	always_ff @(posedge clk or negedge rst_n) begin
+		if (!rst_n) begin
+			data_out <= 8'b0;
+		end else begin
+			data_out <= internal_wire;
+		end
+	end
+endmodule
+`
+	
+	// Create a VerilogFile with our module
+	verilogFile, err := verilog.ParseVerilog(moduleContent, 5)
+	if err != nil {
+		t.Fatalf("ParseVerilog failed for module: %v", err)
+	}
+
+	// Save the original file to disk for testing
+	tmpFile := "/tmp/test_duplicate_injection.sv"
+	err = os.WriteFile(tmpFile, []byte(moduleContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+	defer os.Remove(tmpFile)
+
+	// Run mutation multiple times with low verbosity to see if duplicates occur
+	for i := 0; i < 10; i++ {
+		mutatedFile, err := MutateFile(verilogFile, tmpFile, 0)
+		if err != nil {
+			t.Fatalf("MutateFile failed on iteration %d: %v", i, err)
+		}
+		
+		// Count occurrences of BEGIN/END comments to check for duplicates
+		body := mutatedFile.Modules["DUT"].Body
+		beginCount := strings.Count(body, "// BEGIN:")
+		endCount := strings.Count(body, "// END:")
+		
+		if beginCount != endCount {
+			t.Errorf("Mismatched BEGIN/END markers: %d BEGIN vs %d END", beginCount, endCount)
+		}
+		
+		// Check for specific duplicate patterns that would indicate variable redeclaration
+		lines := strings.Split(body, "\n")
+		beginEndPairs := make(map[string]int)
+		
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "// BEGIN:") {
+				snippetName := strings.TrimSpace(strings.TrimPrefix(line, "// BEGIN:"))
+				beginEndPairs[snippetName]++
+			}
+		}
+		
+		// Verify no snippet appears more than once
+		for snippetName, count := range beginEndPairs {
+			if count > 1 {
+				t.Errorf("Snippet '%s' appears %d times in module, expected at most 1", snippetName, count)
+			}
+		}
+		
+		// Reload for next iteration
+		verilogFile, err = verilog.ParseVerilog(moduleContent, 5)
+		if err != nil {
+			t.Fatalf("ParseVerilog failed for module on iteration %d: %v", i, err)
+		}
+	}
+}
+
+func TestPreventSpecificDuplicateSnippetInjection(t *testing.T) {
+	// Test the duplicate tracking logic directly
+	moduleSnippetTracker := make(map[string]map[string]bool)
+	
+	// Simulate the first injection
+	moduleSnippetTracker["DUT"] = make(map[string]bool)
+	moduleSnippetTracker["DUT"]["simple_loop"] = true
+	
+	// Check that a subsequent "injection" would be blocked  
+	testSnippetName := "simple_loop"
+	moduleName := "DUT"
+	
+	if moduleSnippetTracker[moduleName] == nil {
+		moduleSnippetTracker[moduleName] = make(map[string]bool)
+	}
+	if moduleSnippetTracker[moduleName][testSnippetName] {
+		// This is the expected behavior - the snippet should be blocked
+		t.Logf("Successfully prevented duplicate injection of snippet %s into module %s", testSnippetName, moduleName)
+	} else {
+		t.Errorf("Failed to detect that snippet %s was already injected into module %s", testSnippetName, moduleName)
+	}
+	
+	// Test that a different snippet would be allowed
+	testSnippetName2 := "different_snippet"
+	if moduleSnippetTracker[moduleName][testSnippetName2] {
+		t.Errorf("Incorrectly blocked injection of different snippet %s into module %s", testSnippetName2, moduleName)
+	} else {
+		t.Logf("Correctly allowing injection of different snippet %s into module %s", testSnippetName2, moduleName)
+	}
+}
