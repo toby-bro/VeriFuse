@@ -432,55 +432,66 @@ func TestParseVariables(t *testing.T) {
 		"internal_wire":      {Name: "internal_wire", Type: LOGIC, Width: 8, Unsigned: false},
 	}
 	expectedTree := &ScopeNode{
-		Level:     0,
-		Parent:    nil,
-		Variables: map[string]*Variable{"GGG_field1": expectedVars["GGG_field1"]},
-		Children:  []*ScopeNode{},
+		Level:  0,
+		Parent: nil,
+		Variables: map[string]*ScopeVariable{
+			"GGG_field1": {Variable: expectedVars["GGG_field1"], Blocked: false},
+		},
+		Children: []*ScopeNode{},
 	}
 	expectedTree.Children = append(expectedTree.Children, &ScopeNode{
-		Level:     1,
-		Parent:    expectedTree,
-		Variables: map[string]*Variable{"GGG_field2": expectedVars["GGG_field2"]},
-		Children:  []*ScopeNode{},
+		Level:  1,
+		Parent: expectedTree,
+		Variables: map[string]*ScopeVariable{
+			"GGG_field2": {Variable: expectedVars["GGG_field2"], Blocked: false},
+		},
+		Children: []*ScopeNode{},
 	})
 	expectedTree.Children = append(expectedTree.Children, &ScopeNode{
 		Level:  0,
 		Parent: expectedTree,
-		Variables: map[string]*Variable{
-			"GGG_condition_var": expectedVars["GGG_condition_var"],
-			"GGG_array_var":     expectedVars["GGG_array_var"],
+		Variables: map[string]*ScopeVariable{
+			"GGG_condition_var": {Variable: expectedVars["GGG_condition_var"], Blocked: false},
+			"GGG_array_var":     {Variable: expectedVars["GGG_array_var"], Blocked: false},
 		},
 		Children: []*ScopeNode{},
 	})
 	expectedTree.Children[1].Children = append(expectedTree.Children[1].Children, &ScopeNode{
-		Level:     1,
-		Parent:    expectedTree.Children[1],
-		Variables: map[string]*Variable{"GGG_index_limit": expectedVars["GGG_index_limit"]},
-		Children:  []*ScopeNode{},
+		Level:  1,
+		Parent: expectedTree.Children[1],
+		Variables: map[string]*ScopeVariable{
+			"GGG_index_limit": {Variable: expectedVars["GGG_index_limit"], Blocked: false},
+		},
+		Children: []*ScopeNode{},
 	})
 	expectedTree.Children[1].Children[0].Children = append(
 		expectedTree.Children[1].Children[0].Children,
 		&ScopeNode{
 			Level:  2,
 			Parent: expectedTree.Children[1].Children[0],
-			Variables: map[string]*Variable{
-				"m_queue":            expectedVars["m_queue"],
-				"GGG_class_rand_var": expectedVars["GGG_class_rand_var"],
+			Variables: map[string]*ScopeVariable{
+				"m_queue": {Variable: expectedVars["m_queue"], Blocked: false},
+				"GGG_class_rand_var": {
+					Variable: expectedVars["GGG_class_rand_var"],
+					Blocked:  false,
+				},
 			},
 			Children: []*ScopeNode{},
 		},
 		&ScopeNode{
 			Level:     1,
 			Parent:    expectedTree.Children[1].Children[0],
-			Variables: map[string]*Variable{},
+			Variables: map[string]*ScopeVariable{},
 			Children:  []*ScopeNode{},
 		},
 	)
 	expectedTree.Children[1].Children = append(expectedTree.Children[1].Children, &ScopeNode{
-		Level:     0,
-		Parent:    expectedTree.Children[1],
-		Variables: map[string]*Variable{"internal_wire": expectedVars["internal_wire"]},
-		Children:  []*ScopeNode{},
+		Level:  0,
+		Parent: expectedTree.Children[1],
+		Variables: map[string]*ScopeVariable{
+			"internal_wire": {Variable: expectedVars["internal_wire"], Blocked: false},
+		},
+		Children: []*ScopeNode{},
 	})
 	// Pass nil for VerilogFile as 'aa' contains only basic types for this test's scope,
 	// and we are not testing user-defined type resolution here.
@@ -545,17 +556,17 @@ func compareScopeTrees(actual, expected *ScopeNode) error {
 
 	if !reflect.DeepEqual(actual.Variables, expected.Variables) {
 		var actualVarNames []string
-		for _, v := range actual.Variables {
-			if v != nil {
-				actualVarNames = append(actualVarNames, v.Name)
+		for _, scopeVar := range actual.Variables {
+			if scopeVar != nil && scopeVar.Variable != nil {
+				actualVarNames = append(actualVarNames, scopeVar.Variable.Name)
 			} else {
 				actualVarNames = append(actualVarNames, "<nil>")
 			}
 		}
 		var expectedVarNames []string
-		for _, v := range expected.Variables {
-			if v != nil {
-				expectedVarNames = append(expectedVarNames, v.Name)
+		for _, scopeVar := range expected.Variables {
+			if scopeVar != nil && scopeVar.Variable != nil {
+				expectedVarNames = append(expectedVarNames, scopeVar.Variable.Name)
 			} else {
 				expectedVarNames = append(expectedVarNames, "<nil>")
 			}
