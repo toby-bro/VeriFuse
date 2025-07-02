@@ -288,7 +288,7 @@ func (sch *Scheduler) compileSimulatorWithTimeout(
 
 	if err := sim.Compile(compileCtx); err != nil {
 		if unsup, pretext := sim.FailedCuzUnsupportedFeature(err); unsup {
-			sch.debug.Warn(
+			sch.debug.Info(
 				"[%s] %s compilation failed due to unsupported feature: %v",
 				workerID,
 				config.Name,
