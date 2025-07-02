@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -247,17 +246,12 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	return nil
 }
 
-var (
-	cxxrtlUnsupportedPattern = `ERROR: (syntax error, unexpected TOK_PROPERTY|Can't resolve function name ...(monitoroff|info|sampled)')`
-	cxxrtlUnsupportedRegex   = regexp.MustCompile(cxxrtlUnsupportedPattern)
-)
-
 // FailedCuzUnsupportedFeature checks if the compilation failed due to unsupported features.
 func (sim *CXXRTLSimulator) FailedCuzUnsupportedFeature(log error) (bool, error) {
 	if log == nil {
 		return false, nil
 	}
-	if match := cxxrtlUnsupportedRegex.FindStringSubmatch(log.Error()); len(match) > 0 {
+	if match := synth.YosysUnsupportedRegex.FindStringSubmatch(log.Error()); len(match) > 0 {
 		return true, errors.New(match[0])
 	}
 	return false, nil

@@ -147,19 +147,28 @@ func (sch *Scheduler) performWorkerAttempt(
 			}
 		case synth.YOSYS:
 			if err := synth.YosysSynth(workerModule.Name, workerVerilogPath, nil); err != nil {
-				sch.debug.Warn(
-					"[%s] Yosys synthesis failed for module %s: %v",
-					workerID,
-					workerModule.Name,
-					err,
-				)
-				// delete yosys from availableSynthesizers
-				availableSynthesizers = slices.DeleteFunc(
-					slices.Clone(availableSynthesizers),
-					func(t synth.Type) bool {
-						return t == synth.YOSYS
-					},
-				)
+				if unsup, pretext := synth.YosysFailedCuzUnsupportedFeature(err); unsup {
+					sch.debug.Info(
+						"[%s] Yosys synthesis failed for module %s due to unsupported feature: %s",
+						workerID,
+						workerModule.Name,
+						pretext,
+					)
+				} else {
+					sch.debug.Warn(
+						"[%s] Yosys synthesis failed for module %s: %v",
+						workerID,
+						workerModule.Name,
+						err,
+					)
+					// delete yosys from availableSynthesizers
+					availableSynthesizers = slices.DeleteFunc(
+						slices.Clone(availableSynthesizers),
+						func(t synth.Type) bool {
+							return t == synth.YOSYS
+						},
+					)
+				}
 			} else {
 				sch.debug.Debug("[%s] Yosys synthesis successful for module %s", workerID, workerModule.Name)
 			}
