@@ -143,7 +143,7 @@ func (sim *IVerilogSimulator) Compile(ctx context.Context) error {
 }
 
 var (
-	iverilogUnsupportedPattern = `sorry: "\w+" expressions not supported yet`
+	iverilogUnsupportedPattern = `sorry: "\w+" expressions not supported yet|error: System function \$sampled not defined in system table or SFT file(s).`
 	iverilogUnsupportedRegex   = regexp.MustCompile(iverilogUnsupportedPattern)
 )
 
