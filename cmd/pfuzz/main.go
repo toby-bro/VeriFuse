@@ -114,6 +114,24 @@ func setupCheckFileCommand() (*Config, error) {
 	return config, nil
 }
 
+func setupScoreSnippetsCommand() (*Config, error) {
+	config := &Config{operation: fuzz.OpScoreSnippets}
+	fs := flag.NewFlagSet("score-snippets", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s score-snippets [options]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Evaluate snippets against simulators and synthesizers to generate scores\n\n")
+		fs.PrintDefaults()
+	}
+
+	addCommonFlags(fs, config)
+	config.maxAttempts = 1
+	config.numTests = 1
+
+	config.verboseLevel = parseVerboseFlags(fs)
+
+	return config, nil
+}
+
 func setupRewriteAsSnippetsCommand() (*Config, error) {
 	config := &Config{operation: fuzz.OpRewriteValid}
 	fs := flag.NewFlagSet("rewrite-as-snippets", flag.ExitOnError)
@@ -139,6 +157,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  fuzz                 Perform fuzzing on Verilog files\n")
 	fmt.Fprintf(os.Stderr, "  mutate               Mutate enums and structs in the testbench\n")
 	fmt.Fprintf(os.Stderr, "  check-file           Check that all modules in the file are valid\n")
+	fmt.Fprintf(os.Stderr, "  score-snippets       Evaluate snippets against simulators and synthesizers\n")
 	fmt.Fprintf(os.Stderr,
 		"  rewrite-as-snippets  Rewrite the checked file to snippets if validated\n\n")
 	fmt.Fprintf(os.Stderr,
@@ -161,6 +180,8 @@ func main() {
 		config, err = setupMutateCommand()
 	case "check-file":
 		config, err = setupCheckFileCommand()
+	case "score-snippets":
+		config, err = setupScoreSnippetsCommand()
 	case "rewrite-as-snippets":
 		config, err = setupRewriteAsSnippetsCommand()
 	case "-h", "--help", "help":
@@ -179,8 +200,8 @@ func main() {
 
 	logger := utils.NewDebugLogger(config.verboseLevel)
 
-	// Check if Verilog file is provided
-	if config.verilogFile == "" {
+	// Check if Verilog file is provided (not required for score-snippets)
+	if config.verilogFile == "" && config.operation != fuzz.OpScoreSnippets {
 		logger.Fatal("Error: No Verilog file specified. Use -file option.")
 	}
 
@@ -194,6 +215,15 @@ func main() {
 		config.maxAttempts,
 		config.keepFiles,
 	)
+
+	// For score-snippets operation, we don't need to setup simulators through the scheduler
+	if config.operation == fuzz.OpScoreSnippets {
+		// Just run the scoring operation directly
+		if err := scheduler.RunScoreSnippets(); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
 
 	availableSimulators, availableSynthesizers, err := scheduler.Setup()
 	if err != nil {

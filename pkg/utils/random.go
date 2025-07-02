@@ -9,6 +9,10 @@ func RandomInt(minInt, maxInt int) int {
 	return minInt + rand.Intn(maxInt-minInt+1)
 }
 
+func RandomFloat64() float64 {
+	return rand.Float64()
+}
+
 func NegativeLookAhead(s string) string {
 	pattern := ""
 	for i := range s {
