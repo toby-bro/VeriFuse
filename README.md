@@ -12,13 +12,33 @@ Other suggested names are:
 
 The objective of this project is to create a fuzzing tool to fuzz system verilog simulators.
 
+## Features
+
+- **Smart Snippet Injection**: Intelligently injects Verilog/SystemVerilog snippets into target modules
+- **Weighted Snippet Selection**: Snippets are scored based on simulator/synthesizer compatibility and selected proportionally to reduce compilation failures
+- **Multi-Simulator Support**: Tests against IVerilog, Verilator, CXXRTL, and other simulators
+- **Synthesis Integration**: Includes Yosys and SV2V synthesis tool support
+- **Mismatch Detection**: Automatically detects behavioral differences between simulators
+
 ## Example usage
 
 ```bash
 make build-fuzzer
-./pfuzz -check-file -file isolated/V3SchedTiming/mod_automatic_task.sv # To check a file 
-./pfuzz -n 160 -strategy smart -mutate -file testfiles/sv/ok/sequential_logic.sv -vv # To fuzz a file by injecting snippets in it's modules
+
+# Check a file for validity
+./pfuzz check-file -file isolated/V3SchedTiming/mod_automatic_task.sv 
+
+# Score snippets for better fuzzing (optional but recommended)
+./pfuzz score-snippets -v
+
+# Fuzz a file by injecting snippets into its modules
+./pfuzz fuzz -n 160 -strategy smart -file testfiles/sv/ok/sequential_logic.sv -vv
+
+# Alternative: use bash script for scoring
+./scripts/score_snippets.sh
 ```
+
+For detailed information about the scoring system, see [docs/SCORING.md](docs/SCORING.md).
 
 ## Inject snippet - expected behavior
 
