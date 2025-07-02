@@ -7,19 +7,24 @@ set -e
 
 # Function to display usage
 usage() {
-    echo "Usage: $0 <testbench.sv> [output_file]"
+    echo "Usage: $0 [-v] <testbench.sv|directory> [output_file]"
     echo ""
     echo "Converts a testbench from file I/O to hardcoded inputs and display outputs"
     echo "Automatically finds suitable input files from test directories"
     echo ""
+    echo "Options:"
+    echo "  -v                    - Verbose mode (show processing details)"
+    echo ""
     echo "Arguments:"
-    echo "  testbench.sv  - Path to the SystemVerilog testbench file"
-    echo "  output_file   - Output file name (optional, uses testbench_hardcoded.sv)"
+    echo "  testbench.sv|directory - Path to testbench file OR directory containing testbench.sv"
+    echo "  output_file           - Output file name (optional, prints to stdout if not specified)"
     echo ""
     echo "Examples:"
-    echo "  $0 testbench.sv"
-    echo "  $0 testbench.sv my_hardcoded_tb.sv"
-    echo "  $0 /path/to/worker_dir/testbench.sv"
+    echo "  $0 testbench.sv                    # Print to stdout"
+    echo "  $0 -v testbench.sv                 # Print to stdout with verbose output"
+    echo "  $0 testbench.sv my_hardcoded_tb.sv # Save to file"
+    echo "  $0 /path/to/worker_dir             # Directory with testbench.sv, print to stdout"
+    echo "  $0 -v /path/to/worker_dir output.sv # Directory with testbench.sv, save to file, verbose"
     exit 1
 }
 
@@ -28,20 +33,59 @@ if [ $# -lt 1 ]; then
     usage
 fi
 
-TESTBENCH_FILE="$1"
-OUTPUT_FILE="${2:-testbench_hardcoded.sv}"
+# Parse options
+VERBOSE=false
+while getopts "v" opt; do
+    case $opt in
+        v)
+            VERBOSE=true
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            usage
+            ;;
+    esac
+done
+shift $((OPTIND-1))
 
-# Check if testbench file exists
-if [ ! -f "$TESTBENCH_FILE" ]; then
-    echo "Error: Testbench file '$TESTBENCH_FILE' not found"
+# Function for verbose logging
+log_verbose() {
+    if [ "$VERBOSE" = true ]; then
+        echo "$@" >&2
+    fi
+}
+
+TESTBENCH_INPUT="$1"
+OUTPUT_FILE="$2"
+USE_STDOUT=false
+
+# Determine if we should output to stdout (no output file specified)
+if [ -z "$OUTPUT_FILE" ]; then
+    USE_STDOUT=true
+    OUTPUT_FILE=$(mktemp)
+fi
+
+# Check if input is a directory or file
+if [ -d "$TESTBENCH_INPUT" ]; then
+    # It's a directory, look for testbench.sv inside
+    TESTBENCH_FILE="$TESTBENCH_INPUT/testbench.sv"
+    if [ ! -f "$TESTBENCH_FILE" ]; then
+        echo "Error: Directory '$TESTBENCH_INPUT' does not contain a testbench.sv file"
+        exit 1
+    fi
+elif [ -f "$TESTBENCH_INPUT" ]; then
+    # It's a file, use it directly
+    TESTBENCH_FILE="$TESTBENCH_INPUT"
+else
+    echo "Error: '$TESTBENCH_INPUT' is neither a valid file nor a directory"
     exit 1
 fi
 
 # Get the directory containing the testbench file
 TESTBENCH_DIR=$(dirname "$TESTBENCH_FILE")
 
-echo "[+] Processing testbench: $TESTBENCH_FILE"
-echo "[+] Looking for test directories in: $TESTBENCH_DIR"
+log_verbose "[+] Processing testbench: $TESTBENCH_FILE"
+log_verbose "[+] Looking for test directories in: $TESTBENCH_DIR"
 
 # Function to find required input files from testbench
 get_required_inputs() {
@@ -53,37 +97,37 @@ find_input_source() {
     local required_inputs=($(get_required_inputs))
     
     if [ ${#required_inputs[@]} -eq 0 ]; then
-        echo "No input files found in testbench" >&2
+        log_verbose "No input files found in testbench"
         return 1
     fi
     
-    echo "[+] Required input files: ${required_inputs[*]}" >&2
+    log_verbose "[+] Required input files: ${required_inputs[*]}"
     
     # Look for test_* directories in the same directory as the testbench
     for test_dir in "$TESTBENCH_DIR"/test_*; do
         if [ -d "$test_dir" ]; then
-            echo "  [+] Checking directory: $(basename "$test_dir")" >&2
+            log_verbose "  [+] Checking directory: $(basename "$test_dir")"
             
             # Check if this directory has all required input files
             local has_all_files=true
             for input_file in "${required_inputs[@]}"; do
                 if [ ! -f "$test_dir/$input_file" ]; then
-                    echo "    [!] Missing: $input_file" >&2
+                    log_verbose "    [!] Missing: $input_file"
                     has_all_files=false
                     break
                 fi
             done
             
             if $has_all_files; then
-                echo "    [+] Found complete set of input files!" >&2
+                log_verbose "    [+] Found complete set of input files!"
                 echo "FOUND:$test_dir"
                 return 0
             fi
         fi
     done
     
-    echo "[!] No test directory found with all required input files" >&2
-    echo "[+] Will generate random input values instead" >&2
+    log_verbose "[!] No test directory found with all required input files"
+    log_verbose "[+] Will generate random input values instead"
     echo "GENERATE"
     return 0
 }
@@ -126,18 +170,16 @@ fi
 
 if [[ "$INPUT_SOURCE" == FOUND:* ]]; then
     INPUT_DIR="${INPUT_SOURCE#FOUND:}"
-    echo "[+] Using input directory: $INPUT_DIR"
+    log_verbose "[+] Using input directory: $INPUT_DIR"
     USE_RANDOM=false
 elif [[ "$INPUT_SOURCE" == "GENERATE" ]]; then
     INPUT_DIR=""
-    echo "[+] Will generate random input values"
+    log_verbose "[+] Will generate random input values"
     USE_RANDOM=true
 else
     echo "Error: Unexpected input source result"
     exit 1
 fi
-
-echo "[+] Output will be written to: $OUTPUT_FILE"
 
 # Create a temporary working file
 TEMP_FILE=$(mktemp)
@@ -191,13 +233,13 @@ hex_to_sv_literal() {
 }
 
 # Step 1: Find all input file reads and replace with hardcoded values
-echo "[+] Converting input file reads to hardcoded values..."
+log_verbose "[+] Converting input file reads to hardcoded values..."
 
 # Find all $fopen calls for input files
 input_files=$(grep -o 'input_[^"]*\.hex' "$TEMP_FILE" | sort -u)
 
 for input_file in $input_files; do
-    echo "  [+] Processing input file: $input_file"
+    log_verbose "  [+] Processing input file: $input_file"
     
     # Extract signal name from filename (input_SIGNAL.hex -> SIGNAL)
     signal_name=$(echo "$input_file" | sed 's/input_\(.*\)\.hex/\1/')
@@ -205,11 +247,11 @@ for input_file in $input_files; do
     if [ "$USE_RANDOM" = true ]; then
         # Generate random hex value
         hex_value=$(generate_random_hex "$signal_name")
-        echo "    [+] Generated random value: $hex_value for signal: $signal_name"
+        log_verbose "    [+] Generated random value: $hex_value for signal: $signal_name"
         
         # Convert to proper SystemVerilog literal
         sv_literal=$(hex_to_sv_literal "$hex_value" "$signal_name")
-        echo "    [+] SystemVerilog literal: $sv_literal"
+        log_verbose "    [+] SystemVerilog literal: $sv_literal"
         
         # Remove the entire file reading block for this input
         sed -i "/fd = \$fopen(\"$input_file\"/,/\$fclose(fd);/c\\
@@ -223,11 +265,11 @@ for input_file in $input_files; do
         if [ -f "$hex_file" ]; then
             # Read the hex value from file
             hex_value=$(head -1 "$hex_file" | tr -d ' \t\n\r')
-            echo "    [+] Found value: $hex_value for signal: $signal_name"
+            log_verbose "    [+] Found value: $hex_value for signal: $signal_name"
             
             # Convert to proper SystemVerilog literal
             sv_literal=$(hex_to_sv_literal "$hex_value" "$signal_name")
-            echo "    [+] SystemVerilog literal: $sv_literal"
+            log_verbose "    [+] SystemVerilog literal: $sv_literal"
             
             # Remove the entire file reading block for this input
             # Pattern: from $fopen to $fclose for this specific file
@@ -236,7 +278,7 @@ for input_file in $input_files; do
             $signal_name = $sv_literal;" "$TEMP_FILE"
             
         else
-            echo "    [!] Warning: Input file $hex_file not found, using default value"
+            log_verbose "    [!] Warning: Input file $hex_file not found, using default value"
             # Use a default value based on signal width
             width=$(get_signal_width "$signal_name")
             if [ "$width" == "0" ]; then
@@ -253,19 +295,19 @@ for input_file in $input_files; do
 done
 
 # Step 2: Remove variable declarations that are no longer needed
-echo "[+] Removing unused variable declarations..."
+log_verbose "[+] Removing unused variable declarations..."
 sed -i '/string line;/d' "$TEMP_FILE"
 sed -i '/int fd;/d' "$TEMP_FILE"
 sed -i '/int status;/d' "$TEMP_FILE"
 
 # Step 3: Convert output file writes to display statements
-echo "[+] Converting output file writes to display statements..."
+log_verbose "[+] Converting output file writes to display statements..."
 
 # Find all output file writes
 output_files=$(grep -o 'output_[^"]*\.hex' "$TEMP_FILE" | sort -u)
 
 for output_file in $output_files; do
-    echo "  [+] Processing output file: $output_file"
+    log_verbose "  [+] Processing output file: $output_file"
     
     # Extract signal name from filename (output_SIGNAL.hex -> SIGNAL)
     signal_name=$(echo "$output_file" | sed 's/output_\(.*\)\.hex/\1/')
@@ -278,12 +320,12 @@ for output_file in $output_files; do
 done
 
 # Step 4: Clean up any remaining file I/O comments
-echo "[+] Cleaning up comments..."
+log_verbose "[+] Cleaning up comments..."
 sed -i 's/\/\/ Read [0-9]* input files/\/\/ Initialize hardcoded input values/' "$TEMP_FILE"
 sed -i 's/\/\/ Write [0-9]* output files/\/\/ Display output values/' "$TEMP_FILE"
 
 # Step 5: Add a header comment explaining the conversion
-echo "[+] Adding header comment..."
+log_verbose "[+] Adding header comment..."
 temp_header=$(mktemp)
 cat > "$temp_header" << 'EOF'
 // Generated SystemVerilog testbench with hardcoded inputs
@@ -300,36 +342,41 @@ cat "$temp_header" "$TEMP_FILE" > "$OUTPUT_FILE"
 # Clean up temp files
 rm "$TEMP_FILE" "$temp_header"
 
-echo "[+] Conversion complete!"
-echo "[+] Hardcoded testbench written to: $OUTPUT_FILE"
+# Output result to stdout or file
+if [ "$USE_STDOUT" = true ]; then
+    cat "$OUTPUT_FILE"
+    rm "$OUTPUT_FILE"
+else
+    log_verbose "[+] Hardcoded testbench written to: $OUTPUT_FILE"
+fi
 
 # Show a summary of what was converted
-echo ""
-echo "=== Conversion Summary ==="
+log_verbose ""
+log_verbose "=== Conversion Summary ==="
 if [ -n "$input_files" ]; then
     if [ "$USE_RANDOM" = true ]; then
-        echo "Input files converted to random hardcoded values:"
+        log_verbose "Input files converted to random hardcoded values:"
     else
-        echo "Input files converted to hardcoded values from test directory:"
+        log_verbose "Input files converted to hardcoded values from test directory:"
     fi
     for input_file in $input_files; do
         signal_name=$(echo "$input_file" | sed 's/input_\(.*\)\.hex/\1/')
         if [ "$USE_RANDOM" = true ]; then
-            echo "  - $input_file -> random hardcoded $signal_name"
+            log_verbose "  - $input_file -> random hardcoded $signal_name"
         else
-            echo "  - $input_file -> hardcoded $signal_name"
+            log_verbose "  - $input_file -> hardcoded $signal_name"
         fi
     done
 else
-    echo "No input files found to convert"
+    log_verbose "No input files found to convert"
 fi
 
 if [ -n "$output_files" ]; then
-    echo "Output files converted to display statements:"
+    log_verbose "Output files converted to display statements:"
     for output_file in $output_files; do
         signal_name=$(echo "$output_file" | sed 's/output_\(.*\)\.hex/\1/')
-        echo "  - $output_file -> \$display for $signal_name"
+        log_verbose "  - $output_file -> \$display for $signal_name"
     done
 else
-    echo "No output files found to convert"
+    log_verbose "No output files found to convert"
 fi
