@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
@@ -106,6 +107,22 @@ func YosysSynth(
 	}
 
 	return err
+}
+
+var (
+	YosysUnsupportedPattern = `ERROR: (syntax error, unexpected TOK_PROPERTY|Can't resolve (function|task) name .\\?\$(monitoroff|info|sampled|asserton|assertoff|monitoroff|monitoron)')`
+	YosysUnsupportedRegex   = regexp.MustCompile(YosysUnsupportedPattern)
+)
+
+func YosysFailedCuzUnsupportedFeature(log error) (bool, error) {
+	if log == nil {
+		return false, nil
+	}
+	// Check if the error matches unsupported feature patterns
+	if match := YosysUnsupportedRegex.FindStringSubmatch(log.Error()); len(match) > 0 {
+		return true, fmt.Errorf("yosys unsupported feature: %s", match[0])
+	}
+	return false, nil
 }
 
 // attemptYosysSynth performs a single synthesis attempt with given options
