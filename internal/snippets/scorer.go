@@ -15,7 +15,6 @@ import (
 
 // ScoreAllSnippets evaluates all snippets against available simulators and synthesizers
 func ScoreAllSnippets(verbose int) error {
-	logger.SetVerboseLevel(verbose)
 	debug := utils.NewDebugLogger(verbose)
 
 	debug.Info("Starting snippet scoring process...")
@@ -76,15 +75,15 @@ func scoreSnippetFile(
 		return fmt.Errorf("failed to parse verilog file: %v", err)
 	}
 
-	// Score each module in the file
-	for _, module := range verilogFile.Modules {
-		moduleName := module.Name
-		if moduleName == "top" {
-			moduleName = "topi"
-		}
+	// Score the module that has the same name as the file.
+	moduleName := filepath.Base(snippetFilePath)
+	if moduleName == "top" {
+		moduleName = "topi"
+	}
 
-		debug.Debug("Scoring module: %s", moduleName)
-
+	if module := verilogFile.Modules[moduleName]; module == nil {
+		return fmt.Errorf("module %s not found in snippet file %s", moduleName, snippetFilePath)
+	} else {
 		score := &SnippetScore{
 			NumSimulators:    len(availableSimulators),
 			NumSynthesizers:  len(availableSynthesizers),
