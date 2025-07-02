@@ -261,12 +261,7 @@ func (sch *Scheduler) Run(
 			}
 			sch.debug.Info("Snippets written to file successfully.")
 		case OpScoreSnippets:
-			err := snippets.ScoreAllSnippets(sch.verbose)
-			if err != nil {
-				sch.debug.Error("failed to score snippets: %v", err)
-				return fmt.Errorf("failed to score snippets: %v", err)
-			}
-			sch.debug.Info("Snippet scoring completed successfully.")
+			return errors.New("Should not have reached here with OpScoreSnippets, this should be handled in RunScoreSnippets")
 		case OpFuzz, OpMutate:
 			sch.debug.Info("Fuzzing completed successfully.")
 		}
@@ -317,13 +312,13 @@ func (sch *Scheduler) Run(
 // RunScoreSnippets runs the snippet scoring operation
 func (sch *Scheduler) RunScoreSnippets() error {
 	sch.debug.Info("Starting snippet scoring operation...")
-	
+
 	err := snippets.ScoreAllSnippets(sch.verbose)
 	if err != nil {
 		sch.debug.Error("Failed to score snippets: %v", err)
 		return fmt.Errorf("failed to score snippets: %v", err)
 	}
-	
+
 	sch.debug.Info("Snippet scoring completed successfully.")
 	return nil
 }
