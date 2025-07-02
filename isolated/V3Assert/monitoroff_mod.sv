@@ -1,6 +1,6 @@
 module monitoroff_mod (
-    output logic monoff_out,
-    input logic trigger_monoff
+    input logic trigger_monoff,
+    output logic monoff_out
 );
     always @(trigger_monoff) begin
         if (trigger_monoff) begin
