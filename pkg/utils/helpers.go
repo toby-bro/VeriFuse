@@ -114,7 +114,7 @@ func Indent(input string) string {
 func RunCommandWithTimeout(command string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	
+
 	cmd := exec.CommandContext(ctx, "bash", "-c", command)
 	return cmd.Run()
 }

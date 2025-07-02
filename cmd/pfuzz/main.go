@@ -119,7 +119,10 @@ func setupScoreSnippetsCommand() (*Config, error) {
 	fs := flag.NewFlagSet("score-snippets", flag.ExitOnError)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s score-snippets [options]\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Evaluate snippets against simulators and synthesizers to generate scores\n\n")
+		fmt.Fprintf(
+			os.Stderr,
+			"Evaluate snippets against simulators and synthesizers to generate scores\n\n",
+		)
 		fs.PrintDefaults()
 	}
 
@@ -157,7 +160,10 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  fuzz                 Perform fuzzing on Verilog files\n")
 	fmt.Fprintf(os.Stderr, "  mutate               Mutate enums and structs in the testbench\n")
 	fmt.Fprintf(os.Stderr, "  check-file           Check that all modules in the file are valid\n")
-	fmt.Fprintf(os.Stderr, "  score-snippets       Evaluate snippets against simulators and synthesizers\n")
+	fmt.Fprintf(
+		os.Stderr,
+		"  score-snippets       Evaluate snippets against simulators and synthesizers\n",
+	)
 	fmt.Fprintf(os.Stderr,
 		"  rewrite-as-snippets  Rewrite the checked file to snippets if validated\n\n")
 	fmt.Fprintf(os.Stderr,

@@ -1,6 +1,7 @@
 package snippets
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,7 +32,7 @@ func ScoreAllSnippets(verbose int) error {
 	)
 
 	if len(availableSimulators) == 0 && len(availableSynthesizers) == 0 {
-		return fmt.Errorf("no simulators or synthesizers available for scoring")
+		return errors.New("no simulators or synthesizers available for scoring")
 	}
 
 	// Find all snippet files
@@ -223,7 +224,7 @@ func testSnippetCompilation(
 // testIVerilogCompilation performs a basic syntax check with IVerilog
 func testIVerilogCompilation(snippetPath string, debug *utils.DebugLogger) int {
 	// Try to compile with iverilog just for syntax checking
-	cmd := fmt.Sprintf("iverilog -t null %s", snippetPath)
+	cmd := "iverilog -t null " + snippetPath
 	debug.Debug("Running: %s", cmd)
 
 	// Create a simple test command
