@@ -7,13 +7,14 @@ set -e
 
 # Function to display usage
 usage() {
-    echo "Usage: $0 [-v] <testbench.sv|directory> [output_file]"
+    echo "Usage: $0 [-v] [-c] <testbench.sv|directory> [output_file]"
     echo ""
     echo "Converts a testbench from file I/O to hardcoded inputs and display outputs"
     echo "Automatically finds suitable input files from test directories"
     echo ""
     echo "Options:"
     echo "  -v                    - Verbose mode (show processing details)"
+    echo "  -c                    - Copy testbench to clipboard using wl-copy"
     echo ""
     echo "Arguments:"
     echo "  testbench.sv|directory - Path to testbench file OR directory containing testbench.sv"
@@ -22,6 +23,8 @@ usage() {
     echo "Examples:"
     echo "  $0 testbench.sv                    # Print to stdout"
     echo "  $0 -v testbench.sv                 # Print to stdout with verbose output"
+    echo "  $0 -c testbench.sv                 # Copy to clipboard"
+    echo "  $0 -c -v testbench.sv              # Copy to clipboard with verbose output"
     echo "  $0 testbench.sv my_hardcoded_tb.sv # Save to file"
     echo "  $0 /path/to/worker_dir             # Directory with testbench.sv, print to stdout"
     echo "  $0 -v /path/to/worker_dir output.sv # Directory with testbench.sv, save to file, verbose"
@@ -35,10 +38,14 @@ fi
 
 # Parse options
 VERBOSE=false
-while getopts "v" opt; do
+COPY_TO_CLIPBOARD=false
+while getopts "vc" opt; do
     case $opt in
         v)
             VERBOSE=true
+            ;;
+        c)
+            COPY_TO_CLIPBOARD=true
             ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
@@ -59,10 +66,15 @@ TESTBENCH_INPUT="$1"
 OUTPUT_FILE="$2"
 USE_STDOUT=false
 
-# Determine if we should output to stdout (no output file specified)
+# Determine if we should output to stdout or clipboard (no output file specified)
 if [ -z "$OUTPUT_FILE" ]; then
-    USE_STDOUT=true
-    OUTPUT_FILE=$(mktemp)
+    if [ "$COPY_TO_CLIPBOARD" = true ]; then
+        USE_STDOUT=false
+        OUTPUT_FILE=$(mktemp)
+    else
+        USE_STDOUT=true
+        OUTPUT_FILE=$(mktemp)
+    fi
 fi
 
 # Check if input is a directory or file
@@ -342,9 +354,13 @@ cat "$temp_header" "$TEMP_FILE" > "$OUTPUT_FILE"
 # Clean up temp files
 rm "$TEMP_FILE" "$temp_header"
 
-# Output result to stdout or file
+# Output result to stdout, clipboard, or file
 if [ "$USE_STDOUT" = true ]; then
     cat "$OUTPUT_FILE"
+    rm "$OUTPUT_FILE"
+elif [ "$COPY_TO_CLIPBOARD" = true ]; then
+    cat "$OUTPUT_FILE" | wl-copy
+    log_verbose "[+] Hardcoded testbench copied to clipboard"
     rm "$OUTPUT_FILE"
 else
     log_verbose "[+] Hardcoded testbench written to: $OUTPUT_FILE"
@@ -379,4 +395,10 @@ if [ -n "$output_files" ]; then
     done
 else
     log_verbose "No output files found to convert"
+fi
+
+if [ "$COPY_TO_CLIPBOARD" = true ] || [ "$VERBOSE" = true ]; then
+    log_verbose ""
+    echo "[+] Original module `find $TESTBENCH_DIR -name '*.sv' -not -name 'testbench.sv' | sort | head -n 1`"
+    echo "[+] Original testbench $TESTBENCH_FILE"
 fi
