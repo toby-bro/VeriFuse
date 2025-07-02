@@ -159,6 +159,7 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 		"-Wno-CASEINCOMPLETE",
 		"-Wno-CASEOVERLAP",
 		"-Wno-ASCRANGE",
+		"-Wno-CASEX",
 		"../testbench.sv",
 		"../" + sim.svFileName,
 	}
