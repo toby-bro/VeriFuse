@@ -1,7 +1,7 @@
 module sampled_past_mod (
     input logic clk,
-    input logic reset,
     input logic [3:0] data_in,
+    input logic reset,
     output logic [3:0] data_past_out,
     output logic [3:0] data_sampled_out
 );
