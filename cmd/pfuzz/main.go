@@ -150,6 +150,7 @@ func setupRewriteAsSnippetsCommand() (*Config, error) {
 	config.numTests = config.workers
 
 	config.verboseLevel = parseVerboseFlags(fs)
+	config.verilogFile = "scoringFakeFile.sv"
 
 	return config, nil
 }
