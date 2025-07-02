@@ -9,7 +9,7 @@ The scoring system addresses the issue where "bad" snippets (that cause compilat
 ## How It Works
 
 1. **Tool Evaluation**: Each snippet is tested against available simulators and synthesizers
-2. **Score Calculation**: 
+2. **Score Calculation**:
    - Simulators: 1 point for compilation success, +1 additional for simulation success (max 2 per simulator)
    - Synthesizers: 1 point for successful synthesis/transformation (max 1 per synthesizer)
 3. **Probability Calculation**: `probability = reached_score / max_possible_score`
@@ -18,6 +18,7 @@ The scoring system addresses the issue where "bad" snippets (that cause compilat
 ## Usage
 
 ### Method 1: Go Command
+
 ```bash
 # Score all snippets
 ./pfuzz score-snippets -v
@@ -27,6 +28,7 @@ The scoring system addresses the issue where "bad" snippets (that cause compilat
 ```
 
 ### Method 2: Bash Script
+
 ```bash
 # Alternative scoring method
 ./scripts/score_snippets.sh
@@ -36,13 +38,13 @@ The scoring system addresses the issue where "bad" snippets (that cause compilat
 
 Score files (`.sscr`) are created alongside each snippet file and contain 6 numbers:
 
-```
+```txt
 2      # number of simulators
 1      # number of synthesizers  
 3      # simulator score achieved
 1      # synthesizer score achieved
-5      # maximum possible score (2*2 + 1*1)
-4      # total reached score (3 + 1)
+5      # maximum possible score (2*n_simulators + 1*n_synthesizers)
+4      # total reached score (score_sim + score_synth)
 ```
 
 This example shows a snippet that compiled successfully on all simulators (2 points each) plus simulated on one (1 additional point), and synthesized successfully (1 point), for a final probability of 4/5 = 0.8.
@@ -50,12 +52,14 @@ This example shows a snippet that compiled successfully on all simulators (2 poi
 ## Supported Tools
 
 **Simulators:**
+
 - IVerilog - Open source Verilog simulator
 - Verilator - C++ based Verilog simulator  
 - CXXRTL - Yosys-based C++ simulation (requires Yosys)
 - CXXSLG - CXXRTL with Slang frontend (requires Yosys + Slang)
 
 **Synthesizers:**
+
 - Yosys - Open source synthesis suite
 - SV2V - SystemVerilog to Verilog converter
 
@@ -79,14 +83,3 @@ cabal install sv2v
 - **With Scores**: Snippets are selected with probability proportional to their compatibility scores
 - **Without Scores**: Falls back to uniform random selection (original behavior)
 - **Mixed Scenarios**: Scored snippets use their probabilities, unscored snippets get default weight
-
-## Example Output
-
-```
-Selection counts over 10000 iterations:
-  high_score_snippet: 156 (1.6%)    # Score: 0.8 
-  medium_score_snippet: 89 (0.9%)   # Score: 0.5
-  low_score_snippet: 23 (0.2%)      # Score: 0.1
-```
-
-This shows the weighted selection working correctly - higher scored snippets are injected more frequently.
