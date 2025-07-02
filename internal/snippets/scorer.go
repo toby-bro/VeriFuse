@@ -146,12 +146,12 @@ func testSnippetWithSimulators(
 	for _, simType := range availableSimulators {
 		debug.Debug("Testing snippet with simulator: %s", simType.String())
 		
-		// Try to compile with this simulator
+		// Test compilation (score 1 if successful)
 		compilationScore := testSnippetCompilation(tempSnippetPath, module, simType, debug)
 		totalScore += compilationScore
 		
+		// Test simulation (score 1 additional if successful) 
 		if compilationScore > 0 {
-			// If compilation succeeded, try simulation
 			simulationScore := testSnippetSimulation(tempSnippetPath, module, simType, debug)
 			totalScore += simulationScore
 		}
@@ -167,32 +167,58 @@ func testSnippetCompilation(
 	simType simulator.Type,
 	debug *utils.DebugLogger,
 ) int {
-	// For now, let's simplify and just test if the tools exist
-	// A more complete implementation would actually try to compile
-	debug.Debug("Testing compilation for %s (simplified check)", simType.String())
-	
+	// First check if the tool is available
+	var toolAvailable bool
 	switch simType {
 	case simulator.IVERILOG:
-		if err := simulator.TestIVerilogTool(); err != nil {
-			debug.Debug("IVerilog tool check failed: %v", err)
-			return 0
-		}
+		toolAvailable = simulator.TestIVerilogTool() == nil
 	case simulator.VERILATOR:
-		if err := simulator.TestVerilatorTool(); err != nil {
-			debug.Debug("Verilator tool check failed: %v", err)
-			return 0
-		}
+		toolAvailable = simulator.TestVerilatorTool() == nil
 	case simulator.CXXRTL, simulator.CXXSLG:
-		if err := simulator.TestCXXRTLTool(simType == simulator.CXXSLG); err != nil {
-			debug.Debug("CXXRTL tool check failed: %v", err)
-			return 0
-		}
+		toolAvailable = simulator.TestCXXRTLTool(simType == simulator.CXXSLG) == nil
 	default:
 		debug.Debug("Unsupported simulator type for testing: %s", simType.String())
 		return 0
 	}
 	
-	debug.Debug("Tool available for %s", simType.String())
+	if !toolAvailable {
+		debug.Debug("Tool not available for %s", simType.String())
+		return 0
+	}
+	
+	debug.Debug("Tool available for %s, performing compilation test...", simType.String())
+	
+	// Try actual compilation for a more accurate score
+	// We'll use a simplified approach that just tests tool availability for now
+	// In a more complete implementation, we would:
+	// 1. Create the appropriate simulator instance with correct parameters
+	// 2. Try to compile the snippet
+	// 3. Handle any compilation errors gracefully
+	
+	// For IVerilog, we can try a basic syntax check
+	if simType == simulator.IVERILOG {
+		return testIVerilogCompilation(snippetPath, debug)
+	}
+	
+	// For other simulators, return 1 since tool is available
+	// TODO: Implement actual compilation tests for Verilator and CXXRTL
+	debug.Debug("Compilation test passed for %s (tool availability verified)", simType.String())
+	return 1
+}
+
+// testIVerilogCompilation performs a basic syntax check with IVerilog
+func testIVerilogCompilation(snippetPath string, debug *utils.DebugLogger) int {
+	// Try to compile with iverilog just for syntax checking
+	cmd := fmt.Sprintf("iverilog -t null %s", snippetPath)
+	debug.Debug("Running: %s", cmd)
+	
+	// Create a simple test command
+	if err := utils.RunCommandWithTimeout(cmd, 10*time.Second); err != nil {
+		debug.Debug("IVerilog compilation failed: %v", err)
+		return 0
+	}
+	
+	debug.Debug("IVerilog compilation succeeded")
 	return 1
 }
 
@@ -254,26 +280,47 @@ func testSnippetSynthesis(
 	synthType synth.Type,
 	debug *utils.DebugLogger,
 ) int {
-	// For now, let's simplify and just test if the tools exist
-	// A more complete implementation would actually try to synthesize
-	debug.Debug("Testing synthesis for %s (simplified check)", synthType.String())
-	
+	// First check if the tool is available
+	var toolAvailable bool
 	switch synthType {
 	case synth.YOSYS:
-		if err := synth.TestYosysTool(); err != nil {
-			debug.Debug("Yosys tool check failed: %v", err)
-			return 0
-		}
+		toolAvailable = synth.TestYosysTool() == nil
 	case synth.SV2V:
-		if err := synth.TestSV2VTool(); err != nil {
-			debug.Debug("SV2V tool check failed: %v", err)
-			return 0
-		}
+		toolAvailable = synth.TestSV2VTool() == nil
 	default:
 		debug.Debug("Unsupported synthesizer type for testing: %s", synthType.String())
 		return 0
 	}
 	
-	debug.Debug("Tool available for %s", synthType.String())
+	if !toolAvailable {
+		debug.Debug("Tool not available for %s", synthType.String())
+		return 0
+	}
+	
+	debug.Debug("Tool available for %s, performing synthesis test...", synthType.String())
+	
+	// Try actual synthesis for a more accurate score
+	if synthType == synth.YOSYS {
+		return testYosysSynthesis(snippetPath, module, debug)
+	}
+	
+	// For other synthesizers, return 1 since tool is available
+	// TODO: Implement actual synthesis tests for other tools
+	debug.Debug("Synthesis test passed for %s (tool availability verified)", synthType.String())
+	return 1
+}
+
+// testYosysSynthesis performs a basic synthesis test with Yosys
+func testYosysSynthesis(snippetPath string, module *verilog.Module, debug *utils.DebugLogger) int {
+	// Try a basic read_verilog command to test if the file can be parsed
+	cmd := fmt.Sprintf("yosys -p 'read_verilog %s; hierarchy -check' -q", snippetPath)
+	debug.Debug("Running: %s", cmd)
+	
+	if err := utils.RunCommandWithTimeout(cmd, 10*time.Second); err != nil {
+		debug.Debug("Yosys synthesis test failed: %v", err)
+		return 0
+	}
+	
+	debug.Debug("Yosys synthesis test succeeded")
 	return 1
 }
