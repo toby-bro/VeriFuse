@@ -1,13 +1,10 @@
 package utils
 
 import (
-	"context"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // CopyDir recursively copies a directory
@@ -108,13 +105,4 @@ func Indent(input string) string {
 		}
 	}
 	return strings.Join(lines, "\n")
-}
-
-// RunCommandWithTimeout runs a shell command with a specified timeout
-func RunCommandWithTimeout(command string, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "bash", "-c", command)
-	return cmd.Run()
 }
