@@ -202,3 +202,17 @@ func AddSuffixToPath(path, suffix string) string {
 	newPath := fmt.Sprintf("%s-%s%s", base, suffix, ext)
 	return newPath
 }
+
+func DeleteFile(path string) error {
+	fileOpMutex.Lock()
+	defer fileOpMutex.Unlock()
+
+	if DEBUG {
+		fmt.Printf("%s[-] Deleting file %s%s\n", ColorBlue, path, ColorReset)
+	}
+	err := os.Remove(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to delete file %s: %v", path, err)
+	}
+	return nil
+}

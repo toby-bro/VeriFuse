@@ -61,6 +61,11 @@ func findSnippetFiles() ([]string, error) {
 	return sourceFiles, nil
 }
 
+// FindSnippetFiles returns all snippet files in the isolated directory
+func FindSnippetFiles() ([]string, error) {
+	return findSnippetFiles()
+}
+
 func loadSnippets() error {
 	sourceFiles, err := findSnippetFiles()
 	if err != nil {

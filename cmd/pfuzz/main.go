@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"github.com/toby-bro/pfuzz/internal/fuzz"
+	"github.com/toby-bro/pfuzz/internal/snippets"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
@@ -206,6 +207,58 @@ func main() {
 	}
 
 	logger := utils.NewDebugLogger(config.verboseLevel)
+
+	if config.operation == fuzz.OpScoreSnippets {
+		// Use the new scoring scheduler
+		findFiles := func() ([]string, error) {
+			return snippets.FindSnippetFiles()
+		}
+		results, err := fuzz.ScoreSnippetsWithDetails(config.verboseLevel, findFiles)
+		if err != nil {
+			logger.Error("Snippet scoring failed: %v", err)
+			os.Exit(1)
+		}
+		// Write .sscr files for each snippet
+		for _, res := range results {
+			// Calculate scores: 2 per simulator (success = no error), 1 per synthesizer
+			simScore := 0
+			for _, err := range res.SimulatorResults {
+				if err == nil {
+					simScore += 2
+				}
+			}
+			synScore := 0
+			for _, err := range res.SynthesizerResults {
+				if err == nil {
+					synScore += 1
+				}
+			}
+			nSim := len(res.SimulatorResults)
+			nSyn := len(res.SynthesizerResults)
+			maxScore := 2*nSim + nSyn
+			reachedScore := simScore + synScore
+			prob := 0.0
+			if maxScore > 0 {
+				prob = float64(reachedScore) / float64(maxScore)
+			}
+			score := &snippets.SnippetScore{
+				NumSimulators:    nSim,
+				NumSynthesizers:  nSyn,
+				SimulatorScore:   simScore,
+				SynthesizerScore: synScore,
+				MaximalScore:     maxScore,
+				ReachedScore:     reachedScore,
+				Probability:      prob,
+			}
+			err := snippets.WriteScoreFile(res.FileName, score)
+			if err != nil {
+				logger.Warn("Failed to write score file for %s: %v", res.FileName, err)
+			}
+			logger.Info("Scored %s: %d/%d (%.2f)", res.FileName, reachedScore, maxScore, 100*prob)
+		}
+		logger.Info("Snippet scoring completed. Score files written.")
+		return
+	}
 
 	// Check if Verilog file is provided (not required for score-snippets)
 	if config.verilogFile == "" && config.operation != fuzz.OpScoreSnippets {
