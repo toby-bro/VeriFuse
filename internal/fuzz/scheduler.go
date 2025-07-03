@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -101,14 +100,6 @@ func (sch *Scheduler) Setup() ([]simulator.Type, []synth.Type, error) {
 
 	verilogPath := filepath.Join(utils.TMP_DIR, filepath.Base(fileName))
 	sch.debug.Debug("Copying original Verilog file `%s` to `%s`", fileName, verilogPath)
-
-	if err := utils.CopyFile(fileName, verilogPath); err != nil {
-		return nil, nil, fmt.Errorf("failed to copy original Verilog file: %v", err)
-	}
-
-	if _, err := os.Stat(verilogPath); os.IsNotExist(err) {
-		return nil, nil, fmt.Errorf("copied Verilog file does not exist: %v", err)
-	}
 
 	availableSimulators := simulator.TestAvailableSimulators(sch.debug)
 	sch.debug.Info(
@@ -209,7 +200,7 @@ func (sch *Scheduler) Run(
 		defer feedingWg.Done()
 		defer close(testCases)
 
-		for i := workerLoopCount; i < numTests; i++ {
+		for i := workerLoopCount - 1; i < numTests; i++ {
 			select {
 			case testCases <- i:
 			case <-ctx.Done():
