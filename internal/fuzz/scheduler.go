@@ -304,17 +304,3 @@ func (sch *Scheduler) Run(
 	}
 	return nil
 }
-
-// RunScoreSnippets runs the snippet scoring operation
-func (sch *Scheduler) RunScoreSnippets() error {
-	sch.debug.Info("Starting snippet scoring operation...")
-
-	err := snippets.ScoreAllSnippets(sch.verbose)
-	if err != nil {
-		sch.debug.Error("Failed to score snippets: %v", err)
-		return fmt.Errorf("failed to score snippets: %v", err)
-	}
-
-	sch.debug.Info("Snippet scoring completed successfully.")
-	return nil
-}
