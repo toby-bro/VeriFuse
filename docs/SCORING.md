@@ -17,18 +17,6 @@ The scoring system addresses the issue where "bad" snippets (that cause compilat
 
 ## Usage
 
-### Method 1: Go Command
-
-```bash
-# Score all snippets
-./pfuzz score-snippets -v
-
-# Then run fuzzing (will automatically use weighted selection)
-./pfuzz fuzz -file your_design.sv -n 1000
-```
-
-### Method 2: Bash Script
-
 ```bash
 # Alternative scoring method
 ./scripts/score_snippets.sh
@@ -62,24 +50,3 @@ This example shows a snippet that compiled successfully on all simulators (2 poi
 
 - Yosys - Open source synthesis suite
 - SV2V - SystemVerilog to Verilog converter
-
-## Installation Requirements
-
-To get meaningful scores, install one or more of these tools:
-
-```bash
-# Ubuntu/Debian
-sudo apt install iverilog verilator yosys
-
-# Install sv2v (requires Haskell)
-cabal install sv2v
-
-# Install Slang (for CXXSLG support)
-# See: https://github.com/MikePopoloski/slang
-```
-
-## Behavior
-
-- **With Scores**: Snippets are selected with probability proportional to their compatibility scores
-- **Without Scores**: Falls back to uniform random selection (original behavior)
-- **Mixed Scenarios**: Scored snippets use their probabilities, unscored snippets get default weight
