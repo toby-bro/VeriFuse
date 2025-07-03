@@ -439,6 +439,45 @@ func (g *Generator) GenerateSVTestbench(outputDir string) error {
 	return nil
 }
 
+// GenerateSVTestbenchWithInputs generates a SystemVerilog testbench that hardcodes input values from a map
+// Instead of reading from input files, it assigns values directly to the input ports
+func (g *Generator) GenerateSVTestbenchWithInputs(inputs map[string]string) string {
+	declarations := g.generateSVPortDeclarations()
+	moduleInst := g.generateSVModuleInstantiation()
+	clockPorts, resetPort, isActiveHigh := g.identifyClockAndResetPorts()
+
+	// Generate SystemVerilog code to assign these values
+	var inputAssigns strings.Builder
+	inputCount := 0
+	for _, port := range g.module.Ports {
+		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
+			portName := strings.TrimSpace(port.Name)
+			if val, ok := inputs[portName]; ok {
+				inputAssigns.WriteString(fmt.Sprintf("        %s = 'h%s;\n", portName, val))
+				inputCount++
+			} else {
+				inputAssigns.WriteString(fmt.Sprintf("        %s = 0;\n", portName))
+			}
+		}
+	}
+
+	resetToggleStr := g.generateSVResetToggling(resetPort, isActiveHigh)
+	clockToggleStr := g.generateSVClockToggling(clockPorts)
+	outputWritesStr, outputCount := g.generateSVOutputWrites()
+
+	testbench := fmt.Sprintf(svTestbenchTemplate,
+		declarations,
+		moduleInst,
+		inputCount,
+		inputAssigns.String(),
+		resetToggleStr,
+		clockToggleStr,
+		outputCount,
+		outputWritesStr,
+	)
+	return testbench
+}
+
 // getCXXRTLTestbenchVarType returns the C++ variable type for testbench variables
 // These are simple C++ types used to hold values before applying them to CXXRTL ports
 func getCXXRTLTestbenchVarType(port *verilog.Port) string {

@@ -7,7 +7,6 @@ import (
 	"runtime"
 
 	"github.com/toby-bro/pfuzz/internal/fuzz"
-	"github.com/toby-bro/pfuzz/internal/snippets"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
 
@@ -115,27 +114,6 @@ func setupCheckFileCommand() (*Config, error) {
 	return config, nil
 }
 
-func setupScoreSnippetsCommand() (*Config, error) {
-	config := &Config{operation: fuzz.OpScoreSnippets}
-	fs := flag.NewFlagSet("score-snippets", flag.ExitOnError)
-	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s score-snippets [options]\n", os.Args[0])
-		fmt.Fprintf(
-			os.Stderr,
-			"Evaluate snippets against simulators and synthesizers to generate scores\n\n",
-		)
-		fs.PrintDefaults()
-	}
-
-	addCommonFlags(fs, config)
-	config.maxAttempts = 1
-	config.numTests = 1
-
-	config.verboseLevel = parseVerboseFlags(fs)
-
-	return config, nil
-}
-
 func setupRewriteAsSnippetsCommand() (*Config, error) {
 	config := &Config{operation: fuzz.OpRewriteValid}
 	fs := flag.NewFlagSet("rewrite-as-snippets", flag.ExitOnError)
@@ -151,7 +129,6 @@ func setupRewriteAsSnippetsCommand() (*Config, error) {
 	config.numTests = config.workers
 
 	config.verboseLevel = parseVerboseFlags(fs)
-	config.verilogFile = "scoringFakeFile.sv"
 
 	return config, nil
 }
@@ -162,10 +139,6 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  fuzz                 Perform fuzzing on Verilog files\n")
 	fmt.Fprintf(os.Stderr, "  mutate               Mutate enums and structs in the testbench\n")
 	fmt.Fprintf(os.Stderr, "  check-file           Check that all modules in the file are valid\n")
-	fmt.Fprintf(
-		os.Stderr,
-		"  score-snippets       Evaluate snippets against simulators and synthesizers\n",
-	)
 	fmt.Fprintf(os.Stderr,
 		"  rewrite-as-snippets  Rewrite the checked file to snippets if validated\n\n")
 	fmt.Fprintf(os.Stderr,
@@ -188,8 +161,6 @@ func main() {
 		config, err = setupMutateCommand()
 	case "check-file":
 		config, err = setupCheckFileCommand()
-	case "score-snippets":
-		config, err = setupScoreSnippetsCommand()
 	case "rewrite-as-snippets":
 		config, err = setupRewriteAsSnippetsCommand()
 	case "-h", "--help", "help":
@@ -208,60 +179,8 @@ func main() {
 
 	logger := utils.NewDebugLogger(config.verboseLevel)
 
-	if config.operation == fuzz.OpScoreSnippets {
-		// Use the new scoring scheduler
-		findFiles := func() ([]string, error) {
-			return snippets.FindSnippetFiles()
-		}
-		results, err := fuzz.ScoreSnippetsWithDetails(config.verboseLevel, findFiles)
-		if err != nil {
-			logger.Error("Snippet scoring failed: %v", err)
-			os.Exit(1)
-		}
-		// Write .sscr files for each snippet
-		for _, res := range results {
-			// Calculate scores: 2 per simulator (success = no error), 1 per synthesizer
-			simScore := 0
-			for _, err := range res.SimulatorResults {
-				if err == nil {
-					simScore += 2
-				}
-			}
-			synScore := 0
-			for _, err := range res.SynthesizerResults {
-				if err == nil {
-					synScore += 1
-				}
-			}
-			nSim := len(res.SimulatorResults)
-			nSyn := len(res.SynthesizerResults)
-			maxScore := 2*nSim + nSyn
-			reachedScore := simScore + synScore
-			prob := 0.0
-			if maxScore > 0 {
-				prob = float64(reachedScore) / float64(maxScore)
-			}
-			score := &snippets.SnippetScore{
-				NumSimulators:    nSim,
-				NumSynthesizers:  nSyn,
-				SimulatorScore:   simScore,
-				SynthesizerScore: synScore,
-				MaximalScore:     maxScore,
-				ReachedScore:     reachedScore,
-				Probability:      prob,
-			}
-			err := snippets.WriteScoreFile(res.FileName, score)
-			if err != nil {
-				logger.Warn("Failed to write score file for %s: %v", res.FileName, err)
-			}
-			logger.Info("Scored %s: %d/%d (%.2f)", res.FileName, reachedScore, maxScore, 100*prob)
-		}
-		logger.Info("Snippet scoring completed. Score files written.")
-		return
-	}
-
-	// Check if Verilog file is provided (not required for score-snippets)
-	if config.verilogFile == "" && config.operation != fuzz.OpScoreSnippets {
+	// Check if Verilog file is provided
+	if config.verilogFile == "" {
 		logger.Fatal("Error: No Verilog file specified. Use -file option.")
 	}
 
