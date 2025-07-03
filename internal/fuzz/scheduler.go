@@ -178,7 +178,8 @@ func (sch *Scheduler) Run(
 		sch.workers/len(sch.svFile.Modules),
 	)
 
-	for range max(sch.workers/len(sch.svFile.Modules), 1) {
+	workerLoopCount := max(sch.workers/len(sch.svFile.Modules), 1)
+	for range workerLoopCount {
 		for _, module := range sch.svFile.Modules {
 			wg.Add(1)
 			currentModule := module
@@ -208,7 +209,7 @@ func (sch *Scheduler) Run(
 		defer feedingWg.Done()
 		defer close(testCases)
 
-		for i := 0; i < numTests; i++ {
+		for i := workerLoopCount; i < numTests; i++ {
 			select {
 			case testCases <- i:
 			case <-ctx.Done():
