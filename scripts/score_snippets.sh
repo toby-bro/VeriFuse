@@ -41,6 +41,13 @@ else
     echo "  ✗ Yosys not found (disables CXXRTL)"
 fi
 
+if command -v yosys -m slang >/dev/null 2>&1; then
+    echo "  ✓ Yosys slang found"
+    SIMULATORS_AVAILABLE=$((SIMULATORS_AVAILABLE + 1))
+else
+    echo "  ✗ Yosys slang not found"
+fi
+
 # Check synthesizers
 SYNTHESIZERS_AVAILABLE=0
 if command -v yosys >/dev/null 2>&1; then
@@ -49,6 +56,7 @@ if command -v yosys >/dev/null 2>&1; then
 else
     echo "  ✗ Yosys not found"
 fi
+
 
 if command -v sv2v >/dev/null 2>&1; then
     echo "  ✓ SV2V found"
@@ -72,8 +80,142 @@ fi
 echo ""
 echo "Running snippet scoring..."
 
-# Run the scoring command
-./pfuzz score-snippets -v
+
+for snippet in $(pwd)/isolated/*/*.sv ; do
+    sim_score=0
+    synth_score=0
+    tmp=$(mktemp -d)
+
+    echo ""
+    echo "=== Scoring snippet: $snippet ==="
+    echo "Processing snippet: $snippet in temporary directory: $tmp"
+    snippet_file_base=$(basename "$snippet")
+    cp "$snippet" "$tmp/$snippet_file_base"
+    ./testbench -d "$tmp" "$snippet"
+    (cd $tmp && mkdir iverilog verilator yosys cxxrtl sv2v cxxslg)
+    if [ $SIMULATORS_AVAILABLE -gt 0 ]; then
+        if command -v iverilog >/dev/null 2>&1; then
+            (cd $tmp && iverilog -g2012 -gsupported-assertions -o iverilog/$snippet_file_base.vvp "$snippet_file_base" testbench.sv &>/dev/null)
+            if [ $? -eq 0 ]; then
+                (cd ${tmp}&& ./iverilog/${snippet_file_base}.vvp &>/dev/null) && echo "IVerilog simulation succeeded for $snippet_file_base"
+                sim_score=$((sim_score + 2))
+            else
+                echo "IVerilog simulation failed for $snippet_file_base"
+                sim_score=$((sim_score + 1))
+            fi
+        fi
+        if command -v verilator >/dev/null 2>&1; then
+            (cd $tmp/verilator && verilator \
+                --binary \
+                --exe \
+                --build \
+                -Mdir obj_dir \
+                -sv \
+                --timing \
+                --assert \
+                -Wno-CMPCONST \
+                -Wno-DECLFILENAME \
+                -Wno-MULTIDRIVEN \
+                -Wno-NOLATCH \
+                -Wno-LATCH \
+                -Wno-UNDRIVEN \
+                -Wno-UNOPTFLAT \
+                -Wno-UNUSED \
+                -Wno-UNSIGNED \
+                -Wno-WIDTHEXPAND \
+                -Wno-WIDTHTRUNC \
+                -Wno-MULTITOP \
+                -Wno-CASEINCOMPLETE \
+                -Wno-CASEOVERLAP \
+                -Wno-ASCRANGE \
+                -Wno-CASEX \
+                ../testbench.sv \
+                ../"$snippet_file_base" \
+                &>/dev/null)
+            if [ $? -eq 0 ]; then
+                (cd ${tmp}/verilator && ./obj_dir/Vtestbench &>/dev/null) && echo "Verilator simulation succeeded for $snippet_file_base"
+                sim_score=$((sim_score + 2))
+            else
+                echo "Verilator simulation failed for $snippet_file_base"
+                sim_score=$((sim_score + 1))
+            fi
+        fi
+
+        # --- CXXRTL simulation (plain) ---
+        if command -v yosys &>/dev/null && command -v g++ >/dev/null 2>&1; then
+            (cd "$tmp" && yosys -q -p "read_verilog -sv $snippet_file_base; prep -top ${snippet_file_base%.*}; write_cxxrtl cxxrtl/${snippet_file_base%.*}.cc" &>/dev/null)
+            if [ $? -ne 0 ]; then
+                echo "Yosys CXXRTL generation failed for $snippet_file_base"
+            else
+                (cd "$tmp"/cxxrtl && g++ -std=c++17 -O0 -I$(yosys-config --datdir)/include/backends/cxxrtl/runtime ../testbench.cpp -I. -o ${snippet_file_base%.*}_cxxsim )
+                if [ -f "$tmp/cxxrtl/${snippet_file_base%.*}_cxxsim" ]; then
+                    (cd $tmp/cxxrtl && cp ../input* .)
+                    (cd "$tmp"/cxxrtl && ./${snippet_file_base%.*}_cxxsim &>/dev/null)
+                    if [ $? -eq 0 ]; then
+                        echo "CXXRTL simulation succeeded for $snippet_file_base"
+                        sim_score=$((sim_score + 2))
+                    else
+                        echo "CXXRTL simulation failed for $snippet_file_base"
+                        sim_score=$((sim_score + 1))
+                    fi
+                fi
+            fi
+        fi
+
+        # --- CXXRTL simulation (with slang) ---
+        if command -v yosys &>/dev/null && command -v g++ >/dev/null 2>&1 && yosys -m slang -p 'help' &>/dev/null; then
+            (cd "$tmp" && yosys -q -m slang -p "read_slang $snippet_file_base --top ${snippet_file_base%.*}; prep -top ${snippet_file_base%.*}; write_cxxrtl cxxslg/${snippet_file_base%.*}.cc" &>/dev/null)
+            if [ $? -ne 0 ]; then
+                echo "Yosys CXXRTL slang generation failed for $snippet_file_base"
+            else
+                (cd "$tmp"/cxxslg && g++ -std=c++17 -O0 -I$(yosys-config --datdir)/include/backends/cxxrtl/runtime ../testbench.cpp -I. -o ${snippet_file_base%.*}_cxxsim )
+                if [ -f "$tmp/cxxslg/${snippet_file_base%.*}_cxxsim" ]; then
+                    (cd $tmp/cxxslg && cp ../input* .)
+                    (cd "$tmp"/cxxslg && ./${snippet_file_base%.*}_cxxsim &>/dev/null)
+                    if [ $? -eq 0 ]; then
+                        echo "CXXRTL slang simulation succeeded for $snippet_file_base"
+                        sim_score=$((sim_score + 2))
+                    else
+                        echo "CXXRTL slang simulation failed for $snippet_file_base"
+                        sim_score=$((sim_score + 1))
+                    fi
+                fi
+            fi
+        fi
+
+        if command -v yosys >/dev/null 2>&1; then
+            (cd ${tmp}/yosys && yosys -q -p "read_verilog -sv ${snippet}; prep -top ${snippet_file_base%.*}; synth; write_verilog -noattr $snippet_file_base.v" &>/dev/null)
+            if [ $? -eq 0 ]; then
+                echo "Yosys synthesis succeeded for $snippet_file_base"
+                synth_score=$((synth_score + 1))
+            else
+                (cd ${tmp}/yosys && yosys -q -m slang -p "read_slang ${snippet} --top ${snippet_file_base%.*}; prep -top ${snippet_file_base%.*}; synth; write_verilog -noattr ${snippet_file_base%.*}.v" &>/dev/null)
+                if [ $? -eq 0 ]; then
+                    echo "Yosys slang synthesis succeeded for $snippet_file_base"
+                    synth_score=$((synth_score + 1))
+                else
+                    echo "Yosys synthesis failed for $snippet_file_base"
+                fi
+            fi
+        fi
+        if command -v sv2v >/dev/null 2>&1; then
+            (cd $tmp/sv2v && sv2v --top ${snippet_file_base%.*} ../${snippet_file_base} -w $snippet_file_base.v &>/dev/null)
+            if [ $? -eq 0 ]; then
+                echo "SV2V conversion succeeded for $snippet_file_base"
+                synth_score=$((synth_score + 1))
+            else
+                echo "SV2V conversion failed for $snippet_file_base"
+            fi
+        fi
+    fi
+    # Generate score file
+    printf "%s\n%s\n%s\n%s\n%s\n%s\n" "$SIMULATORS_AVAILABLE" "$SYNTHESIZERS_AVAILABLE" "$sim_score" "$synth_score" "$((SIMULATORS_AVAILABLE * 2 + SYNTHESIZERS_AVAILABLE))" "$((sim_score + synth_score))" > "$(dirname "$snippet")/$snippet_file_base.sscr"
+    rm -rf "$tmp"
+done
+
+
+
+
 
 if [ $? -eq 0 ]; then
     echo ""

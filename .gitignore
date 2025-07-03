@@ -6,6 +6,8 @@ testbench.*
 dist/
 pfuzz
 !cmd/pfuzz
+testbench
+!cmd/testbench
 mismatches/
 analyze
 !cmd/analyze

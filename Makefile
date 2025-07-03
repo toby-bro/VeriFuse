@@ -2,7 +2,10 @@
 all: build run
 
 .PHONY: build
-build: build-fuzzer build-tools
+build: build-fuzzer build-testbench
+
+.PHONY: build-all
+build-all: build-fuzzer build-tools build-testbench
 
 .PHONY: build-fuzzer
 build-fuzzer:
@@ -21,6 +24,10 @@ run: test-module
 .PHONY: patterns
 patterns:
 	./patterns
+
+.PHONY: build-testbench
+build-testbench:
+	go build -o testbench cmd/testbench/main.go
 
 .PHONY: test-go
 test-go: build-fuzzer
