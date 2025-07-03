@@ -29,13 +29,11 @@ make build-fuzzer
 ./pfuzz check-file -file isolated/V3SchedTiming/mod_automatic_task.sv 
 
 # Score snippets for better fuzzing (optional but recommended)
-./pfuzz score-snippets -v
+./scripts/score_snippets.sh
 
 # Fuzz a file by injecting snippets into its modules
 ./pfuzz fuzz -n 160 -strategy smart -file testfiles/sv/ok/sequential_logic.sv -vv
 
-# Alternative: use bash script for scoring
-./scripts/score_snippets.sh
 ```
 
 For detailed information about the scoring system, see [docs/SCORING.md](docs/SCORING.md).

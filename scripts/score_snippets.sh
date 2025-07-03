@@ -232,17 +232,6 @@ if [ $? -eq 0 ]; then
     echo "The probability for snippet injection is: reached_score / max_score"
     echo ""
     
-    # Show some example score files if they exist
-    echo "Example score files:"
-    for sscr_file in isolated/*/*.sscr; do
-        if [ -f "$sscr_file" ]; then
-            echo "  $sscr_file:"
-            cat "$sscr_file" | tr '\n' ' '
-            echo ""
-            break
-        fi
-    done
-    
     # Count total score files
     SCORE_FILES=$(find isolated/ -name "*.sscr" | wc -l)
     echo "Generated $SCORE_FILES score files total."
