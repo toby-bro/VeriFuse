@@ -12,7 +12,7 @@ module PackedStructOps (
     assign data_pair.high = packed_in[15:8];
     assign data_pair.low = byte_val;
     assign byte_out = data_pair.high;
-    assign packed_out = data_pair;
+    assign packed_out[15:8] = data_pair.high;
     assign packed_out[7:0] = data_pair.low + byte_val;
 endmodule
 
