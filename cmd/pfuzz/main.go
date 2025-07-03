@@ -223,15 +223,6 @@ func main() {
 		config.keepFiles,
 	)
 
-	// For score-snippets operation, we don't need to setup simulators through the scheduler
-	if config.operation == fuzz.OpScoreSnippets {
-		// Just run the scoring operation directly
-		if err := scheduler.RunScoreSnippets(); err != nil {
-			os.Exit(1)
-		}
-		return
-	}
-
 	availableSimulators, availableSynthesizers, err := scheduler.Setup()
 	if err != nil {
 		logger.Fatal("Setup failed: ", err)

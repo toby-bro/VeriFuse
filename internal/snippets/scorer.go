@@ -90,40 +90,45 @@ func scoreSnippetFile(
 			MaximalScore:     2*len(availableSimulators) + len(availableSynthesizers),
 			ReachedScore:     0,
 		}
-
-		// Test with simulators
-		simulatorScore := testSnippetWithSimulators(
-			snippetFilePath,
-			module,
-			availableSimulators,
-			debug,
-		)
-		score.SimulatorScore = simulatorScore
-		score.ReachedScore += simulatorScore
-
-		// Test with synthesizers
-		synthesizerScore := testSnippetWithSynthesizers(
-			snippetFilePath,
-			module,
-			availableSynthesizers,
-			debug,
-		)
-		score.SynthesizerScore = synthesizerScore
-		score.ReachedScore += synthesizerScore
-
-		// Calculate probability
-		if score.MaximalScore > 0 {
-			score.Probability = float64(score.ReachedScore) / float64(score.MaximalScore)
+		if score.MaximalScore == 0 {
+			return fmt.Errorf("no simulators or synthesizers available for scoring module %s", moduleName)
 		}
 
-		debug.Info("Module %s scored %d/%d (%.2f%%)",
-			moduleName, score.ReachedScore, score.MaximalScore, score.Probability*100)
+		/*
+			// Test with simulators
+			simulatorScore := testSnippetWithSimulators(
+				snippetFilePath,
+				module,
+				availableSimulators,
+				debug,
+			)
+			score.SimulatorScore = simulatorScore
+			score.ReachedScore += simulatorScore
 
-		// Write score file
-		err = WriteScoreFile(snippetFilePath, score)
-		if err != nil {
-			debug.Warn("Failed to write score file for %s: %v", moduleName, err)
-		}
+			// Test with synthesizers
+			synthesizerScore := testSnippetWithSynthesizers(
+				snippetFilePath,
+				module,
+				availableSynthesizers,
+				debug,
+			)
+			score.SynthesizerScore = synthesizerScore
+			score.ReachedScore += synthesizerScore
+
+			// Calculate probability
+			if score.MaximalScore > 0 {
+				score.Probability = float64(score.ReachedScore) / float64(score.MaximalScore)
+			}
+
+			debug.Info("Module %s scored %d/%d (%.2f%%)",
+				moduleName, score.ReachedScore, score.MaximalScore, score.Probability*100)
+
+			// Write score file
+			err = WriteScoreFile(snippetFilePath, score)
+			if err != nil {
+				debug.Warn("Failed to write score file for %s: %v", moduleName, err)
+			}
+		*/
 	}
 
 	return nil
