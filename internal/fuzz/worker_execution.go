@@ -5,12 +5,47 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
+
+func (sch *Scheduler) processSingleTestCase(
+	ctx context.Context,
+	workerID, workerDir string,
+	sims []*SimInstance,
+	workerModule *verilog.Module,
+	i int,
+	strategy Strategy,
+	errorMu *sync.Mutex,
+	errorCollector *[]error,
+) {
+	testSpecificDir := filepath.Join(workerDir, fmt.Sprintf("test_%d", i))
+	if err := os.MkdirAll(testSpecificDir, 0o755); err != nil {
+		err := fmt.Errorf(
+			"[%s] failed to create test directory %s: %w",
+			workerID,
+			testSpecificDir,
+			err,
+		)
+		sch.debug.Error(err.Error())
+		errorMu.Lock()
+		*errorCollector = append(*errorCollector, err)
+		errorMu.Unlock()
+		return
+	}
+
+	err := sch.runSingleTest(ctx, workerID, testSpecificDir, sims, workerModule, i, strategy)
+	if err != nil {
+		sch.debug.Error("[%s] Test %d failed: %v", workerID, i, err)
+		errorMu.Lock()
+		*errorCollector = append(*errorCollector, err)
+		errorMu.Unlock()
+	}
+}
 
 func (sch *Scheduler) processTestCases(
 	ctx context.Context,
@@ -22,30 +57,42 @@ func (sch *Scheduler) processTestCases(
 ) []error {
 	var errorCollector []error
 	var errorMu sync.Mutex
+	workerIDSplits := strings.Split(workerID, "_")
+	var initialTestIndex int
+	if len(workerIDSplits) > 1 {
+		var err error
+		initialTestIndex, err = strconv.Atoi(workerIDSplits[1])
+		if err != nil {
+			sch.debug.Error("Failed to parse workerID index from %q: %v", workerID, err)
+			initialTestIndex = 0
+		}
+	} else {
+		initialTestIndex = 0
+	}
+	sch.processSingleTestCase(
+		ctx,
+		workerID,
+		workerDir,
+		sims,
+		workerModule,
+		initialTestIndex,
+		strategy,
+		&errorMu,
+		&errorCollector,
+	)
 
 	for i := range testCases {
-		testSpecificDir := filepath.Join(workerDir, fmt.Sprintf("test_%d", i))
-		if err := os.MkdirAll(testSpecificDir, 0o755); err != nil {
-			err := fmt.Errorf(
-				"[%s] failed to create test directory %s: %w",
-				workerID,
-				testSpecificDir,
-				err,
-			)
-			sch.debug.Error(err.Error())
-			errorMu.Lock()
-			errorCollector = append(errorCollector, err)
-			errorMu.Unlock()
-			continue
-		}
-
-		err := sch.runSingleTest(ctx, workerID, testSpecificDir, sims, workerModule, i, strategy)
-		if err != nil {
-			sch.debug.Error("[%s] Test %d failed: %v", workerID, i, err)
-			errorMu.Lock()
-			errorCollector = append(errorCollector, err)
-			errorMu.Unlock()
-		}
+		sch.processSingleTestCase(
+			ctx,
+			workerID,
+			workerDir,
+			sims,
+			workerModule,
+			i,
+			strategy,
+			&errorMu,
+			&errorCollector,
+		)
 	}
 	return errorCollector
 }
