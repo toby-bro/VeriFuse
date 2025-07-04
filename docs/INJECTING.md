@@ -48,7 +48,7 @@ Let's search for $p : x \mapsto x^\alpha$ with $\alpha$ to determine and let's s
 
 We have $E_1 = \sum_{i = 0}^3 \frac {b_i} {\alpha + i} $
 
-So the final equation is $$ E_1 = \sum_{i = 0}^3 \frac {b_i} {\alpha + i} \geq \frac{1}{1 + (\eta -1) g} $$
+So the final equation is $$E_1 = \sum_{i = 0}^3 \frac {b_i} {\alpha + i} \geq \frac{1}{1 + (\eta -1) g}$$
 
 What we did is then: interpole the best $b_i$, fix a $1/g$ of 3 or more, fix a $\eta \leq \frac 3 2$, then find the intersection between $E_1(\alpha)$ and the minimum value and take the corresponding $\alpha$.
 

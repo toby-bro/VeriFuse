@@ -610,7 +610,10 @@ func isDeclarationLine(line string) bool {
 
 func gx() float32 {
 	x := rand.Float32()
-	return (1 - x) * (1 - x) * (1 - x)
+	return max(
+		(1-x)*(1-x)*(1-x),
+		0.1,
+	) // to avoid injecting more than 10 snippets for the time being
 }
 
 var target float32 = 0.75
