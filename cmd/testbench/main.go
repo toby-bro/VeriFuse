@@ -29,6 +29,9 @@ func main() {
 	)
 	vvvFlag := fs.Bool("vvv", false, "Verbose output (level 3). Highest level.")
 
+	// Add -n flag to skip input file generation
+	skipInputs := fs.Bool("n", false, "Do not generate input files (only testbenches)")
+
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags] <input.sv|input.v>\n", filepath.Base(os.Args[0]))
 		fs.PrintDefaults()
@@ -96,18 +99,20 @@ func main() {
 
 	if outputDir != "" {
 		// Use the provided output directory
-		// Generate and write input files for all input ports (like generateAndPrepareInputs)
-		inputs := make(map[string]string)
-		for _, port := range module.Ports {
-			if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-				inputs[port.Name] = "0" // You can replace this with your strategy if desired
+		if !*skipInputs {
+			// Generate and write input files for all input ports (like generateAndPrepareInputs)
+			inputs := make(map[string]string)
+			for _, port := range module.Ports {
+				if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
+					inputs[port.Name] = "0" // You can replace this with your strategy if desired
+				}
 			}
-		}
-		for portName, value := range inputs {
-			inputPath := filepath.Join(outputDir, fmt.Sprintf("input_%s.hex", portName))
-			if err := os.WriteFile(inputPath, []byte(value), 0o644); err != nil {
-				fmt.Fprintf(os.Stderr, "Error writing input file %s: %v\n", inputPath, err)
-				os.Exit(1)
+			for portName, value := range inputs {
+				inputPath := filepath.Join(outputDir, fmt.Sprintf("input_%s.hex", portName))
+				if err := os.WriteFile(inputPath, []byte(value), 0o644); err != nil {
+					fmt.Fprintf(os.Stderr, "Error writing input file %s: %v\n", inputPath, err)
+					os.Exit(1)
+				}
 			}
 		}
 		if err := gen.GenerateTestbenchesInDir(outputDir); err != nil {
