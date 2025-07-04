@@ -11,40 +11,35 @@ import (
 	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
-func parseVerboseFlags(fs *flag.FlagSet) int {
-	vFlag := fs.Bool(
-		"v",
-		false,
-		"Verbose output (level 1). Higher levels (-vv, -vvv) take precedence.",
-	)
-	vvFlag := fs.Bool(
-		"vv",
-		false,
-		"Verbose output (level 2). Higher level (-vvv) takes precedence.",
-	)
-	vvvFlag := fs.Bool("vvv", false, "Verbose output (level 3).")
-
-	// Do not call fs.Parse here!
-
-	switch {
-	case *vvvFlag:
-		return 4
-	case *vvFlag:
-		return 3
-	case *vFlag:
-		return 2
-	default:
-		return 1
-	}
-}
-
 func main() {
 	fs := flag.NewFlagSet("testbench", flag.ExitOnError)
 	// Parse -d flag for output directory
 	var outputDir string
 	fs.StringVar(&outputDir, "d", "", "Output directory for generated testbenches (optional)")
-	verboseLevel := parseVerboseFlags(fs)
-	fs.Parse(os.Args[1:])
+	// Verbose flags
+	vFlag := fs.Bool("v", false, "Verbose output (level 1). Higher levels (-vv, -vvv) take precedence.")
+	vvFlag := fs.Bool("vv", false, "Verbose output (level 2). Higher level (-vvv) takes precedence.")
+	vvvFlag := fs.Bool("vvv", false, "Verbose output (level 3). Highest level.")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [flags] <input.sv|input.v>\n", filepath.Base(os.Args[0]))
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing flags: %v\n", err)
+		fs.Usage()
+		os.Exit(1)
+	}
+
+	// Determine verbose level after parsing
+	verboseLevel := 1
+	if *vvvFlag {
+		verboseLevel = 4
+	} else if *vvFlag {
+		verboseLevel = 3
+	} else if *vFlag {
+		verboseLevel = 2
+	}
 
 	args := fs.Args()
 	if len(args) < 1 {
