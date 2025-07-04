@@ -64,9 +64,9 @@ Now as both experiments are independant then the global expected value is the pr
 
 $$E = ((1-p) \times \mu + p \times 1)^{\frac1g + 1}$$
 
-So finally if I want $E \geq \nu$, we now have a much simpler relationship of $$ \nu^{\frac g {g+1}} \leq (1-p) \mu + p$$
+So finally if I want $E \geq \nu$, we now have a much simpler relationship of $$\nu^{\frac g {g+1}} \leq (1-p) \mu + p$$
 So finally
-$$ p \geq \frac {\nu^{\frac g {g+1}} - \mu}{1-\mu}$$
+$$p \geq \frac {\nu^{\frac g {g+1}} - \mu}{1-\mu}$$
 
 The final choise is thus to have $\nu =0.75$ and to pick a random $g$ accorging to a law of $1-x^3$ with $x$ a random number, uniformly picked between 0 and 1. I took this function as it decreases fast and the smaller g the more modules I am injecting ($1/g$), the more complicated my generated files.
 
