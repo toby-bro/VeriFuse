@@ -66,6 +66,7 @@ func main() {
 	}
 
 	vf, err := verilog.ParseVerilog(content, verboseLevel)
+	vf.Name = filepath.Base(inputPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing Verilog: %v\n", err)
 		os.Exit(1)
@@ -74,11 +75,21 @@ func main() {
 		fmt.Fprintf(os.Stderr, "No modules found in file\n")
 		os.Exit(1)
 	}
-	// Use the first module found
+	// Use the first module found if no module with the same name as the file is found
 	var module *verilog.Module
-	for _, m := range vf.Modules {
-		module = m
-		break
+	// Trim extension from vf.Name to match module names if needed
+	baseName := vf.Name
+	ext := filepath.Ext(baseName)
+	if ext != "" {
+		baseName = baseName[:len(baseName)-len(ext)]
+	}
+	if baseName != "" && vf.Modules[baseName] != nil {
+		module = vf.Modules[baseName]
+	} else {
+		for _, m := range vf.Modules {
+			module = m
+			break
+		}
 	}
 
 	gen := testgen.NewGenerator(module, inputPath, vf)
