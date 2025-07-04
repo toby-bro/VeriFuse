@@ -118,8 +118,12 @@ func TestGetSnippets(t *testing.T) {
 	}
 }
 
+func SimplifiedGetRandomSnippet(verbose int) (*Snippet, error) {
+	return GetRandomSnippet(verbose, 0.3, 0.75)
+}
+
 func TestGetRandomSnippet(t *testing.T) {
-	snippet, err := GetRandomSnippet(1)
+	snippet, err := SimplifiedGetRandomSnippet(1)
 	if err != nil {
 		t.Fatalf("GetRandomSnippet failed: %v", err)
 	}
@@ -141,7 +145,7 @@ func TestGetRandomSnippet(t *testing.T) {
 	}
 
 	// Test multiple calls return (potentially) different snippets
-	snippet2, err2 := GetRandomSnippet(1)
+	snippet2, err2 := SimplifiedGetRandomSnippet(1)
 	if err2 != nil {
 		t.Fatalf("Second call to GetRandomSnippet failed: %v", err2)
 	}
@@ -160,7 +164,7 @@ func TestGetRandomSnippet_WithDifferentVerboseLevels(t *testing.T) {
 
 	for _, level := range verboseLevels {
 		t.Run(fmt.Sprintf("VerboseLevel_%d", level), func(t *testing.T) {
-			snippet, err := GetRandomSnippet(level)
+			snippet, err := SimplifiedGetRandomSnippet(level)
 			if err != nil {
 				t.Fatalf("GetRandomSnippet with verbose level %d failed: %v", level, err)
 			}
@@ -609,7 +613,7 @@ func TestDfsDependencies_AlreadyExistsInTarget(t *testing.T) {
 // Benchmark tests
 func BenchmarkGetRandomSnippet(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_, err := GetRandomSnippet(0) // Use verbose level 0 for benchmarks
+		_, err := SimplifiedGetRandomSnippet(0) // Use verbose level 0 for benchmarks
 		if err != nil {
 			b.Fatalf("GetRandomSnippet failed: %v", err)
 		}

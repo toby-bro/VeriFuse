@@ -3,6 +3,7 @@ package snippets
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -114,55 +115,86 @@ func getSnippets() ([]*Snippet, []*verilog.VerilogFile, error) {
 	return snippets, verilogFiles, nil
 }
 
-func GetRandomSnippet(verbose int) (*Snippet, error) {
+var (
+	goodSnippets        []*Snippet
+	complicatedSnippets []*Snippet
+	splitOnce           sync.Once
+	splitError          error
+	badAvg              float32
+)
+
+// GetSplitedSnippets returns a map of snippets split by score : those with maximal scores first and the others second
+// It also returns the mean average of the scores of the bad snippets
+func GetSplitedSnippets() ([]*Snippet, []*Snippet, float32, error) {
+	splitOnce.Do(func() {
+		snippets, _, err := getSnippets()
+		badCounter := 0
+		badSummer := 0
+		if err != nil {
+			splitError = fmt.Errorf("failed to get snippets: %v", err)
+			return
+		}
+
+		for _, snippet := range snippets {
+			if snippet.Score != nil && snippet.Score.ReachedScore == snippet.Score.MaximalScore {
+				goodSnippets = append(goodSnippets, snippet)
+			} else {
+				if snippet.Score == nil {
+					logger.Warn("Snippet %s has no score file, treating as complicated", snippet.Name)
+				} else {
+					logger.Debug("Snippet %s has a score file", snippet.Name)
+					complicatedSnippets = append(complicatedSnippets, snippet)
+					badCounter++
+					badSummer += snippet.Score.ReachedScore
+				}
+			}
+		}
+		if badCounter == 0 {
+			badAvg = 0.0
+		} else {
+			badAvg = float32(badSummer) / float32(badCounter)
+		}
+	})
+
+	if splitError != nil {
+		return nil, nil, 0, splitError
+	}
+	return goodSnippets, complicatedSnippets, badAvg, nil
+}
+
+func px(g float32, avg float32, target float32) float32 {
+	return (float32(math.Pow(float64(target), float64(g)/float64(g+1))) - avg) / (1 - avg)
+}
+
+func GetRandomSnippet(verbose int, g float32, target float32) (*Snippet, error) {
 	logger.SetVerboseLevel(verbose)
-	snippets, _, err := getSnippets()
+	goodSnippets, complicatedSnippets, badAvg, err := GetSplitedSnippets()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snippets: %v", err)
 	}
-	if len(snippets) == 0 {
+	if len(goodSnippets) == 0 && len(complicatedSnippets) == 0 {
 		return nil, errors.New("no snippets available")
 	}
-
-	return getWeightedRandomSnippet(snippets), nil
-}
-
-// getWeightedRandomSnippet selects a snippet using weighted probability based on scores
-func getWeightedRandomSnippet(snippets []*Snippet) *Snippet {
-	// Count snippets with and without scores
-	var totalWeight float64
-	weightsMap := make(map[int]float64)
-
-	for i, snippet := range snippets {
-		weight := 0.5 // default weight for snippets without scores
-		if snippet.Score != nil && snippet.Score.Probability > 0 {
-			weight = snippet.Score.Probability
+	p := px(g, badAvg, target)
+	if rand.Float32() < p {
+		if len(goodSnippets) == 0 {
+			return nil, errors.New("no good snippets available")
 		}
-		weightsMap[i] = weight
-		totalWeight += weight
+		logger.Debug("Selected a good snippet with probability %.2f", p)
+		return goodSnippets[rand.Intn(len(goodSnippets))], nil
 	}
-
-	if totalWeight != 0 {
-		target := rand.Float64() * totalWeight
-
-		cumulative := 0.0
-		for i, snippet := range snippets {
-			cumulative += weightsMap[i]
-			if target <= cumulative {
-				return snippet
-			}
-		}
+	if len(complicatedSnippets) == 0 {
+		return nil, errors.New("no complicated snippets available")
 	}
-	// Fallback to uniform random selection
-	randomIndex := utils.RandomInt(0, len(snippets)-1)
-	return snippets[randomIndex]
+	logger.Debug("Selected a complicated snippet with probability %.2f", 1-p)
+	return complicatedSnippets[rand.Intn(len(complicatedSnippets))], nil
 }
 
 // loadScoreFile reads a .sscr file for a snippet and returns the score
 func loadScoreFile(snippetFilePath string) (*SnippetScore, error) {
 	// Determine score file path: replace .sv with .sscr
 	dir := filepath.Dir(snippetFilePath)
-	base := strings.TrimSuffix(filepath.Base(snippetFilePath), ".sv")
+	base := filepath.Base(snippetFilePath)
 	scoreFilePath := filepath.Join(dir, base+".sscr")
 
 	content, err := os.ReadFile(scoreFilePath)
