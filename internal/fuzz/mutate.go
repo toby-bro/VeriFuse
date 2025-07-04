@@ -608,6 +608,13 @@ func isDeclarationLine(line string) bool {
 	return false
 }
 
+func gx() float32 {
+	x := rand.Float32()
+	return (1 - x) * (1 - x) * (1 - x)
+}
+
+var target float32 = 0.75
+
 func MutateFile(
 	originalSvFile *verilog.VerilogFile,
 	pathToWrite string,
@@ -620,6 +627,8 @@ func MutateFile(
 	loadLogger(verbose)
 
 	workerDir := filepath.Base(filepath.Dir(pathToWrite))
+
+	g := gx()
 
 	for {
 		for moduleName, currentModule := range svFile.Modules {
@@ -643,7 +652,7 @@ func MutateFile(
 				continue
 			}
 
-			snippet, err := snippets.GetRandomSnippet(verbose)
+			snippet, err := snippets.GetRandomSnippet(verbose, g, target)
 			if err != nil {
 				logger.Warn(
 					"[%s] Failed to get snippet for module %s: %v. Skipping mutation for this module.",
@@ -736,7 +745,7 @@ func MutateFile(
 			// Key by snippet.Module.Name so we know exactly which module to DFS
 			injectedSnippetParentFiles[snippet.Name] = snippet.ParentFile
 		}
-		if rand.Intn(3) == 0 {
+		if rand.Float32() < g {
 			break
 		}
 	}
