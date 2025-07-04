@@ -16,7 +16,3 @@ func NegativeLookAhead(s string) string {
 	}
 	return pattern[:len(pattern)-1]
 }
-
-func RandomFloat64() float64 {
-	return rand.Float64()
-}

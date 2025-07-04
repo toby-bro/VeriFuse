@@ -3,6 +3,7 @@ package snippets
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -61,11 +62,6 @@ func findSnippetFiles() ([]string, error) {
 	return sourceFiles, nil
 }
 
-// FindSnippetFiles returns all snippet files in the isolated directory
-func FindSnippetFiles() ([]string, error) {
-	return findSnippetFiles()
-}
-
 func loadSnippets() error {
 	sourceFiles, err := findSnippetFiles()
 	if err != nil {
@@ -90,7 +86,7 @@ func loadSnippets() error {
 			}
 
 			// Try to load score file for this snippet
-			score, err := loadScoreFile(snippetFile, module.Name)
+			score, err := loadScoreFile(snippetFile)
 			if err != nil {
 				logger.Debug("No score file found for snippet %s: %v", module.Name, err)
 			}
@@ -128,7 +124,6 @@ func GetRandomSnippet(verbose int) (*Snippet, error) {
 		return nil, errors.New("no snippets available")
 	}
 
-	// Use weighted selection based on scores if available
 	return getWeightedRandomSnippet(snippets), nil
 }
 
@@ -139,7 +134,7 @@ func getWeightedRandomSnippet(snippets []*Snippet) *Snippet {
 	weightsMap := make(map[int]float64)
 
 	for i, snippet := range snippets {
-		weight := 1.0 // default weight for snippets without scores
+		weight := 0.5 // default weight for snippets without scores
 		if snippet.Score != nil && snippet.Score.Probability > 0 {
 			weight = snippet.Score.Probability
 		}
@@ -147,30 +142,24 @@ func getWeightedRandomSnippet(snippets []*Snippet) *Snippet {
 		totalWeight += weight
 	}
 
-	if totalWeight <= 0 {
-		// Fallback to uniform random selection
-		randomIndex := utils.RandomInt(0, len(snippets)-1)
-		return snippets[randomIndex]
-	}
+	if totalWeight != 0 {
+		target := rand.Float64() * totalWeight
 
-	// Generate random number between 0 and totalWeight
-	target := utils.RandomFloat64() * totalWeight
-
-	// Find the snippet that corresponds to this weight
-	cumulative := 0.0
-	for i, snippet := range snippets {
-		cumulative += weightsMap[i]
-		if target <= cumulative {
-			return snippet
+		cumulative := 0.0
+		for i, snippet := range snippets {
+			cumulative += weightsMap[i]
+			if target <= cumulative {
+				return snippet
+			}
 		}
 	}
-
-	// Fallback (should not reach here)
-	return snippets[len(snippets)-1]
+	// Fallback to uniform random selection
+	randomIndex := utils.RandomInt(0, len(snippets)-1)
+	return snippets[randomIndex]
 }
 
 // loadScoreFile reads a .sscr file for a snippet and returns the score
-func loadScoreFile(snippetFilePath, moduleName string) (*SnippetScore, error) {
+func loadScoreFile(snippetFilePath string) (*SnippetScore, error) {
 	// Determine score file path: replace .sv with .sscr
 	dir := filepath.Dir(snippetFilePath)
 	base := strings.TrimSuffix(filepath.Base(snippetFilePath), ".sv")
@@ -218,29 +207,10 @@ func loadScoreFile(snippetFilePath, moduleName string) (*SnippetScore, error) {
 	if score.MaximalScore > 0 {
 		score.Probability = float64(score.ReachedScore) / float64(score.MaximalScore)
 	} else {
-		score.Probability = 0.0
+		score.Probability = 0.5
 	}
 
 	return score, nil
-}
-
-// WriteScoreFile writes a score to a .sscr file
-func WriteScoreFile(snippetFilePath string, score *SnippetScore) error {
-	// Determine score file path: replace .sv with .sscr
-	dir := filepath.Dir(snippetFilePath)
-	base := strings.TrimSuffix(filepath.Base(snippetFilePath), ".sv")
-	scoreFilePath := filepath.Join(dir, base+".sscr")
-
-	content := fmt.Sprintf("%d\n%d\n%d\n%d\n%d\n%d\n",
-		score.NumSimulators,
-		score.NumSynthesizers,
-		score.SimulatorScore,
-		score.SynthesizerScore,
-		score.MaximalScore,
-		score.ReachedScore,
-	)
-
-	return os.WriteFile(scoreFilePath, []byte(content), 0o644)
 }
 
 // dfsDependencies recursively traverses the dependency graph of a Verilog file
