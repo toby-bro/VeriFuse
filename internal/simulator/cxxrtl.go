@@ -14,6 +14,7 @@ import (
 
 	"github.com/toby-bro/pfuzz/internal/synth"
 	"github.com/toby-bro/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
 // CXXRTLSimulator represents the CXXRTL simulator
@@ -263,7 +264,7 @@ func (sim *CXXRTLSimulator) FailedCuzUnsupportedFeature(log error) (bool, error)
 func (sim *CXXRTLSimulator) RunTest(
 	ctx context.Context,
 	inputDir string,
-	outputPaths map[string]string,
+	outputPaths map[*verilog.Port]string,
 ) error {
 	sim.logger.Debug(
 		"Starting CXXRTL RunTest. Executable: %s, InputDir: %s",
@@ -330,9 +331,9 @@ func (sim *CXXRTLSimulator) RunTest(
 	}
 
 	// Copy output files from work directory to their final destination paths
-	for portName, outputPath := range outputPaths {
-		srcPath := filepath.Join(sim.workDir, fmt.Sprintf("output_%s.hex", portName))
-		sim.logger.Debug("Checking for output file %s for port %s", srcPath, portName)
+	for port, outputPath := range outputPaths {
+		srcPath := filepath.Join(sim.workDir, fmt.Sprintf("output_%s.hex", port.Name))
+		sim.logger.Debug("Checking for output file %s for port %s", srcPath, port)
 
 		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
 			// List directory contents for debugging if output file is missing
@@ -344,7 +345,7 @@ func (sim *CXXRTLSimulator) RunTest(
 			sim.logger.Error("Work directory %s contents after run: %v", sim.workDir, fileList)
 			return fmt.Errorf(
 				"output file not created by simulation for port %s at %s",
-				portName,
+				port.Name,
 				srcPath,
 			)
 		}
@@ -359,7 +360,7 @@ func (sim *CXXRTLSimulator) RunTest(
 		if err := utils.CopyFile(srcPath, outputPath); err != nil {
 			return fmt.Errorf(
 				"failed to copy output file for port %s from %s to %s: %v",
-				portName,
+				port.Name,
 				srcPath,
 				outputPath,
 				err,

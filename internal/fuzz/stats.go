@@ -5,6 +5,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
 // Stats tracks statistics about the fuzzing run
@@ -13,20 +15,20 @@ type Stats struct {
 	Mismatches     int
 	SimErrors      int
 	mutex          sync.Mutex
-	FoundMutants   map[string]bool     // Track unique mismatches
-	LastMismatches []map[string]string // Store recent mismatches
+	FoundMutants   map[string]bool            // Track unique mismatches
+	LastMismatches []map[*verilog.Port]string // Store recent mismatches
 }
 
 // NewStats creates a new Stats instance
 func NewStats() *Stats {
 	return &Stats{
 		FoundMutants:   make(map[string]bool),
-		LastMismatches: make([]map[string]string, 0),
+		LastMismatches: make([]map[*verilog.Port]string, 0),
 	}
 }
 
 // AddMismatch records a mismatch
-func (fs *Stats) AddMismatch(tc map[string]string) {
+func (fs *Stats) AddMismatch(tc map[*verilog.Port]string) {
 	fs.mutex.Lock()
 	defer fs.mutex.Unlock()
 	fs.Mismatches++

@@ -103,34 +103,38 @@ func TestReplaceXandZwithZero(t *testing.T) {
 }
 
 func TestCleanAllOutputValues(t *testing.T) {
+	sim1 := &SimInstance{Name: "sim1"}
+	sim2 := &SimInstance{Name: "sim2"}
+	port1 := &verilog.Port{Name: "port1"}
+	port2 := &verilog.Port{Name: "port2"}
 	tests := []struct {
 		name     string
-		input    map[string]map[string]string
-		expected map[string]map[string]string
+		input    map[*SimInstance]map[*verilog.Port]string
+		expected map[*SimInstance]map[*verilog.Port]string
 	}{
 		{
 			name: "basic cleaning",
-			input: map[string]map[string]string{
-				"sim1": {"port1": "1x0z", "port2": "1010"},
-				"sim2": {"port1": "1X0Z", "port2": "0101"},
+			input: map[*SimInstance]map[*verilog.Port]string{
+				sim1: {port1: "1x0z", port2: "1010"},
+				sim2: {port1: "1X0Z", port2: "0101"},
 			},
-			expected: map[string]map[string]string{
-				"sim1": {"port1": "1000", "port2": "1010"},
-				"sim2": {"port1": "1000", "port2": "0101"},
+			expected: map[*SimInstance]map[*verilog.Port]string{
+				sim1: {port1: "1000", port2: "1010"},
+				sim2: {port1: "1000", port2: "0101"},
 			},
 		},
 		{
 			name:     "empty map",
-			input:    map[string]map[string]string{},
-			expected: map[string]map[string]string{},
+			input:    map[*SimInstance]map[*verilog.Port]string{},
+			expected: map[*SimInstance]map[*verilog.Port]string{},
 		},
 		{
 			name: "no x or z",
-			input: map[string]map[string]string{
-				"sim1": {"port1": "1010", "port2": "0101"},
+			input: map[*SimInstance]map[*verilog.Port]string{
+				sim1: {port1: "1010", port2: "0101"},
 			},
-			expected: map[string]map[string]string{
-				"sim1": {"port1": "1010", "port2": "0101"},
+			expected: map[*SimInstance]map[*verilog.Port]string{
+				sim1: {port1: "1010", port2: "0101"},
 			},
 		},
 	}
@@ -138,15 +142,14 @@ func TestCleanAllOutputValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cleanAllOutputValues(tt.input)
-
-			for simName, simMap := range tt.expected {
-				for portName, expectedValue := range simMap {
-					if actualValue, exists := tt.input[simName][portName]; !exists ||
-						actualValue != expectedValue {
+			for sim, ports := range tt.expected {
+				for port, expectedValue := range ports {
+					actualValue := tt.input[sim][port]
+					if actualValue != expectedValue {
 						t.Errorf(
 							"Expected %s[%s] = %q, got %q",
-							simName,
-							portName,
+							sim.Name,
+							port.Name,
 							expectedValue,
 							actualValue,
 						)
@@ -158,10 +161,13 @@ func TestCleanAllOutputValues(t *testing.T) {
 }
 
 func TestScheduler_compareAllResults(t *testing.T) {
+	sim1 := &SimInstance{Name: "sim1"}
+	sim2 := &SimInstance{Name: "sim2"}
+	port1 := &verilog.Port{Name: "port1"}
+	port2 := &verilog.Port{Name: "port2"}
 	sch := &Scheduler{
 		debug: utils.NewDebugLogger(0),
 	}
-
 	// Save original skip flags
 	origSkipX := SKIP_X_OUTPUTS
 	origSkipZ := SKIP_Z_OUTPUTS
@@ -171,64 +177,61 @@ func TestScheduler_compareAllResults(t *testing.T) {
 	}()
 	SKIP_X_OUTPUTS = true
 	SKIP_Z_OUTPUTS = true
-
 	tests := []struct {
 		name               string
-		input              map[string]map[string]string
+		input              map[*SimInstance]map[*verilog.Port]string
 		expectedMismatch   bool
-		expectedDetailKeys []string
+		expectedDetailKeys []*verilog.Port
 	}{
 		{
 			name: "no mismatch",
-			input: map[string]map[string]string{
-				"sim1": {"port1": "1010", "port2": "0101"},
-				"sim2": {"port1": "1010", "port2": "0101"},
+			input: map[*SimInstance]map[*verilog.Port]string{
+				sim1: {port1: "1010", port2: "0101"},
+				sim2: {port1: "1010", port2: "0101"},
 			},
 			expectedMismatch:   false,
-			expectedDetailKeys: []string{},
+			expectedDetailKeys: []*verilog.Port{},
 		},
 		{
 			name: "mismatch found",
-			input: map[string]map[string]string{
-				"sim1": {"port1": "1010", "port2": "0101"},
-				"sim2": {"port1": "1111", "port2": "0101"},
+			input: map[*SimInstance]map[*verilog.Port]string{
+				sim1: {port1: "1010", port2: "0101"},
+				sim2: {port1: "1111", port2: "0101"},
 			},
 			expectedMismatch:   true,
-			expectedDetailKeys: []string{"port1"},
+			expectedDetailKeys: []*verilog.Port{port1},
 		},
 		{
 			name: "missing port in one sim",
-			input: map[string]map[string]string{
-				"sim1": {"port1": "1010", "port2": "0101"},
-				"sim2": {"port1": "1010"},
+			input: map[*SimInstance]map[*verilog.Port]string{
+				sim1: {port1: "1010", port2: "0101"},
+				sim2: {port1: "1010"},
 			},
 			expectedMismatch:   true,
-			expectedDetailKeys: []string{"port2"},
+			expectedDetailKeys: []*verilog.Port{port2},
 		},
 		{
 			name: "missing sim data",
-			input: map[string]map[string]string{
-				"sim1": {"port1": "1010"},
+			input: map[*SimInstance]map[*verilog.Port]string{
+				sim1: {port1: "1010"},
 			},
 			expectedMismatch:   false,
-			expectedDetailKeys: []string{},
+			expectedDetailKeys: []*verilog.Port{},
 		},
 		{
 			name:               "empty results",
-			input:              map[string]map[string]string{},
+			input:              map[*SimInstance]map[*verilog.Port]string{},
 			expectedMismatch:   false,
-			expectedDetailKeys: []string{},
+			expectedDetailKeys: []*verilog.Port{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mismatch, details := sch.compareAllResults(tt.input)
-
 			if mismatch != tt.expectedMismatch {
 				t.Errorf("Expected mismatch = %v, got %v", tt.expectedMismatch, mismatch)
 			}
-
 			if len(details) != len(tt.expectedDetailKeys) {
 				t.Errorf(
 					"Expected %d detail keys, got %d",
@@ -236,10 +239,9 @@ func TestScheduler_compareAllResults(t *testing.T) {
 					len(details),
 				)
 			}
-
 			for _, key := range tt.expectedDetailKeys {
 				if _, exists := details[key]; !exists {
-					t.Errorf("Expected detail key %q not found in results", key)
+					t.Errorf("Expected detail key %q not found in results", key.Name)
 				}
 			}
 		})
@@ -249,21 +251,18 @@ func TestScheduler_compareAllResults(t *testing.T) {
 func TestScheduler_handleMismatch(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
-
 	// Set up the mismatches directory
 	oldMismatchesDir := utils.MISMATCHES_DIR
 	utils.MISMATCHES_DIR = filepath.Join(tempDir, "mismatches")
 	defer func() {
 		utils.MISMATCHES_DIR = oldMismatchesDir
 	}()
-
 	// Create test directory with some files
 	testDir := filepath.Join(tempDir, "test_1")
 	err := os.MkdirAll(testDir, 0o755)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	// Create test files in testDir
 	testFiles := []string{"output.txt", "log.txt"}
 	for _, file := range testFiles {
@@ -272,36 +271,33 @@ func TestScheduler_handleMismatch(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-
 	// Create base source directory with testbench.sv
 	baseSrcDir := filepath.Dir(testDir)
 	err = os.WriteFile(filepath.Join(baseSrcDir, "testbench.sv"), []byte("// testbench"), 0o644)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	// Create mock verilog file and module
 	vFile := &verilog.VerilogFile{Name: "test_module.sv"}
 	module := &verilog.Module{Name: "test_module"}
-
 	sch := &Scheduler{
 		debug:  utils.NewDebugLogger(0),
 		stats:  NewStats(),
 		svFile: vFile,
 	}
-
-	testCase := map[string]string{
-		"input1": "1010",
-		"input2": "0101",
+	// Use *verilog.Port keys for testCase and mismatchDetails
+	port1 := &verilog.Port{Name: "input1"}
+	port2 := &verilog.Port{Name: "input2"}
+	outPort := &verilog.Port{Name: "output1"}
+	testCase := map[*verilog.Port]string{
+		port1: "1010",
+		port2: "0101",
 	}
-
-	mismatchDetails := map[string]string{
-		"output1": "sim1=1010, sim2=1111",
+	mismatchDetails := map[*verilog.Port]string{
+		outPort: "sim1=1010, sim2=1111",
 	}
-
 	// Run the function
 	sch.handleMismatch(1, testDir, testCase, mismatchDetails, module)
-
 	// Verify mismatch directory was created
 	mismatchDirs, err := filepath.Glob(
 		filepath.Join(utils.MISMATCHES_DIR, "mismatch_test_1_time_*"),

@@ -91,6 +91,13 @@ type Port struct {
 	ModportName   string // Name of the modport (e.g., "slave", "master")
 }
 
+func (p *Port) String() string {
+	if p.InterfaceName != "" && p.ModportName != "" {
+		return p.InterfaceName + "." + p.ModportName + " " + p.Name
+	}
+	return p.Name
+}
+
 // IsInterfacePort returns true if this port is an interface port
 func (p *Port) IsInterfacePort() bool {
 	return p.InterfaceName != "" && p.ModportName != ""

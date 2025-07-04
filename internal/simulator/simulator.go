@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
 type Type int
@@ -56,7 +57,7 @@ type Simulator interface {
 	// RunTest runs the simulator with the provided input and output files
 	// inputDir is the directory containing input files
 	// outputPaths maps port names to output file paths
-	RunTest(ctx context.Context, inputDir string, outputPaths map[string]string) error
+	RunTest(ctx context.Context, inputDir string, outputPaths map[*verilog.Port]string) error
 	FailedCuzUnsupportedFeature(log error) (bool, error)
 }
 
@@ -69,16 +70,16 @@ type OutputResult struct {
 var fileAccessMutex sync.Mutex
 
 // ReadOutputFiles reads multiple output files concurrently and returns their contents
-func ReadOutputFiles(filePaths map[string]string) (map[string]string, error) {
-	results := make(map[string]string)
+func ReadOutputFiles(filePaths map[*verilog.Port]string) (map[*verilog.Port]string, error) {
+	results := make(map[*verilog.Port]string)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var errorFound bool
 	var firstError error
 
-	for portName, filePath := range filePaths {
+	for port, filePath := range filePaths {
 		wg.Add(1)
-		go func(port, path string) {
+		go func(port *verilog.Port, path string) {
 			defer wg.Done()
 
 			content, err := ReadOutputFile(path)
@@ -86,7 +87,7 @@ func ReadOutputFiles(filePaths map[string]string) (map[string]string, error) {
 				mu.Lock()
 				if !errorFound {
 					errorFound = true
-					firstError = fmt.Errorf("failed to read output for %s: %v", port, err)
+					firstError = fmt.Errorf("failed to read output for %s: %v", port.Name, err)
 				}
 				mu.Unlock()
 				return
@@ -95,7 +96,7 @@ func ReadOutputFiles(filePaths map[string]string) (map[string]string, error) {
 			mu.Lock()
 			results[port] = content
 			mu.Unlock()
-		}(portName, filePath)
+		}(port, filePath)
 	}
 
 	wg.Wait()
@@ -107,14 +108,14 @@ func ReadOutputFiles(filePaths map[string]string) (map[string]string, error) {
 }
 
 // VerifyOutputFiles ensures output files exist and are non-empty
-func VerifyOutputFiles(outputPaths map[string]string) error {
+func VerifyOutputFiles(outputPaths map[*verilog.Port]string) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var missing []string
+	var missing []*verilog.Port
 
-	for portName, path := range outputPaths {
+	for port, path := range outputPaths {
 		wg.Add(1)
-		go func(name, filePath string) {
+		go func(port *verilog.Port, filePath string) {
 			defer wg.Done()
 
 			for retry := 0; retry < 5; retry++ {
@@ -129,9 +130,9 @@ func VerifyOutputFiles(outputPaths map[string]string) error {
 			}
 
 			mu.Lock()
-			missing = append(missing, name)
+			missing = append(missing, port)
 			mu.Unlock()
-		}(portName, path)
+		}(port, path)
 	}
 
 	wg.Wait()

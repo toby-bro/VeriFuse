@@ -11,7 +11,7 @@ import (
 )
 
 type Strategy interface {
-	GenerateTestCase(iteration int) map[string]string
+	GenerateTestCase(iteration int) map[*verilog.Port]string
 	SetModule(module *verilog.Module)
 	Name() string
 }
@@ -32,15 +32,15 @@ func (s *RandomStrategy) Name() string {
 	return "RandomStrategy"
 }
 
-func (s *RandomStrategy) GenerateTestCase(_ int) map[string]string {
+func (s *RandomStrategy) GenerateTestCase(_ int) map[*verilog.Port]string {
 	if s.module == nil {
-		return make(map[string]string)
+		return make(map[*verilog.Port]string)
 	}
 
-	inputs := make(map[string]string)
+	inputs := make(map[*verilog.Port]string)
 	for _, port := range s.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-			inputs[port.Name] = generateRandomValue(port.Type, port.Width, port.IsSigned)
+			inputs[&port] = generateRandomValue(port.Type, port.Width, port.IsSigned)
 		}
 	}
 	return inputs
@@ -211,15 +211,15 @@ func (s *SmartStrategy) Name() string {
 	return "SmartStrategy"
 }
 
-func (s *SmartStrategy) GenerateTestCase(_ int) map[string]string {
+func (s *SmartStrategy) GenerateTestCase(_ int) map[*verilog.Port]string {
 	if s.module == nil {
-		return make(map[string]string)
+		return make(map[*verilog.Port]string)
 	}
 
-	inputs := make(map[string]string)
+	inputs := make(map[*verilog.Port]string)
 	for _, port := range s.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-			inputs[port.Name] = generateSmartValue(port.Type, port.Width, port.IsSigned)
+			inputs[&port] = generateSmartValue(port.Type, port.Width, port.IsSigned)
 		}
 	}
 	return inputs

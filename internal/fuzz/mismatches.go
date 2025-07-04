@@ -59,59 +59,82 @@ func replaceXandZwithZero(value string) string {
 	return value
 }
 
-func cleanAllOutputValues(results map[string]map[string]string) {
-	for simName, simResultMap := range results {
-		for portName, value := range simResultMap {
-			results[simName][portName] = replaceXandZwithZero(value)
+func cleanAllOutputValues(results map[*SimInstance]map[*verilog.Port]string) {
+	for simInstance, simResultMap := range results {
+		for port, value := range simResultMap {
+			results[simInstance][port] = replaceXandZwithZero(value)
 		}
 	}
 }
 
 func (sch *Scheduler) compareAllResults(
-	results map[string]map[string]string,
-) (bool, map[string]string) {
+	results map[*SimInstance]map[*verilog.Port]string,
+) (bool, map[*verilog.Port]string) {
 	mismatchFound := false
-	mismatchDetails := make(map[string]string)
+	mismatchDetails := make(map[*verilog.Port]string)
 
-	if !SKIP_X_OUTPUTS && !SKIP_Z_OUTPUTS {
-		cleanAllOutputValues(results)
-	}
-
-	simNames := make([]string, 0, len(results))
-	for simName := range results {
-		simNames = append(simNames, simName)
-	}
-	sort.Strings(simNames)
-
-	allPorts := make(map[string]bool)
+	xorzPresent := false
 	for _, simResultMap := range results {
-		for portName := range simResultMap {
-			allPorts[portName] = true
+		for _, value := range simResultMap {
+			if strings.Contains(value, "x") || strings.Contains(value, "z") {
+				xorzPresent = true
+				break
+			}
 		}
 	}
 
-	for portName := range allPorts {
-		portReportEntries := make(map[string]string)
+	if !SKIP_X_OUTPUTS && !SKIP_Z_OUTPUTS && xorzPresent {
+		cleanAllOutputValues(results)
+	}
+
+	// if x or z is present in any outputs, we must exclude all the synthesizer outputs
+	if xorzPresent {
+		for simName, simResultMap := range results {
+			logger.Debug(
+				"Should do something but not implemented yet for sim %s with outputs: %v",
+				simName,
+				simResultMap,
+			)
+		}
+	}
+
+	sims := make([]*SimInstance, 0, len(results))
+	for sim := range results {
+		sims = append(sims, sim)
+	}
+	sort.Slice(sims, func(i, j int) bool {
+		return sims[i].Name < sims[j].Name
+	})
+
+	allPorts := make(map[*verilog.Port]bool)
+	for _, simResultMap := range results {
+		for port := range simResultMap {
+			allPorts[port] = true
+		}
+	}
+
+	for port := range allPorts {
+		portReportEntries := make(map[*SimInstance]string)
 		actualValuesPresent := []string{}
 		simsHavingThePortCount := 0
 
-		for _, simName := range simNames {
-			simResultMap, simExists := results[simName]
+		for _, sim := range sims {
+			simResultMap, simExists := results[sim]
 			if !simExists {
-				portReportEntries[simName] = "SIM_DATA_MISSING"
+				portReportEntries[sim] = "SIM_DATA_MISSING"
 				continue
 			}
-			if value, found := simResultMap[portName]; found {
-				portReportEntries[simName] = value
+			if value, found := simResultMap[port]; found {
+				portReportEntries[sim] = value
 				actualValuesPresent = append(actualValuesPresent, value)
 				simsHavingThePortCount++
 			} else {
-				portReportEntries[simName] = "MISSING"
+				portReportEntries[sim] = "MISSING"
 			}
 		}
 
 		isThisPortMismatch := false
-		if simsHavingThePortCount > 0 && simsHavingThePortCount < len(simNames) {
+		if simsHavingThePortCount > 0 && simsHavingThePortCount < len(sims) {
 			isThisPortMismatch = true
 		} else if simsHavingThePortCount >= 2 {
 			refValue := actualValuesPresent[0]
@@ -125,22 +148,26 @@ func (sch *Scheduler) compareAllResults(
 
 		if isThisPortMismatch {
 			mismatchFound = true
-			detailParts := make([]string, 0, len(simNames))
-			for _, simName := range simNames {
+			detailParts := make([]string, 0, len(sims))
+			for _, sim := range sims {
 				detailParts = append(
 					detailParts,
-					fmt.Sprintf("%s=%s", simName, portReportEntries[simName]),
+					fmt.Sprintf("%s=%s", sim.Name, portReportEntries[sim]),
 				)
 			}
-			mismatchDetails[portName] = strings.Join(detailParts, ", ")
-			sch.debug.Warn("Mismatch for port %s: %s", portName, mismatchDetails[portName])
+			mismatchDetails[port] = strings.Join(detailParts, ", ")
+			sch.debug.Warn("Mismatch for port %s: %s", port.Name, mismatchDetails[port])
 		}
 	}
 
 	if mismatchFound {
 		var simNamesStr string
-		if len(simNames) > 0 {
-			simNamesStr = strings.Join(simNames, ", ")
+		if len(sims) > 0 {
+			simNamesStr = "[" + sims[0].Name
+			for i := 1; i < len(sims); i++ {
+				simNamesStr += ", " + sims[i].Name
+			}
+			simNamesStr += "]"
 		} else {
 			sch.debug.Error("No simulator names found in results map")
 		}
@@ -158,8 +185,8 @@ func (sch *Scheduler) compareAllResults(
 func (sch *Scheduler) logMismatchInfo(
 	testIndex int,
 	testDir string,
-	testCase map[string]string,
-	mismatchDetails map[string]string,
+	testCase map[*verilog.Port]string,
+	mismatchDetails map[*verilog.Port]string,
 	workerModule *verilog.Module,
 ) {
 	sch.stats.AddMismatch(testCase)
@@ -220,19 +247,19 @@ func (sch *Scheduler) copyTestFiles(testDir, mismatchDir string) {
 func (sch *Scheduler) writeMismatchSummary(
 	testIndex int,
 	mismatchDir string,
-	testCase map[string]string,
-	mismatchDetails map[string]string,
+	testCase map[*verilog.Port]string,
+	mismatchDetails map[*verilog.Port]string,
 ) {
 	summaryPath := filepath.Join(mismatchDir, fmt.Sprintf("mismatch_%d_summary.txt", testIndex))
 	fileContent := fmt.Sprintf("Test case %d\n\nInputs:\n", testIndex)
 
-	for portName, value := range testCase {
-		fileContent += fmt.Sprintf("  %s = %s\n", portName, value)
+	for port, value := range testCase {
+		fileContent += fmt.Sprintf("  %v = %s\n", port, value)
 	}
 
 	fileContent += "\nMismatched outputs:\n"
-	for portName, detail := range mismatchDetails {
-		fileContent += fmt.Sprintf("  %s:\n", portName)
+	for port, detail := range mismatchDetails {
+		fileContent += fmt.Sprintf("  %v:\n", port)
 		detailsSplit := strings.Split(detail, ", ")
 		for _, part := range detailsSplit {
 			fileContent += fmt.Sprintf("    %s\n", part)
@@ -396,8 +423,8 @@ func (sch *Scheduler) copySpecificFiles(testDir, mismatchDir string, workerModul
 func (sch *Scheduler) handleMismatch(
 	testIndex int,
 	testDir string,
-	testCase map[string]string,
-	mismatchDetails map[string]string,
+	testCase map[*verilog.Port]string,
+	mismatchDetails map[*verilog.Port]string,
 	workerModule *verilog.Module,
 ) {
 	sch.logMismatchInfo(testIndex, testDir, testCase, mismatchDetails, workerModule)

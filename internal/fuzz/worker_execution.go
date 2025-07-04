@@ -103,16 +103,16 @@ func (sch *Scheduler) generateAndPrepareInputs(
 	workerModule *verilog.Module,
 	testIndex int,
 	strategy Strategy,
-) (map[string]string, error) {
+) (map[*verilog.Port]string, error) {
 	testCase := strategy.GenerateTestCase(testIndex)
 	sch.stats.AddTest()
 
 	for _, port := range workerModule.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-			if _, exists := testCase[port.Name]; !exists {
+			if _, exists := testCase[&port]; !exists {
 				// defaultValue := strings.Repeat("0", port.Width) // Old binary string
 				defaultValue := "0" // New: "0" is a valid hex representation of zero for any width
-				testCase[port.Name] = defaultValue
+				testCase[&port] = defaultValue
 				sch.debug.Debug("[%s] Test %d: Added default value '%s' for new input port '%s'",
 					workerID, testIndex, defaultValue, port.Name)
 			}
@@ -132,9 +132,9 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 	sims []*SimInstance,
 	workerModule *verilog.Module,
 	testIndex int,
-) (map[string]map[string]string, map[string]error) {
-	simResults := make(map[string]map[string]string) // simName -> {portName -> value}
-	simErrors := make(map[string]error)              // simName -> error
+) (map[*SimInstance]map[*verilog.Port]string, map[*SimInstance]error) {
+	simResults := make(map[*SimInstance]map[*verilog.Port]string) // simName -> {portName -> value}
+	simErrors := make(map[*SimInstance]error)                     // simName -> error
 	var resultsMu sync.Mutex
 	var wg sync.WaitGroup
 
@@ -146,11 +146,11 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 			defer wg.Done()
 			sch.debug.Debug("[%s] Test %d: Running simulator %s", workerID, testIndex, si.Name)
 
-			currentSimOutputPaths := make(map[string]string)
+			currentSimOutputPaths := make(map[*verilog.Port]string)
 			for _, port := range workerModule.Ports {
 				if port.Direction == verilog.OUTPUT {
 					outputFile := fmt.Sprintf("%s%s.hex", si.Prefix, port.Name)
-					currentSimOutputPaths[port.Name] = filepath.Join(testSpecificDir, outputFile)
+					currentSimOutputPaths[&port] = filepath.Join(testSpecificDir, outputFile)
 				}
 			}
 
@@ -163,7 +163,7 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 			)
 			resultsMu.Lock()
 			if err != nil {
-				simErrors[si.Name] = err
+				simErrors[si] = err
 				sch.debug.Warn(
 					"[%s] Test %d: Simulator %s failed: %v",
 					workerID,
@@ -172,7 +172,7 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 					err,
 				)
 			} else {
-				simResults[si.Name] = results
+				simResults[si] = results
 				sch.debug.Debug("[%s] Test %d: Simulator %s completed.", workerID, testIndex, si.Name)
 			}
 			resultsMu.Unlock()
@@ -187,14 +187,14 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 // An error is returned for critical issues during mismatch processing or if all simulators failed.
 func (sch *Scheduler) detectAndHandleMismatches(
 	workerID, testSpecificDir string,
-	testCase map[string]string,
+	testCase map[*verilog.Port]string,
 	sims []*SimInstance,
-	simResults map[string]map[string]string,
-	simErrors map[string]error,
+	simResults map[*SimInstance]map[*verilog.Port]string,
+	simErrors map[*SimInstance]error,
 	workerModule *verilog.Module,
 	testIndex int,
 ) (bool, error) {
-	successfulSimResults := make(map[string]map[string]string)
+	successfulSimResults := make(map[*SimInstance]map[*verilog.Port]string)
 	for simName := range simResults {
 		if simErrors[simName] == nil {
 			successfulSimResults[simName] = simResults[simName]
@@ -210,11 +210,11 @@ func (sch *Scheduler) detectAndHandleMismatches(
 		)
 		if len(simErrors) > 0 {
 			var firstError error
-			var firstErrorSimName string
-			for name, e := range simErrors {
+			var firstErrorSim *SimInstance
+			for sim, e := range simErrors {
 				if e != nil {
 					firstError = e
-					firstErrorSimName = name
+					firstErrorSim = sim
 					break
 				}
 			}
@@ -222,7 +222,7 @@ func (sch *Scheduler) detectAndHandleMismatches(
 				return false, fmt.Errorf(
 					"only %d sims succeeded, first error from %s: %w",
 					len(successfulSimResults),
-					firstErrorSimName,
+					firstErrorSim.Name,
 					firstError,
 				)
 			}
@@ -332,9 +332,9 @@ func (sch *Scheduler) runSingleTest(
 	return nil
 }
 
-func writeTestInputs(testDir string, testCase map[string]string) error {
-	for portName, value := range testCase {
-		inputPath := filepath.Join(testDir, fmt.Sprintf("input_%s.hex", portName))
+func writeTestInputs(testDir string, testCase map[*verilog.Port]string) error {
+	for port, value := range testCase {
+		inputPath := filepath.Join(testDir, fmt.Sprintf("input_%s.hex", port.Name))
 		if err := os.WriteFile(inputPath, []byte(value), 0o644); err != nil {
 			return fmt.Errorf("failed to write input file %s: %v", inputPath, err)
 		}
@@ -347,8 +347,8 @@ func (sch *Scheduler) runSimulator(
 	simName string,
 	sim simulator.Simulator,
 	testSpecificDir string, // e.g., worker_XYZ/test_0
-	outputPathsForSim map[string]string, // map portName to final prefixed path in testSpecificDir
-) (map[string]string, error) {
+	outputPathsForSim map[*verilog.Port]string, // map portName to final prefixed path in testSpecificDir
+) (map[*verilog.Port]string, error) {
 	// sim.RunTest expects inputDir (where input_N.hex are) and outputPaths (where to put prefixed_output_N.hex)
 	// Both should be relative to testSpecificDir or absolute paths within it.
 	if err := sim.RunTest(ctx, testSpecificDir, outputPathsForSim); err != nil {

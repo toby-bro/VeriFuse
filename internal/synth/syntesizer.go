@@ -10,7 +10,8 @@ import (
 type Type int
 
 const (
-	YOSYS Type = iota
+	None Type = iota
+	YOSYS
 	SV2V
 	VIVADO_SYNTH
 	QUARTUS_SYNTH
@@ -20,6 +21,8 @@ const (
 // String returns the string representation of the synthesizer type
 func (t Type) String() string {
 	switch t {
+	case None:
+		return ""
 	case YOSYS:
 		return "Yosys"
 	case SV2V:

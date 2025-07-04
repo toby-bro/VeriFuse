@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
+	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
 // IVerilogSimulator represents the IVerilog simulator
@@ -161,7 +162,7 @@ func (sim *IVerilogSimulator) FailedCuzUnsupportedFeature(log error) (bool, erro
 func (sim *IVerilogSimulator) RunTest(
 	ctx context.Context,
 	inputDir string,
-	outputPaths map[string]string,
+	outputPaths map[*verilog.Port]string,
 ) error {
 	// Make sure input directory and files exist (inputDir is the original source of inputs)
 	if _, err := os.Stat(inputDir); os.IsNotExist(err) {
@@ -233,14 +234,14 @@ func (sim *IVerilogSimulator) RunTest(
 	// time.Sleep(50 * time.Millisecond)
 
 	// Copy output files from sim.workDir to their expected paths
-	for portName, outputPath := range outputPaths {
-		srcPath := filepath.Join(sim.workDir, fmt.Sprintf("output_%s.hex", portName))
+	for port, outputPath := range outputPaths {
+		srcPath := filepath.Join(sim.workDir, fmt.Sprintf("output_%s.hex", port.Name))
 		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
-			return fmt.Errorf("output file not created for port %s in %s", portName, sim.workDir)
+			return fmt.Errorf("output file not created for port %s in %s", port.Name, sim.workDir)
 		}
 
 		if err := utils.CopyFile(srcPath, outputPath); err != nil {
-			return fmt.Errorf("failed to copy output file %s: %v", portName, err)
+			return fmt.Errorf("failed to copy output file %s: %v", port.Name, err)
 		}
 	}
 

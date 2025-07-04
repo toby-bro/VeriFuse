@@ -221,7 +221,7 @@ func (sim *VerilatorSimulator) FailedCuzUnsupportedFeature(_ error) (bool, error
 func (sim *VerilatorSimulator) RunTest(
 	ctx context.Context,
 	inputDir string,
-	outputPaths map[string]string,
+	outputPaths map[*verilog.Port]string,
 ) error {
 	// 1. Check input directory and files
 	sim.logger.Debug("Verilator RunTest: Input directory: %s", inputDir)
@@ -314,8 +314,8 @@ func (sim *VerilatorSimulator) RunTest(
 
 	// 5. Copy output files from work directory to expected paths
 	sim.logger.Debug("Verilator RunTest: Copying output files. Expected outputs: %v", outputPaths)
-	for portName, outputPath := range outputPaths {
-		srcPath := filepath.Join(sim.workDir, fmt.Sprintf("output_%s.hex", portName))
+	for port, outputPath := range outputPaths {
+		srcPath := filepath.Join(sim.workDir, fmt.Sprintf("output_%s.hex", port.Name))
 		sim.logger.Debug("Verilator RunTest: Checking for output file %s", srcPath)
 		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
 			// List directory contents for debugging if output file is missing
@@ -327,7 +327,7 @@ func (sim *VerilatorSimulator) RunTest(
 			sim.logger.Debug("Work directory contents after run: %v", fileList)
 			return fmt.Errorf(
 				"output file not created by simulation for port %s at %s",
-				portName,
+				port.Name,
 				srcPath,
 			)
 		}
@@ -346,7 +346,7 @@ func (sim *VerilatorSimulator) RunTest(
 		if err := utils.CopyFile(srcPath, outputPath); err != nil {
 			return fmt.Errorf(
 				"failed to copy output file for port %s from %s to %s: %v",
-				portName,
+				port.Name,
 				srcPath,
 				outputPath,
 				err,

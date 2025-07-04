@@ -22,9 +22,10 @@ import (
 
 // SimInstance holds a name and a compiled simulator interface.
 type SimInstance struct {
-	Name      string
-	Simulator simulator.Simulator
-	Prefix    string
+	Name        string
+	Simulator   simulator.Simulator
+	Prefix      string
+	Synthesizer synth.Type
 }
 
 func (sch *Scheduler) setupWorker(workerID string) (string, func(), error) {
@@ -349,6 +350,7 @@ func (sch *Scheduler) setupIVerilogSimulator(
 	workerID, baseWorkerDir string,
 	config simulator.Config,
 	svFileName string,
+	synthesizer synth.Type,
 ) (*SimInstance, error) {
 	workDir := baseWorkerDir
 	if config.WorkDir != "" {
@@ -364,7 +366,12 @@ func (sch *Scheduler) setupIVerilogSimulator(
 		return nil, err
 	}
 
-	return &SimInstance{Name: config.Name, Simulator: ivsim, Prefix: config.Prefix}, nil
+	return &SimInstance{
+		Name:        config.Name,
+		Simulator:   ivsim,
+		Prefix:      config.Prefix,
+		Synthesizer: synthesizer,
+	}, nil
 }
 
 // setupVerilatorSimulator sets up a Verilator simulator
@@ -376,6 +383,7 @@ func (sch *Scheduler) setupVerilatorSimulator(
 	svFile *verilog.VerilogFile,
 	optimized bool,
 	config simulator.Config,
+	synthesizer synth.Type,
 ) (*SimInstance, error) {
 	workDir := filepath.Join(baseWorkerDir, config.WorkDir)
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
@@ -398,7 +406,12 @@ func (sch *Scheduler) setupVerilatorSimulator(
 		return nil, err
 	}
 
-	return &SimInstance{Name: config.Name, Simulator: vlsim, Prefix: config.Prefix}, nil
+	return &SimInstance{
+		Name:        config.Name,
+		Simulator:   vlsim,
+		Prefix:      config.Prefix,
+		Synthesizer: synthesizer,
+	}, nil
 }
 
 // setupCXXRTLSimulator sets up a CXXRTL simulator
@@ -408,6 +421,7 @@ func (sch *Scheduler) setupCXXRTLSimulator(
 	verilogFileName, includeDir string,
 	useSlang bool,
 	config simulator.Config,
+	synthesizer synth.Type,
 ) (*SimInstance, error) {
 	workDir := filepath.Join(baseWorkerDir, config.WorkDir)
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
@@ -434,7 +448,12 @@ func (sch *Scheduler) setupCXXRTLSimulator(
 		return nil, err
 	}
 
-	return &SimInstance{Name: config.Name, Simulator: cxsim, Prefix: config.Prefix}, nil
+	return &SimInstance{
+		Name:        config.Name,
+		Simulator:   cxsim,
+		Prefix:      config.Prefix,
+		Synthesizer: synthesizer,
+	}, nil
 }
 
 func (sch *Scheduler) setupSimulators(
@@ -473,6 +492,7 @@ func (sch *Scheduler) setupSimulators(
 					baseWorkerDir,
 					simulator.CommonConfigs.IVerilog,
 					svFileToCompile.Name,
+					synth.None,
 				)
 			},
 		},
@@ -489,6 +509,7 @@ func (sch *Scheduler) setupSimulators(
 					svFileToCompile,
 					false,
 					simulator.CommonConfigs.VerilatorO0,
+					synth.None,
 				)
 			},
 		},
@@ -505,6 +526,7 @@ func (sch *Scheduler) setupSimulators(
 					svFileToCompile,
 					true,
 					simulator.CommonConfigs.VerilatorO3,
+					synth.None,
 				)
 			},
 		},
@@ -522,6 +544,7 @@ func (sch *Scheduler) setupSimulators(
 					includeDir,
 					false,
 					simulator.CommonConfigs.CXXRTL,
+					synth.None,
 				)
 			},
 		},
@@ -539,6 +562,7 @@ func (sch *Scheduler) setupSimulators(
 					includeDir,
 					true,
 					simulator.CommonConfigs.CXXRTLSlang,
+					synth.None,
 				)
 			},
 		},
@@ -567,7 +591,7 @@ func (sch *Scheduler) setupSimulators(
 				workerModuleName,
 				svFileToCompile,
 				includeDir,
-				"sv2v",
+				synth.SV2V,
 				"v",
 				&compiledSims,
 				&setupErrors,
@@ -580,7 +604,7 @@ func (sch *Scheduler) setupSimulators(
 				workerModuleName,
 				svFileToCompile,
 				includeDir,
-				"yosys",
+				synth.YOSYS,
 				"sv",
 				&compiledSims,
 				&setupErrors,
@@ -613,12 +637,13 @@ func (sch *Scheduler) setupSynthVariants(
 	workerID, baseWorkerDir, workerModuleName string,
 	svFileToCompile *verilog.VerilogFile,
 	includeDir string,
-	synthName, fileExtension string,
+	synthType synth.Type,
+	fileExtension string,
 	compiledSims *[]*SimInstance,
 	setupErrors *[]string,
 ) {
 	synthFileName := utils.ChangeExtension(svFileToCompile.Name, fileExtension)
-	synthFileName = utils.AddSuffixToPath(synthFileName, synthName)
+	synthFileName = utils.AddSuffixToPath(synthFileName, synthType.String())
 	synthFilePath := filepath.Join(baseWorkerDir, synthFileName)
 
 	// Check if the synthesized file exists
@@ -628,7 +653,7 @@ func (sch *Scheduler) setupSynthVariants(
 			workerID,
 			fileExtension,
 			synthFilePath,
-			synthName,
+			synthType.String(),
 		)
 		return
 	}
@@ -638,7 +663,7 @@ func (sch *Scheduler) setupSynthVariants(
 		workerID,
 		fileExtension,
 		synthFilePath,
-		synthName,
+		synthType.String(),
 	)
 
 	var synthFile *verilog.VerilogFile
@@ -672,12 +697,14 @@ func (sch *Scheduler) setupSynthVariants(
 
 	// Define simulator variants for the synthesizer
 	synthVariants := []struct {
-		name      string
-		setupFunc func() (*SimInstance, error)
+		simType   simulator.Type
+		synthType synth.Type
+		setupFunc func(synth.Type) (*SimInstance, error)
 	}{
 		{
-			name: "IVerilog " + synthName,
-			setupFunc: func() (*SimInstance, error) {
+			simType: simulator.IVERILOG,
+			setupFunc: func(synthType synth.Type) (*SimInstance, error) {
+				synthName := synthType.String()
 				config := simulator.Config{
 					Name:      "IVerilog " + synthName,
 					WorkDir:   "iverilog_" + synthName,
@@ -690,12 +717,15 @@ func (sch *Scheduler) setupSynthVariants(
 					baseWorkerDir,
 					config,
 					synthFile.Name,
+					synthType,
 				)
 			},
 		},
 		{
-			name: "Verilator O0 " + synthName,
-			setupFunc: func() (*SimInstance, error) {
+			simType:   simulator.VERILATOR,
+			synthType: synth.YOSYS,
+			setupFunc: func(synthType synth.Type) (*SimInstance, error) {
+				synthName := synthType.String()
 				config := simulator.Config{
 					Name:      "Verilator O0 " + synthName,
 					WorkDir:   "verilator_o0_" + synthName,
@@ -710,12 +740,14 @@ func (sch *Scheduler) setupSynthVariants(
 					synthFile,
 					false,
 					config,
+					synthType,
 				)
 			},
 		},
 		{
-			name: "Verilator O3 " + synthName,
-			setupFunc: func() (*SimInstance, error) {
+			simType: simulator.VERILATOR,
+			setupFunc: func(synthType synth.Type) (*SimInstance, error) {
+				synthName := synthType.String()
 				config := simulator.Config{
 					Name:      "Verilator O3 " + synthName,
 					WorkDir:   "verilator_o3_" + synthName,
@@ -730,16 +762,18 @@ func (sch *Scheduler) setupSynthVariants(
 					synthFile,
 					true,
 					config,
+					synthType,
 				)
 			},
 		},
 		{
-			name: "CXXRTL " + synthName,
-			setupFunc: func() (*SimInstance, error) {
+			simType: simulator.CXXRTL,
+			setupFunc: func(synthType synth.Type) (*SimInstance, error) {
+				synthName := synthType.String()
 				config := simulator.Config{
 					Name:      "CXXRTL " + synthName,
 					WorkDir:   "cxxrtl_" + synthName,
-					Prefix:    "cx_" + synthName,
+					Prefix:    "cxxrtl_" + synthName,
 					ErrorName: "cxxrtl_" + synthName,
 				}
 				return sch.setupCXXRTLSimulator(
@@ -751,17 +785,18 @@ func (sch *Scheduler) setupSynthVariants(
 					includeDir,
 					false,
 					config,
+					synthType,
 				)
 			},
 		},
 		{
-			name: "CXXRTL Slang " + synthName,
-			setupFunc: func() (*SimInstance, error) {
+			setupFunc: func(synthType synth.Type) (*SimInstance, error) {
+				synthName := synthType.String()
 				config := simulator.Config{
 					Name:      "CXXRTL Slang " + synthName,
-					WorkDir:   "cxxrtl_slang_" + synthName,
-					Prefix:    "cxslg_" + synthName,
-					ErrorName: "cxxrtl_slang_" + synthName,
+					WorkDir:   "cxxslg_" + synthName,
+					Prefix:    "cxxslg_" + synthName,
+					ErrorName: "cxxslg_" + synthName,
 				}
 				return sch.setupCXXRTLSimulator(
 					ctx,
@@ -772,6 +807,7 @@ func (sch *Scheduler) setupSynthVariants(
 					includeDir,
 					true,
 					config,
+					synthType,
 				)
 			},
 		},
@@ -779,7 +815,7 @@ func (sch *Scheduler) setupSynthVariants(
 
 	// Randomly select one synthesizer variant
 	selectedVariant := synthVariants[rand.Intn(len(synthVariants))]
-	if simInstance, err := selectedVariant.setupFunc(); err != nil {
+	if simInstance, err := selectedVariant.setupFunc(selectedVariant.synthType); err != nil {
 		*setupErrors = append(*setupErrors, err.Error())
 	} else {
 		*compiledSims = append(*compiledSims, simInstance)
