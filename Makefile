@@ -2,33 +2,48 @@
 all: build run
 
 .PHONY: build
-build: build-fuzzer build-testbench
+build: build-fuzzer build-testbench pre-commit-hook
 
 .PHONY: build-fuzzer
 build-fuzzer: pfuzz
 
-pfuzz: cmd/pfuzz/main.go
+GOLANGFILES=$(shell find . -name '*.go')
+SVFILES=$(shell find snippets -name '*.sv')
+
+pfuzz: cmd/pfuzz/main.go $(GOLANGFILES)
 	go build -o pfuzz cmd/pfuzz/main.go
+
+pre-commit-hook: .git/hooks/pre-commit 
+
+.git/hooks/pre-commit:
+	touch .git/hooks/pre-commit
+	@echo "#!/bin/sh" > .git/hooks/pre-commit
+	@echo "make lint" >> .git/hooks/pre-commit
+	@echo "make tests" >> .git/hooks/pre-commit
+	chmod +x .git/hooks/pre-commit
 
 .PHONY: build-testbench
 build-testbench: testbench
 
-testbench: cmd/testbench/main.go
+testbench: cmd/testbench/main.go $(GOLANGFILES)
 	go build -o testbench cmd/testbench/main.go
 
-.PHONY: test-go
-test-go: build-fuzzer
+.test-go.log: pfuzz
 	@echo "Running Go tests..."
 	@go test -parallel 1 -timeout 120s ./...
+	@touch .test-go.log
 
 .PHONY: tests
-tests: test-go
+tests: .test-go.log
 
 .PHONY: lint
-lint:
+lint: .lint.log
+
+.lint.log: $(GOLANGFILES) $(SVFILES)
 	@echo "Running linters..."
 	@golangci-lint run ./... --timeout 10s --color=always --fix
 	@find snippets -name '*.sv' -exec ./scripts/fix-indent.sh {} \;
+	@touch .lint.log
 
 .PHONY: clean
 clean:
