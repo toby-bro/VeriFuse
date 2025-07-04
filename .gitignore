@@ -19,6 +19,8 @@ patterns
 ibex_*.sv
 backups
 
+tmp/
+
 *.tmp
 *.bak
 *.log
