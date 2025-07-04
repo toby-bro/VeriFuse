@@ -62,12 +62,33 @@ The perfect snippets will have a probability of $p$.
 
 Now as both experiments are independant then the global expected value is the product of both. And as we are repeating this experience according to the geometric law of parameter $g$ (except that we always inject at least one module)
 
+### Flawed approx
+
+A flawed approximation gave me:
+
 $$E = ((1-p) \times \mu + p \times 1)^{\frac1g + 1}$$
 
 So finally if I want $E \geq \nu$, we now have a much simpler relationship of $$\nu^{\frac g {g+1}} \leq (1-p) \mu + p$$
 So finally
 $$p \geq \frac {\nu^{\frac g {g+1}} - \mu}{1-\mu}$$
 
-The final choise is thus to have $\nu =0.75$ and to pick a random $g$ accorging to a law of $1-x^3$ with $x$ a random number, uniformly picked between 0 and 1. I took this function as it decreases fast and the smaller g the more modules I am injecting ($1/g$), the more complicated my generated files.
+This inequality will yield the result we want, but because it underestimates $E$. This is otherwise completely wrong.
+
+### What if I did real maths
+
+But in fact we have by the transfer theorem
+
+$$ E = \sum_{i = 0}^{+\infty} ((1-p) \times \mu + p \times 1)^{i+1}\times (1-g)^ig \\
+E = ((1-p) \mu + p )g \sum_{i = 0}^{+\infty} ((1-g)(\mu  (1-p) + p ))^{i} \\
+E = g \frac {(1-p) \mu + p }{1 - (1-g)(\mu (1-p) + p)}
+$$
+
+So finally if I want $E \geq \nu$, we now have a much much simpler relationship of
+
+$$ p \geq \frac {\nu(1-\mu) + g \mu (\nu - 1)}{(1 - \mu)(g + \nu - \nu g)}$$
+
+Between us it looks a lot like the previous function
+
+The final choice is thus to have $\nu =0.75$ and to pick a random $g$ accorging to a law of $1-x^3$ with $x$ a random number, uniformly picked between 0 and 1. I took this function as it decreases fast and the smaller g the more modules I am injecting ($1/g$), the more complicated my generated files.
 
 And finally I take the minimal $p$ that validates the inequality.

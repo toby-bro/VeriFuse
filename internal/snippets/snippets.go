@@ -3,7 +3,6 @@ package snippets
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -163,7 +162,7 @@ func GetSplitedSnippets() ([]*Snippet, []*Snippet, float32, error) {
 }
 
 func px(g float32, avg float32, target float32) float32 {
-	return (float32(math.Pow(float64(target), float64(g)/float64(g+1))) - avg) / (1 - avg)
+	return (target*(1-avg) + g*avg*(target-1)) / ((1 - avg) * (g + target - target*g))
 }
 
 func GetRandomSnippet(verbose int, g float32, target float32) (*Snippet, error) {
