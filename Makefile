@@ -4,29 +4,16 @@ all: build run
 .PHONY: build
 build: build-fuzzer build-testbench
 
-.PHONY: build-all
-build-all: build-fuzzer build-tools build-testbench
-
 .PHONY: build-fuzzer
-build-fuzzer:
+build-fuzzer: pfuzz
+
+pfuzz: cmd/pfuzz/main.go
 	go build -o pfuzz cmd/pfuzz/main.go
 
-.PHONY: build-tools
-build-tools: build-patterns
-
-.PHONY: build-patterns
-build-patterns:
-	go build -o patterns cmd/patterns/main.go
-
-.PHONY: run
-run: test-module
-
-.PHONY: patterns
-patterns:
-	./patterns
-
 .PHONY: build-testbench
-build-testbench:
+build-testbench: testbench
+
+testbench: cmd/testbench/main.go
 	go build -o testbench cmd/testbench/main.go
 
 .PHONY: test-go
@@ -42,24 +29,6 @@ lint:
 	@echo "Running linters..."
 	@golangci-lint run ./... --timeout 10s --color=always --fix
 	@find snippets -name '*.sv' -exec ./fix-indent.sh {} \;
-
-.PHONY: bash-tests
-bash-tests: build-fuzzer clean test-go
-	@echo "Running tests on SystemVerilog modules..."
-	@bash scripts/run_tests.sh
-
-.PHONY: test-fails
-test-fails: build-fuzzer clean
-	@echo "Running tests on SystemVerilog modules..."
-	@bash scripts/run_tests.sh | grep FAIL
-
-.PHONY: test-module
-test-module: clean
-	@if [ -z "$(FILE)" ]; then \
-		echo "Usage: make test-module FILE=path/to/module.sv"; \
-	else \
-		./pfuzz -n 100 -strategy smart -workers 10 -vvv -file $(FILE); \
-	fi
 
 .PHONY: clean
 clean:
