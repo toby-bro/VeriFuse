@@ -146,7 +146,6 @@ func TestPfuzzEndToEnd(t *testing.T) {
 	// Clean shared directories once before starting parallel tests (optional, good practice)
 	_ = os.RemoveAll(filepath.Join(projectRoot, "dist"))
 	_ = os.RemoveAll(filepath.Join(projectRoot, "mismatches"))
-	_ = os.RemoveAll(filepath.Join(projectRoot, "debug_logs"))
 
 	// Run test for each file
 	for _, testFileRelPath := range testFiles {
@@ -200,7 +199,6 @@ func TestPfuzzEndToEnd(t *testing.T) {
 			if err != nil {
 				// Include logs from the test-specific directories if they exist
 				mismatchDir := filepath.Join(tempTestDir, "mismatches")
-				debugDir := filepath.Join(tempTestDir, "debug_logs")
 				var extraInfo strings.Builder
 				extraInfo.WriteString("\n--- Extra Info ---\n")
 
@@ -248,7 +246,6 @@ func TestPfuzzEndToEnd(t *testing.T) {
 
 				// Read contents of mismatch and debug directories
 				readDirContents(mismatchDir, "mismatches/")
-				readDirContents(debugDir, "debug_logs/")
 				extraInfo.WriteString("--- End Extra Info ---\n")
 
 				t.Errorf(

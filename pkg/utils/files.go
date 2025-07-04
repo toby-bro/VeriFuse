@@ -12,7 +12,6 @@ import (
 var (
 	TMP_DIR        = "dist"
 	MISMATCHES_DIR = "mismatches"
-	DEBUG_LOGS_DIR = "debug_logs"
 	DEBUG          = false
 )
 
@@ -24,7 +23,6 @@ func EnsureDirs() error {
 	dirs := []string{
 		TMP_DIR,
 		MISMATCHES_DIR,
-		DEBUG_LOGS_DIR,
 	}
 
 	for _, dir := range dirs {
