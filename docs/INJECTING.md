@@ -15,7 +15,7 @@ Given the scores $s$ of all the snippets, how can I choose a method of chosing m
 
 The probability of simulating the combination of $(m_1, m_2, m_3) \in M$, $M$ the pool of modules, is $P_{m_1, m_2, m_3}(valid) = s(m_1)\times s(m_2) \times s(m_3)$.
 
-Similarly for each family of modules of size $n$ $\left( m_i\right)_{0 \leq i \leq n}$ is $P_{\left( m_i\right)_{0 \leq i \leq n}}(valid) = \prod_{i = 0}^n s(m_i)$
+Similarly for each family of modules of size $n$ $\left( m _ i\right) _ {0 \leq i \leq n}$ is $P _ {\left( m_i\right) _ {0 \leq i \leq n}}(valid) = \prod _ {i = 0}^n s(m _ i)$
 
 Now we want a law to find how to determine the probability with which $m_i$ is injected give $s_i$
 
