@@ -28,7 +28,7 @@ tests: test-go
 lint:
 	@echo "Running linters..."
 	@golangci-lint run ./... --timeout 10s --color=always --fix
-	@find snippets -name '*.sv' -exec ./fix-indent.sh {} \;
+	@find snippets -name '*.sv' -exec ./scripts/fix-indent.sh {} \;
 
 .PHONY: clean
 clean:

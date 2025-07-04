@@ -17,8 +17,16 @@ func main() {
 	var outputDir string
 	fs.StringVar(&outputDir, "d", "", "Output directory for generated testbenches (optional)")
 	// Verbose flags
-	vFlag := fs.Bool("v", false, "Verbose output (level 1). Higher levels (-vv, -vvv) take precedence.")
-	vvFlag := fs.Bool("vv", false, "Verbose output (level 2). Higher level (-vvv) takes precedence.")
+	vFlag := fs.Bool(
+		"v",
+		false,
+		"Verbose output (level 1). Higher levels (-vv, -vvv) take precedence.",
+	)
+	vvFlag := fs.Bool(
+		"vv",
+		false,
+		"Verbose output (level 2). Higher level (-vvv) takes precedence.",
+	)
 	vvvFlag := fs.Bool("vvv", false, "Verbose output (level 3). Highest level.")
 
 	fs.Usage = func() {
@@ -32,13 +40,16 @@ func main() {
 	}
 
 	// Determine verbose level after parsing
-	verboseLevel := 1
-	if *vvvFlag {
+	var verboseLevel int
+	switch {
+	case *vvvFlag:
 		verboseLevel = 4
-	} else if *vvFlag {
+	case *vvFlag:
 		verboseLevel = 3
-	} else if *vFlag {
+	case *vFlag:
 		verboseLevel = 2
+	default:
+		verboseLevel = 1
 	}
 
 	args := fs.Args()
