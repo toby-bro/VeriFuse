@@ -143,7 +143,7 @@ for snippet in $(pwd)/isolated/*/*.sv ; do
 
         # --- CXXRTL simulation (plain) ---
         if command -v yosys &>/dev/null && command -v g++ >/dev/null 2>&1; then
-            (cd "$tmp" && yosys -q -p "read_verilog -sv $snippet_file_base; prep -top ${snippet_file_base%.*}; write_cxxrtl cxxrtl/${snippet_file_base%.*}.cc" &>/dev/null)
+            (cd "$tmp" && yosys -q -p "read_verilog -sv $snippet_file_base; check -assert ; prep -top ${snippet_file_base%.*}; write_cxxrtl cxxrtl/${snippet_file_base%.*}.cc" &>/dev/null)
             if [ $? -ne 0 ]; then
                 echo "Yosys CXXRTL generation failed for $snippet_file_base"
             else
@@ -164,7 +164,7 @@ for snippet in $(pwd)/isolated/*/*.sv ; do
 
         # --- CXXRTL simulation (with slang) ---
         if command -v yosys &>/dev/null && command -v g++ >/dev/null 2>&1 && yosys -m slang -p 'help' &>/dev/null; then
-            (cd "$tmp" && yosys -q -m slang -p "read_slang $snippet_file_base --top ${snippet_file_base%.*}; prep -top ${snippet_file_base%.*}; write_cxxrtl cxxslg/${snippet_file_base%.*}.cc" &>/dev/null)
+            (cd "$tmp" && yosys -q -m slang -p "read_slang $snippet_file_base --top ${snippet_file_base%.*}; check -assert ; prep -top ${snippet_file_base%.*}; write_cxxrtl cxxslg/${snippet_file_base%.*}.cc" &>/dev/null)
             if [ $? -ne 0 ]; then
                 echo "Yosys CXXRTL slang generation failed for $snippet_file_base"
             else
@@ -184,7 +184,7 @@ for snippet in $(pwd)/isolated/*/*.sv ; do
         fi
 
         if command -v yosys >/dev/null 2>&1; then
-            (cd ${tmp}/yosys && yosys -q -p "read_verilog -sv ${snippet}; prep -top ${snippet_file_base%.*}; synth; write_verilog -noattr $snippet_file_base.v" &>/dev/null)
+            (cd ${tmp}/yosys && yosys -q -p "read_verilog -sv ${snippet}; check -assert ; prep -top ${snippet_file_base%.*}; synth; write_verilog -noattr $snippet_file_base.v" &>/dev/null)
             if [ $? -eq 0 ]; then
                 echo "Yosys synthesis succeeded for $snippet_file_base"
                 synth_score=$((synth_score + 1))
