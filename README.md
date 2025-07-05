@@ -14,11 +14,37 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
 
 ## Features
 
-- **Smart Snippet Injection**: Intelligently injects Verilog/SystemVerilog snippets into target modules
-- **Weighted Snippet Selection**: Snippets are scored based on simulator/synthesizer compatibility and selected proportionally to reduce compilation failures
-- **Multi-Simulator Support**: Tests against IVerilog, Verilator, CXXRTL, and other simulators
-- **Synthesis Integration**: Includes Yosys and SV2V synthesis tool support
-- **Mismatch Detection**: Automatically detects behavioral differences between simulators
+- Differential fuzzing of verilog simulators and synthesizers
+  - Currently verilator, yosys, yosys-slang, icarus/iverilog, sv2v
+- Creates complex verilog code from simple inital verilog modules called "snippets"
+- Supports the fact that all simulators and synthesizers do not support the same features (cf [comparison](https://chipsalliance.github.io/sv-tests-results/))
+- Guarantees nevertheless that the created verilog code has an expected simulation chance of at least 75% (value that can be changed)
+
+### Working on
+
+- improving the snippets
+- adding more snippets
+- adding more simulators and synthesizers
+
+## Bugs found
+
+### High quality bugs found
+
+- Yosys
+  - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/YosysHQ/yosys/issues/5151)
+  - [`read_verilog`: ̀inout` parameters not copied out of tasks](https://github.com/YosysHQ/yosys/issues/5157)
+- yosys-slang
+  - [Incorrect handling of post-decrement operation in  ̀always_comb`](https://github.com/povik/yosys-slang/issues/161)
+
+### Low quality bugs
+
+- known design defect
+  - [CXXRTL - indirect clock handling](https://github.com/YosysHQ/yosys/issues/5161)
+- already found but never corrected
+  - [Yosys - multiple drivers on a variable in a module change values of input ports when using `prep`](https://github.com/YosysHQ/yosys/issues/5212)
+- Convention on initialisation
+  - [Simulation error in always @* block ?](https://github.com/steveicarus/iverilog/issues/1254)
+    This bug is interesting because icarus verilog is the only one of the free simulators to correctly handle this initialisation, but did not want to bother the other repos for the moment (if I am desperate for opening issues then so be it)
 
 ## Example usage
 
@@ -37,6 +63,8 @@ make build-fuzzer
 ```
 
 For detailed information about the scoring system, see [docs/SCORING.md](docs/SCORING.md).
+
+For more details on how we decide how many modules to use and which one we pick to ensure that we have simulatable code then check the [docs/INJECTING.md](docs/INJECTING.md)
 
 ## Inject snippet - expected behavior
 
@@ -65,23 +93,3 @@ then see if the output variables of the module we are injecting have the same ty
 
 - `testbench.sv` is the sv testbench for the module we are testing (the cpp testbench can be found in the `cxxrtl_sim` dir)
 - `MODULE.sv` is the file we are testing
-
-## Bugs found
-
-### High quality bugs found
-
-- Yosys
-  - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/YosysHQ/yosys/issues/5151)
-  - [`read_verilog`: ̀inout` parameters not copied out of tasks](https://github.com/YosysHQ/yosys/issues/5157)
-- yosys-slang
-  - [Incorrect handling of post-decrement operation in  ̀always_comb`](https://github.com/povik/yosys-slang/issues/161)
-
-### Low quality bugs
-
-- known design defect
-  - [CXXRTL - indirect clock handling](https://github.com/YosysHQ/yosys/issues/5161)
-- already found but never corrected
-  - [Yosys - multiple drivers on a variable in a module change values of input ports when using `prep`](https://github.com/YosysHQ/yosys/issues/5212)
-- Convention on initialisation
-  - [Simulation error in always @* block ?](https://github.com/steveicarus/iverilog/issues/1254)
-    This bug is interesting because icarus verilog is the only one of the free simulators to correctly handle this initialisation, but did not want to bother the other repos for the moment (if I am desperate for opening issues then so be it)
