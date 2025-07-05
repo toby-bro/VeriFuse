@@ -34,7 +34,7 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
   - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/YosysHQ/yosys/issues/5151)
   - [`read_verilog`: `inout` parameters not copied out of tasks](https://github.com/YosysHQ/yosys/issues/5157)
 - yosys-slang
-  - [Incorrect handling of post-decrement operation in  ̀always_comb`](https://github.com/povik/yosys-slang/issues/161)
+  - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/povik/yosys-slang/issues/161)
 
 ### Low quality bugs
 
