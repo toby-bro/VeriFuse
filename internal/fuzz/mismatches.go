@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/toby-bro/pfuzz/internal/synth"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
@@ -17,6 +18,8 @@ var (
 	SKIP_Z_OUTPUTS = true
 )
 
+// compareOutputValues compares two output values, ivValue and vlValue.
+// It returns true if they are considered equivalent, false otherwise.
 func compareOutputValues(ivValue, vlValue string) bool {
 	ivNorm := strings.TrimSpace(strings.ToLower(ivValue))
 	vlNorm := strings.TrimSpace(strings.ToLower(vlValue))
@@ -49,6 +52,8 @@ func compareOutputValues(ivValue, vlValue string) bool {
 	return false
 }
 
+// replaceXandZwithZero replaces all occurrences of 'x', 'z', 'X', and 'Z' in the
+// given value with '0'. This is useful for normalizing output values before comparison.
 func replaceXandZwithZero(value string) string {
 	// Replace 'x' and 'z' with '0'
 	value = strings.ReplaceAll(value, "x", "0")
@@ -59,11 +64,27 @@ func replaceXandZwithZero(value string) string {
 	return value
 }
 
+// cleanAllOutputValues replaces 'x' and 'z' in all output values with '0'
+// in the results map. This is useful for normalizing output values before comparison.
 func cleanAllOutputValues(results map[*SimInstance]map[*verilog.Port]string) {
 	for simInstance, simResultMap := range results {
 		for port, value := range simResultMap {
 			results[simInstance][port] = replaceXandZwithZero(value)
 		}
+	}
+}
+
+// removeSynthesizers removes all SimInstances
+// from the results map where the Synthesizer type is not None.
+func removeSynthesizers(results map[*SimInstance]map[*verilog.Port]string) {
+	var toDelete []*SimInstance
+	for simInstance := range results {
+		if simInstance.Synthesizer != synth.None {
+			toDelete = append(toDelete, simInstance)
+		}
+	}
+	for _, simInstance := range toDelete {
+		delete(results, simInstance)
 	}
 }
 
@@ -87,15 +108,9 @@ func (sch *Scheduler) compareAllResults(
 		cleanAllOutputValues(results)
 	}
 
-	// if x or z is present in any outputs, we must exclude all the synthesizer outputs
+	// if x or z is present in any output we exclude all the SimInstances where the synth.Type is not None as they can do whatever they want
 	if xorzPresent {
-		for simName, simResultMap := range results {
-			logger.Debug(
-				"Should do something but not implemented yet for sim %s with outputs: %v",
-				simName,
-				simResultMap,
-			)
-		}
+		removeSynthesizers(results)
 	}
 
 	sims := make([]*SimInstance, 0, len(results))
