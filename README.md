@@ -65,3 +65,23 @@ then see if the output variables of the module we are injecting have the same ty
 
 - `testbench.sv` is the sv testbench for the module we are testing (the cpp testbench can be found in the `cxxrtl_sim` dir)
 - `MODULE.sv` is the file we are testing
+
+## Bugs found
+
+### High quality bugs found
+
+- Yosys
+  - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/YosysHQ/yosys/issues/5151)
+  - [`read_verilog`: ̀inout` parameters not copied out of tasks](https://github.com/YosysHQ/yosys/issues/5157)
+- yosys-slang
+  - [Incorrect handling of post-decrement operation in  ̀always_comb`](https://github.com/povik/yosys-slang/issues/161)
+
+### Low quality bugs
+
+- known design defect
+  - [CXXRTL - indirect clock handling](https://github.com/YosysHQ/yosys/issues/5161)
+- already found but never corrected
+  - [Yosys - multiple drivers on a variable in a module change values of input ports when using `prep`](https://github.com/YosysHQ/yosys/issues/5212)
+- Convention on initialisation
+  - [Simulation error in always @* block ?](https://github.com/steveicarus/iverilog/issues/1254)
+    This bug is interesting because icarus verilog is the only one of the free simulators to correctly handle this initialisation, but did not want to bother the other repos for the moment (if I am desperate for opening issues then so be it)
