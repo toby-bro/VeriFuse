@@ -1710,6 +1710,8 @@ func GetScopeTree(v *VerilogFile,
 	return scopeTree, nil
 }
 
+var excludedScopeRegex = regexp.MustCompile(`^\s*(?:typedef)\b`)
+
 // parseVariablesWithScope parses variables from the provided content and organizes them into a scope tree.
 // It returns a map of variable names to Variable objects, the root ScopeNode, and any error encountered.
 // The scopeParams are used to resolve parameter ranges, and modulePorts are ONLY used for the scope Tree
@@ -1731,6 +1733,8 @@ func parseVariablesWithScope(v *VerilogFile,
 
 	// Process content line by line to track line numbers
 	lines := strings.Split(content, "\n")
+	isExcludedScope := false
+	excludedLevel := -1
 	for lineNumber, line := range lines {
 		// Try to match variable declarations on this line
 		matchedVariable := generalVariableRegex.FindStringSubmatch(line)
@@ -1740,6 +1744,10 @@ func parseVariablesWithScope(v *VerilogFile,
 			}
 			line = strings.ReplaceAll(line, "\t", "    ")
 			indentation := (len(line) - len(strings.TrimLeft(line, " "))) / 4
+			if excludedScopeRegex.MatchString(line) {
+				isExcludedScope = true
+				excludedLevel = indentation
+			}
 			if indentation == scopeNode.Level {
 				scopeNode.LastLine = lineNumber // choice to be done on only using the variable last lines or all the scope's lines
 			} else {
@@ -1747,15 +1755,22 @@ func parseVariablesWithScope(v *VerilogFile,
 					scopeNode = scopeNode.Parent
 					scopeNode.LastLine = lineNumber // Not used for the moment but might come in handy later
 				}
-				newScopeNode := &ScopeNode{
-					Level:     indentation,
-					Variables: make(map[string]*ScopeVariable),
-					Children:  []*ScopeNode{},
-					Parent:    scopeNode,
-					LastLine:  lineNumber,
+				if isExcludedScope && excludedLevel > indentation {
+					// we exited the excluded scope
+					isExcludedScope = false
+					excludedLevel = -1
 				}
-				scopeNode.Children = append(scopeNode.Children, newScopeNode)
-				scopeNode = newScopeNode
+				if !isExcludedScope {
+					newScopeNode := &ScopeNode{
+						Level:     indentation,
+						Variables: make(map[string]*ScopeVariable),
+						Children:  []*ScopeNode{},
+						Parent:    scopeNode,
+						LastLine:  lineNumber,
+					}
+					scopeNode.Children = append(scopeNode.Children, newScopeNode)
+					scopeNode = newScopeNode
+				}
 			}
 			continue // No variable declaration on this line
 		}
@@ -1827,29 +1842,31 @@ func parseVariablesWithScope(v *VerilogFile,
 			}
 			variablesMap[varName] = variable
 
-			// Create ScopeVariable wrapper for scope tracking
-			scopeVariable := &ScopeVariable{
-				Variable: variable,
-				Blocked:  false, // Initially not blocked
-			}
+			if !isExcludedScope {
+				// Create ScopeVariable wrapper for scope tracking
+				scopeVariable := &ScopeVariable{
+					Variable: variable,
+					Blocked:  false, // Initially not blocked
+				}
 
-			if indent == scopeNode.Level {
-				scopeNode.Variables[variable.Name] = scopeVariable
-				scopeNode.LastLine = lineNumber
-			} else {
-				for scopeNode.Level > indent {
-					scopeNode = scopeNode.Parent
+				if indent == scopeNode.Level {
+					scopeNode.Variables[variable.Name] = scopeVariable
+					scopeNode.LastLine = lineNumber
+				} else {
+					for scopeNode.Level > indent {
+						scopeNode = scopeNode.Parent
+					}
+					newScopeNode := &ScopeNode{
+						Level:     indent,
+						Variables: make(map[string]*ScopeVariable),
+						Children:  []*ScopeNode{},
+						Parent:    scopeNode,
+					}
+					newScopeNode.Variables[variable.Name] = scopeVariable
+					newScopeNode.LastLine = lineNumber
+					scopeNode.Children = append(scopeNode.Children, newScopeNode)
+					scopeNode = newScopeNode
 				}
-				newScopeNode := &ScopeNode{
-					Level:     indent,
-					Variables: make(map[string]*ScopeVariable),
-					Children:  []*ScopeNode{},
-					Parent:    scopeNode,
-				}
-				newScopeNode.Variables[variable.Name] = scopeVariable
-				newScopeNode.LastLine = lineNumber
-				scopeNode.Children = append(scopeNode.Children, newScopeNode)
-				scopeNode = newScopeNode
 			}
 		}
 	}
