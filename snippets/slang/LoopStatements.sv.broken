@@ -1,0 +1,412 @@
+module module_for_basic(
+    input logic [7:0] in_data,
+    output logic [7:0] out_sum
+);
+    logic [7:0] sum_reg;
+    always_comb begin
+        sum_reg = 8'b0;
+        for (int i = 0; i < in_data; i = i + 1) begin
+            if (i == 4) begin
+                continue;
+            end
+            if (i == 8) begin
+                break;
+            end
+            sum_reg = sum_reg + i;
+        end
+    end
+    assign out_sum = sum_reg;
+endmodule
+module module_while_do_while(
+    input logic [3:0] in_count,
+    output logic [7:0] out_result
+);
+    logic [7:0] temp_res;
+    logic [3:0] counter_w;
+    logic [3:0] counter_dw;
+    always_comb begin
+        temp_res = 8'b0;
+        counter_w = in_count;
+        while (counter_w > 0) begin
+            temp_res = temp_res + 1;
+            counter_w = counter_w - 1;
+        end
+        counter_dw = (in_count == 0) ? 1 : in_count;
+        do begin
+            temp_res = temp_res + 2;
+            counter_dw = counter_dw - 1;
+        end while (counter_dw > 0 && counter_dw < 10); 
+    end
+    assign out_result = temp_res;
+endmodule
+module module_repeat_loop(
+    input logic [3:0] in_repeat_count,
+    input logic [7:0] in_add_val,
+    output logic [15:0] out_total
+);
+    logic [15:0] total_sum;
+    parameter int REPEAT_PARAM = 5;
+    always_comb begin
+        total_sum = 16'b0;
+        repeat (REPEAT_PARAM) begin
+            total_sum = total_sum + in_add_val;
+        end
+    end
+    assign out_total = total_sum;
+endmodule
+module module_forever_loop(
+    input logic clk,
+    input logic reset_n,
+    output logic toggle_out
+);
+    always @(posedge clk or negedge reset_n) begin
+        if (!reset_n) begin
+            toggle_out = 1'b0;
+        end else begin
+            forever begin
+                toggle_out = ~toggle_out;
+            end
+        end
+    end
+endmodule
+module module_foreach_fixed(
+    input logic [7:0] in_values [0:3],
+    output logic [7:0] out_max
+);
+    logic [7:0] max_val;
+    always_comb begin
+        max_val = 8'b0;
+        foreach (in_values[i]) begin
+            if (in_values[i] > max_val) begin
+                max_val = in_values[i];
+            end
+        end
+    end
+    assign out_max = max_val;
+endmodule
+module module_foreach_dynamic_queue(
+    input int in_size,
+    input int in_value_offset,
+    output int out_sum_dyn,
+    output int out_sum_queue
+);
+    int dynamic_array[];
+    int queue_var[$];
+    int sum_dyn;
+    int sum_queue;
+    always_comb begin
+       sum_dyn = 0;
+       sum_queue = 0;
+       if (in_size > 0 && in_size < 10) begin 
+           dynamic_array = new[in_size];
+           for (int i = 0; i < in_size; i++) begin
+               dynamic_array[i] = i + in_value_offset;
+           end
+           foreach (dynamic_array[idx]) begin
+               sum_dyn = sum_dyn + dynamic_array[idx];
+           end
+       end else begin
+           dynamic_array = new[0]; 
+       end
+       queue_var.delete(); 
+       if (in_size > 0 && in_size < 10) begin 
+            for (int i = 0; i < in_size; i++) begin
+                queue_var.push_back(i + in_value_offset + 10);
+            end
+            foreach (queue_var[idx]) begin
+                sum_queue = sum_queue + queue_var[idx];
+            end
+       end
+    end
+    assign out_sum_dyn = sum_dyn;
+    assign out_sum_queue = sum_queue;
+endmodule
+module module_foreach_associative_string(
+    input int in_key1,
+    input int in_val1,
+    input logic [7:0] in_char,
+    output int out_sum_assoc,
+    output int out_char_sum
+);
+    int assoc_array[int];
+    string my_string;
+    int sum_assoc;
+    int char_sum;
+    always_comb begin
+        sum_assoc = 0;
+        char_sum = 0;
+        assoc_array.delete();
+        assoc_array[in_key1] = in_val1;
+        assoc_array[10] = 200;
+        assoc_array[3] = -5;
+        foreach (assoc_array[key]) begin
+            sum_assoc = sum_assoc + assoc_array[key];
+        end
+        my_string = "abc";
+        if (in_char != 8'h0) begin
+            my_string = {my_string, in_char}; 
+            my_string = {my_string, "def"}; 
+        end
+        foreach (my_string[idx]) begin
+            char_sum = char_sum + my_string[idx]; 
+        end
+    end
+    assign out_sum_assoc = sum_assoc;
+    assign out_char_sum = char_sum;
+endmodule
+module module_foreach_multidim(
+    input logic [7:0] in_matrix [0:1][0:2],
+    output logic [7:0] out_flat_sum,
+    output logic [7:0] out_nested_sum
+);
+    logic [7:0] flat_sum;
+    logic [7:0] nested_sum;
+    always_comb begin
+        flat_sum = 8'b0;
+        nested_sum = 8'b0;
+        foreach (in_matrix[row][col]) begin
+             flat_sum = flat_sum + in_matrix[row][col];
+        end
+         foreach (in_matrix[i]) begin 
+             foreach (in_matrix[i][j]) begin 
+                 nested_sum = nested_sum + in_matrix[i][j];
+             end
+         end
+    end
+    assign out_flat_sum = flat_sum;
+    assign out_nested_sum = nested_sum;
+endmodule
+module module_subroutine_return(
+    input int in_a,
+    input int in_b,
+    input bit in_cond,
+    output int out_add_result,
+    output bit out_is_even
+);
+    function automatic int add_values(int val1, int val2);
+        int temp = val1 + val2;
+        if (temp > 100) begin
+            return 100; 
+        end
+        return temp; 
+    endfunction
+    task automatic check_even(int value, output bit is_even);
+        if (value % 2 == 0) begin
+            is_even = 1;
+            return; 
+        end else begin
+            is_even = 0;
+        end
+    endtask
+    always_comb begin
+        out_add_result = add_values(in_a, in_b); 
+        check_even(out_add_result, out_is_even); 
+    end
+endmodule
+module module_class_loop(
+    input int in_loop_count,
+    input int in_initial_val,
+    output int out_class_sum
+);
+    class Adder;
+        int value;
+        function new(int initial_val);
+            this.value = initial_val;
+        endfunction
+        function int add(int val);
+            this.value += val;
+            return this.value;
+        endfunction
+    endclass
+    int total;
+    always_comb begin
+        total = 0;
+        Adder my_adder;
+        if (in_loop_count > 0 && in_loop_count < 10) begin 
+             my_adder = new(in_initial_val); 
+             for (int i = 0; i < in_loop_count; i++) begin
+                 total = my_adder.add(i); 
+             end
+        end else begin
+             total = in_initial_val;
+        end
+    end
+    assign out_class_sum = total;
+endmodule
+module module_complex_for(
+    input logic [7:0] in_start,
+    input logic [7:0] in_end,
+    output logic [15:0] out_accum
+);
+    logic [15:0] accumulator;
+    always_comb begin
+        accumulator = 16'b0;
+        for (int i = in_start, j = in_end; i < j; i = i + 1, j = j - 1) begin
+            if (i < (j >> 1)) begin 
+                 accumulator = accumulator + i; 
+            end else begin
+                 accumulator = accumulator - j; 
+            end
+            if ((i % 2) == 0) begin
+                accumulator = accumulator + 1;
+            end else begin
+                accumulator = accumulator - 1;
+            end
+        end
+    end
+    assign out_accum = accumulator;
+endmodule
+module module_assignments_in_loops(
+    input logic [7:0] in_val,
+    input logic [2:0] in_shift,
+    output logic [7:0] out_reg,
+    output logic [3:0] out_part
+);
+    logic [7:0] reg_var;
+    logic [3:0] part_var;
+    always_comb begin
+        reg_var = in_val;
+        part_var = 4'h0;
+        for (int i = 0; i < 4; i++) begin
+            reg_var = reg_var + i;
+            reg_var += (i * 2);
+            reg_var <<= in_shift;
+            reg_var[i%8] = (reg_var[i%8] == 1'b0);
+            parameter int PART_START = 4;
+            parameter int PART_WIDTH = 4;
+            reg_var[PART_START +: PART_WIDTH] = {i, i, i, i}; 
+        end
+        part_var = reg_var[7:4]; 
+    end
+    assign out_reg = reg_var;
+    assign out_part = part_var;
+endmodule
+module module_repeat_constant(
+    input logic [7:0] in_val,
+    output logic [15:0] out_sum
+);
+    parameter int CONST_REPEAT = 7;
+    logic [15:0] sum_val;
+    always_comb begin
+        sum_val = 0;
+        repeat (CONST_REPEAT) begin
+            sum_val += in_val;
+        end
+    end
+    assign out_sum = sum_val;
+endmodule
+module module_nested_loop_jumps(
+    input logic [3:0] outer_limit,
+    input logic [3:0] inner_limit,
+    output int out_count
+);
+    int count;
+    always_comb begin
+        count = 0;
+        for (int i = 0; i < outer_limit; i++) begin
+            for (int j = 0; j < inner_limit; j++) begin
+                if (i == 1 && j == 1) begin
+                    continue; 
+                end
+                if (i == 2 && j == 0) begin
+                    break; 
+                end
+                if (i == 3 && j == 2) begin
+                    break; 
+                end
+                count++;
+            end
+            if (i == 3) begin
+                break; 
+            end
+        end
+    end
+    assign out_count = count;
+endmodule
+module module_foreach_nested_fixed_iter(
+    input logic [7:0] in_matrix [0:1][0:2],
+    output logic [7:0] out_sum
+);
+    logic [7:0] total_sum;
+    always_comb begin
+        total_sum = 8'b0;
+        foreach (in_matrix[row_idx]) begin 
+            foreach (in_matrix[row_idx][col_idx]) begin 
+                total_sum += in_matrix[row_idx][col_idx];
+            end
+        end
+    end
+    assign out_sum = total_sum;
+endmodule
+module module_foreach_nested_dynamic_queue_iter(
+    input int in_rows,
+    input int in_cols,
+    output int out_nested_sum
+);
+    int dyn_2d[][]; 
+    int queue_of_queues[$][ $]; 
+    int nested_sum;
+    always_comb begin
+        nested_sum = 0;
+        if (in_rows > 0 && in_rows < 5 && in_cols > 0 && in_cols < 5) begin
+            dyn_2d = new[in_rows];
+            for(int i=0; i<in_rows; i++) begin
+                dyn_2d[i] = new[in_cols];
+                for(int j=0; j<in_cols; j++) begin
+                    dyn_2d[i][j] = (i * 10) + j;
+                end
+            end
+            foreach (dyn_2d[row_idx]) begin
+                foreach (dyn_2d[row_idx][col_idx]) begin
+                    nested_sum += dyn_2d[row_idx][col_idx];
+                end
+            end
+        end else begin
+             dyn_2d = new[0];
+        end
+        queue_of_queues.delete();
+        if (in_rows > 0 && in_rows < 5 && in_cols > 0 && in_cols < 5) begin
+            for(int i=0; i<in_rows; i++) begin
+                int inner_q[$];
+                for(int j=0; j<in_cols; j++) begin
+                    inner_q.push_back((i * 100) + j);
+                end
+                queue_of_queues.push_back(inner_q);
+            end
+            foreach (queue_of_queues[q_idx]) begin
+                foreach (queue_of_queues[q_idx][elem_idx]) begin
+                     nested_sum += queue_of_queues[q_idx][elem_idx];
+                end
+            end
+        end
+    end
+    assign out_nested_sum = nested_sum;
+endmodule
+module module_loops_complex_cond(
+    input logic [7:0] in_a,
+    input logic [7:0] in_b,
+    input logic [7:0] in_c,
+    output logic [15:0] out_sum
+);
+    logic [15:0] result_sum;
+    always_comb begin
+        result_sum = 16'b0;
+        int i = 0;
+        while ((i < in_a) && ((in_b > 10) || (in_c == 5))) begin
+             result_sum += i;
+             i++;
+             if (i > 20) break; 
+        end
+        for (int j = 0; (j < in_b) && ((in_a > 5) || (in_c != 10)); j++) begin
+             result_sum += j * 2;
+             if (j > 15) break; 
+        end
+        int k = 0;
+        do begin
+             result_sum += k * 3;
+             k++;
+             if (k > 12) break; 
+        end while ((k < in_c) && (in_a != in_b));
+    end
+    assign out_sum = result_sum;
+endmodule

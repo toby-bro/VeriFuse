@@ -1,0 +1,706 @@
+timeunit 1ns;
+timeprecision 1ps;
+library_map my_lib_map;
+  include "file1.v";
+  library my_lib "path/to/my_lib";
+  library another_lib "path/to/another_lib" -incdir "path/to/inc";
+endlibrary_map
+package my_package;
+  parameter PKG_PARAM = 100;
+  typedef enum {RED, GREEN, BLUE} color_e;
+  function automatic int pkg_func(int i); return i + PKG_PARAM; endfunction
+  import "DPI-C" function int dpi_func_import(input int a);
+  import "DPI" pure function int dpi_pure_import();
+  import "DPI-C" my_c_func = function int dpi_named_import();
+endpackage
+package other_package;
+  export my_package::pkg_func;
+  export "DPI-C" task dpi_task_export(input string s);
+  export "DPI-C" function int dpi_func_export(input int a);
+endpackage
+extern primitive extern_udp_target (output out, input in);
+extern module ExternModuleTarget (input ex_in, output ex_out);
+extern interface ExternInterfaceTarget (input wire clk);
+  extern function int interface_method();
+  extern task interface_task();
+endinterface
+primitive simple_udp (output out, input in1, input in2);
+  table
+    0 0 : 0;
+    0 1 : 1;
+    1 0 : 1;
+    1 1 : 0;
+    0 x : x;
+    x 0 : x;
+    1 x : x;
+    x 1 : x;
+    x x : x;
+    ? 0 : x;
+    0 ? : x;
+    ? 1 : x;
+    1 ? : x;
+    ? x : x;
+    x ? : x;
+    ? ? : x;
+  endtable
+endprimitive : simple_udp
+primitive sequential_udp (output reg out, input in, input clk);
+  initial out = 1'b0;
+  table
+    0 - : 0 : 0;
+    0 - : 1 : 0;
+    1 - : 0 : 1;
+    1 - : 1 : 1;
+    x - : ? : x;
+    ? - : ? : -;
+    r : 0 : 1;
+    r : 1 : 1;
+    f : 0 : 0;
+    f : 1 : 0;
+    p : ? : x;
+    n : ? : x;
+    (01) : 0 : 1;
+    (10) : 1 : 0;
+    (0x) : ? : x;
+    (x1) : ? : x;
+    (??) : ? : ?;
+  endtable : sequential_udp
+virtual class BaseClass;
+  rand int base_prop;
+  rand int base_method_var;
+  pure virtual function int base_virtual_func();
+  pure virtual task base_virtual_task();
+  function automatic new();
+    base_method_var = 10;
+  endfunction
+  virtual function automatic int base_method();
+    return base_method_var;
+  endfunction
+  task automatic base_task;
+    base_method_var = base_method_var + 1;
+  endtask
+  constraint base_c { base_prop > 0; }
+  constraint another_base_c {
+    soft base_prop < 100;
+    solve base_method_var before base_prop;
+  }
+  constraint dist_c { base_prop dist { 0 :/ 1, [1:10] :/ 10, 100 :/ 20 }; }
+  pure constraint pure_c { base_prop inside {[0:10]}; }
+endclass
+interface class ISomeInterface;
+  pure virtual function int interface_method(input int val);
+endclass
+class DummyClass;
+  int val;
+  function automatic new();
+    val = 1;
+  endfunction
+endclass
+class DerivedClass extends BaseClass implements ISomeInterface;
+  rand logic [3:0] derived_prop;
+  static int static_prop;
+  virtual function automatic int base_virtual_func();
+    return base_method_var * 2;
+  endfunction
+  virtual task automatic base_virtual_task;
+    super.base_task();
+  endtask
+  virtual function automatic int interface_method(input int val);
+    return val + 1;
+  endfunction
+  function automatic new(int start_val = 5);
+    super.new();
+    base_method_var = start_val;
+  endfunction
+  virtual function automatic int base_method();
+    return base_method_var;
+  endfunction
+  static function automatic void static_method(input int val);
+    static_prop = val;
+  endfunction
+  local function automatic void local_method();
+  endfunction
+  protected task automatic protected_task;
+  endtask
+  constraint derived_c {
+    derived_prop inside {[0:10]};
+  }
+  constraint unique_c { unique {base_prop}; }
+  constraint if_c {
+    if (derived_prop > 5) base_prop < 50; else base_prop > 50;
+  }
+  constraint implication_c {
+    (base_prop == 10) -> derived_prop == 3;
+  }
+  constraint solve_before_after_c {
+    solve base_prop before derived_prop;
+  }
+  constraint disable_soft_c {
+    disable soft base_prop;
+  }
+  constraint foreach_c { foreach(derived_prop[i]) derived_prop[i] < 10; }
+  constraint nested_block_c {
+    if (derived_prop > 2) {
+      base_prop > 10;
+      base_prop < 90;
+    } else {
+      base_prop == 5;
+    }
+  }
+  static constraint static_c { static_prop > 0; }
+  constraint pure_c { base_prop > 0; }
+endclass
+sequence my_sequence(bit clk, bit a, bit b);
+  @(posedge clk) a ##1 b;
+endsequence : my_sequence
+property my_property(bit clk, bit a, bit b);
+  @(posedge clk) a |-> my_sequence(clk, a, b);
+endproperty : my_property
+checker SimpleCheckerForDefaultDisable (input bit clk, input bit reset, output logic status_out);
+  logic dummy_state = 0;
+  DummyClass class_handle_checker_dd;
+  default disable iff (reset);
+  initial begin
+    class_handle_checker_dd = new();
+    $fatal("fatal_member_in_checker");
+    $error("error_member_in_checker");
+    $warning("warning_member_in_checker");
+    $info("info_member_in_checker");
+  end
+  always_ff @(posedge clk) dummy_state <= !dummy_state;
+  assign status_out = dummy_state;
+endchecker : SimpleCheckerForDefaultDisable
+checker MyBindChecker (input bit check_in, output logic status_out);
+  logic dummy_state = 0;
+  DummyClass class_handle_bind_checker;
+  initial begin
+    class_handle_bind_checker = new();
+  end
+  always_ff @(posedge check_in) dummy_state <= !dummy_state;
+  assign status_out = dummy_state;
+endchecker : MyBindChecker
+checker MyCheckerWithSystemTasks (input bit clk, input bit reset, output logic status_out);
+  logic dummy_state = 0;
+  DummyClass class_handle_checker_st;
+  initial begin
+    class_handle_checker_st = new();
+    $fatal("fatal_member_in_checker");
+    $error("error_member_in_checker");
+    $warning("warning_member_in_checker");
+    $info("info_member_in_checker");
+  end
+  always_ff @(posedge clk) dummy_state <= !dummy_state;
+  assign status_out = dummy_state;
+endchecker : MyCheckerWithSystemTasks
+$static_assert(1==1, "Static assert in checker");
+checker ParameterizedChecker #(parameter int SIZE = 8) (input bit [SIZE-1:0] data_in, output logic status_out);
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+    status_out = data_in[0];
+  end
+endchecker : ParameterizedChecker
+checker CheckerWithRand (input bit clk, output logic rand_status_out);
+  rand int my_rand_var;
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+    rand_status_out = my_rand_var > 0;
+  end
+endchecker : CheckerWithRand
+covergroup value_cg (int sampled_value, bit sampled_trigger, bit reset_cg_param, bit clk) @(posedge clk);
+  option.per_instance = 1;
+  type_option.merge_instances = 1;
+  cp_value: coverpoint sampled_value {
+    option.name = "value cp";
+    option.weight = 2;
+    option.auto_bin_max = 1;
+    bins low = {0} with (sampled_value > -1 && sampled_value < 1);
+    bins high = {[100:200]};
+    bins transition_bins = (0 => 1), (1 => 2), (0 => x), (x => 0), (x => x), (1 => x);
+    bins default_seq_bin = default sequence;
+    illegal_bins bad = {[-2:-1], [201:202]};
+  }
+  cp_trigger: coverpoint sampled_trigger {
+    option.auto_bin_max = 1;
+    bins zero = {0} iff (!reset_cg_param);
+    bins one = {1};
+  }
+  cp_trans_list: coverpoint sampled_value {
+    bins t_list = (0 => 1), (1 => 2), (2 => 3);
+    bins trans_set = (1 => 2, 3 => 4), (5 => 6);
+    bins rep_trans = ((0 => 1)[->2]), ((1 => 0)[->]);
+    bins rep_trans_count = ((0 => 1)[->1:3]), ((1 => 0)[=3]);
+    bins rep_trans_special = ((0 => 1)[->?]);
+  }
+  cross cp_value, cp_trigger {
+    option.get_inst_coverage = 1;
+    bins cross_bins = binsof(cp_value.low) && binsof(cp_trigger.zero);
+    bins select_bins = binsof(cp_value) || binsof(cp_trigger.one) with (sampled_value > 50) && binsof(cp_value.transition_bins);
+  }
+endgroup : value_cg
+covergroup value_cg_iff (int sampled_value, bit reset_cg_param, bit clk) @(posedge clk) iff (reset_cg_param);
+  cp_value_iff: coverpoint sampled_value { bins value_1 = {1}; }
+endgroup : value_cg_iff
+config cfg_example ;
+  localparam int SIZE = 32;
+  localparam string MSG = "hello";
+  localparam real PI = 3.14;
+  localparam time T = 1ns;
+  localparam int V = 10;
+  design top_module, lib.cell ;
+  default liblist my_liblist ;
+  cell lib.cell use lib.cell ;
+  cell cell_name use lib.cell ;
+  instance top_module.inst_name use lib.cell ;
+  cell my_lib.my_cell use another_lib.another_cell ;
+  cell my_lib.my_cell liblist cell_lib ;
+  instance top_module.inst_name.child_inst liblist inst_lib ;
+  instance top_module use lib.cell:config_name;
+  instance top_module.inst_name use lib.cell:config_name;
+endconfig : cfg_example
+global clocking global_cb @(posedge SpecifyBlockUser.specify_clk);
+endclocking : global_cb
+module ModuleBasicMembers (
+  input wire clk,
+  input int in_int,
+  output logic [7:0] out_reg
+);
+  wire w_net;
+  logic l_var;
+  reg r_reg;
+  int i_int;
+  real r_real;
+  assign w_net = clk;
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+    l_var = w_net;
+    r_reg = l_var ? 8'hFF : 8'h00;
+    i_int = in_int + 1;
+    r_real = $itor(i_int) * 2.0;
+    out_reg = r_reg;
+  end
+  final begin
+    DummyClass class_handle;
+    class_handle = new();
+  end
+endmodule : ModuleBasicMembers
+module ModuleParameterized #(parameter int DELAY = 2, parameter string MSG = "default") (
+  input wire in_data,
+  output wire out_data
+);
+  wire internal_wire;
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+  end
+  assign internal_wire = in_data;
+  assign out_data = internal_wire;
+endmodule : ModuleParameterized
+module TargetModule #(parameter SIZE = 16) (
+  input wire t_in,
+  output wire t_out
+);
+  wire [(SIZE-1):0] sized_wire;
+  assign sized_wire = t_in;
+  assign t_out = sized_wire[0];
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+  end
+endmodule : TargetModule
+module DefparamUser (
+  input wire dp_in,
+  output wire dp_out
+);
+  TargetModule tm_inst (.t_in(dp_in), .t_out(dp_out));
+  defparam tm_inst.SIZE = 8;
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+  end
+endmodule : DefparamUser
+module GenerateBlocks #(parameter [3:0] SEL = 0) (
+  input wire [3:0] in_genvar_sel,
+  input wire [7:0] in_gen_data,
+  output wire [7:0] out_gen
+);
+  genvar i;
+  generate
+    if (SEL[3]) begin : if_gen_true
+      assign out_gen = in_gen_data + 1;
+    end : if_gen_true
+    else begin : if_gen_false
+      assign out_gen = in_gen_data;
+    end : if_gen_false
+  endgenerate
+  generate
+    for (i = 0; i < 4; i = i + 1) begin : for_gen
+      wire gen_wire_bit;
+      assign gen_wire_bit = in_gen_data[i];
+    end : for_gen
+  endgenerate
+  generate
+    case (SEL[1:0])
+      2'b00: begin : case_gen_00
+        assign out_gen = in_gen_data * 2;
+      end : case_gen_00
+      2'b01: begin : case_gen_01
+        assign out_gen = in_gen_data / 2;
+      end : case_gen_01
+      default: begin : case_gen_default
+        assign out_gen = 8'hZZ;
+      end : case_gen_default
+    endcase
+  endgenerate
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+  end
+endmodule : GenerateBlocks
+interface SimpleInterface (input wire clk, input logic reset_i, output logic status_o);
+  logic req;
+  logic ack;
+  logic [3:0] data;
+  function automatic int get_data();
+    return data;
+  endfunction
+  task automatic send_data(int val);
+    data = val;
+  endtask
+  clocking cb @(posedge clk);
+    default input #1step output #2;
+    input data;
+    output req;
+    output ack;
+  endclocking : cb
+  modport controller (output req, input ack, input data, clocking cb);
+  modport peripheral (input req, output ack, output data, clocking cb);
+  modport tasks_funcs (
+    import function int get_data(),
+    export task send_data(int val)
+  );
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+    status_o = reset_i;
+  end
+endinterface : SimpleInterface
+module InterfaceUser (
+  input wire main_clk,
+  input wire main_reset,
+  output logic main_out
+);
+  SimpleInterface iface (main_clk, main_reset, main_out);
+  always_comb begin
+    DummyClass class_handle;
+    logic temp_ack;
+    int val;
+    class_handle = new();
+    temp_ack = iface.ack;
+    val = iface.get_data();
+  end
+  always_ff @(posedge main_clk) begin
+    DummyClass class_handle;
+    int val;
+    class_handle = new();
+    val = iface.get_data();
+    iface.send_data(val);
+  end
+endmodule : InterfaceUser
+module FunctionTaskModule (
+  input bit func_in,
+  output logic func_out
+);
+  typedef enum { IDLE, START, DONE } state_e;
+  function automatic bit my_function(input bit b);
+    return b ? 1 : 0;
+  endfunction
+  task automatic my_task(input int value);
+    int temp = value;
+  endtask
+  function automatic bit [7:0] another_function(input int port1, ref logic port2);
+    port2 = !port2;
+    return port1;
+  endfunction
+  task automatic simple_task;
+  endtask
+  always_comb begin
+    DummyClass class_handle;
+    logic ref_var;
+    class_handle = new();
+    func_out = my_function(func_in);
+    simple_task();
+    my_task(10);
+    ref_var = 1'b0;
+    another_function(20, ref_var);
+  end
+endmodule : FunctionTaskModule
+module ConstraintUser (
+  input bit trigger,
+  input bit clk_c,
+  output logic [7:0] constraint_out
+);
+  DerivedClass inst;
+  always_comb begin
+    DummyClass class_handle;
+    int result;
+    class_handle = new();
+    if (inst == null) inst = new();
+    result = inst.interface_method(5);
+    constraint_out = inst.base_prop;
+    DerivedClass::static_method(result);
+    int static_val = DerivedClass::static_prop;
+  end
+  always_ff @(posedge clk_c) begin
+    DummyClass class_handle;
+    class_handle = new();
+    if (inst != null) inst.base_task();
+  end
+endmodule : ConstraintUser
+module CovergroupModule (
+  input wire clk,
+  input int value_in,
+  input bit trigger_in,
+  input bit reset_cg,
+  output logic dummy_out
+);
+  value_cg cg_inst;
+  value_cg_iff cg_iff_inst;
+  always @(posedge clk) begin
+    DummyClass class_handle;
+    class_handle = new();
+    if (cg_inst == null) cg_inst = new(.sampled_value(value_in), .sampled_trigger(trigger_in), .reset_cg_param(reset_cg), .clk(clk));
+    if (cg_iff_inst == null) cg_iff_inst = new(.sampled_value(value_in), .reset_cg_param(reset_cg), .clk(clk));
+  end
+  always_ff @(posedge clk) begin
+    DummyClass class_handle;
+    class_handle = new();
+    if (trigger_in) begin
+      if (cg_inst != null) cg_inst.sample();
+      if (cg_iff_inst != null) cg_iff_inst.sample();
+    end
+  end
+  assign dummy_out = 1'b0;
+endmodule : CovergroupModule
+module UdpUser (
+  input wire u_in1,
+  input wire u_in2,
+  input wire u_clk,
+  output wire u_out_comb,
+  output wire u_out_seq
+);
+  simple_udp comb_inst (u_out_comb, u_in1, u_in2);
+  sequential_udp seq_inst (u_out_seq, u_in1, u_clk);
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+  end
+endmodule : UdpUser
+module SpecifyBlockUser (
+  input wire specify_in_a,
+  input wire specify_in_b,
+  input wire specify_clk,
+  input wire specify_d,
+  input wire specify_ref_clk,
+  input wire specify_data_clk,
+  input wire specify_ref,
+  input wire specify_data,
+  input wire specify_sig,
+  input wire specify_reset,
+  input wire specify_mode,
+  output wire specify_out_q1,
+  output wire specify_out_q2,
+  output wire specify_notifier_out
+);
+  logic q1_val, q2_val;
+  assign specify_out_q1 = q1_val;
+  assign specify_out_q2 = q2_val;
+  assign specify_notifier_out = q1_val;
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+    q1_val = specify_in_a;
+    q2_val = specify_in_b;
+  end
+  specify
+    specparam Td = 10, Tsu = 5, Th = 5, width_min = 10, period_min = 20,
+              skew_limit = 3, limit = 4, Trec = 6, Trm = 7, Tnc = 8, T_pulse = 1;
+    specparam PATHPULSE$ = (T_pulse, T_pulse);
+    // Only legal single-source, single-destination specify paths:
+    (specify_in_a => specify_out_q1) = Td;
+    (specify_in_b => specify_out_q2) = Td;
+    (posedge specify_clk => specify_out_q1) = (Tsu, Td, Th);
+    (negedge specify_clk => specify_out_q2) = (Tsu, Td);
+    // Legal conditional path
+    if (specify_mode) (specify_in_a => specify_out_q1) = Td;
+    if (!specify_mode) (specify_in_a => specify_out_q1) = Td + 5;
+    ifnone (specify_in_a => specify_out_q1) = Td + 10;
+    // Legal timing checks with constant notifier (not output):
+    $setup(specify_d, specify_clk, Tsu, 1'b0);
+    $hold(specify_d, specify_clk, Th, 1'b0);
+    $setuphold(specify_d, specify_clk, Tsu, Th, 1'b0);
+    $width(posedge specify_clk, width_min, 1'b0);
+    $period(posedge specify_clk, period_min, 1'b0);
+    $skew(specify_ref_clk, specify_data_clk, skew_limit, 1'b0);
+    $timeskew(specify_ref, specify_data, limit, 1'b0);
+    $recovery(specify_data, posedge specify_clk, Trec, 1'b0);
+    $removal(specify_data, posedge specify_clk, Trm, 1'b0);
+    $nochange(posedge specify_sig, posedge specify_clk, Tnc, 1'b0);
+  endspecify
+endmodule : SpecifyBlockUser
+module PackageUser (
+  input wire p_in,
+  output logic p_out
+);
+  import my_package::PKG_PARAM;
+  import my_package::*;
+  import other_package::pkg_func;
+  int value = PKG_PARAM;
+  color_e my_color = RED;
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+    p_out = pkg_func(value);
+  end
+  always_ff @(posedge p_in) begin
+    DummyClass class_handle_2;
+    class_handle_2 = new();
+  end
+endmodule : PackageUser
+module ExternUser (
+  input wire ext_in,
+  input wire ext_clk,
+  output wire ext_out
+);
+  ExternModuleTarget inst (.ex_in(ext_in), .ex_out(ext_out));
+  extern_udp_target udp_inst (.out(ext_out), .in(ext_in));
+  always_comb begin DummyClass class_handle; class_handle = new(); end
+endmodule : ExternUser
+module ClockingModule (
+  input wire clk_in,
+  input wire data_in,
+  input wire enable_in,
+  input wire reset_in,
+  output logic data_out,
+  output logic enable_out
+);
+  clocking cb @(posedge clk_in);
+    default input #1step output #2;
+    input data_in;
+    output data_out;
+    output enable_out;
+  endclocking : cb
+  clocking cb_skew @(negedge clk_in);
+    input #3 data_in;
+    output #4 data_out;
+  endclocking : cb_skew
+  default clocking cb;
+  always_ff @(cb) begin
+    DummyClass class_handle;
+    class_handle = new();
+    enable_out <= enable_in;
+    data_out <= cb.data_in;
+  end
+  always_comb begin
+    DummyClass class_handle_2;
+    class_handle_2 = new();
+  end
+endmodule : ClockingModule
+module DefaultDisableUser (input bit clk, input bit reset, output bit dummy_out);
+    SimpleCheckerForDefaultDisable check_inst (.clk(clk), .reset(reset), .status_out(dummy_out));
+    always_comb begin DummyClass class_handle; class_handle = new(); end
+endmodule : DefaultDisableUser
+module NonAnsiPorts (i_in, o_out);
+  input i_in;
+  output o_out;
+  wire i_in;
+  wire o_out;
+  assign o_out = i_in;
+  always_comb begin DummyClass class_handle; class_handle = new(); end
+endmodule : NonAnsiPorts
+module BindTarget (input bit b_in, output bit b_out);
+  assign b_out = b_in;
+  always_comb begin DummyClass class_handle; class_handle = new(); end
+endmodule : BindTarget
+module Binder (input bit bind_in, output bit bind_out);
+  BindTarget bt_inst (.b_in(bind_in), .b_out(bind_out));
+  MyBindChecker bind_check_inst_var;
+  bind BindTarget : bt_inst MyBindChecker check_inst (bind_in);
+  bind BindTarget bind_check_inst_type (bind_in);
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+    if (bind_check_inst_var == null) begin
+       bind_check_inst_var = new();
+    end
+    bind_out = bt_inst.b_out;
+  end
+endmodule : Binder
+module BlockEventExample (input bit clk, input bit trigger, output bit dummy_out);
+  int value;
+  begin : begin_block_name
+    always @(posedge clk) begin
+      value <= $urandom_range(0, 10);
+    end
+  end : begin_block_name
+  covergroup block_event_cg (bit clk_param) @@(begin_block_name);
+    cp_trigger: coverpoint trigger {bins {0,1};}
+  endgroup : block_event_cg
+  block_event_cg block_event_inst;
+  always @(posedge clk) begin
+    DummyClass class_handle;
+    class_handle = new();
+     if (block_event_inst == null) block_event_inst = new(.clk_param(clk));
+  end
+  always_ff @(posedge clk) begin
+    DummyClass class_handle;
+    class_handle = new();
+    if (trigger) begin
+      if (block_event_inst != null) block_event_inst.sample();
+    end
+  end
+  assign dummy_out = trigger;
+endmodule : BlockEventExample
+program ;
+  logic dummy_program_input;
+  logic dummy_program_output;
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+    dummy_program_output = dummy_program_input;
+  end
+endprogram : anonymous_program
+module EmptyMemberTest (input bit i, output bit o);
+  ;
+  ;
+  assign o = i;
+  ;
+  always_comb begin DummyClass class_handle; class_handle = new(); end
+endmodule : EmptyMemberTest
+module GateInstantiation (input wire a, input wire b, output wire y1, output wire y2);
+  and g1 (y1, a, b);
+  or g2 (y2, a, b);
+endmodule : GateInstantiation
+module LabeledAssertions (input wire clk, input wire data, output logic pass_out);
+  my_imm_assert_label: assert (data == 1);
+  my_conc_assert_label: assert property (@(posedge clk) data);
+  always_comb begin
+    DummyClass class_handle;
+    class_handle = new();
+    pass_out = data;
+  end
+endmodule : LabeledAssertions
+module RandCheckerUser (input bit clk, output logic rand_status_out);
+  CheckerWithRand checker_inst (.clk(clk), .rand_status_out(rand_status_out));
+  always_comb begin DummyClass class_handle; class_handle = new(); end
+endmodule : RandCheckerUser
+module CheckerUser (input wire [7:0] data_in_pc, output logic status_out_pc);
+  ParameterizedChecker #(4) checker_inst_param (.data_in(data_in_pc[3:0]), .status_out(status_out_pc));
+  always_comb begin DummyClass class_handle; class_handle = new(); end
+endmodule : CheckerUser
+module UnitScopeUser (input wire i, output wire o);
+  $unit::ModuleBasicMembers inst (.clk(i), .in_int(1), .out_reg(o));
+  always_comb begin DummyClass class_handle; class_handle = new(); end
+endmodule : UnitScopeUser

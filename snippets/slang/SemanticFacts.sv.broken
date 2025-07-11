@@ -1,0 +1,359 @@
+`timescale 1ns/1ps
+module ModuleDefinition (
+    input  wire in_md,
+    output logic out_md
+);
+    assign out_md = in_md;
+endmodule
+interface InterfaceDefinition;
+    logic [7:0] data;
+    logic       enable;
+    logic       clk_if;
+    logic       rst_if;
+    logic [3:0] value_if;
+    task automatic interface_task (input int value); endtask
+    function automatic int interface_func (input int value);
+        interface_func = value + 1;
+    endfunction
+    clocking if_cb @(posedge clk_if);
+        input  data;
+        output enable;
+        input  rst_if;
+        output value_if;
+    endclocking
+    modport master (
+        output data,
+        output enable,
+        import  task interface_task (input int value),
+        import  function int interface_func (input int value),
+        clocking if_cb
+    );
+    modport slave (
+        input  data,
+        input  enable,
+        export task interface_task (input int value),
+        export function int interface_func (input int value),
+        clocking if_cb
+    );
+endinterface
+program ProgramDefinition (
+    input  wire in_pd,
+    output logic out_pd
+);
+    assign out_pd = in_pd;
+endprogram
+module VariableLifetimeAndProceduralBlocks (
+    input  wire        clk,
+    input  wire        rst,
+    input  wire [7:0]  data_in,
+    input  wire        edge_sig,
+    output logic [7:0] data_out_comb,
+    output logic [7:0] data_out_ff,
+    output logic       out_toggle_always,
+    output logic       out_toggle_edge,
+    output int         static_count_out
+);
+    static integer static_counter;
+    logic [7:0] ff_reg_data;
+    logic [7:0] latch_reg_data;
+    static logic explicit_static_var;
+    initial begin
+        automatic int auto_initial_var = 10;
+        static int initial_static_var  = 1;
+        static_counter      = 0;
+        explicit_static_var = 1'b0;
+        static_count_out    = static_counter + auto_initial_var + initial_static_var;
+    end
+    final begin end
+    always_comb begin
+        data_out_comb = ff_reg_data + 1;
+    end
+    always_ff @(posedge clk or negedge rst) begin
+        automatic int auto_ff_var = 5;
+        if (~rst)
+            ff_reg_data <= 8'h00;
+        else
+            ff_reg_data <= data_in + auto_ff_var;
+        data_out_ff <= ff_reg_data;
+    end
+    always_latch begin
+        automatic int auto_latch_var = 3;
+        if (data_in > 10)
+            latch_reg_data = data_in + auto_latch_var;
+    end
+    always @(posedge clk) begin
+        automatic int auto_always_var = 1;
+        out_toggle_always <= ~out_toggle_always;
+        static_counter     = static_counter + 1 + auto_always_var;
+        static_count_out   = static_counter;
+    end
+    always @(edge edge_sig) begin
+        automatic int auto_edge_var = 2;
+        out_toggle_edge  <= ~out_toggle_edge;
+        static_counter   = static_counter + auto_edge_var;
+        static_count_out = static_counter;
+    end
+    task automatic my_task_auto (input int count, ref logic [7:0] data);
+        automatic int task_local_var;
+        task_local_var = count * 2;
+        data           = data + task_local_var;
+    endtask
+    function automatic int my_func_auto (input int count);
+        automatic int func_local_var;
+        func_local_var = count * 3;
+        return func_local_var;
+    endfunction
+    initial begin
+        static logic [7:0] temp_data   = 8'h20;
+        logic  [7:0]       temp_result;
+        my_task_auto(5, temp_data);
+        temp_result      = my_func_auto(2);
+        static_count_out = static_count_out + temp_result + temp_data;
+    end
+endmodule
+module PortAndArgumentDirections (
+    input  logic [3:0] in_dir,
+    output logic [3:0] out_dir,
+    inout  wire  [3:0] io_dir
+);
+    logic [3:0] internal_io;
+    assign io_dir = (in_dir > 4) ? internal_io : 4'bz;
+    always_comb begin
+        internal_io = in_dir + 1;
+        out_dir     = internal_io;
+    end
+    task automatic check_ref(ref logic [3:0] data);
+        data = data * 2;
+    endtask
+    initial begin
+        static logic [3:0] temp_data = 4'h3;
+        check_ref(temp_data);
+    end
+endmodule
+module TypeDeclarationsAndRestrictions (
+    input  wire [7:0] in_val,
+    output logic [7:0] out_val
+);
+    typedef enum logic [1:0] {STATE_IDLE = 0, STATE_BUSY = 1, STATE_DONE = 2} my_enum_t;
+    typedef struct packed {logic [3:0] field1; logic [3:0] field2;} my_struct_t;
+    typedef struct {int unpacked_f1; int unpacked_f2;} my_unpacked_struct_t;
+    typedef union packed {logic [7:0] byte_val; my_struct_t fields;} my_union_t;
+    typedef union {longint unpacked_u_l; int unpacked_u_i;} my_unpacked_union_t;
+    interface class MyInterfaceClass;
+        pure virtual function int get_id();
+    endclass
+    typedef class ForwardClass;
+    typedef interface class ForwardIfaceClass;
+    typedef enum {FWD_E1} ForwardEnum;
+    typedef struct packed {int field;} ForwardStruct_t;
+    typedef union  packed {int field;} ForwardUnion_t;
+    class ForwardClass;
+        int field;
+        function new(); endfunction
+    endclass
+    interface class ForwardIfaceClass;
+        pure virtual function void dummy_func();
+    endclass
+    my_struct_t           s_var;
+    my_unpacked_struct_t  us_var;
+    my_union_t            u_var;
+    my_unpacked_union_t   uu_var;
+    my_enum_t             e_var;
+    ForwardClass          fwd_class_handle;
+    ForwardIfaceClass     fwd_iface_handle;
+    ForwardStruct_t       fwd_struct_var;
+    ForwardUnion_t        fwd_union_var;
+    ForwardEnum           fwd_enum_var;
+    initial begin
+        s_var       = '{field1: 4'hA, field2: 4'h5};
+        us_var      = '{unpacked_f1: 10, unpacked_f2: 20};
+        u_var.byte_val          = in_val;
+        uu_var.unpacked_u_i     = 5;
+        e_var                   = STATE_BUSY;
+        fwd_class_handle        = new();
+        fwd_iface_handle        = null;
+        fwd_struct_var.field    = 1;
+        fwd_union_var.field     = 2;
+        fwd_enum_var            = FWD_E1;
+        out_val = u_var.byte_val + s_var.field1 + s_var.field2 + us_var.unpacked_f1 +
+                  uu_var.unpacked_u_i + fwd_struct_var.field + fwd_union_var.field;
+    end
+endmodule
+module AssertionsAndElabTasks (
+    input  wire        clk,
+    input  wire        reset,
+    input  wire        condition_a,
+    input  wire [1:0]  state_in,
+    output logic       dummy_out
+);
+    $static_assert(2 > 1);
+    initial begin end
+    always_comb begin
+        dummy_out = condition_a;
+        if (condition_a) begin
+            assert (state_in != 2'b11) else $error("Invalid state 11 detected");
+            assume (state_in != 2'b00);
+            cover  (state_in == 2'b01);
+        end
+    end
+    property p_valid_state;
+        @(posedge clk) !reset |-> (state_in != 2'b10);
+    endproperty
+    assert property (p_valid_state);
+    assume property (@(posedge clk) state_in != 2'b00);
+    cover  property (p_valid_state);
+    restrict property (@(posedge clk) !reset);
+endmodule
+module StrengthsAndChargeStrength (
+    input  wire in_data_s,
+    output wire out_data_s
+);
+    wire (supply1, supply0) drive_wire_sup = in_data_s;
+    wire (strong1, weak0)   drive_wire_sw  = in_data_s;
+    wire (weak0,  strong1)  drive_wire_ws  = !in_data_s;
+    wire (pull0,  weak1)    drive_wire_p0w = in_data_s;
+    wire (weak0,  pull1)    drive_wire_wp1 = !in_data_s;
+    wire (highz0, weak1)    drive_wire_hz0w = in_data_s;
+    wire (weak0,  highz1)   drive_wire_whz1 = !in_data_s;
+    wire (pull0,  pull1)    pull_wire0 = in_data_s;
+    wire (pull1,  pull0)    pull_wire1 = !in_data_s;
+    trireg (small)  tri_small  = in_data_s;
+    trireg (medium) tri_medium = !in_data_s;
+    trireg (large)  tri_large  = in_data_s | !in_data_s;
+    trireg          tri_default = 1'b1;
+    assign out_data_s = drive_wire_sup | drive_wire_sw | drive_wire_ws | drive_wire_p0w |
+                        drive_wire_wp1 | drive_wire_hz0w | drive_wire_whz1 | pull_wire0 |
+                        pull_wire1 | tri_medium | tri_small | tri_large | tri_default;
+endmodule
+module SequentialAndParallelBlocks (
+    input  wire        start_sig,
+    input  wire [7:0]  data_in_pb,
+    output logic [7:0] result_join,
+    output logic [7:0] result_join_any,
+    output logic [7:0] result_join_none,
+    output logic [7:0] result_seq
+);
+    always @(posedge start_sig) begin
+        automatic int local_var = 1;
+        begin
+            result_seq = data_in_pb + local_var - 1;
+        end
+        fork
+            begin
+                result_join = data_in_pb + 1;
+            end
+            begin
+                result_join = (data_in_pb + 1) & 8'hFF;
+            end
+        join
+        fork
+            begin
+                result_join_any = data_in_pb + 2;
+            end
+            begin
+                result_join_any = (data_in_pb + 2) * 3;
+            end
+        join_any
+        fork
+            begin
+                result_join_none = data_in_pb + 4;
+            end
+            begin
+                result_join_none = (data_in_pb + 4) | 8'hAA;
+            end
+        join_none
+    end
+endmodule
+module ClockingBlockAndModportItems (
+    input  logic       clk_cb,
+    input  logic       rst_cb,
+    input  logic [7:0] data_in_cb,
+    input  logic       internal_sig_cb_in,
+    output logic [7:0] data_out_cb
+);
+    logic [3:0] internal_data_cb;
+    logic [3:0] cb_input_data;
+    logic       cb_output_sig;
+    logic [3:0] cb_output_data;
+    logic       internal_sig_derived;
+    assign internal_sig_derived = data_in_cb[7] | internal_sig_cb_in;
+    assign cb_input_data        = data_in_cb[3:0];
+    clocking cb @(posedge clk_cb);
+        input  cb_input_data;
+        input  internal_sig_derived;
+        output cb_output_data;
+        output cb_output_sig;
+    endclocking
+    always @(cb) begin
+        internal_data_cb  = cb_input_data + (internal_sig_derived ? 1 : 0);
+        cb_output_data   <= internal_data_cb;
+        cb_output_sig    <= internal_data_cb[0];
+    end
+    assign data_out_cb = {4'b0000, cb_output_data};
+endmodule
+`timescale 1ns/1ps
+module TimeScaleDeclarationModule (
+    input  logic dummy_in_ts,
+    output logic dummy_out_ts
+);
+    timeunit      10ns;
+    timeprecision 100ps;
+    assign dummy_out_ts = dummy_in_ts;
+endmodule
+`timescale 100ps/10ps
+module ImplicitTimeScaleModule (
+    input  logic in_its,
+    output logic out_its
+);
+    assign out_its = in_its;
+endmodule
+module ValidTimeScaleModuleDecl (
+    input  logic in_vts,
+    output logic out_vts
+);
+    timeunit      1ns;
+    timeprecision 1ps;
+    assign out_vts = in_vts;
+endmodule
+module CaseStatementConditions (
+    input  wire [1:0] selector,
+    input  wire [3:0] data_c,
+    output logic [3:0] out_case
+);
+    always_comb begin
+        case (selector)
+            2'b00: out_case = data_c;
+            2'b01: out_case = data_c + 1;
+            2'b10: out_case = data_c + 2;
+            default: out_case = 4'bxxxx;
+        endcase
+        casez (selector)
+            2'b0?: out_case = data_c + 10;
+            2'b1?: out_case = data_c + 20;
+            default: out_case = 4'bzzzz;
+        endcase
+        casex (selector)
+            2'b0?: out_case = data_c - 1;
+            2'b1?: out_case = data_c - 2;
+            default: out_case = 4'bxxxx;
+        endcase
+    end
+endmodule
+module PulseStyleModule (
+    input  wire clk,
+    input  wire data_in_ps,
+    output wire data_out_ps
+);
+    reg ff_q;
+    always @(posedge clk) begin
+        ff_q <= data_in_ps;
+    end
+    assign data_out_ps = ff_q;
+    specify
+        (data_in_ps => data_out_ps) = (1, 1);
+        pulsestyle_ondetect  (data_in_ps, data_out_ps);
+        showcancelled        (data_in_ps, data_out_ps);
+        pulsestyle_onevent   (data_in_ps, data_out_ps);
+        noshowcancelled      (data_in_ps, data_out_ps);
+    endspecify
+endmodule

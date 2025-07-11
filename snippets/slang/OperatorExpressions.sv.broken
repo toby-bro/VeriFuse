@@ -1,0 +1,475 @@
+typedef struct packed { bit a; logic b; } my_struct_t;
+module UnaryOps (
+    input logic [7:0] in_int,
+    input real in_real,
+    input bit in_bit,
+    input logic in_logic,
+    input shortreal in_sreal,
+    output logic [7:0] out_plus,
+    output real out_minus_real,
+    output logic out_not_bit,
+    output logic out_not_logic,
+    output logic [7:0] out_bnot_int,
+    output logic out_red_and,
+    output logic out_red_or,
+    output logic out_red_xor,
+    output logic out_red_nand,
+    output logic out_red_nor,
+    output logic out_red_xnor,
+    output logic [7:0] out_preinc_int,
+    output logic [7:0] out_postdec_int,
+    output real out_predec_real,
+    output real out_postinc_real,
+    output shortreal out_preinc_sreal
+);
+    logic [7:0] lvalue_int;
+    real lvalue_real;
+    shortreal lvalue_sreal;
+    assign out_plus = +in_int;
+    assign out_minus_real = -in_real;
+    assign out_not_bit = !in_bit;
+    assign out_not_logic = !in_logic;
+    assign out_bnot_int = ~in_int;
+    assign out_red_and = &in_int;
+    assign out_red_or = |in_int;
+    assign out_red_xor = ^in_int;
+    assign out_red_nand = ~&in_int;
+    assign out_red_nor = ~|in_int;
+    assign out_red_xnor = ~^in_int;
+    always_comb begin
+        lvalue_int = in_int;
+        lvalue_real = in_real;
+        lvalue_sreal = in_sreal;
+        out_preinc_int = ++lvalue_int;
+        out_postdec_int = lvalue_int--;
+        out_predec_real = --lvalue_real;
+        out_postinc_real = lvalue_real++;
+        out_preinc_sreal = ++lvalue_sreal;
+    end
+endmodule
+module BinaryArithBitwiseOps (
+    input logic [7:0] a_int,
+    input logic [15:0] b_int,
+    input real c_real,
+    input shortreal d_sreal,
+    output logic [15:0] out_add,
+    output logic [15:0] out_sub,
+    output logic [23:0] out_mul,
+    output logic [15:0] out_div,
+    output logic [7:0] out_mod,
+    output logic [15:0] out_band,
+    output logic [15:0] out_bor,
+    output logic [15:0] out_bxor,
+    output logic [15:0] out_bxnor,
+    output real out_real_add,
+    output real out_real_sub,
+    output real out_real_mul,
+    output real out_real_div,
+    output real out_mixed_add,
+    output real out_mixed_mul,
+    input bit signed [7:0] signed_a,
+    input bit unsigned [7:0] unsigned_b,
+    output bit out_signed_cmp,
+    output bit signed [15:0] out_signed_add,
+    input bit signed [15:0] signed_b,
+    input bit signed [15:0] signed_c,
+    output bit out_same_sign_size_cmp
+);
+    assign out_add = a_int + b_int;
+    assign out_sub = b_int - a_int;
+    assign out_mul = {8'b0, a_int} * b_int;
+    assign out_div = b_int / a_int;
+    assign out_mod = a_int % b_int;
+    assign out_band = a_int & b_int;
+    assign out_bor = a_int | b_int;
+    assign out_bxor = a_int ^ b_int;
+    assign out_bxnor = a_int ~^ b_int;
+    assign out_real_add = c_real + d_sreal;
+    assign out_real_sub = c_real - d_sreal;
+    assign out_real_mul = c_real * d_sreal;
+    assign out_real_div = c_real / d_sreal;
+    assign out_mixed_add = a_int + c_real;
+    assign out_mixed_mul = d_sreal * b_int;
+    assign out_signed_cmp = signed_a > unsigned_b;
+    assign out_signed_add = $signed(a_int) + $signed(b_int);
+    assign out_same_sign_size_cmp = signed_b == signed_c;
+endmodule
+module BinaryCompareLogicOps (
+    input logic [7:0] val_a,
+    input logic [7:0] val_b,
+    input real val_c,
+    input real val_d,
+    input string str_e,
+    input string str_f,
+    input bit cond_g,
+    input bit cond_h,
+    input event ev_a,
+    input event ev_b,
+    input int zero_int,
+    output bit out_eq_int,
+    output bit out_ne_int,
+    output bit out_gt_int,
+    output bit out_le_int,
+    output bit out_eq_real,
+    output bit out_lt_real,
+    output bit out_eq_string,
+    output bit out_ne_string,
+    output bit out_log_and,
+    output bit out_log_or,
+    output bit out_log_imp,
+    output bit out_log_equiv,
+    output bit out_ne_chandle,
+    output bit out_eq_event,
+    output bit out_eq_null_chandle,
+    output bit out_precedence_test_comp,
+    output logic [7:0] out_precedence_test_bitwise,
+    output bit out_int_zero_cmp,
+    output bit out_real_zero_cmp,
+    output bit out_bitwise_comp_precedence,
+    output bit out_logical_bitwise_precedence
+);
+    chandle chandle_local_a;
+    chandle chandle_local_b;
+    bit out_ne_chandle_proc;
+    bit out_eq_event_proc;
+    bit out_eq_null_chandle_proc;
+    assign out_eq_int = val_a == val_b;
+    assign out_ne_int = val_a != val_b;
+    assign out_gt_int = val_a > val_b;
+    assign out_le_int = val_a <= val_b;
+    assign out_eq_real = val_c == val_d;
+    assign out_lt_real = val_c < val_d;
+    assign out_eq_string = str_e == "test";
+    assign out_ne_string = str_f != "another";
+    assign out_log_and = cond_g && cond_h;
+    assign out_log_or = cond_g || cond_h;
+    assign out_log_imp = cond_g -> cond_h;
+    assign out_log_equiv = cond_g <-> cond_h;
+    always_comb begin
+        chandle_local_a = null;
+        chandle_local_b = null;
+        out_ne_chandle_proc = (chandle_local_a != chandle_local_b);
+        out_eq_event_proc = (ev_a == ev_b);
+        out_eq_null_chandle_proc = (chandle_local_a == null);
+    end
+    assign out_ne_chandle = out_ne_chandle_proc;
+    assign out_eq_event = out_eq_event_proc;
+    assign out_eq_null_chandle = out_eq_null_chandle_proc;
+    assign out_precedence_test_comp = val_a > 5;
+    assign out_precedence_test_bitwise = val_a & 8'hF;
+    assign out_int_zero_cmp = val_a == zero_int;
+    assign out_real_zero_cmp = val_c == 0.0;
+    assign out_bitwise_comp_precedence = (val_a & 8'h01) != 0;
+    assign out_logical_bitwise_precedence = (cond_g && cond_h) || cond_g;
+endmodule
+module BinaryShiftPowerOps (
+    input logic [7:0] val_a,
+    input logic [3:0] shift_val,
+    input bit signed [7:0] signed_a,
+    input real val_b_real,
+    input real power_val_real,
+    input logic [3:0] shift_val_logic,
+    input bit signed [7:0] signed_val_a,
+    input int shift_val_int,
+    input logic [7:0] arr_in [2],
+    input int arr_shift,
+    output logic [7:0] out_sll,
+    output logic [7:0] out_srl,
+    output bit signed [7:0] out_sal,
+    output bit signed [7:0] out_sar,
+    output logic [63:0] out_power_int,
+    output real out_power_real,
+    output logic [7:0] out_sll_logic,
+    output bit signed [7:0] out_sar_signed,
+    output logic [7:0] out_srl_unsigned_signed,
+    output logic [7:0] out_srl_array
+);
+    assign out_sll = val_a << shift_val;
+    assign out_srl = val_a >> shift_val;
+    assign out_sal = signed_a <<< shift_val;
+    assign out_sar = signed_a >>> shift_val;
+    assign out_power_int = {56'b0, val_a} ** {28'b0, shift_val};
+    assign out_power_real = val_b_real ** power_val_real;
+    assign out_sll_logic = val_a << shift_val_logic;
+    assign out_sar_signed = $unsigned(signed_val_a) >>> shift_val_int;
+    assign out_srl_unsigned_signed = $signed(val_a) >> shift_val_int;
+    assign out_srl_array = arr_in[0] >> arr_shift;
+endmodule
+module CaseEqualityOps (
+    input logic [7:0] val_a,
+    input logic [7:0] val_b_xz,
+    input logic [7:0] val_c_xz,
+    output bit out_case_eq,
+    output bit out_case_ne,
+    output bit out_wildcard_eq,
+    output bit out_wildcard_ne,
+    output logic out_wildcard_eq_logic,
+    output logic out_wildcard_ne_logic
+);
+    assign out_case_eq = val_a === val_b_xz;
+    assign out_case_ne = val_a !== val_b_xz;
+    assign out_wildcard_eq = val_a ==? val_b_xz;
+    assign out_wildcard_ne = val_a !=? val_b_xz;
+    assign out_wildcard_eq_logic = val_c_xz ==? val_b_xz;
+    assign out_wildcard_ne_logic = val_c_xz !=? val_b_xz;
+endmodule
+module InsideOpNumeric (
+    input int val_to_check,
+    input int range_low,
+    input int range_high,
+    input real val_real_to_check,
+    input real range_real_low,
+    input real range_real_high,
+    input int val_check_list,
+    input int zero_int_const_driven,
+    output bit out_inside_simple,
+    output bit out_inside_real_range,
+    output bit out_inside_list,
+    output bit out_inside_reversed,
+    output bit out_inside_unbounded
+);
+    assign out_inside_simple = val_to_check inside {[range_low : range_high]};
+    assign out_inside_real_range = val_real_to_check inside {[range_real_low : range_real_high]};
+    assign out_inside_list = val_check_list inside {1, 5, 10, 20};
+    assign out_inside_reversed = val_to_check inside {[range_high : range_low]};
+    assign out_inside_unbounded = zero_int_const_driven inside {[0 : $]};
+endmodule
+module InsideOpArray (
+    input int val_check_array,
+    input int unpacked_arr [4],
+    input int queue_var [$],
+    input int val_check_queue,
+    output bit out_inside_unpacked_array,
+    output bit out_inside_queue
+);
+    assign out_inside_unpacked_array = val_check_array inside {unpacked_arr};
+    assign out_inside_queue = val_check_queue inside {queue_var};
+endmodule
+module InsideOpHandlesClasses (
+    input chandle ch_in,
+    input covergroup cg_in,
+    output bit out_inside_chandle_list,
+    output bit out_inside_cg_list
+);
+    assign out_inside_chandle_list = ch_in inside {null};
+    assign out_inside_cg_list = cg_in inside {null};
+endmodule
+module ConcatVectorString (
+    input bit a_bit,
+    input logic [3:0] b_logic,
+    input logic [7:0] c_logic_xz,
+    input string str_d,
+    input string str_e,
+    output logic [11:0] out_vec_concat,
+    output string out_str_concat,
+    input logic [7:0] packed_target_in,
+    output logic [15:0] packed_concat_target_out
+);
+    logic [15:0] packed_concat_target_var;
+    assign out_vec_concat = {a_bit, b_logic, c_logic_xz};
+    assign out_str_concat = {"hello", str_d, str_e, "world"};
+    always_comb begin
+        packed_concat_target_var = 16'h0000;
+        {packed_concat_target_var[7:0], packed_concat_target_var[15:8]} = packed_target_in;
+        packed_concat_target_out = packed_concat_target_var;
+    end
+endmodule
+module ConcatArray (
+    input int array_a [2],
+    input int array_b [3],
+    input int val_c,
+    input int array_d [2],
+    input int val_e,
+    input int array_f [1],
+    input int val_g,
+    output int out_array [5],
+    output int out_array_scalar [3],
+    output int out_array_complex [4],
+    output bit out_dummy 
+);
+    assign out_array = {array_a, array_b};
+    assign out_array_scalar = {array_d, val_e};
+    assign out_array_complex = {array_f, array_a, val_g};
+    assign out_dummy = 1'b0;
+endmodule
+module EmptyConcatValidTarget (
+    input int dummy_in,
+    output int dyn_arr_out []
+);
+    assign dyn_arr_out = {};
+endmodule
+module ReplicationSimple (
+    input int count_val,
+    input logic [7:0] operand_vec,
+    input string operand_str,
+    output logic [63:0] out_vec_repl,
+    output string out_str_repl,
+    output logic [39:0] out_param_repl,
+    output logic [15:0] out_zero_repl_in_concat,
+    output string out_str_repl_nonconst,
+    input int non_const_count
+);
+    parameter int param_count = 5;
+    parameter logic [7:0] param_operand = 8'hAA;
+    assign out_param_repl = {param_count{param_operand}};
+    assign out_vec_repl = {8{operand_vec}};
+    assign out_str_repl = {3{operand_str}};
+    assign out_zero_repl_in_concat = {operand_vec, operand_vec, {0{operand_vec}}};
+    string temp_str;
+    always_comb begin
+        temp_str = {non_const_count{operand_str}};
+        out_str_repl_nonconst = temp_str;
+    end
+endmodule
+module ConditionalSimple (
+    input bit condition,
+    input int true_val,
+    input int false_val,
+    input logic condition_logic,
+    input logic [7:0] val_a_xz,
+    input logic [7:0] val_b_xz,
+    output int out_int,
+    output logic [7:0] out_logic_branch
+);
+    assign out_int = condition ? true_val : false_val;
+    assign out_logic_branch = condition_logic ? val_a_xz : val_b_xz;
+    parameter int p_cond_val = 1 ? 10 : 20;
+    parameter int p_cond_val2 = 0 ? 10 : 20;
+    parameter logic [7:0] p_cond_xz = 8'b1x ? 8'hAA : 8'h55;
+endmodule
+module ConditionalComplexTypes_Corrected (
+    input logic condition_logic,
+    input bit condition_bit,
+    input event ev_in_a,
+    input event ev_in_b,
+    input logic [7:0] arr_in_a [2],
+    input logic [7:0] arr_in_b [2],
+    input my_struct_t struct_in_a,
+    input my_struct_t struct_in_b,
+    input covergroup cg_instance_a,
+    input covergroup cg_instance_b,
+    output bit out_null_chandle_cond,
+    output bit out_null_event_cond,
+    output logic [7:0] out_arr [2],
+    output my_struct_t out_struct,
+    output bit out_cg_cond,
+    output chandle out_chandle_cond,
+    output logic [7:0] out_xz_int_cond
+);
+    chandle ch_var_a, ch_var_b;
+    event ev_var_a, ev_var_b;
+    logic [7:0] arr_a [2], arr_b [2];
+    my_struct_t struct_a, struct_b;
+    covergroup cg_var_a, cg_var_b;
+    always_comb begin
+        ch_var_a = null;
+        ch_var_b = null;
+        ev_var_a = ev_in_a;
+        ev_var_b = ev_in_b;
+        arr_a = arr_in_a;
+        arr_b = arr_in_b;
+        struct_a = struct_in_a;
+        struct_b = struct_in_b;
+        out_null_chandle_cond = (condition_bit ? ch_var_a : null) == null;
+        out_null_event_cond = (condition_bit ? ev_var_a : null) == null;
+        out_arr = condition_bit ? arr_a : arr_b;
+        out_struct = condition_bit ? struct_a : struct_b;
+        out_cg_cond = (condition_bit ? cg_instance_a : null) == null;
+        out_chandle_cond = condition_bit ? ch_var_a : ch_var_b;
+        out_xz_int_cond = condition_logic ? {8'hAA} : {8'h55};
+    end
+endmodule
+module StreamingConcatOps_Corrected (
+    input logic [7:0] data_byte,
+    input logic [15:0] data_word,
+    input int unpacked_int_arr [3],
+    output logic [31:0] out_stream_right,
+    output logic [31:0] out_stream_left,
+    output logic [23:0] out_stream_right_slice,
+    output logic [63:0] out_stream_right_with,
+    output logic [15:0] out_stream_right_type_slice,
+    input logic [7:0] src_stream_byte,
+    input logic [15:0] src_stream_word,
+    output logic [23:0] out_stream_nested_slice,
+    input byte src_byte,
+    output logic [7:0] out_stream_unpacked_union_dummy
+);
+    typedef logic [7:0] byte_t;
+    typedef union { byte b; shortint s; } my_union_t;
+    my_union_t union_var;
+    always_comb begin
+        union_var.b = src_byte;
+        out_stream_unpacked_union_dummy = union_var.b;
+    end
+    assign out_stream_right = {>>{data_byte, data_word, 4'b1010}};
+    assign out_stream_left = {<<{data_byte, data_word, 4'b1010}};
+    assign out_stream_right_slice = {>>8{data_byte, data_word}};
+    assign out_stream_right_with = {>>{unpacked_int_arr with [1:2]}};
+    assign out_stream_right_type_slice = {>>byte_t{data_word}};
+    assign out_stream_nested_slice = {>>8 {{>>{src_stream_byte, src_stream_word}}}};
+endmodule
+module ValueRangeOps (
+    input int val_to_check,
+    input int range_low,
+    input int range_high,
+    input real val_real_to_check,
+    input real range_real_tol,
+    input int val_check_list,
+    input int zero_int_const_driven,
+    output bit out_simple,
+    output bit out_absolute_tol,
+    output bit out_relative_tol,
+    output bit out_list,
+    output bit out_unbounded,
+    output bit out_reversed
+);
+    assign out_simple = val_to_check inside {[range_low : range_high]};
+    assign out_absolute_tol = val_to_check inside {[val_to_check +: range_real_tol]};
+    assign out_relative_tol = val_to_check inside {[val_to_check %: range_real_tol]};
+    assign out_list = val_check_list inside {1, 5, 10, 20};
+    assign out_unbounded = zero_int_const_driven inside {[0 : $]};
+    assign out_reversed = val_to_check inside {[range_high : range_low]};
+endmodule
+module InterfaceHandleCompareOps_Corrected (
+    input chandle ch_in_a,
+    input covergroup cg_in_a,
+    output bit out_ch_eq,
+    output bit out_ch_ne_null,
+    output bit out_cg_eq,
+    output bit out_cg_ne_null
+);
+    chandle ch_var = null;
+    covergroup cg_var = null;
+    assign out_ch_eq = ch_in_a == ch_var;
+    assign out_ch_ne_null = ch_in_a != null;
+    assign out_cg_eq = cg_in_a == cg_var;
+    assign out_cg_ne_null = cg_in_a != null;
+endmodule
+module TypeReferenceCompareOps (
+    input bit dummy_in,
+    output bit out_type_eq_int_int,
+    output bit out_type_ne_int_logic,
+    output bit dummy_out
+);
+    assign out_type_eq_int_int = type_id(int) == type_id(int);
+    assign out_type_ne_int_logic = type_id(int) != type_id(logic);
+    assign dummy_out = dummy_in;
+endmodule
+module SimpleParameterValues (
+    input bit dummy_in,
+    output bit dummy_out
+);
+    parameter int p_arith = 1 + 2 * 3;
+    parameter int p_bitwise = 4 & 5 | 6;
+    parameter bit p_compare = 10 > 5 == 1;
+    parameter bit p_logical = 1 && 0 || 1;
+    parameter logic [7:0] p_unary = ~8'hAA;
+    parameter logic [15:0] p_concat = {8'h11, 8'h22};
+    parameter logic [23:0] p_repl = {3{8'hFF}};
+    parameter int p_shift = 16 << 2;
+    parameter int p_power = 2 ** 3;
+    parameter bit p_inside = 7 inside { [5:10] };
+    parameter logic [7:0] p_conditional = 1 ? 8'h10 : 8'h20;
+    parameter int dummy_param = 0;
+    assign dummy_out = dummy_in;
+endmodule

@@ -1,0 +1,359 @@
+module mod_empty (
+    input logic in1,
+    output logic out1
+);
+    logic temp;
+    ;
+    assign out1 = temp & in1;
+endmodule
+package dummy_pkg;
+    parameter int PKG_PARAM = 5;
+    logic pkg_var;
+endpackage
+module mod_imports (
+    input logic in_a,
+    output logic out_b
+);
+    import dummy_pkg::PKG_PARAM;
+    import dummy_pkg::*;
+    logic [PKG_PARAM-1:0] data;
+    always_comb begin
+        data = PKG_PARAM + 1;
+        out_b = data[0] & in_a;
+    end
+    class my_class_imp;
+        int val;
+        function new(int v);
+            val = v;
+        endfunction
+    endclass
+    always_comb begin
+        my_class_imp cls;
+        cls = new(10);
+    end
+endmodule
+interface if_modports;
+    logic clk;
+    logic reset;
+    logic data_in;
+    logic data_out;
+    logic enable;
+    clocking cb @(posedge clk) {
+        input data_in;
+        output data_out;
+    };
+    task get_data(output logic d);
+        d = data_in;
+    endtask
+    function logic set_enable(logic e);
+        enable = e;
+        return enable;
+    endfunction
+    modport my_master (
+        input clk,
+        output data_out,
+        input enable,
+        input .data_in(data_in),
+        import get_data,
+        export set_enable,
+        clocking cb
+    );
+endinterface
+module mod_assign (
+    input wire in_val,
+    input wire [7:0] data_in,
+    output wire [7:0] data_out,
+    output wire simple_out,
+    output wire delayed_out,
+    output wire drive_out
+);
+    wire implicit_net_example;
+    assign simple_out = in_val;
+    assign #1 delayed_out = in_val;
+    assign (weak1, weak0) drive_out = in_val;
+    assign (supply0, supply1) data_out = data_in;
+    assign implicit_net_example = in_val;
+    assign simple_out = implicit_net_example;
+    assign data_out[3:0] = data_in[3:0];
+    class my_class_assign;
+        int count;
+        function new();
+            count = 0;
+        endfunction
+    endclass
+    always_comb begin
+        my_class_assign cls;
+        cls = new();
+        cls.count = cls.count + 1;
+    end
+endmodule
+module mod_genvar (
+    input logic clk,
+    output logic [7:0] out_sum
+);
+    genvar i;
+    logic [7:0] temp_sum = 8'b0;
+    generate
+        for (i = 0; i < 8; i = i + 1) begin : gen_block
+            always_ff @(posedge clk) begin
+                temp_sum[i] <= temp_sum[i] + 1;
+            end
+        end
+    endgenerate
+    assign out_sum = temp_sum;
+endmodule
+module mod_elab_tasks (
+    input logic clk,
+    output logic out_status
+);
+    parameter int VAL = 7;
+    $static_assert(VAL > 5, "Value must be greater than 5");
+    $static_assert(VAL < 10, "Value must be less than 10");
+    $static_assert(VAL == 7, {"Value is exactly ", $sformatf("%0d", VAL)});
+    $error("This is an elaboration error");
+    $warning("This is an elaboration warning");
+    $info("This is elaboration info");
+    assign out_status = 1'b1;
+    class my_class_elab;
+        string status;
+        function new(string s);
+            status = s;
+        endfunction
+    endclass
+    always_comb begin
+        my_class_elab cls;
+        cls = new("OK");
+    end
+endmodule
+primitive udp_comb (
+    out, a, b
+);
+    output out;
+    input a, b;
+    table
+      0 0 : 0;
+      0 1 : 0;
+      1 0 : 0;
+      1 1 : 1;
+      0 x : 0;
+      x 0 : 0;
+      1 x : 1;
+      x 1 : 1;
+      x x : x;
+    endtable
+endprimitive
+primitive udp_seq (
+    out, in, clk
+);
+    output reg out = 1'b0;
+    input in, clk;
+    table
+      ? (01) : 0 : 1;
+      ? (01) : 1 : 0;
+      ? (01) : x : x;
+      ? (01) : ? : x;
+      0 (?)  : ? : 0;
+      1 (?)  : ? : 1;
+      ? (?)  : ? : -;
+      x (?)  : ? : x;
+      ? (??) : ? : -;
+      *      : ? : -;
+      ? (0x) : ? : x;
+      ? (10) : ? : -;
+      ? (1x) : ? : x;
+      ? (x0) : ? : x;
+      ? (x1) : ? : x;
+      ? (01) : 0 : 1;
+      ? (01) : 1 : 0;
+      ? (01) : x : x;
+      ? (01) : b : x;
+      ? (01) : ? : x;
+      0 (01) : ? : 0;
+      1 (01) : ? : 1;
+      x (01) : ? : x;
+      ? (01) : ? : x;
+    endtable
+endprimitive
+module mod_udps (
+    input wire i_a,
+    input wire i_b,
+    input wire i_in,
+    input wire i_clk,
+    output wire o_comb,
+    output wire o_seq
+);
+    udp_comb comb_inst (.out(o_comb), .a(i_a), .b(i_b));
+    udp_seq seq_inst (.out(o_seq), .in(i_in), .clk(i_clk));
+    class my_class_udp;
+        int val;
+        function new(int v);
+            val = v;
+        endfunction
+    endclass
+    always_comb begin
+        my_class_udp cls;
+        cls = new(5);
+    end
+endmodule
+module mod_assertions (
+    input logic clk,
+    input logic reset,
+    input logic a,
+    input logic b,
+    output logic dummy_out
+);
+    sequence s_seq (i_a, o_b, local int my_local_port = 0);
+        (i_a ##1 (1'b1, o_b = 1'b1) ##1 !i_a ##1 (1'b0, o_b = 1'b0));
+    endsequence
+    property p_prop (input logic i_a, input logic i_b, input logic [7:0] param_val = 8'd10, output logic o_result, output logic [1:0] o_array [2]);
+        @(posedge clk) disable iff (reset)
+        (i_a |-> i_b);
+    endproperty
+    let l_let (input logic i_a, input logic i_b, output logic o_result_let) = (i_a && i_b);
+    checker c_checker (input logic i_a, input logic i_b, output logic o_err, input logic [3:0] data_in, output logic status_out);
+        status_out = i_a | i_b;
+        o_err = !(i_a && i_b);
+    endchecker
+    class my_class_assert;
+        int data;
+        function new(int v);
+            data = v;
+        endfunction
+    endclass
+    parameter int VAL = 8;
+    always_comb begin
+        my_class_assert cls;
+        cls = new(123);
+    end
+    assign dummy_out = a | b;
+endmodule
+interface if_clocking;
+    logic clk_int;
+    logic data_int;
+    logic enable_int;
+    clocking cb_if @(posedge clk_int) {
+        input #1ns data_int;
+        output #2ns enable_int;
+    };
+    clocking cb_if_default @(posedge clk_int) {
+        default input #1ps;
+        default output #10ps;
+        input data_int;
+        output enable_int;
+    };
+endinterface
+module mod_clocking (
+    input if_clocking if_inst,
+    output logic dummy_out
+);
+    logic data_sampled = if_inst.cb_if.data_int;
+    logic enable_driven = if_inst.cb_if.enable_int;
+    always_comb begin
+      dummy_out = data_sampled | enable_driven;
+    end
+    class my_class_clock;
+        int val;
+        function new(int v);
+            val = v;
+        endfunction
+    endclass
+    always_comb begin
+        my_class_clock cls;
+        cls = new(1);
+    end
+endmodule
+module mod_randseq (
+    input logic clk,
+    input logic reset,
+    output logic [7:0] output_data
+);
+    rand bit cond_var;
+    rand int case_var;
+    parameter int total_weight = 100;
+    randsequence (main_prod)
+        production main_prod;
+            rule1 | rule2;
+        end
+        production rule1;
+            item1 repeat (3) item2 [10] item3 code_block1 rand_join (total_weight);
+        end
+        production rule2;
+            if (cond_var) item4 else item5 case (case_var) 0: item6; 1: item7; default: item8; endcase;
+        end
+        production item1; data_prod_a(); end
+        production item2; data_prod_b(); end
+        production item3; data_prod_c(); end
+        production item4; data_prod_d(); end
+        production item5; data_prod_e(); end
+        production item6; data_prod_f(); end
+        production item7; data_prod_g(); end
+        production item8; data_prod_h(); end
+        production data_prod_a; { $srandom(); return $urandom(); }; end
+        production data_prod_b; { $srandom(); return $urandom_range(0, 255); }; end
+        production data_prod_c; { }; end
+        production data_prod_d; { return 8'hAA; }; end
+        production data_prod_e; { return 8'hBB; }; end
+        production data_prod_f; { return 8'hCC; }; end
+        production data_prod_g; { return 8'hDD; }; end
+        production data_prod_h; { return 8'hEE; }; end
+        production code_block1; {
+            int temp = $urandom();
+        }; end
+    endsequence
+    class my_class_randseq;
+        int state;
+        function new();
+            state = 0;
+        endfunction
+    endclass
+    always_comb begin
+        my_class_randseq cls;
+        cls = new();
+        cls.state = cls.state + 1;
+    end
+    assign output_data = 8'b0;
+endmodule
+module mod_net_alias (
+    input wire in_alias,
+    output wire out_alias
+);
+    wire net1;
+    wire [3:0] net2;
+    wire [3:0] net3;
+    wire implicit_net_alias_ex;
+    net alias net1 = in_alias;
+    net alias net2[3:0] = net3[3:0];
+    net alias net1 = in_alias;
+    net alias net2[1:0] = {in_alias, in_alias};
+    net alias net3[3:2] = {in_alias, in_alias};
+    net alias implicit_net_alias_ex = in_alias;
+    assign out_alias = net1 | net2[0] | net3[2] | implicit_net_alias_ex;
+    class my_class_alias;
+        logic flag;
+        function new();
+            flag = 0;
+        endfunction
+    endclass
+    always_comb begin
+        my_class_alias cls;
+        cls = new();
+    end
+endmodule
+module mod_anon_prog (
+    input logic in_ap,
+    output logic out_ap
+);
+    program begin
+        assign out_ap = in_ap;
+    end
+    class my_class_anon_prog;
+        int value;
+        function new(int v);
+            value = v;
+        endfunction
+    endclass
+    always_comb begin
+        my_class_anon_prog cls;
+        cls = new(42);
+    end
+endmodule

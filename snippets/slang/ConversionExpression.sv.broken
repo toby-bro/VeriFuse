@@ -1,0 +1,238 @@
+typedef enum { RED, GREEN, BLUE, YELLOW, ORANGE } color_e;
+typedef struct packed {
+    logic [7:0] field1;
+    logic [15:0] field2;
+} packed_struct_t;
+typedef struct packed {
+    logic [7:0] f1;
+    logic [15:0] f2;
+} similar_packed_struct_t; 
+typedef union packed {
+    logic [31:0] ufield1;
+    packed_struct_t ufield2;
+    logic [7:0] ufield3[4];
+} packed_union_t;
+typedef logic [7:0] byte_t;
+class conversion_object;
+    int val;
+    function new(int v);
+        val = v;
+    endfunction
+endclass
+module IntSignedWidthConversions (
+    input  logic signed [31:0] in_signed32,
+    input  logic unsigned [7:0] in_unsigned8,
+    output logic signed [63:0] out_signed64_widen,
+    output logic unsigned [15:0] out_unsigned16_narrow,
+    output logic signed [7:0] out_signed8_sign_cast
+);
+    always_comb begin
+        out_signed64_widen = in_signed32;
+    end
+    always_comb begin
+        out_unsigned16_narrow = in_unsigned8;
+    end
+    always_comb begin
+        out_unsigned16_narrow = 16'(in_unsigned8); 
+    end
+    always_comb begin
+        out_signed8_sign_cast = signed'(in_unsigned8); 
+    end
+    always_comb begin
+        out_signed64_widen = signed'(64'(in_unsigned8)); 
+    end
+    always_comb begin
+         int useless_intermediate;
+         useless_intermediate = int'(in_signed32); 
+         out_signed64_widen = $signed(useless_intermediate); 
+    end
+endmodule
+module FloatIntStringByteConversions (
+    input  real in_real,
+    input  int in_int,
+    input  string in_string,
+    input  byte_t in_bytes_arr[10],
+    output longint out_longint,
+    output shortreal out_shortreal,
+    output string out_string,
+    output byte_t out_byte_queue[$]
+);
+    always_comb begin
+        out_longint = in_real;
+    end
+    always_comb begin
+        out_shortreal = in_int;
+    end
+    always_comb begin
+        out_longint = longint'(in_real);
+    end
+    always_comb begin
+        out_shortreal = shortreal'(in_int);
+    end
+    always_comb begin
+        out_string = in_bytes_arr;
+    end
+    always_comb begin
+        out_string = string'(in_bytes_arr);
+    end
+    always_comb begin
+        out_byte_queue = byte_t[$]'(in_string);
+    end
+    always_comb begin
+        out_string = null; 
+    end
+endmodule
+module EnumConversions (
+    input  int in_int_for_enum,
+    input  logic [2:0] in_logic_for_enum,
+    input  logic cond_for_enum_op,
+    output color_e out_color_implicit,
+    output color_e out_color_explicit,
+    output color_e out_color_cond_op
+);
+    always_comb begin
+        out_color_implicit = in_int_for_enum;
+    end
+    always_comb begin
+        out_color_explicit = color_e'(in_logic_for_enum);
+    end
+    always_comb begin
+        out_color_cond_op = cond_for_enum_op ? RED : GREEN;
+    end
+    always_comb begin
+        out_color_implicit = color_e'(cond_for_enum_op ? 10 : 20); 
+    end
+endmodule
+module ArrayPackedUnpackedConversions (
+    input  logic [7:0] fixed_array_in[4],
+    input  logic [7:0] dynamic_array_in[],
+    input  logic [7:0] queue_in[$],
+    input  logic [15:0] packed_word_in,
+    input  logic [7:0] packed_bytes_in[2],
+    input  logic [7:0] packed_array_2d_in[2][2],
+    input  logic [15:0] packed_array_1d_in[2],
+    output logic [7:0] fixed_array_out[4],
+    output logic [7:0] dynamic_array_out[],
+    output logic [7:0] queue_out[$],
+    output logic [15:0] packed_word_out,
+    output logic [7:0] packed_bytes_out[2],
+    output logic [7:0] packed_array_2d_out[2][2]
+);
+    always_comb begin
+        dynamic_array_out = fixed_array_in;
+    end
+    always_comb begin
+        fixed_array_out = dynamic_array_in;
+    end
+    always_comb begin
+        queue_out = fixed_array_in;
+    end
+     always_comb begin
+        fixed_array_out = queue_in;
+    end
+    always_comb begin
+        dynamic_array_out = queue_in;
+    end
+    always_comb begin
+        queue_out = dynamic_array_in;
+    end
+    always_comb begin
+        packed_word_out = packed_bytes_in; 
+        packed_bytes_out = packed_word_in; 
+    end
+    always_comb begin
+        packed_array_2d_out = packed_array_1d_in;
+    end
+endmodule
+module StructUnionConversions (
+    input  packed_struct_t in_struct,
+    input  packed_union_t in_union,
+    input  similar_packed_struct_t in_similar_struct,
+    output packed_struct_t out_struct,
+    output packed_union_t out_union,
+    output packed_struct_t out_struct_similar
+);
+    always_comb begin
+        out_union = in_struct;
+    end
+    always_comb begin
+        out_struct = in_union;
+    end
+    always_comb begin
+        out_struct_similar = in_similar_struct; 
+    end
+endmodule
+module BitstreamStreamingConversions (
+    input  int in_int_bs,
+    input  packed_struct_t in_struct_bs,
+    input  logic [31:0] in_bits_bs,
+    input  conversion_object in_class_handle_bs, 
+    output logic [31:0] out_bits_bs,
+    output packed_struct_t out_struct_bs,
+    output int out_int_bs,
+    output conversion_object out_class_handle_bs
+);
+    conversion_object local_class_handle;
+    always_comb begin
+        local_class_handle = new(123); 
+    end
+    always_comb begin
+        out_bits_bs = bitstream'(in_int_bs);
+    end
+    always_comb begin
+        out_struct_bs = packed_struct_t'(in_bits_bs);
+    end
+    always_comb begin
+        out_bits_bs = bitstream'(in_struct_bs);
+    end
+    always_comb begin
+        out_int_bs = int'(in_bits_bs);
+    end
+    always_comb begin
+        out_bits_bs = bitstream'(in_class_handle_bs);
+    end
+    always_comb begin
+        out_class_handle_bs = conversion_object'(in_bits_bs);
+    end
+    always_comb begin
+        out_bits_bs = {>>byte_t{in_int_bs}}; 
+    end
+    always_comb begin
+        out_bits_bs = {>>{in_struct_bs}}; 
+    end
+    always_comb begin
+        out_struct_bs = {>>byte_t{in_int_bs}}; 
+    end
+endmodule
+module ComplexConversions (
+    input  logic in_cond_complex,
+    input  int in_val_complex1,
+    input  int in_val_complex2,
+    input  logic [7:0] array_in_complex[2],
+    output real out_real_complex,
+    output logic [15:0] out_concat_complex,
+    output logic out_bit_range
+);
+    always_comb begin
+        out_real_complex = in_cond_complex ? in_val_complex1 : in_val_complex2;
+    end
+    always_comb begin
+        out_concat_complex = {array_in_complex[0], array_in_complex[1]}; 
+    end
+    always_comb begin
+        out_bit_range = '[1:1]; 
+    end
+endmodule
+module UselessConstCast (
+    input  int in_val_useless,
+    input  const int in_const_val,
+    output int out_val_useless,
+    output int out_const_val
+);
+    always_comb begin
+        out_val_useless = int'(in_val_useless);
+    end
+    always_comb begin
+        out_const_val = const'(in_const_val); 
+    end
+endmodule

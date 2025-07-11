@@ -1,0 +1,583 @@
+`timescale 1ns/1ps
+`celldefine
+`define MY_DEFINE_FLAG
+`ifdef MY_DEFINE_FLAG
+`undef MY_DEFINE_FLAG
+`else
+`endif
+`ifndef ANOTHER_FLAG
+`define ANOTHER_FLAG_DEFINED
+`endif
+`line 100 "fake_file.sv" 1
+`default_nettype wire
+`nounconnected_drive
+`unconnected_drive pull1
+`resetall
+`pragma generic_pragma
+`undefineall
+`define REDEFINED_FLAG 1
+timeunit 1ns;
+timeprecision 1ps;
+primitive my_primitive_def (a, b); output a; input b; table 0:1; endtable endprimitive
+macromodule my_macromodule_def (input a, output b); assign b = a; endmodule
+class BaseClass;
+    function new(); endfunction
+    virtual function void base_method(); endfunction
+endclass
+virtual class DerivedClass extends BaseClass; 
+    function new(); super.new(); endfunction
+    pure virtual function void pure_method();
+    extern function void extern_method();
+    function void this_method(); this.base_method(); endfunction
+endclass
+function void DerivedClass::extern_method();
+endfunction
+interface my_interface;
+    logic sig;
+    modport mp (input sig);
+endinterface
+package my_package;
+    parameter int PKG_PARAM = 1;
+    function int pkg_func(); return PKG_PARAM; endfunction
+endpackage
+program my_program;
+endprogram
+checker my_checker;
+endchecker
+covergroup my_covergroup_for_new;
+    cp: coverpoint 1;
+endgroup
+module Module_BasicSyntax (
+    input logic [7:0] in_a,
+    input logic [7:0] in_b,
+    output logic [7:0] out_ops1,
+    output logic [7:0] out_ops2,
+    output logic out_bool1,
+    output logic out_bool2
+);
+    logic [7:0] temp;
+    logic [15:0] wide_temp;
+    logic [7:0] arr [0:7];
+    assign (weak1, weak0) out_ops1 = (in_a + in_b) * (in_a - in_b) / (in_a % (in_b == 0 ? 8'd1 : in_b)) & (in_a | in_b) ^ (~in_a);
+    assign (strong1, strong0) out_ops2 = {in_a, in_b}[7:0];
+    assign out_bool1 = (in_a == in_b) || (in_a != in_b) && (in_a < in_b) <= (in_a > in_b) >= !(in_a === 8'h00);
+    always_comb begin
+        temp = in_a;
+        temp += in_b;
+        temp -= in_a;
+        temp *= 8'd2;
+        temp /= 8'd2;
+        temp %= 8'd3;
+        temp &= in_b;
+        temp |= in_a;
+        temp ^= in_b;
+        temp <<= 1;
+        temp >>= 1;
+        wide_temp = {in_a, in_b};
+        temp = wide_temp <<< 2;
+        temp = wide_temp >>> 2;
+        temp <<<= 2;
+        temp >>>= 2;
+        out_bool2 = (in_a ==? in_b);
+        out_bool2 = (in_a !=? in_b);
+        out_bool2 = (in_a !== in_b);
+        temp = &in_a;
+        temp = |in_a;
+        temp = ^in_a;
+        temp = ~&in_a;
+        temp = ~|in_a;
+        temp = ~^in_a;
+        temp = +in_a;
+        temp = -in_a;
+        arr = '{8'd1, 8'd2, 8'd3, 8'd4, 8'd5, 8'd6, 8'd7, 8'd8}; 
+        temp = in_a;
+        temp++;
+        temp--;
+        temp = in_a ** in_b[2:0];
+    end
+endmodule
+module Module_DataTypes (
+    input int int_in,
+    input bit escaped_in,
+    output int int_out,
+    output bit escaped_out
+);
+    parameter time GLOBAL_DELAY = 10ns; 
+    reg [7:0] my_reg;
+    wire my_wire;
+    logic my_logic;
+    bit my_bit;
+    byte my_byte;
+    shortint my_shortint;
+    int my_int;
+    longint my_longint;
+    real my_real;
+    shortreal my_shortreal;
+    time my_time;
+    realtime my_realtime;
+    event my_event;
+    string my_string;
+    chandle my_chandle;
+    uwire my_uwire;
+    tri my_tri;
+    tri0 my_tri0;
+    tri1 my_tri1;
+    triand my_triand;
+    trior my_trior;
+    trireg my_trireg;
+    wand my_wand;
+    wor my_wor;
+    supply0 my_supply0; 
+    supply1 my_supply1; 
+    pulldown my_pulldown_inst(my_pulldown);
+    pullup my_pullup_inst(my_pullup);
+    int signed signed_var_int;
+    logic signed [7:0] signed_var_logic;
+    logic unsigned [7:0] unsigned_var_logic;
+    wire scalared [1:0] scalar_wire;
+    wire vectored [1:0] vector_wire;
+    parameter MY_PARAM = 10;
+    localparam MY_LOCALPARAM = 20;
+    var logic my_var;
+    const logic my_const = 1'b0;
+    static int my_static_int;
+    // Remove unsupported random variables
+    // rand int my_rand_int; 
+    // randc int my_randc_int; 
+    struct packed {
+        logic [2:0] field1;
+        bit field2;
+    } my_struct;
+    union tagged { 
+        int i;
+        real r;
+    } my_union;
+    enum { STATE_IDLE, STATE_BUSY } my_enum;
+    typedef enum { RED, GREEN, BLUE } color_t; 
+    color_t my_color = RED;
+    wire \escaped.wire ; 
+    assign my_wire = my_bit;
+    assign int_out = int_in + MY_PARAM + MY_LOCALPARAM;
+    assign \escaped.wire = escaped_in; 
+    assign escaped_out = \escaped.wire ; 
+    assign my_supply0 = 1'b0; 
+    assign my_supply1 = 1'b1;
+    assign my_pulldown = 1'b0;
+    assign my_pullup = 1'b1;
+    always_comb begin
+        logic [31:0] size_of_int;
+        automatic int my_auto_int; 
+        // Remove reference to undeclared my_class
+        // my_class obj; 
+        // obj = new(); 
+        // obj = null; 
+        my_logic = my_wire;
+        my_byte = byte'(int_in);
+        my_int = int_in;
+        my_shortint = shortint'(int_in);
+        my_longint = longint'(int_in);
+        my_real = real'(int_in);
+        my_shortreal = shortreal'(int_in);
+        my_time = time'(100); 
+        my_realtime = realtime'(100.5); 
+        my_string = "hello"; 
+        signed_var_int = -int_in; 
+        signed_var_logic = -int_in; 
+        unsigned_var_logic = unsigned'(int_in); 
+        my_struct.field1 = 3'b101;
+        my_struct.field2 = 1'b1;
+        my_union.i = 5; 
+        my_color = GREEN; 
+        my_var = 1'b1; 
+        my_static_int = 1; 
+        my_auto_int = 2; 
+        size_of_int = $bits(int); 
+        my_event = 1; 
+        my_chandle = null; 
+        // Remove assignments to nets in procedural blocks
+        // my_tri = 1'b0;
+        // my_tri0 = 1'b0;
+        // my_tri1 = 1'b1;
+        // my_triand = 1'b1;
+        // my_trior = 1'b0;
+        // my_trireg = 1'b1;
+        // my_wand = 1'b0;
+        // my_wor = 1'b1;
+        // my_uwire = 1'b1;
+    end
+endmodule
+module Module_ControlFlow (
+    input logic [2:0] sel_in,
+    input logic [7:0] data_val,
+    input logic clk,
+    input logic reset,
+    output reg [7:0] data_res 
+);
+    reg [7:0] temp_res; 
+    logic is_valid = 1'b1;
+    int loop_count;
+    always_comb begin
+        int i;
+        temp_res = 8'hFF; 
+        case (sel_in) 
+            3'b000: temp_res = data_val;
+            3'b001: temp_res = data_val + 1;
+            3'b010: casex (data_val[1:0]) begin 
+                        2'b0?: temp_res = 8'h10;
+                        2'b1z: temp_res = 8'h20;
+                        default: temp_res = 8'h30; 
+                    endcase
+            3'b011: casez (data_val[1:0]) begin 
+                        2'b0?: temp_res = 8'h40;
+                        2'b1z: temp_res = 8'h50;
+                        default: temp_res = 8'h60;
+                    endcase
+            default: temp_res = 8'hAA; 
+        endcase
+        if (is_valid) begin 
+            if (data_val > 8'd100) temp_res = temp_res + 10;
+            else if (data_val < 8'd50) temp_res = temp_res - 5; 
+            else temp_res = temp_res; 
+        end else begin
+            temp_res = 8'h00;
+        end
+        unique case (sel_in) 
+            3'b000: ;
+            3'b001: ;
+            3'b010: ;
+            3'b011: ;
+            default: ; 
+        endcase
+        unique0 case (sel_in) 
+            3'b000: ;
+            3'b001: ;
+            3'b010: ;
+            3'b011: ;
+            default: ;
+        endcase
+        priority if (is_valid) begin 
+        end else begin
+        end
+        for (i = 0; i < 2; i++) begin 
+             if (i == 1) continue; 
+             temp_res += 1;
+        end
+        i = 2;
+        while (i > 0) begin 
+            temp_res -= 1;
+            i--;
+        end
+        repeat (2) begin 
+            temp_res += 1;
+        end
+        i = 0;
+        do begin 
+           temp_res += 1;
+           i++;
+           if (i == 1) break; 
+        end while (i < 2);
+    end
+    always_ff @(posedge clk or negedge reset) begin 
+        if (reset) begin
+             loop_count = 0;
+        end else begin
+        end
+    end
+    always_comb begin
+       data_res = temp_res; 
+    end
+endmodule
+module Module_ProceduralCode (
+    input int func_in1, func_in2,
+    input string task_s_in,
+    input int task_v_in,
+    output int func_out 
+);
+    int task_out_v;
+    string task_io_s = "initial";
+    int task_ref_v = 10;
+    reg force_release_reg; 
+    wire disable_wire; 
+    function automatic integer add_numbers(input integer num1, num2); 
+        return num1 + num2; 
+    endfunction
+    task automatic display_value(input string s, integer val); 
+    endtask
+    function void do_nothing(); 
+    endfunction
+    task automatic process_data(output int out_v, inout string io_s, ref int ref_v); 
+        out_v = ref_v + 1;
+        io_s = "processed";
+        ref_v = ref_v * 2;
+    endtask
+    event my_event; 
+    always_comb begin
+        func_out = add_numbers(func_in1, func_in2);
+        do_nothing();
+        process_data(task_out_v, task_io_s, task_ref_v);
+        display_value(task_s_in, task_v_in); 
+        fork 
+           begin end
+           begin end
+        join 
+        fork
+           begin end
+           begin end
+        join_any 
+        fork
+           begin end
+           begin end
+        join_none 
+        wait (task_ref_v > 5); 
+        force force_release_reg = 1'b1; 
+        release force_release_reg; 
+    end
+    assign disable_wire = 1'b1; 
+endmodule
+module Module_GatePrimitives (
+    input wire g_in, g_ctrl_n, g_ctrl_p, clk, 
+    output wire g_out_and, g_out_or, g_out_not, g_out_xor,
+    output wire g_out_nand, g_out_nor, g_out_xnor, g_out_buf,
+    inout wire g_inout1, g_inout2,
+    output wire g_pullup_out, g_pulldown_out 
+);
+    supply0 s0_net; 
+    supply1 s1_net; 
+    pullup pu_net; 
+    pulldown pd_net; 
+    and a1(g_out_and, g_in, g_in);
+    or o1(g_out_or, g_in, g_in);
+    not n1(g_out_not, g_in);
+    xor x1(g_out_xor, g_in, g_in);
+    nand na1(g_out_nand, g_in, g_in);
+    nor no1(g_out_nor, g_in, g_in);
+    xnor xn1(g_out_xnor, g_in, g_in);
+    buf b1(g_out_buf, g_in);
+    bufif0 b0(g_out_buf, g_in, g_ctrl_n);
+    bufif1 b1_c(g_out_buf, g_in, g_ctrl_p);
+    notif0 n0(g_out_not, g_in, g_ctrl_n);
+    notif1 n1_c(g_out_not, g_in, g_ctrl_p);
+    tran t1(g_inout1, g_inout2);
+    rtran rt1(g_inout1, g_inout2);
+    tranif0 t0(g_inout1, g_inout2, g_ctrl_n);
+    tranif1 t1_c(g_inout1, g_inout2, g_ctrl_p);
+    rtranif0 rt0(g_inout1, g_inout2, g_ctrl_n);
+    rtranif1 rt1_c(g_inout1, g_inout2, g_ctrl_p);
+    cmos c1(g_out_buf, g_ctrl_n, g_ctrl_p, g_in);
+    rcmos rc1(g_out_buf, g_ctrl_n, g_ctrl_p, g_in);
+    nmos nm1(g_out_buf, g_ctrl_n, g_in);
+    pmos pm1(g_out_buf, g_ctrl_p, g_in);
+    rnmos rnm1(g_out_buf, g_ctrl_n, g_in);
+    rpmos rpm1(g_out_buf, g_ctrl_p, g_in);
+    pulldown pd_inst(g_pulldown_out);
+    pullup pu_inst(g_pullup_out);
+    and (large, medium) a2(g_out_and, g_in, g_in);
+    or (small, large) o2(g_out_or, g_in, g_in);
+    specify 
+        specparam PATH_DELAY = 5; 
+        (g_in => g_out_and) = (1, 2); 
+        (g_in => g_out_or) = 1:2:3; 
+        reg dummy_reg; 
+        $setup(g_in, posedge clk, 1);
+        $hold(posedge clk, g_in, 1);
+        $setuphold(posedge clk, g_in, 1, 1);
+        $recovery(posedge clk, g_in, 1);
+        $removal(g_in, posedge clk, 1);
+        $nochange(posedge clk, g_in, 1, dummy_reg); 
+        (g_in, g_ctrl_p *> g_out_buf) = 1; 
+    endspecify 
+    assign g_inout1 = g_inout2 ? 1'b1 : 1'bz;
+    assign g_inout2 = g_inout1 ? 1'b0 : 1'bz;
+endmodule
+module Module_Assertions (
+    input logic assert_in,
+    input bit clk,
+    output logic cover_out
+);
+    clocking cb @(posedge clk); 
+        default input #1 output #1;
+        input assert_in;
+    endclocking 
+    sequence seq_one_step;
+        1step;
+    endsequence
+    always @(posedge clk) begin
+       expect (assert_in); 
+    end
+    sequence my_sequence; 
+       @(posedge clk) 1'b1;
+    endsequence 
+    sequence s_test_context;
+        @(posedge clk) assert_in > 0;
+    endsequence
+    sequence s_delay;
+        @(posedge clk) assert_in ##1 assert_in; 
+    endsequence
+    sequence s_before;
+        @(posedge clk) assert_in before assert_in; 
+    endsequence
+    sequence s_iff;
+        @(posedge clk) assert_in iff assert_in; 
+    endsequence
+    property my_property; 
+       @(posedge clk) my_sequence;
+    endproperty 
+    property p_implies;
+        @(posedge clk) assert_in |-> assert_in; 
+    endproperty
+    property p_sync_implies;
+        @(posedge clk) assert_in |=> assert_in; 
+    endproperty
+    property p_delay;
+        @(posedge clk) s_delay; 
+    endproperty
+    property p_past;
+        @(posedge clk) assert_in |-> $past(assert_in); 
+    endproperty
+    property p_sva_context;
+       @(posedge clk) property (context(s_test_context)); 
+    endproperty
+    property p_eventually;
+       @(posedge clk) eventually! s_test_context; 
+    endproperty
+    property p_first_match;
+       @(posedge clk) first_match(s_test_context); 
+    endproperty
+    property p_nexttime;
+       @(posedge clk) nexttime s_test_context; 
+    endproperty
+    property p_until;
+       @(posedge clk) 1'b1 until s_test_context; 
+    endproperty
+    property p_until_with;
+       @(posedge clk) 1'b1 until_with s_test_context; 
+    endproperty
+    property p_s_always;
+       @(posedge clk) s_always! s_test_context; 
+    endproperty
+    property p_s_eventually;
+       @(posedge clk) s_eventually! s_test_context; 
+    endproperty
+    property p_s_nexttime;
+       @(posedge clk) s_nexttime! s_test_context; 
+    endproperty
+    property p_s_until;
+       @(posedge clk) 1'b1 s_until s_test_context; 
+    endproperty
+    property p_s_until_with;
+       @(posedge clk) 1'b1 s_until_with s_test_context; 
+    endproperty
+    property p_throughout;
+        @(posedge clk) 1'b1 throughout s_delay; 
+    endproperty
+    property p_within;
+        @(posedge clk) s_delay within s_delay; 
+    endproperty
+    let my_let = (assert_in > 0); 
+    property p_let; @(posedge clk) my_let; endproperty
+    property p_strong_sva; @(posedge clk) strong(assert_in > 0); endproperty 
+    property p_weak_sva; @(posedge clk) weak(assert_in > 0); endproperty 
+    property p_restrict_sva; restrict (p_strong_sva); endproperty 
+    assert property (my_property); 
+    assume property (my_property); 
+    cover property (my_property); 
+    assert property (p_implies);
+    assert property (p_sync_implies);
+    assert property (p_delay);
+    assert property (p_past);
+    assert property (p_sva_context);
+    assert property (p_eventually);
+    assert property (p_first_match);
+    assert property (p_nexttime);
+    assert property (p_until);
+    assert property (p_until_with);
+    assert property (p_s_always);
+    assert property (p_s_eventually);
+    assert property (p_s_nexttime);
+    assert property (p_s_until);
+    assert property (p_s_until_with);
+    assert property (p_throughout);
+    assert property (p_within);
+    assert property (p_let);
+    assert property (p_strong_sva);
+    assert property (p_weak_sva);
+    assert property (p_restrict_sva);
+    assert property (seq_one_step); 
+    assert property (s_before); 
+    assert property (s_iff); 
+    assign cover_out = assert_in; 
+endmodule
+module Module_Coverage (
+    input int data_in_cg,
+    input bit clk,
+    output logic cover_out_cg
+);
+    covergroup cg @(posedge clk);
+        option.per_instance = 1; 
+        cp1: coverpoint data_in_cg { 
+            bins low = { [0:10] }; 
+            bins high = { [5:15] };
+            bins overlap = { [0:20] intersect [10:30] }; 
+            ignore_bins zero = {0}; 
+            illegal_bins bad = {30}; 
+        }
+        cp2: coverpoint data_in_cg;
+        cross c1 = cp1, cp2 { 
+           bins cross_bins = binsof(cp1); 
+        }
+    endgroup 
+    cg cg_inst = new(); 
+    assign cover_out_cg = 1'b0; 
+endmodule
+module DummyBindTarget (input bit bind_in, output bit bind_out); assign bind_out = bind_in; endmodule
+module Binder (input bit in_bnd, output bit out_bnd);
+    bind DummyBindTarget binder_inst_1 (in_bnd); 
+    bind DummyBindTarget : binder_inst_2; 
+    assign out_bnd = in_bnd; 
+endmodule
+module Module_SVKeywords (
+    input bit [7:0] misc_in_sv,
+    output bit [7:0] misc_out_sv
+);
+    reg [7:0] temp_sv;
+    always_comb begin
+        my_class top_obj;
+        temp_sv = misc_in_sv;
+        if (misc_in_sv inside {8'd1, 8'd2, 8'd3}) begin 
+            temp_sv = 8'hAA;
+        end
+        top_obj = new(); 
+        top_obj = null; 
+    end
+    assign misc_out_sv = temp_sv;
+endmodule
+module Module_MacroTokens (
+    input logic tok_in_macro,
+    output logic tok_out_macro
+);
+    `define MQUOTE_SEQ `" 
+    `define MTRIPLEQUOTE_SEQ `""" 
+    `define MESCAPEDQUOTE_SEQ `\`" 
+    `define MPASTE_SEQ `` 
+    `define PASTE_TOKENS(a, b) a``b
+    logic `PASTE_TOKENS(my, _pasted_var);
+    always_comb begin
+        `PASTE_TOKENS(my, _pasted_var) = tok_in_macro;
+        tok_out_macro = tok_in_macro || `PASTE_TOKENS(my, _pasted_var);
+    end
+endmodule
+module Module_UntypedParam #(untyped UNTYPED_PARAM) ( 
+    input int data_in_ut,
+    output int data_out_ut
+);
+    assign data_out_ut = data_in_ut;
+endmodule
+module Module_IfNoneParam (
+    input int data_in_ifnone,
+    output int data_out_ifnone
+);
+    parameter type T = type(ifnone); 
+    assign data_out_ifnone = data_in_ifnone;
+endmodule
+`endcelldefine
+`default_nettype none

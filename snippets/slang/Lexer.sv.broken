@@ -1,0 +1,462 @@
+timeunit 1ns;
+timeprecision 1ps;
+`timescale 1ns/1ps
+module sv_ops_data_access (
+  input logic [7:0] in1,
+  input logic [7:0] in2,
+  output logic [7:0] out_val,
+  output logic out_flag
+);
+  logic c_reg;
+  logic [1:0] vec_reg;
+  logic [7:0] data1;
+  logic [7:0] data2;
+  logic [7:0] res;
+  logic [3:0] wide_vec;
+  logic [1:0] part_res;
+  logic [7:0] compound_val;
+  logic [7:0] memory_ops [0:7];
+  typedef struct packed { logic [3:0] x; logic [3:0] y; } coord_t;
+  coord_t point_ops;
+  logic [7:0] array_init_comp [3:0];
+  logic [7:0] empty_init_val;
+  logic [7:0] nested_array [0:1][0:1];
+  typedef enum { STATE_IDLE, STATE_ACTIVE } state_e;
+  state_e current_state;
+  logic signed [7:0] signed_in1;
+  logic unsigned [7:0] unsigned_in2;
+  logic [7:0] array_literal [0:2];
+  logic [7:0] queue_var [0:3]; // Fixed size array to replace dynamic array
+  logic [7:0] dynamic_array [0:2]; // Fixed size array to replace dynamic array
+  logic [7:0] associative_array [0:1]; // Fixed size array to replace associative array
+  logic [31:0] bits_val;
+  logic [31:0] size_val;
+  logic [31:0] clog2_val;
+
+  typedef union packed {
+    logic [15:0] word;
+    logic [7:0] bytes [0:1]; // Replaced invalid 'byte' with 'bytes'
+  } word_byte_u;
+
+  word_byte_u my_union;
+  logic [15:0] out_status;
+
+  always_comb begin
+    data1 = in1;
+    data2 = in2;
+    c_reg = data1[0];
+    vec_reg = 2'b00;
+    out_val = 8'h00;
+    out_flag = 1'b0;
+    signed_in1 = $signed(in1);
+    unsigned_in2 = $unsigned(in2);
+    out_flag = data1[0] && c_reg;
+    out_flag = data1[0] || c_reg;
+    out_flag = !data1[0];
+    res = data1 & data2;
+    res = data1 | data2;
+    res = data1 ^ data2;
+    res = ~data1;
+    res = data1 ~^ data2;
+    res = ~data1 ^ data2;
+    res = ~&data1;
+    res = ~|data1;
+    out_flag = &data1;
+    out_flag = |data1;
+    out_flag = ^data1;
+    out_flag = ~&data1;
+    out_flag = ~|data1;
+    out_flag = ~^data1;
+    out_flag = data1 == data2;
+    out_flag = data1 != data2;
+    out_flag = data1 === data2;
+    out_flag = data1 !== data2;
+    out_flag = data1 < data2;
+    out_flag = data1 <= data2;
+    out_flag = data1 > data2;
+    out_flag = data1 >= data2;
+    res = data1 + data2;
+    res = data1 - data2;
+    res = data1 * data2;
+    if (data2 != 8'h00) begin
+      res = data1 / data2;
+      res = data1 % data2;
+    end else begin
+      res = 8'hFF;
+    end
+    res = signed_in1 + $signed(data2);
+    res = unsigned_in2 - $unsigned(data1);
+    wide_vec = {data1[1:0], data2[1:0]};
+    res = {2{data1[3:0]}};
+    part_res = wide_vec[1 +: 2];
+    part_res = wide_vec[3 -: 2];
+    if (in1[0] < 2) part_res = wide_vec[in1[0] +: 2];
+    res = data1 << 2;
+    res = data1 >> 1;
+    res = data1 <<< 3;
+    res = data1 >>> 4;
+    compound_val = data1;
+    compound_val += data2;
+    compound_val -= data2;
+    compound_val *= data2;
+    if (data2 != 8'h00) begin
+        compound_val /= data2;
+        compound_val %= data2;
+    end
+    compound_val &= data2;
+    compound_val |= data2;
+    compound_val ^= data2;
+    compound_val <<= 1;
+    compound_val >>= 1;
+    compound_val <<<= 1;
+    compound_val >>>= 1;
+    if (in1[2:0] < 8) begin
+      memory_ops[in1[2:0]] = in1;
+      out_val = memory_ops[in1[2:0]];
+      out_val[3:0] = memory_ops[in1[2:0]][3:0];
+      if (in1[1:0] < 4) begin
+        out_val[0] = memory_ops[in1[2:0]][in1[1:0]];
+      end
+    end else begin
+        out_val = 'x;
+    end
+    array_literal = '{8'hAA, 8'hBB, 8'hCC};
+    out_val = array_literal[in1[1:0] % 3];
+    queue_var[0] = 8'h01;
+    queue_var[1] = 8'h02;
+    queue_var[2] = 8'h03;
+    out_val = queue_var[0];
+    out_val = queue_var[2];
+    dynamic_array[0] = in1;
+    dynamic_array[1] = in2;
+    dynamic_array[2] = in1 + in2;
+    out_val = dynamic_array[2];
+    associative_array[0] = in1;
+    associative_array[1] = in2;
+    out_val = associative_array[0];
+    point_ops.x = in1[3:0];
+    point_ops.y = in1[7:4];
+    out_val = {point_ops.x, point_ops.y};
+    array_init_comp = '{8'h00, 8'h11, 8'h22, 8'h33};
+    out_val = array_init_comp[in1[1:0] % 4];
+    empty_init_val = 8'b0;
+    out_val = (in1 > in2) ? in1 : in2;
+    out_flag = in1 inside {8'h00, 8'hFF, [8'h10 : 8'h20]};
+    nested_array[0][0] = in1;
+    nested_array[0][1] = in2;
+    nested_array[1][0] = in1 + in2;
+    nested_array[1][1] = in1 - in2;
+    out_val = nested_array[in1[0] % 2][in1[1] % 2];
+    current_state = STATE_ACTIVE;
+    if (in1[0]) current_state = STATE_IDLE;
+    out_flag = (current_state == STATE_ACTIVE);
+    point_ops = '{x: in1[3:0], y: in1[7:4]};
+    out_val[3:0] = point_ops.x;
+    out_val[7:4] = point_ops.y;
+    bits_val = $bits(out_flag);
+    size_val = $size(memory_ops);
+    clog2_val = $clog2($size(memory_ops));
+    out_flag = $onehot(in1);
+    out_flag = $onehot0(in2);
+    out_flag = $isunknown(out_val);
+    out_val = {data1[7:4], data2[3:0]} + {4'b0, data1[3:0]};
+
+    // Fix union access
+    my_union.word = 16'hABCD;
+    out_status[7:0] = my_union.bytes[0];
+    out_status[15:8] = my_union.bytes[1];
+    out_status = {my_union.bytes[1], my_union.bytes[0]};
+  end
+endmodule
+module sv_literals_types (input logic [7:0] in_val, output logic [15:0] out_status);
+  logic [7:0] byte_lit;
+  logic [15:0] word_lit;
+  real r_val;
+  time t_val;
+  int i_val;
+  byte b_val;
+  shortint si_val;
+  longint li_val;
+  integer intg_val;
+  realtime rt_val;
+  shortreal sr_val;
+  typedef union { logic [15:0] word; logic [7:0] byte [0:1]; } word_byte_u;
+  word_byte_u my_union;
+  struct { logic [3:0] a; logic [3:0] b; } anonymous_struct;
+  class MyClass;
+      int data;
+      function new(int d); data = d; endfunction
+  endclass
+  MyClass my_obj;
+  always_comb begin
+    byte_lit = 8'h0;
+    word_lit = 16'h0;
+    r_val = 0.0;
+    t_val = 0ns;
+    i_val = 0;
+    b_val = 0;
+    si_val = 0;
+    li_val = 0;
+    intg_val = 0;
+    rt_val = 0s;
+    sr_val = 0.0;
+    my_union.word = 16'h0000;
+    anonymous_struct = '{a: 4'h0, b: 4'h0};
+    out_status = 16'h0;
+    my_obj = null;
+    byte_lit = 123_456 % 256;
+    byte_lit = 8'b1010_1100;
+    byte_lit = 8'B10101100;
+    byte_lit = 8'o254;
+    byte_lit = 8'O254;
+    byte_lit = 8'd172;
+    byte_lit = 8'D172;
+    byte_lit = 8'hAC;
+    byte_lit = 8'Hac;
+    word_lit = 16'b11_0011_0011_0011;
+    word_lit = 16'o7_65_43_21;
+    word_lit = 16'd65535;
+    word_lit = 16'hDEAD;
+    byte_lit = 'b11_00;
+    byte_lit = 'O7_6;
+    byte_lit = 'd100;
+    byte_lit = 'hF_F;
+    byte_lit = '0;
+    byte_lit = '1;
+    byte_lit = 'x;
+    byte_lit = 'z;
+    byte_lit = 8'sb1111_1111;
+    byte_lit = 8'sd127;
+    byte_lit = 8'sh7F;
+    byte_lit = 8'so177;
+    r_val = 1.0;
+    r_val = 2.0e3;
+    r_val = 3.4E-5;
+    r_val = 0.1;
+    r_val = 5.0;
+    r_val = 0.6;
+    r_val = 1.7e308;
+    r_val = 1.1e-308;
+    r_val = 1.79769e308;
+    r_val = 2.22507e-308;
+    r_val = 5.0e-324;
+    t_val = 1ns;
+    t_val = 2us;
+    t_val = 3ms;
+    t_val = 4ps;
+    t_val = 5fs;
+    t_val = 6s;
+    rt_val = 12.3s;
+    b_val = in_val;
+    si_val = in_val;
+    li_val = in_val;
+    intg_val = in_val;
+    sr_val = real'(in_val);
+    rt_val = $realtime;
+    my_union.word = {in_val, in_val};
+    out_status[7:0] = my_union.byte[0];
+    out_status[15:8] = my_union.byte[1];
+    out_status = {my_union.byte[1], my_union.byte[0]};
+    anonymous_struct.a = in_val[3:0];
+    anonymous_struct.b = in_val[7:4];
+    out_status = {anonymous_struct.b, anonymous_struct.a};
+    if (in_val[0]) begin
+        my_obj = new(in_val);
+        out_status = my_obj.data;
+    end else begin
+        my_obj = null;
+        out_status = 16'h0000;
+    end
+    if (my_obj == null) out_status[0] = 1'b1;
+  end
+endmodule
+`line 100 "macros_directives_comments_flow.sv" 1
+`define MACRO_SIMPLE_VALUE value
+`define MACRO_ESCAPED_QUOTE_STR "abc\\`\\`\\\"def"
+`define MACRO_QUOTE_LITERAL_STR "\"Hello\""
+`define MACRO_TRIPLE_QUOTE_LITERAL_STR "\"\"\"Hello Triple Quoted\"\"\""
+`define MACRO_CONCAT_ID_PART_A my_id_prefix_
+`define MACRO_CONCAT_ID_PART_B_suffix _part_
+`define MACRO_CONCAT_ID_PART_C_end suffix
+`define MACRO_PASTE_ID(a,b,c) a``b``c
+`define MACRO_MULTILINE_VAR(arg) \
+  logic [7:0] arg = 8'hAA; \
+`define MACRO_WITH_ARGS(x, y) (x + y)
+`undef MACRO_SIMPLE_VALUE
+`celldefine
+module cell_for_directive_2(input logic clk, output logic dummy_out);
+assign dummy_out = clk;
+endmodule
+`endcelldefine
+`ifdef UNDEFINED_SYMBOL_2
+  logic unused_ifdef_reg_2;
+`elsif OTHER_UNDEFINED_SYMBOL_3
+  logic unused_elsif_reg_2;
+`else
+  `define ELSE_BLOCK_ACTIVE_2 1
+  logic else_block_reg_2;
+  assign else_block_reg_2 = 1'b1;
+`endif
+`ifndef DEFINED_SYMBOL_2
+  `define DEFINED_SYMBOL_2 1
+  logic ifndef_reg_2;
+  assign ifndef_reg_2 = 1'b1;
+`else
+  logic unused_ifndef_reg_2;
+`endif
+`default_nettype wire
+`pragma verilator lint_off some_lint_rule
+`pragma some_tool disable feature_y
+`pragma some_tool other_word another_word
+`include "another_dummy_include.svh"
+`line 200 "back_to_main.sv" 0
+module sv_directives_strings_comments_flow (input string in_str, input logic [3:0] selector, output logic out_flag);
+  string id_regular;
+  string \escaped identifier with spaces and !@#$ ;
+  string id_dollar$;
+  string _id_underscore_;
+  string $system_identifier;
+  string $size;
+  logic `MACRO_PASTE_ID(MACRO_CONCAT_ID_PART_A, MACRO_CONCAT_ID_PART_B_suffix, MACRO_CONCAT_ID_PART_C_end);
+  `MACRO_MULTILINE_VAR(macro_variable);
+  string standard_string;
+  string escaped_string;
+  string multiline_string;
+  string utf8_string;
+  string invalid_utf8_string;
+  string triple_quoted_string;
+  string macro_quote_string;
+  string macro_escaped_quote_string;
+  string macro_triple_quote_string;
+  logic [31:0] bits_val;
+  logic [31:0] size_val;
+  logic [31:0] clog2_val;
+  logic [7:0] some_array [0:10];
+  logic logic_id;
+  logic _a$_b_;
+  logic value;
+  /* This is a simple block comment */
+  /* slang translate_off */
+  logic translate_off_reg = 1'b0;
+  assign translate_off_reg = 1'b1;
+  /* This is a /* nested */ block comment which is an error */
+  /* slang translate_on */
+  /* slang lint_off lint_rule_a */
+  logic lint_off_reg = 1'b0;
+  /* slang lint_on lint_rule_b */
+  logic lint_on_reg = 1'b0;
+  /* slang lint_save */
+  /* slang lint_restore */
+  /* slang protect begin_protected Raw */
+  Some ASCII text with symbols !@#$%^&*()_+`-={}[]:";'<>?,./|\\~
+  你好世界 This is UTF-8.
+  Here is some text followed by an invalid UTF8 sequence: \xC3\x28 More text.
+  This line tests EmbeddedNull\0.
+  /* slang protect end_protected */
+  /* slang protect begin_protected UUENCODE 10 */
+  `N,"O<F5-E(#E94%!.0T].4$%.<R!.3k5u0T].3E)$(#A$051!("E$
+  `
+  /* slang protect end_protected */
+  /* slang protect begin_protected Base64 10*/
+  VGhpcyBpcyBCYXNlNjQgZW5jb2RlZCBkYXRhLg==
+  Test padding =. Test double padding ==.
+  /* slang protect end_protected */
+  /* slang protect begin_protected QuotedPrintable 10*/
+  This is Quoted-Printable=0D=0Adata=2E
+  Line Continuation example=
+  This should be on the same line logically.
+  =C2=A2 =E2=82=AC =F0=9D=84=9E # Euro and Musical G Clef UTF8
+  /* slang protect end_protected */
+  /* slang protect begin_protected Raw 10 */
+  abcdefghij
+  /* slang protect end_protected */
+  /* slang protect begin_protected Raw */
+  Another raw block
+  /* slang protect end_protected */
+  /* slang protect begin_protected legacy endprotected */
+  This is a legacy protected block.
+  It uses 'endprotected' as the end marker.
+  /* slang protect endprotected */
+  always_comb begin
+    id_regular = "regular";
+    \escaped identifier with spaces and !@#$  = "escaped_complex";
+    id_dollar$ = "dollar";
+    _id_underscore_ = "underscore";
+    $system_identifier = $sformatf("SystemID: %0t", $time);
+    $size = $sformatf("Size: %0d", $size(some_array));
+    macro_variable = 8'hBB;
+    my_id_prefix_part_suffix = 1'b1;
+    standard_string = "Standard string with \"quotes\".";
+    escaped_string = "Escapes: \n \t \\ \" \v \f \a \x2A \123.";
+    multiline_string = "First line\n\
+second line\n\
+third line.";
+    utf8_string = "UTF8: 你好世界 السلام عليكم";
+    invalid_utf8_string = "";
+    triple_quoted_string = """This is a
+                           triple quoted string
+                           with "" internal quotes.
+                           It can span multiple lines.""";
+    macro_quote_string = MACRO_QUOTE_LITERAL_STR;
+    macro_escaped_quote_string = MACRO_ESCAPED_QUOTE_STR;
+    macro_triple_quote_string = MACRO_TRIPLE_QUOTE_LITERAL_STR;
+    assign out_flag = `MACRO_WITH_ARGS(selector[0], selector[1]);
+    logic_id[0] = selector[0];
+    _a$_b_ = selector[1];
+    value = selector[2];
+    bits_val = $bits(out_flag);
+    size_val = $size(some_array);
+    clog2_val = $clog2($size(some_array));
+    out_flag = $onehot(selector);
+    out_flag = $onehot0(selector);
+    out_flag = $isunknown(selector);
+    out_flag = out_flag && (id_regular.len() > 0) && (\escaped identifier with spaces and !@#$ .len() > 0) &&
+               (id_dollar$.len() > 0) && (_id_underscore_.len() > 0) &&
+               ($system_identifier.len() > 0) && ($size.len() > 0) &&
+               (standard_string.len() > 0) && (escaped_string.len() > 0) &&
+               (multiline_string.len() > 0) && (utf8_string.len() > 0) &&
+               (triple_quoted_string.len() > 0) &&
+               (macro_quote_string.len() > 0) && (macro_escaped_quote_string.len() > 0) &&
+               (macro_triple_quote_string.len() > 0) &&
+               my_id_prefix_part_suffix && macro_variable[0] && value;
+  end
+  function automatic logic [7:0] test_system_func(logic [7:0] val);
+    return $signed(val) + 1;
+  endfunction
+  assign logic_id = test_system_func({4'b0, selector});
+  always @(*) begin
+    case (selector)
+      4'd0: out_flag = 1'b0;
+      4'd1: out_flag = 1'b1;
+      default: out_flag = 1'b0;
+    endcase
+  end
+  always @(*) begin
+    logic [3:0] i;
+    for (i=0; i < 4; i++) begin
+      if (i == selector) begin
+        out_flag = 1'b1;
+      end else begin
+        out_flag = 1'b0;
+      end
+    end
+  end
+  always @(posedge logic_id) begin
+  end
+  `define MACRO_EMPTY_ARG(a,b,c) {a,b,c}
+  logic [2:0] empty_arg_test;
+  assign empty_arg_test = `MACRO_EMPTY_ARG(1,,0);
+  assign empty_arg_test = `MACRO_EMPTY_ARG(1,0,);
+  assign empty_arg_test = `MACRO_EMPTY_ARG(,1,0);
+  assign empty_arg_test = `MACRO_EMPTY_ARG(,,);
+  assign empty_arg_test = `MACRO_EMPTY_ARG(1,0,1);
+  logic line_cont_reg = 1'b1; \
+  assign line_cont_reg = 1'b0;
+  /* This is a block comment
+     spanning multiple
+     lines. */
+  logic test_same_line;
+  assign test_same_line = 1'b1; /* This comment separates tokens */ assign test_same_line = 1'b0;
+  assign test_same_line = 1'b1; 
+  assign test_same_line = 1'b0;
+endmodule

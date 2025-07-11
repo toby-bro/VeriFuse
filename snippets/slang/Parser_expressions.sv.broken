@@ -1,0 +1,451 @@
+class my_class;
+  int data;
+  function new(int val = 0);
+    data = val;
+  endfunction
+  function int get_data();
+    return data;
+  endfunction
+  function void set_data(int val);
+    data = val;
+  endfunction
+  function void configure(int value, logic enable = 0);
+    data = enable ? value : 0;
+  endfunction
+endclass
+class derived_class extends my_class;
+    function new();
+        super.new(123);
+    endfunction
+    function int get_data_derived();
+        return this.data + super.get_data();
+    endfunction
+endclass
+typedef struct {
+  int field1;
+  logic field2;
+} my_struct;
+typedef union tagged {
+  int i;
+  real r;
+  string s;
+} my_union;
+package my_package;
+    int pkg_var = 55;
+endpackage
+sequence s_basic_def (signal1, signal2, clk);
+  @(posedge clk) signal1 ##1 signal2;
+endsequence
+sequence s_repetition_def (signal1, signal2, clk);
+  @(posedge clk) (signal1 [*3]) ##1 signal2;
+endsequence
+sequence s_repetition_eq_arrow_def (signal1, signal2, clk);
+  @(posedge clk) (signal1 [=2]) ##1 (signal2 [->3]);
+endsequence
+sequence s_delay_range_def (signal1, signal2, clk);
+  @(posedge clk) signal1 ##[1:5] signal2;
+endsequence
+property p_basic_def (signal1, signal2, clk);
+  @(posedge clk) $rose(signal1) |-> ##[1:5] $fell(signal2);
+endproperty
+property p_true;
+    1;
+endproperty
+module module_basic_expressions (
+  input logic in_bit,
+  input logic [7:0] in_byte,
+  input int in_int,
+  input real in_real,
+  output logic out_logic,
+  output logic [15:0] out_word,
+  output real out_real,
+  output int out_int
+);
+  always_comb begin
+    static logic [7:0] local_byte = 8'hA5;
+    static int local_int = 100;
+    static real local_real = 3.14;
+    static string local_string = "hello";
+    static int inc_dec_var = 5;
+    static my_class h_null;
+    static logic [15:0] concat_expr;
+    static logic [15:0] mult_concat_expr;
+    static logic [7:0] byte_part;
+    static logic signed [7:0] signed_byte;
+    static int cast_int;
+    static logic [15:0] inside_check_val = 16'd5;
+    static logic inside_result;
+    static my_struct cast_struct;
+    static int int_q_local[$];
+    static logic [3:0] part_select_var = 4'b1010;
+    static logic [1:0] dynamic_select_part;
+    out_logic = (in_bit && (local_byte != 8'h00)) || (!in_bit);
+    out_word[7:0] = in_byte + local_byte - 1;
+    out_real = local_real * in_real / 2.0;
+    out_int = ~in_int;
+    out_int = &in_byte;
+    out_int = |in_byte;
+    out_int = ^in_byte;
+    out_int = ~&in_byte;
+    out_int = ~|in_byte;
+    out_int = ~^in_byte;
+    out_int = +in_int;
+    out_int = -in_int;
+    local_int = 10_000;
+    local_byte = 8'b1010_1010;
+    local_byte = 8'hFF;
+    local_byte = 8'o77;
+    local_byte = '0;
+    local_byte = '1;
+    cast_int = 'X;
+    cast_int = 'Z;
+    cast_int = 'z; 
+    local_real = 1.234e-5;
+    local_real = 5.0;
+    local_real = 0.1;
+    local_real = 1.0;
+    local_string = "another string";
+    local_string = "";
+    h_null = null;
+    local_int = $clog2(in_byte + 1);
+    out_int = $random;
+    local_real = $itor(in_int);
+    concat_expr = {in_byte, local_byte};
+    int_q_local = {}; 
+    mult_concat_expr = {2{in_byte}};
+    out_logic = in_byte[0]; 
+    byte_part = in_byte[7:0]; 
+    dynamic_select_part = part_select_var[local_int +: 2]; 
+    dynamic_select_part = part_select_var[local_int -: 2]; 
+    out_word = 16'(in_byte); 
+    signed_byte = signed'(in_byte); 
+    out_real = real'(in_int); 
+    cast_int = int'(local_real); 
+    cast_struct = my_struct'{field1: in_int, field2: in_bit}; 
+    cast_struct = my_struct'{in_int+1, !in_bit} ; 
+    int_q_local = '{in_int, in_int + 1, in_int + 2}; 
+    int_q_local = '{3{in_int}}; 
+    cast_struct = my_struct'{default: in_int + 30}; 
+    inside_result = inside_check_val inside { 1, [3:5], local_int, [20:23], [27:30] }; 
+    inc_dec_var = in_int;
+    inc_dec_var++; 
+    inc_dec_var--; 
+    out_int = inc_dec_var;
+    out_logic = (in_int > 10) ? in_bit : !in_bit;
+    out_int = (local_real < 0.5) ? $floor(local_real) : $ceil(local_real);
+    out_word = (in_byte inside {[0:127]}) ? {in_byte, 8'h00} : {8'hFF, in_byte};
+    out_int = $clog2(in_byte + 1);
+    out_int = (in_int + 5) * 2;
+  end
+endmodule
+module module_names_methods_patterns (
+  input int in_val,
+  input logic in_bit,
+  input my_class in_handle,
+  input my_struct in_struct,
+  input my_union in_union,
+  input int arr_idx,
+  output int out_val,
+  output logic out_bit
+);
+  my_class h;
+  derived_class dh;
+  my_class h_copy;
+  my_class h_array[];
+  my_class h_array_init[];
+  int int_q[$];
+  my_struct s;
+  my_union u;
+  my_struct s_array[2];
+  class param_class #(parameter int P = 1);
+    int val = P;
+    function new(); endfunction
+    function int get_val(); return val; endfunction
+  endclass
+  param_class #(10) p_h;
+  class class_for_local_this;
+    int member_var = 10;
+    static int static_var = 20;
+    function int get_member();
+        return this.member_var;
+    endfunction
+    function int get_static();
+        return static_var;
+    endfunction
+    function int get_local_static_explicit();
+        return class_for_local_this::static_var; 
+    endfunction
+  endclass
+  class_for_local_this local_this_h;
+  always_comb begin
+    static param_class #(20) h_param_class = new();
+    static int local_val;
+    static logic local_bit;
+    static my_struct local_s;
+    static my_union local_u;
+    static int accessed_data = 0;
+    static int param_val;
+    static int queue_reduction = 0;
+    static my_struct s_array_local[2];
+    static logic pattern_check_result;
+    static my_struct match_struct;
+    static my_union pattern_union;
+    static logic matches_result;
+    static my_class super_test_h;
+    static my_class super_test_h_def;
+    local_this_h = new();
+    dh = new();
+    match_struct = '{field1: in_val, field2: in_bit};
+    pattern_union = tagged i (in_val);
+    out_val = in_val;
+    local_val = $unit::my_package::pkg_var; 
+    local_val = my_package::pkg_var; 
+    accessed_data = local_this_h.get_member(); 
+    accessed_data = local_this_h.get_local_static_explicit(); 
+    accessed_data = class_for_local_this::static_var; 
+    accessed_data = dh.get_data_derived(); 
+    int_q.delete();
+    int_q.push_back(in_val);
+    int_q.push_back(in_val + 1);
+    int_q.push_back(in_val);
+    queue_reduction = int_q.unique().sum(); 
+    queue_reduction = int_q.and(); 
+    queue_reduction = int_q.or(); 
+    queue_reduction = int_q.xor(); 
+    param_val = p_h.val; 
+    accessed_data = h_param_class.val; 
+    h = new(in_val); 
+    if (h != null) begin
+      accessed_data = h.get_data(); 
+      h.set_data(in_val + 10); 
+      h.configure(.value(in_val + 20), .enable(!in_bit)); 
+      h.configure(.value(in_val + 30), .enable()); 
+      h.configure(in_val + 40, ); 
+    end
+    h = new; 
+    h_array = new[in_val]; 
+    h_copy = new h; 
+    super_test_h = new(in_val);
+    local_s = '{in_val, in_bit}; 
+    local_s = '{field1: in_val + 5, field2: in_bit}; 
+    s_array_local = '{2{'{field1: in_val + 20, field2: in_bit}}}; 
+    local_u = tagged i (in_val + 40); 
+    local_u = tagged r ($itor(in_val) + 1.0); 
+    if (in_handle != null) accessed_data = in_handle.get_data(); 
+    local_val = in_struct.field1; 
+    local_val = s_array[arr_idx].field1; 
+    out_val = accessed_data + local_val + queue_reduction + param_val;
+    out_bit = local_s.field2;
+    matches_result = (my_struct'{field1: .*, field2: .*}) matches match_struct;
+    matches_result = (my_union' tagged i (.*)) matches pattern_union;
+    matches_result = (my_struct'{field1: .*, field2: .*}) matches s_array_local[0];
+    local_bit = ((my_struct'{field1: .*, field2: .*}) matches match_struct) ? in_bit : !in_bit;
+    local_bit = (((my_struct'{field1: .*, field2: .*}) matches match_struct) && ((my_union' tagged i (.*)) matches pattern_union)) ? in_bit : !in_bit;
+    pattern_check_result = matches_result; 
+  end
+endmodule
+module module_timing_events (
+  input logic clk,
+  input logic reset,
+  input logic signal1,
+  input logic signal2,
+  input logic signal3,
+  input logic signal4,
+  output logic out_event_fired
+);
+  event my_event1, my_event2;
+  logic dummy;
+  logic my_sig = 0;
+  always @(posedge clk or negedge reset) begin 
+      out_event_fired = 1;
+  end
+  always @* begin 
+      dummy = signal1 || signal2;
+  end
+  always @(my_event1, my_event2) begin 
+      dummy = signal1 && signal2;
+  end
+  always @(posedge signal1 iff signal2) begin 
+      dummy = signal1;
+  end
+  always @((posedge signal1 or negedge signal2)) begin 
+      dummy = signal2;
+  end
+  always @(posedge signal1 or negedge signal2, my_event1) begin 
+      dummy = signal3;
+  end
+  always @(posedge signal1 or negedge signal2 or my_event1) begin 
+      dummy = signal4;
+  end
+  always @(posedge clk) begin
+    #(5); 
+    ##1; 
+    ##(2 + 3); 
+    @(*); 
+    @($); 
+    @($unit); 
+    @ (posedge my_sig); 
+    repeat(2) @(posedge clk); 
+    #1step; 
+  end
+endmodule
+module module_sequences_properties (
+    input logic clk,
+    input logic signal1,
+    input logic signal2,
+    input logic signal3,
+    input int delay_val,
+    output logic out_property_ok
+);
+    logic dummy_seq_assign_local; 
+    always @(posedge clk) begin
+        assert property (@(posedge clk) ##1 1); 
+        assert property (@(posedge clk) ##(delay_val)); 
+        assert property (@(posedge clk) #(5) signal1); 
+        assert property (@(posedge clk) ##[1:5] signal1); 
+        assert property (s_basic_def(signal1, signal2, clk)); 
+        assert property (s_repetition_def(signal1, signal2, clk)); 
+        assert property (s_repetition_eq_arrow_def(signal1, signal2, clk)); 
+        assert property (@(posedge clk) (signal1 [+2]) ##1 signal2); 
+        assert property (@(posedge clk) signal1 [=delay_val] ##1 signal2); 
+        assert property (s_delay_range_def(signal1, signal2, clk)); 
+        assert property (@(posedge clk) (signal1 ##1 signal2) intersect (signal3 ##1 signal4)); 
+        assert property (@(posedge clk) signal1 throughout (signal2 ##1 signal3)); 
+        assert property (@(posedge clk) (signal1 ##1 signal2) within (signal3 ##1 signal4)); 
+        assert property (@(posedge clk) (signal1 ##1 signal2) and (signal3 ##1 signal4));
+        assert property (@(posedge clk) (signal1 ##1 signal2) or (signal3 ##1 signal4));
+        assert property (@(posedge clk) first_match((signal1 ##1 signal2), dummy_seq_assign_local = 1'b1)); 
+        assert property (@(posedge clk) first_match((signal1 ##1 signal2), dummy_seq_assign_local = 1'b1, 1)); 
+        assert property (@(posedge clk) (@(negedge clk) signal3)); 
+        assert property (@(posedge clk) signal1 |-> signal2); 
+        assert property (@(posedge clk) signal1 |=> signal2); 
+        assert property (@(posedge clk) not (signal1 ##1 signal2)); 
+        assert property (@(posedge clk) nexttime (signal1 ##1 signal2)); 
+        assert property (@(posedge clk) nexttime [2] (signal1 ##1 signal2)); 
+        assert property (@(posedge clk) always [1:1] (signal1 ##1 signal2)); 
+        assert property (@(posedge clk) always [delay_val:delay_val+1] (signal1 ##1 signal2)); 
+        assert property (@(posedge clk) s_always (signal1 ##1 signal2)); 
+        assert property (@(posedge clk) eventually (signal1 ##1 signal2)); 
+        assert property (@(posedge clk) s_eventually (signal1 ##1 signal2)); 
+        assert property (@(posedge clk) strong( (signal1 ##1 signal2) )); 
+        assert property (@(posedge clk) weak( (signal1 ##1 signal2) )); 
+        assert property (@(posedge clk) p_basic_def(signal1, signal2, clk) and p_true); 
+        assert property (@(posedge clk) p_basic_def(signal1, signal2, clk) or p_true); 
+        assert property (@(posedge clk) p_basic_def(signal1, signal2, clk) implies p_true); 
+        assert property (@(posedge clk) p_basic_def(signal1, signal2, clk) iff p_true); 
+        assert property (@(posedge clk) if (signal1) p_basic_def(signal1, signal2, clk) else p_true); 
+        assert property (@(posedge clk) if (signal1) p_basic_def(signal1, signal2, clk)); 
+        assert property (@(posedge clk) case (signal1) 
+          1'b1: (signal2 ##1 signal3); 
+          signal2: p_true; 
+          default: (signal1 |-> signal2); 
+        endcase);
+        assert property (@(posedge clk) accept_on(signal1) (signal2 ##1 signal3)); 
+        assert property (@(posedge clk) reject_on(signal1) (signal2 ##1 signal3)); 
+        assert property (@(posedge clk) sync_accept_on(signal1) (signal2 ##1 signal3)); 
+        assert property (@(posedge clk) sync_reject_on(signal1) (signal2 ##1 signal3)); 
+        assert property (@(posedge clk) (signal1 ##1 signal2)); 
+        assert property (@(posedge clk) (p_basic_def(signal1, signal2, clk))); 
+    end
+    assign out_property_ok = (signal1 && signal2) || signal3; 
+endmodule
+module module_advanced_expressions (
+    input logic [7:0] in_a,
+    input logic [7:0] in_b,
+    input logic [7:0] in_c,
+    input logic condition1,
+    input logic condition2,
+    input int in_int_adv,
+    output logic [7:0] out_value_adv,
+    output int out_int_adv
+);
+    class my_constrained_class;
+        rand int value;
+        localparam int dist_var_lp = 10;
+        constraint c_dist {
+            value inside { [1:10], 15, [20:24] }; 
+            value dist { 1:=50, [5:10] :/ 50, dist_var_lp := 10, [dist_var_lp : dist_var_lp + 1] := 10, [dist_var_lp + 4 : dist_var_lp + 5] :/ 10}; 
+        }
+        function new(); endfunction
+        function int get_value(); return value; endfunction
+    endclass
+    my_constrained_class constrained_obj;
+    int int_array[];
+    static my_struct match_struct;
+    static my_union pattern_union;
+    static logic [7:0] temp_ternary_result;
+    static int randomized_value = 0;
+    static int array_method_result = 0;
+    static logic dummy_pattern_check = 0;
+    static my_class test_h;
+    always_comb begin
+        constrained_obj = new(); 
+        match_struct = '{field1: in_int_adv, field2: condition1}; 
+        pattern_union = tagged i (in_int_adv); 
+        int_array = new[4];
+        int_array[0] = in_int_adv; int_array[1] = in_int_adv+1; int_array[2] = in_int_adv+2; int_array[3] = in_int_adv+3;
+        array_method_result = int_array.sum() with (item > 5);
+        array_method_result = int_array.min();
+        array_method_result = int_array.max(); 
+        array_method_result = int_array.unique(); 
+        array_method_result = int_array.find(x) with (x == in_int_adv); 
+        array_method_result = int_array.findIndex(x) with (x > in_int_adv); 
+        array_method_result = int_array.findFirst(x) with (x > in_int_adv); 
+        array_method_result = int_array.findFirstIndex(x) with (x > in_int_adv); 
+        array_method_result = int_array.findLast(x) with (x > in_int_adv); 
+        array_method_result = int_array.findLastIndex(x) with (x > in_int_adv); 
+        array_method_result = int_array.product() with (item + 1);
+        test_h = new();
+        if (test_h.randomize() with { value inside { [1:5] }; }) begin 
+            randomized_value = test_h.get_value();
+        end else begin
+             randomized_value = 0;
+        end
+        pattern_union = tagged i (in_a); 
+        temp_ternary_result = condition1 ? in_a : in_b;
+        temp_ternary_result = ((my_struct'{field1: .*, field2: .*}) matches match_struct) ? in_b : in_c;
+        dummy_pattern_check = ((my_union' tagged i (.*)) matches pattern_union);
+        dummy_pattern_check = ((my_struct'{field1: .*, field2: .*}) matches match_struct);
+        temp_ternary_result = (((in_a == 8'd5) && ((my_struct'{field1: .*, field2: .*}) matches match_struct)) ? in_c : in_a);
+        temp_ternary_result = (((in_a > 8'd10) && ((my_struct'{field1: .*, field2: .*}) matches match_struct)) ? (in_a + in_b) : in_c);
+        temp_ternary_result = ((((my_struct'{field1: .*, field2: .*}) matches match_struct) && ((my_union' tagged i (.*)) matches pattern_union)) ? in_a : in_b);
+        out_value_adv = temp_ternary_result + randomized_value[7:0];
+        out_int_adv = array_method_result; 
+    end
+endmodule
+module module_super_new (
+    input int in_val,
+    output int out_val
+);
+    class base;
+        int base_data;
+        function new(int v = 0); base_data = v; endfunction
+    endclass
+    class derived extends base;
+        int derived_data;
+        function new(int b_v, int d_v = 0);
+            super.new(b_v); 
+            derived_data = d_v;
+        endfunction
+        function void configure_super();
+            super.configure(100, 1); 
+        endfunction
+    endclass
+    class derived_default_new extends base;
+        function new(int v);
+            super.new(default); 
+        endfunction
+    endclass
+    derived d_h;
+    derived_default_new dd_h;
+    always_comb begin
+        d_h = new(in_val, in_val + 1); 
+        d_h.configure_super(); 
+        dd_h = new(in_val + 5); 
+        if (d_h != null) begin
+            out_val = d_h.base_data + d_h.derived_data;
+        end else begin
+            out_val = 0;
+        end
+    end
+endmodule

@@ -1,0 +1,212 @@
+module simple_macro_user (input logic in1, output logic out1);
+  `define SIMPLE_VALUE 32'd12345
+  `define ANOTHER_SIMPLE (1 + 2)
+  assign out1 = in1 ? `SIMPLE_VALUE + `ANOTHER_SIMPLE : 0;
+endmodule
+module func_macro_args (input int input_int, output int output_int);
+  `define ADD(a, b) (a + b)
+  `define SUBTRACT(x, y) (x - y)
+  `define THREE_ARGS(p1, p2, p3) (p1 * p2 + p3)
+  parameter int p1_add = `ADD(10, 20);
+  int p2_sub_var;
+  int p3_test_var;
+  always_comb begin
+    p2_sub_var = `SUBTRACT(50, input_int);
+    p3_test_var = `THREE_ARGS(1, 2, 3);
+  end
+  assign output_int = p1_add + p2_sub_var + p3_test_var;
+endmodule
+module func_macro_defaults (input logic default_en, output bit [7:0] default_out);
+  `define DEFAULT_CONST 8'hAA
+  `define CALCULATE_WITH_DEFAULT(val, def = `DEFAULT_CONST) (val | def)
+  `define MACRO_WITH_TWO_DEFAULTS(a = 1, b = 2) (a + b)
+  parameter bit [7:0] p_with_default = `CALCULATE_WITH_DEFAULT(8'h0F);
+  parameter bit [7:0] p_override_default = `CALCULATE_WITH_DEFAULT(8'hF0, 8'h11);
+  parameter int p_two_defaults_both_param = `MACRO_WITH_TWO_DEFAULTS();
+  parameter int p_two_defaults_one_override_param = `MACRO_WITH_TWO_DEFAULTS(5);
+  parameter int p_two_defaults_both_override_param = `MACRO_WITH_TWO_DEFAULTS(6, 7);
+  assign default_out = default_en ? p_with_default : p_override_default | p_two_defaults_both_param[7:0] | p_two_defaults_one_override_param[7:0] | p_two_defaults_both_override_param[7:0];
+endmodule
+module macro_stringification (input string str_in, output string str_out);
+  localparam int LP_INT = 42;
+  localparam logic [7:0] LP_BYTE = 8'hAA;
+  localparam string LP_STRING = "a literal string";
+  localparam string token_A_lit = "token_A";
+  localparam int token_B_lit = 10;
+  `define STR_LP_INT ``LP_INT
+  `define STR_LP_BYTE ``LP_BYTE
+  `define STR_LP_STRING ``LP_STRING
+  `define STR_EXPR ``(1 + 2 * 3)
+  `define STR_ID ""some_id""
+  `define STR_TRIVIA "" /* comment */ ""
+  `define STR_EMPTY "" ""
+  `define STR_MACRO_CALL ``(`STR_ID)
+  `define TRIPLE_STR_ID "" triple_id ""
+  `define MACRO_BODY_TOKENS token_A_lit + token_B_lit * 42
+  `define STR_BODY_EXPANSION ``(`MACRO_BODY_TOKENS)
+  `define STR_ARG(arg) ``arg
+  `define USE_TWO_ARGS_FOR_STR(a, b) (a + b)
+  `define STR_EMPTY_ARG_TOKENS ``(`USE_TWO_ARGS_FOR_STR(100, ))
+  `define STR_WITH_SPLIT_ID ""String with \a`"`def inside""
+  `define STR_WITH_SPLIT_PASTE ""String with \x``jkl inside""
+  parameter string p_str_lp_int = `STR_LP_INT;
+  parameter string p_str_lp_byte = `STR_LP_BYTE;
+  parameter string p_str_lp_string = `STR_LP_STRING;
+  parameter string p_str_expr = `STR_EXPR;
+  parameter string p_str_id = `STR_ID;
+  parameter string p_str_trivia = `STR_TRIVIA;
+  parameter string p_str_empty = `STR_EMPTY;
+  parameter string p_str_macro_call = `STR_MACRO_CALL;
+  parameter string p_triple_str_id = `TRIPLE_STR_ID;
+  parameter string p_str_body_exp = `STR_BODY_EXPANSION;
+  parameter string p_str_arg_id = `STR_ARG(argument_id);
+  parameter string p_str_arg_num = `STR_ARG(12345);
+  parameter string p_str_arg_str = `STR_ARG("argument string");
+  parameter string p_str_func_call_empty = `STR_EMPTY_ARG_TOKENS;
+  parameter string s_split_id = `STR_WITH_SPLIT_ID;
+  parameter string s_split_paste = `STR_WITH_SPLIT_PASTE;
+  assign str_out = str_in == "" ? p_str_id : p_str_expr;
+endmodule
+module macro_concat (input bit [3:0] concat_in, output bit [7:0] concat_out);
+  `define P1_ID A
+  `define P2_ID BCD
+  `define P3_ID E
+  `define CONCAT_IDS ``P1_ID``P2_ID``P3_ID
+  `define CONCAT_NUMBERS 12``3456
+  `define PASTE_AT_START ``my_start_id
+  `define PASTE_AT_END my_end_id``
+  `define PASTE_IGN_TRIVIA ``/*comment*/id_trivia1
+  `define PASTE_IGN_TRIVIA_REV id_trivia2/*comment*/``
+  `define PASTE_IGN_TRIVIA_MID id1 ``/*comment*/id2
+  logic [4:0] ABCDE;
+  int concat_numbers_val;
+  logic my_start_id;
+  logic my_end_id;
+  logic id_trivia1;
+  logic id_trivia2;
+  logic id1id2;
+  always_comb begin
+    ABCDE = {1'b1, 1'b0, 1'b1, 1'b0, 1'b1};
+    concat_numbers_val = `CONCAT_NUMBERS;
+    my_start_id = 1'b0;
+    my_end_id = 1'b0;
+    id_trivia1 = 1'b0;
+    id_trivia2 = 1'b0;
+    id1id2 = 1'b0;
+  end
+  assign concat_out = {concat_in, ABCDE[3:0]};
+endmodule
+module macro_ops_combined (input int op_sel, output int op_result);
+  `define PF my_prefix_
+  `define SF _suffix
+  `define NM(x) ``PF``x``SF
+  `define GET_NM_STR(x) ""The name is: `NM(x)""
+  `define VAL_1 111
+  `define VAL_2 222
+  `define SELECT_VAL(sel) VAL_``sel
+  `define ID_PART1 token_A_var
+  `define ID_PART2 _calc
+  `define ID_PART3 token_B_var
+  `define ID_PART4 _mult
+  `define CONCAT_ID_A ``ID_PART1``ID_PART2
+  `define CONCAT_ID_B ``ID_PART3``ID_PART4
+  `define M_SPLIT_OPS_STD(arg) (`CONCAT_ID_A + arg * `CONCAT_ID_B)
+  `define ESCAPED_PASTE_TEST \my_id_part1``my_id_part2
+  logic my_prefix_dynamic_part_suffix;
+  logic my_prefix_test_suffix;
+  int token_A_var_calc;
+  int token_B_var_mult;
+  logic \my_id_part1my_id_part2 ;
+  string p_full_str_var;
+  int idpart_int;
+  int split_test_result;
+  int select_val_result;
+  int val1_val = `VAL_1;
+  int val2_val = `VAL_2;
+  always_comb begin
+    my_prefix_dynamic_part_suffix = 1'b0;
+    my_prefix_test_suffix = 1'b1;
+    p_full_str_var = `GET_NM_STR(test);
+    token_A_var_calc = 10;
+    token_B_var_mult = 20;
+    idpart_int = 30;
+    split_test_result = `M_SPLIT_OPS_STD(idpart_int);
+    \my_id_part1my_id_part2 = 1'b0;
+    select_val_result = op_sel == 1 ? `SELECT_VAL(1) : `SELECT_VAL(2);
+  end
+  assign op_result = select_val_result;
+endmodule
+module nested_macro_expansion (input int nest_in, output int nest_out);
+  `define LVL1(x) (x + 1)
+  `define LVL2(y) `LVL1(y * 2)
+  `define LVL3(z) `LVL2(z / 3)
+  parameter int p_nested_val_const = `LVL3(`LVL1(10));
+  int p_nested_val_var;
+  always_comb begin
+    p_nested_val_var = `LVL3(`LVL1(nest_in));
+  end
+  assign nest_out = p_nested_val_var;
+endmodule
+module recursive_macro (input bit dummy_in, output bit dummy_out);
+  `define RECURSIVE_TEST `RECURSIVE_TEST
+  assign dummy_out = dummy_in;
+endmodule
+module macro_empty_arg (input bit empty_en, output bit empty_success);
+  `define USE_TWO_ARGS_EMPTY_TEST(arg1, arg2) (arg1 + arg2)
+  parameter int p_empty_arg = `USE_TWO_ARGS_EMPTY_TEST(100, );
+  parameter int p_both_empty_args = `USE_TWO_ARGS_EMPTY_TEST( , );
+  always_comb begin
+     empty_success = empty_en;
+  end
+endmodule
+module builtin_macros_user (input bit read_info, output string file_line_info);
+  parameter string p_file = `__FILE__;
+  parameter int p_line = `__LINE__;
+  assign file_line_info = read_info ? {p_file, ":", $sformatf("%0d", p_line)} : "";
+endmodule
+module unknown_directive_user (input bit check_en, output bit directive_status);
+  always_comb begin
+    `my_unknown_directive;
+    directive_status = check_en;
+  end
+endmodule
+module macro_arg_parsing_errors_user (input bit parse_en, output bit parse_ok);
+  `define MACRO_WITH_ARGS_FOR_PARSING_TEST(a, b) (a+b)
+  parameter int p_arg_err1 = `MACRO_WITH_ARGS_FOR_PARSING_TEST(1);
+  parameter int p_arg_err2 = `MACRO_WITH_ARGS_FOR_PARSING_TEST(1, 2, 3);
+  parameter int p_arg_err3 = `MACRO_WITH_ARGS_FOR_PARSING_TEST();
+  assign parse_ok = parse_en;
+endmodule
+module macro_line_continuation_user (input bit lc_en, output bit lc_processed);
+  `define MULTILINE_SIMPLE \
+    16'hABCD
+  `define MULTILINE_WITH_ARG(v) \
+    (v + \
+     5)
+  `define MULTILINE_BODY_BLOCK(sig) \
+    begin \
+      sig = !sig; \
+    end
+  parameter bit [15:0] p_lc_simple = `MULTILINE_SIMPLE;
+  parameter int p_lc_arg = `MULTILINE_WITH_ARG(10);
+  logic block_sig = 1'b0;
+  always_comb begin
+    if (lc_en) `MULTILINE_BODY_BLOCK(block_sig);
+  end
+  assign lc_processed = block_sig;
+endmodule
+module macro_redefinition_check (input bit redefine_en, output bit redefine_status);
+  `define REDEF_ME 10
+  `define REDEF_ME 20
+  `define REDEF_FUNC(x) (x+1)
+  `define REDEF_FUNC(x) (x+2)
+  `define REDEF_FUNC_ARGS(a, b=1) (a | b)
+  `define REDEF_FUNC_ARGS(a, b=2) (a & b)
+  `define REDEF_FUNC_SAME_BODY(x) (x*x)
+  `define REDEF_FUNC_SAME_BODY(x) (x*x)
+  parameter int p_redef1 = `REDEF_ME;
+  parameter int p_redef2 = `REDEF_FUNC(5);
+  parameter int p_redef3 = `REDEF_FUNC_ARGS(4);
+  parameter int p_redef4 = `REDEF_FUNC_SAME_BODY(3);
+  assign redefine_status = redefine_en;
+endmodule
