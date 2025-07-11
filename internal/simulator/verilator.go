@@ -20,9 +20,12 @@ type VerilatorSimulator struct {
 	execPath   string
 	workDir    string
 	svFileName string
-	module     *verilog.Module
 	optimized  bool
 	logger     *utils.DebugLogger
+}
+
+func (sim *VerilatorSimulator) Type() Type {
+	return VERILATOR
 }
 
 func TestVerilatorTool() error {
@@ -43,18 +46,13 @@ func TestVerilatorTool() error {
 func NewVerilatorSimulator(
 	workDir string,
 	svFile *verilog.VerilogFile,
-	moduleName string,
 	optimized bool,
 	verbose int,
 ) *VerilatorSimulator {
-	if _, exists := svFile.Modules[moduleName]; !exists {
-		return nil
-	}
 	return &VerilatorSimulator{
 		execPath:   filepath.Join(workDir, "obj_dir", "Vtestbench"),
 		workDir:    workDir,
 		svFileName: svFile.Name,
-		module:     svFile.Modules[moduleName],
 		optimized:  optimized,
 		logger:     utils.NewDebugLogger(verbose),
 	}

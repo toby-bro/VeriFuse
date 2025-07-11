@@ -118,7 +118,10 @@ func (sch *Scheduler) compareAllResults(
 		sims = append(sims, sim)
 	}
 	sort.Slice(sims, func(i, j int) bool {
-		return sims[i].Name < sims[j].Name
+		if sims[i].Simulator.Type() == sims[j].Simulator.Type() {
+			return sims[i].Synthesizer < sims[j].Synthesizer
+		}
+		return sims[i].Simulator.Type() < sims[j].Simulator.Type()
 	})
 
 	allPorts := make(map[*verilog.Port]bool)
@@ -137,6 +140,11 @@ func (sch *Scheduler) compareAllResults(
 			simResultMap, simExists := results[sim]
 			if !simExists {
 				portReportEntries[sim] = "SIM_DATA_MISSING"
+				sch.debug.Warn(
+					"Simulator %s not found in results map for port %s",
+					sim.String(),
+					port.Name,
+				)
 				continue
 			}
 			if value, found := simResultMap[port]; found {
@@ -144,6 +152,11 @@ func (sch *Scheduler) compareAllResults(
 				actualValuesPresent = append(actualValuesPresent, value)
 				simsHavingThePortCount++
 			} else {
+				sch.debug.Warn(
+					"Port %s not found in simulator %s results map",
+					port.Name,
+					sim.String(),
+				)
 				portReportEntries[sim] = "MISSING"
 			}
 		}
@@ -167,7 +180,7 @@ func (sch *Scheduler) compareAllResults(
 			for _, sim := range sims {
 				detailParts = append(
 					detailParts,
-					fmt.Sprintf("%s=%s", sim.Name, portReportEntries[sim]),
+					fmt.Sprintf("%s=%s", sim.String(), portReportEntries[sim]),
 				)
 			}
 			mismatchDetails[port] = strings.Join(detailParts, ", ")
@@ -178,9 +191,9 @@ func (sch *Scheduler) compareAllResults(
 	if mismatchFound {
 		var simNamesStr string
 		if len(sims) > 0 {
-			simNamesStr = "[" + sims[0].Name
+			simNamesStr = "[" + sims[0].String()
 			for i := 1; i < len(sims); i++ {
-				simNamesStr += ", " + sims[i].Name
+				simNamesStr += ", " + sims[i].String()
 			}
 			simNamesStr += "]"
 		} else {

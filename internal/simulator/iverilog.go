@@ -23,6 +23,10 @@ type IVerilogSimulator struct {
 	svFileName string // Name of the SystemVerilog file to compile
 }
 
+func (sim *IVerilogSimulator) Type() Type {
+	return IVERILOG
+}
+
 func TestIVerilogTool() error {
 	cmd := exec.Command("iverilog", "-V")
 	var stderr bytes.Buffer
@@ -44,12 +48,16 @@ func TestIVerilogTool() error {
 }
 
 // NewIVerilogSimulator creates a new IVerilog simulator instance
-func NewIVerilogSimulator(actualWorkDir string, svFileName string, verbose int) *IVerilogSimulator {
+func NewIVerilogSimulator(
+	actualWorkDir string,
+	svFile *verilog.VerilogFile,
+	verbose int,
+) *IVerilogSimulator {
 	return &IVerilogSimulator{
 		execPath:   filepath.Join(actualWorkDir, "module_sim_iv"),
 		workDir:    actualWorkDir,
 		debug:      utils.NewDebugLogger(verbose),
-		svFileName: svFileName,
+		svFileName: svFile.Name,
 	}
 }
 

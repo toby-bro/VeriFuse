@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
@@ -22,10 +23,19 @@ import (
 
 // SimInstance holds a name and a compiled simulator interface.
 type SimInstance struct {
-	Name        string
 	Simulator   simulator.Simulator
-	Prefix      string
 	Synthesizer synth.Type
+}
+
+func (si *SimInstance) String() string {
+	return simulationName(si.Simulator.Type(), si.Synthesizer)
+}
+
+func simulationName(sim simulator.Type, synthesizer synth.Type) string {
+	if synthesizer == synth.None {
+		return sim.String()
+	}
+	return fmt.Sprintf("%s_%s", sim.String(), synthesizer.String())
 }
 
 func (sch *Scheduler) setupWorker(workerID string) (string, func(), error) {
@@ -173,6 +183,24 @@ func (sch *Scheduler) performWorkerAttempt(
 			} else {
 				sch.debug.Debug("[%s] Yosys synthesis successful for module %s", workerID, workerModule.Name)
 			}
+		case synth.VIVADO:
+			if err := synth.VivadoSynthSync(workerModule.Name, workerVerilogPath); err != nil {
+				sch.debug.Warn(
+					"[%s] Vivado synthesis failed for module %s: %v",
+					workerID,
+					workerModule.Name,
+					err,
+				)
+				// delete vivado from availableSynthesizers
+				availableSynthesizers = slices.DeleteFunc(
+					slices.Clone(availableSynthesizers),
+					func(t synth.Type) bool {
+						return t == synth.VIVADO
+					},
+				)
+			} else {
+				sch.debug.Debug("[%s] Vivado synthesis successful for module %s", workerID, workerModule.Name)
+			}
 		default:
 			sch.debug.Warn(
 				"[%s] Unsupported synthesizer type %s for module %s",
@@ -223,7 +251,7 @@ func (sch *Scheduler) performWorkerAttempt(
 		ctx,
 		workerID,
 		workerDir,
-		currentWorkerModule.Name,
+		currentWorkerModule,
 		svFile,
 		availableSimulators,
 		availableSynthesizers,
@@ -280,185 +308,129 @@ func (sch *Scheduler) compileSimulatorWithTimeout(
 	ctx context.Context,
 	workerID string,
 	sim simulator.Simulator,
-	config simulator.Config,
+	workDir string,
 ) error {
 	compileCtx, compileCancel := context.WithTimeout(ctx, sch.timeouts.CompilationTimeout)
 	defer compileCancel()
 
-	sch.debug.Debug("[%s] Compiling %s simulator in %s", workerID, config.Name, config.WorkDir)
+	sch.debug.Debug("[%s] Compiling %s simulator in %s", workerID, sim.Type(), workDir)
 
 	if err := sim.Compile(compileCtx); err != nil {
 		if unsup, pretext := sim.FailedCuzUnsupportedFeature(err); unsup {
 			sch.debug.Info(
 				"[%s] %s compilation failed due to unsupported feature: %v",
 				workerID,
-				config.Name,
+				sim.Type(),
 				pretext,
 			)
 		} else {
-			sch.debug.Warn("[%s] Failed to compile %s: %v", workerID, config.Name, err)
+			sch.debug.Warn("[%s] Failed to compile %s: %v", workerID, sim.Type(), err)
 		}
-		return fmt.Errorf("%s: %v", config.ErrorName, err)
+		return fmt.Errorf("%s: %v", sim.Type(), err)
 	}
 
-	sch.debug.Debug("[%s] %s compiled successfully.", workerID, config.Name)
+	sch.debug.Debug("[%s] %s compiled successfully.", workerID, sim.Type())
 	return nil
 }
 
-// getCXXRTLIncludeDir determines the CXXRTL include directory using yosys-config
-func (sch *Scheduler) getCXXRTLIncludeDir(workerID string) string {
-	yosysCmd := exec.Command("yosys-config", "--datdir")
-	var yosysOut bytes.Buffer
-	var yosysErr bytes.Buffer
-	yosysCmd.Stdout = &yosysOut
-	yosysCmd.Stderr = &yosysErr
+var (
+	cxxrtlIncludeDir     string
+	cxxrtlIncludeDirOnce sync.Once
+)
 
-	if err := yosysCmd.Run(); err == nil {
-		yosysDatDir := strings.TrimSpace(yosysOut.String())
-		potentialPath := filepath.Join(
-			yosysDatDir,
-			"include",
-			"backends",
-			"cxxrtl",
-			"runtime",
-		)
+// getCXXRTLIncludeDir determines the CXXRTL include directory using yosys-config.
+// It runs only once and caches the result for subsequent calls.
+func (sch *Scheduler) getCXXRTLIncludeDir() string {
+	cxxrtlIncludeDirOnce.Do(func() {
+		yosysCmd := exec.Command("yosys-config", "--datdir")
+		var yosysOut bytes.Buffer
+		var yosysErr bytes.Buffer
+		yosysCmd.Stdout = &yosysOut
+		yosysCmd.Stderr = &yosysErr
 
-		if _, err := os.Stat(potentialPath); err == nil {
-			sch.debug.Debug(
-				"[%s] Using CXXRTL_INCLUDE_DIR (runtime) from yosys-config: %s",
-				workerID,
-				potentialPath,
+		if err := yosysCmd.Run(); err == nil {
+			yosysDatDir := strings.TrimSpace(yosysOut.String())
+			potentialPath := filepath.Join(
+				yosysDatDir,
+				"include",
+				"backends",
+				"cxxrtl",
+				"runtime",
 			)
-			return potentialPath
+
+			if _, err := os.Stat(potentialPath); err == nil {
+				sch.debug.Debug(
+					"Using CXXRTL_INCLUDE_DIR (runtime) from yosys-config: %s",
+					potentialPath,
+				)
+				cxxrtlIncludeDir = potentialPath
+				return
+			}
+			sch.debug.Debug(
+				"yosys-config derived CXXRTL runtime path %s not found (stat error: %v). Will try defaults.",
+				potentialPath,
+				err,
+			)
+		} else {
+			errMsg := strings.TrimSpace(yosysErr.String())
+			sch.debug.Warn("'yosys-config --datdir' command failed: %v. Stderr: '%s'. Will try default CXXRTL include paths.", err, errMsg)
 		}
-		sch.debug.Debug(
-			"[%s] yosys-config derived CXXRTL runtime path %s not found (stat error: %v). Will try defaults.",
-			workerID,
-			potentialPath,
-			err,
-		)
-	} else {
-		errMsg := strings.TrimSpace(yosysErr.String())
-		sch.debug.Warn("[%s] 'yosys-config --datdir' command failed: %v. Stderr: '%s'. Will try default CXXRTL include paths.", workerID, err, errMsg)
-	}
-	return ""
+		cxxrtlIncludeDir = ""
+	})
+	return cxxrtlIncludeDir
 }
 
-// setupIVerilogSimulator sets up an IVerilog simulator
-func (sch *Scheduler) setupIVerilogSimulator(
+func (sch *Scheduler) setupSimulator(
 	ctx context.Context,
-	workerID, baseWorkerDir string,
-	config simulator.Config,
-	svFileName string,
-	synthesizer synth.Type,
-) (*SimInstance, error) {
-	workDir := baseWorkerDir
-	if config.WorkDir != "" {
-		workDir = filepath.Join(baseWorkerDir, config.WorkDir)
-		if err := os.MkdirAll(workDir, 0o755); err != nil {
-			return nil, fmt.Errorf("%s_mkdir: %v", config.ErrorName, err)
-		}
-	}
-
-	ivsim := simulator.NewIVerilogSimulator(workDir, svFileName, sch.verbose)
-
-	if err := sch.compileSimulatorWithTimeout(ctx, workerID, ivsim, config); err != nil {
-		return nil, err
-	}
-
-	return &SimInstance{
-		Name:        config.Name,
-		Simulator:   ivsim,
-		Prefix:      config.Prefix,
-		Synthesizer: synthesizer,
-	}, nil
-}
-
-// setupVerilatorSimulator sets up a Verilator simulator
-func (sch *Scheduler) setupVerilatorSimulator(
-	ctx context.Context,
+	simType simulator.Type,
 	workerID string,
 	baseWorkerDir string,
-	workerModuleName string,
 	svFile *verilog.VerilogFile,
-	optimized bool,
-	config simulator.Config,
-	synthesizer synth.Type,
+	workerModule *verilog.Module,
+	synthType synth.Type,
 ) (*SimInstance, error) {
-	workDir := filepath.Join(baseWorkerDir, config.WorkDir)
+	workDir := filepath.Join(baseWorkerDir, simulationName(simType, synthType))
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
-		return nil, fmt.Errorf("%s_mkdir: %v", config.ErrorName, err)
+		return nil, fmt.Errorf("%s_mkdir: %v", simulationName(simType, synthType), err)
 	}
-
-	vlsim := simulator.NewVerilatorSimulator(
+	sim := simType.SetupSimulator(
 		workDir,
 		svFile,
-		workerModuleName,
-		optimized,
+		workerModule,
 		sch.verbose,
+		sch.getCXXRTLIncludeDir(),
 	)
 
-	if vlsim == nil {
-		sch.debug.Error("Module %s not found in Verilog file", workerModuleName)
+	if sim == nil {
+		return nil, fmt.Errorf(
+			"[%s] setupSimulator: %s simulator is not supported or not found",
+			workerID,
+			simType.String(),
+		)
 	}
 
-	if err := sch.compileSimulatorWithTimeout(ctx, workerID, vlsim, config); err != nil {
-		return nil, err
-	}
-
-	return &SimInstance{
-		Name:        config.Name,
-		Simulator:   vlsim,
-		Prefix:      config.Prefix,
-		Synthesizer: synthesizer,
-	}, nil
-}
-
-// setupCXXRTLSimulator sets up a CXXRTL simulator
-func (sch *Scheduler) setupCXXRTLSimulator(
-	ctx context.Context,
-	workerID, baseWorkerDir, workerModuleName string,
-	verilogFileName, includeDir string,
-	useSlang bool,
-	config simulator.Config,
-	synthesizer synth.Type,
-) (*SimInstance, error) {
-	workDir := filepath.Join(baseWorkerDir, config.WorkDir)
-	if err := os.MkdirAll(workDir, 0o755); err != nil {
-		return nil, fmt.Errorf("%s_mkdir: %v", config.ErrorName, err)
-	}
-
-	cxsim := simulator.NewCXXRTLSimulator(
+	if err := sch.compileSimulatorWithTimeout(
+		ctx,
+		workerID,
+		sim,
 		workDir,
-		verilogFileName,
-		workerModuleName,
-		includeDir,
-		useSlang,
-		sch.verbose,
-	)
-
-	if err := utils.CopyFile(
-		filepath.Join(baseWorkerDir, "testbench.cpp"),
-		filepath.Join(workDir, "testbench.cpp"),
 	); err != nil {
-		return nil, fmt.Errorf("failed to copy testbench.cpp: %v", err)
+		return nil, fmt.Errorf(
+			"[%s] setupSimulator: failed to compile %s simulator: %v",
+			workerID,
+			simType.String(),
+			err,
+		)
 	}
-
-	if err := sch.compileSimulatorWithTimeout(ctx, workerID, cxsim, config); err != nil {
-		return nil, err
-	}
-
 	return &SimInstance{
-		Name:        config.Name,
-		Simulator:   cxsim,
-		Prefix:      config.Prefix,
-		Synthesizer: synthesizer,
+		Simulator:   sim,
+		Synthesizer: synthType,
 	}, nil
 }
 
 func (sch *Scheduler) setupSimulators(
 	ctx context.Context,
-	workerID, baseWorkerDir, workerModuleName string,
+	workerID string, baseWorkerDir string, workerModule *verilog.Module,
 	svFileToCompile *verilog.VerilogFile,
 	availableSimulators []simulator.Type,
 	availableSynthesizers []synth.Type,
@@ -466,114 +438,15 @@ func (sch *Scheduler) setupSimulators(
 	sch.debug.Debug(
 		"[%s] Setting up simulators for module %s in %s",
 		workerID,
-		workerModuleName,
+		workerModule.Name,
 		baseWorkerDir,
 	)
 	var compiledSims []*SimInstance
 	var setupErrors []string
 
-	// Get CXXRTL include directory once
-	includeDir := sch.getCXXRTLIncludeDir(workerID)
-
-	// Define simulator configurations
-	simulatorConfigs := []struct {
-		setupFunc func() (*SimInstance, error)
-		name      string
-		simType   simulator.Type
-	}{
-		// 1. Icarus Verilog
-		{
-			name:    "IVerilog",
-			simType: simulator.IVERILOG,
-			setupFunc: func() (*SimInstance, error) {
-				return sch.setupIVerilogSimulator(
-					ctx,
-					workerID,
-					baseWorkerDir,
-					simulator.CommonConfigs.IVerilog,
-					svFileToCompile.Name,
-					synth.None,
-				)
-			},
-		},
-		// 2. Verilator O0
-		{
-			name:    "Verilator O0",
-			simType: simulator.VERILATOR,
-			setupFunc: func() (*SimInstance, error) {
-				return sch.setupVerilatorSimulator(
-					ctx,
-					workerID,
-					baseWorkerDir,
-					workerModuleName,
-					svFileToCompile,
-					false,
-					simulator.CommonConfigs.VerilatorO0,
-					synth.None,
-				)
-			},
-		},
-		// 3. Verilator O3
-		{
-			name:    "Verilator O3",
-			simType: simulator.VERILATOR,
-			setupFunc: func() (*SimInstance, error) {
-				return sch.setupVerilatorSimulator(
-					ctx,
-					workerID,
-					baseWorkerDir,
-					workerModuleName,
-					svFileToCompile,
-					true,
-					simulator.CommonConfigs.VerilatorO3,
-					synth.None,
-				)
-			},
-		},
-		// 4. CXXRTL
-		{
-			name:    "CXXRTL",
-			simType: simulator.CXXRTL,
-			setupFunc: func() (*SimInstance, error) {
-				return sch.setupCXXRTLSimulator(
-					ctx,
-					workerID,
-					baseWorkerDir,
-					workerModuleName,
-					svFileToCompile.Name,
-					includeDir,
-					false,
-					simulator.CommonConfigs.CXXRTL,
-					synth.None,
-				)
-			},
-		},
-		// 5. CXXRTL with Slang
-		{
-			name:    "CXXRTL (Slang)",
-			simType: simulator.CXXSLG,
-			setupFunc: func() (*SimInstance, error) {
-				return sch.setupCXXRTLSimulator(
-					ctx,
-					workerID,
-					baseWorkerDir,
-					workerModuleName,
-					svFileToCompile.Name,
-					includeDir,
-					true,
-					simulator.CommonConfigs.CXXRTLSlang,
-					synth.None,
-				)
-			},
-		},
-	}
-
 	// Setup each simulator
-	for _, simConfig := range simulatorConfigs {
-		if !slices.Contains(availableSimulators, simConfig.simType) {
-			continue
-		}
-		if simInstance, err := simConfig.setupFunc(); err != nil {
+	for _, sim := range availableSimulators {
+		if simInstance, err := sch.setupSimulator(ctx, sim, workerID, baseWorkerDir, svFileToCompile, workerModule, synth.None); err != nil {
 			setupErrors = append(setupErrors, err.Error())
 		} else {
 			compiledSims = append(compiledSims, simInstance)
@@ -582,41 +455,17 @@ func (sch *Scheduler) setupSimulators(
 
 	// Setup synthesizer variants
 	for _, synthType := range availableSynthesizers {
-		switch synthType { //nolint:exhaustive
-		case synth.SV2V:
-			sch.setupSynthVariants(
-				ctx,
-				workerID,
-				baseWorkerDir,
-				workerModuleName,
-				svFileToCompile,
-				includeDir,
-				synth.SV2V,
-				"v",
-				&compiledSims,
-				&setupErrors,
-			)
-		case synth.YOSYS:
-			sch.setupSynthVariants(
-				ctx,
-				workerID,
-				baseWorkerDir,
-				workerModuleName,
-				svFileToCompile,
-				includeDir,
-				synth.YOSYS,
-				"sv",
-				&compiledSims,
-				&setupErrors,
-			)
-		default:
-			sch.debug.Warn(
-				"[%s] Unsupported synthesizer type %s for module %s",
-				workerID,
-				synthType,
-				workerModuleName,
-			)
-		}
+		sch.setupSynthVariants(
+			ctx,
+			workerID,
+			baseWorkerDir,
+			workerModule,
+			svFileToCompile,
+			synthType,
+			availableSimulators,
+			&compiledSims,
+			&setupErrors,
+		)
 	}
 
 	if len(compiledSims) == 0 {
@@ -634,24 +483,24 @@ func (sch *Scheduler) setupSimulators(
 // setupSynthVariants sets up synthesizer variants based on file extension and suffix
 func (sch *Scheduler) setupSynthVariants(
 	ctx context.Context,
-	workerID, baseWorkerDir, workerModuleName string,
+	workerID string,
+	baseWorkerDir string,
+	workerModule *verilog.Module,
 	svFileToCompile *verilog.VerilogFile,
-	includeDir string,
 	synthType synth.Type,
-	fileExtension string,
+	availableSimulators []simulator.Type,
 	compiledSims *[]*SimInstance,
 	setupErrors *[]string,
 ) {
-	synthFileName := utils.ChangeExtension(svFileToCompile.Name, fileExtension)
+	synthFileName := utils.ChangeExtension(svFileToCompile.Name, "v")
 	synthFileName = utils.AddSuffixToPath(synthFileName, synthType.String())
 	synthFilePath := filepath.Join(baseWorkerDir, synthFileName)
 
 	// Check if the synthesized file exists
 	if !utils.FileExists(synthFilePath) {
 		sch.debug.Debug(
-			"[%s] No .%s file found at %s, skipping %s simulator variants",
+			"[%s] No .v file found at %s, skipping %s simulator variants",
 			workerID,
-			fileExtension,
 			synthFilePath,
 			synthType.String(),
 		)
@@ -659,9 +508,8 @@ func (sch *Scheduler) setupSynthVariants(
 	}
 
 	sch.debug.Debug(
-		"[%s] Found .%s file at %s, creating %s simulator variants",
+		"[%s] Found .v file at %s, creating %s simulator variants",
 		workerID,
-		fileExtension,
 		synthFilePath,
 		synthType.String(),
 	)
@@ -673,9 +521,8 @@ func (sch *Scheduler) setupSynthVariants(
 	synthFileContent, readErr := os.ReadFile(synthFilePath)
 	if readErr != nil {
 		sch.debug.Warn(
-			"[%s] Failed to read .%s file %s: %v",
+			"[%s] Failed to read .v file %s: %v",
 			workerID,
-			fileExtension,
 			synthFilePath,
 			readErr,
 		)
@@ -685,9 +532,8 @@ func (sch *Scheduler) setupSynthVariants(
 	synthFile, err = verilog.ParseVerilog(string(synthFileContent), sch.verbose)
 	if err != nil {
 		sch.debug.Warn(
-			"[%s] Failed to parse .%s file %s: %v",
+			"[%s] Failed to parse .v file %s: %v",
 			workerID,
-			fileExtension,
 			synthFilePath,
 			err,
 		)
@@ -695,127 +541,9 @@ func (sch *Scheduler) setupSynthVariants(
 	}
 	synthFile.Name = synthFileName
 
-	// Define simulator variants for the synthesizer
-	synthVariants := []struct {
-		simType   simulator.Type
-		synthType synth.Type
-		setupFunc func(synth.Type) (*SimInstance, error)
-	}{
-		{
-			simType: simulator.IVERILOG,
-			setupFunc: func(synthType synth.Type) (*SimInstance, error) {
-				synthName := synthType.String()
-				config := simulator.Config{
-					Name:      "IVerilog " + synthName,
-					WorkDir:   "iverilog_" + synthName,
-					Prefix:    "iv_" + synthName,
-					ErrorName: "iverilog_" + synthName,
-				}
-				return sch.setupIVerilogSimulator(
-					ctx,
-					workerID,
-					baseWorkerDir,
-					config,
-					synthFile.Name,
-					synthType,
-				)
-			},
-		},
-		{
-			simType:   simulator.VERILATOR,
-			synthType: synth.YOSYS,
-			setupFunc: func(synthType synth.Type) (*SimInstance, error) {
-				synthName := synthType.String()
-				config := simulator.Config{
-					Name:      "Verilator O0 " + synthName,
-					WorkDir:   "verilator_o0_" + synthName,
-					Prefix:    "vl_o0_" + synthName,
-					ErrorName: "verilator_o0_" + synthName,
-				}
-				return sch.setupVerilatorSimulator(
-					ctx,
-					workerID,
-					baseWorkerDir,
-					workerModuleName,
-					synthFile,
-					false,
-					config,
-					synthType,
-				)
-			},
-		},
-		{
-			simType: simulator.VERILATOR,
-			setupFunc: func(synthType synth.Type) (*SimInstance, error) {
-				synthName := synthType.String()
-				config := simulator.Config{
-					Name:      "Verilator O3 " + synthName,
-					WorkDir:   "verilator_o3_" + synthName,
-					Prefix:    "vl_o3_" + synthName,
-					ErrorName: "verilator_o3_" + synthName,
-				}
-				return sch.setupVerilatorSimulator(
-					ctx,
-					workerID,
-					baseWorkerDir,
-					workerModuleName,
-					synthFile,
-					true,
-					config,
-					synthType,
-				)
-			},
-		},
-		{
-			simType: simulator.CXXRTL,
-			setupFunc: func(synthType synth.Type) (*SimInstance, error) {
-				synthName := synthType.String()
-				config := simulator.Config{
-					Name:      "CXXRTL " + synthName,
-					WorkDir:   "cxxrtl_" + synthName,
-					Prefix:    "cxxrtl_" + synthName,
-					ErrorName: "cxxrtl_" + synthName,
-				}
-				return sch.setupCXXRTLSimulator(
-					ctx,
-					workerID,
-					baseWorkerDir,
-					workerModuleName,
-					synthFile.Name,
-					includeDir,
-					false,
-					config,
-					synthType,
-				)
-			},
-		},
-		{
-			setupFunc: func(synthType synth.Type) (*SimInstance, error) {
-				synthName := synthType.String()
-				config := simulator.Config{
-					Name:      "CXXRTL Slang " + synthName,
-					WorkDir:   "cxxslg_" + synthName,
-					Prefix:    "cxxslg_" + synthName,
-					ErrorName: "cxxslg_" + synthName,
-				}
-				return sch.setupCXXRTLSimulator(
-					ctx,
-					workerID,
-					baseWorkerDir,
-					workerModuleName,
-					synthFile.Name,
-					includeDir,
-					true,
-					config,
-					synthType,
-				)
-			},
-		},
-	}
-
 	// Randomly select one synthesizer variant
-	selectedVariant := synthVariants[rand.Intn(len(synthVariants))]
-	if simInstance, err := selectedVariant.setupFunc(selectedVariant.synthType); err != nil {
+	selectedVariant := availableSimulators[rand.Intn(len(availableSimulators))]
+	if simInstance, err := sch.setupSimulator(ctx, selectedVariant, workerID, baseWorkerDir, svFileToCompile, workerModule, synthType); err != nil {
 		*setupErrors = append(*setupErrors, err.Error())
 	} else {
 		*compiledSims = append(*compiledSims, simInstance)

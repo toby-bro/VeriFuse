@@ -144,19 +144,23 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 		wg.Add(1)
 		go func(si *SimInstance) {
 			defer wg.Done()
-			sch.debug.Debug("[%s] Test %d: Running simulator %s", workerID, testIndex, si.Name)
+			sch.debug.Debug(
+				"[%s] Test %d: Running simulator %s",
+				workerID,
+				testIndex,
+				si,
+			)
 
 			currentSimOutputPaths := make(map[*verilog.Port]string)
 			for _, port := range workerModule.Ports {
 				if port.Direction == verilog.OUTPUT {
-					outputFile := fmt.Sprintf("%s%s.hex", si.Prefix, port.Name)
+					outputFile := fmt.Sprintf("%s_%s.hex", si, port.Name)
 					currentSimOutputPaths[port] = filepath.Join(testSpecificDir, outputFile)
 				}
 			}
 
 			results, err := sch.runSimulator(
 				ctx,
-				si.Name,
 				si.Simulator,
 				testSpecificDir,
 				currentSimOutputPaths,
@@ -168,12 +172,12 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 					"[%s] Test %d: Simulator %s failed: %v",
 					workerID,
 					testIndex,
-					si.Name,
+					si,
 					err,
 				)
 			} else {
 				simResults[si] = results
-				sch.debug.Debug("[%s] Test %d: Simulator %s completed.", workerID, testIndex, si.Name)
+				sch.debug.Debug("[%s] Test %d: Simulator %s completed.", workerID, testIndex, si)
 			}
 			resultsMu.Unlock()
 		}(simInstance)
@@ -222,7 +226,7 @@ func (sch *Scheduler) detectAndHandleMismatches(
 				return false, fmt.Errorf(
 					"only %d sims succeeded, first error from %s: %w",
 					len(successfulSimResults),
-					firstErrorSim.Name,
+					firstErrorSim,
 					firstError,
 				)
 			}
@@ -344,7 +348,6 @@ func writeTestInputs(testDir string, testCase map[*verilog.Port]string) error {
 
 func (sch *Scheduler) runSimulator(
 	ctx context.Context,
-	simName string,
 	sim simulator.Simulator,
 	testSpecificDir string, // e.g., worker_XYZ/test_0
 	outputPathsForSim map[*verilog.Port]string, // map portName to final prefixed path in testSpecificDir
@@ -352,18 +355,18 @@ func (sch *Scheduler) runSimulator(
 	// sim.RunTest expects inputDir (where input_N.hex are) and outputPaths (where to put prefixed_output_N.hex)
 	// Both should be relative to testSpecificDir or absolute paths within it.
 	if err := sim.RunTest(ctx, testSpecificDir, outputPathsForSim); err != nil {
-		return nil, fmt.Errorf("simulator %s RunTest failed: %w", simName, err)
+		return nil, fmt.Errorf("simulator %s RunTest failed: %w", sim.Type(), err)
 	}
 
 	if len(outputPathsForSim) > 0 {
 		if err := simulator.VerifyOutputFiles(outputPathsForSim); err != nil {
-			return nil, fmt.Errorf("output file verification failed for %s: %w", simName, err)
+			return nil, fmt.Errorf("output file verification failed for %s: %w", sim.Type(), err)
 		}
 	}
 
 	results, err := simulator.ReadOutputFiles(outputPathsForSim)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read output files for %s: %w", simName, err)
+		return nil, fmt.Errorf("failed to read output files for %s: %w", sim.Type(), err)
 	}
 	return results, nil
 }

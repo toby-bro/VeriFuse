@@ -49,8 +49,30 @@ func (t Type) String() string {
 	}
 }
 
+func (t Type) SetupSimulator(
+	workDir string,
+	svFile *verilog.VerilogFile,
+	module *verilog.Module,
+	verbose int,
+	cxxrtlIncludeDir string,
+) Simulator {
+	switch t { // nolint:exhaustive
+	case VERILATOR:
+		return NewVerilatorSimulator(workDir, svFile, true, verbose)
+	case IVERILOG:
+		return NewIVerilogSimulator(workDir, svFile, verbose)
+	case CXXRTL:
+		return NewCXXRTLSimulator(workDir, svFile, module, cxxrtlIncludeDir, false, verbose)
+	case CXXSLG:
+		return NewCXXRTLSimulator(workDir, svFile, module, cxxrtlIncludeDir, true, verbose)
+	default:
+		return nil
+	}
+}
+
 // Simulator defines the interface for RTL simulators
 type Simulator interface {
+	Type() Type
 	// Compile compiles the simulator from source files with context for timeout
 	Compile(ctx context.Context) error
 

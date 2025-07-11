@@ -19,13 +19,20 @@ import (
 
 // CXXRTLSimulator represents the CXXRTL simulator
 type CXXRTLSimulator struct {
-	execPath                    string
-	workDir                     string
-	originalVerilogFileBaseName string // e.g., my_module.v
-	moduleName                  string // Top module name, e.g., my_module
-	cxxrtlIncludeDir            string // Path to CXXRTL runtime include directory
-	useSlang                    bool   // Whether to use Slang with Yosys
-	logger                      *utils.DebugLogger
+	execPath            string
+	workDir             string
+	verilogFileBaseName string // e.g., my_module.v
+	module              *verilog.Module
+	cxxrtlIncludeDir    string // Path to CXXRTL runtime include directory
+	useSlang            bool   // Whether to use Slang with Yosys
+	logger              *utils.DebugLogger
+}
+
+func (sim *CXXRTLSimulator) Type() Type {
+	if sim.useSlang {
+		return CXXSLG
+	}
+	return CXXRTL
 }
 
 // TestCXXRTLTool checks if Yosys and g++ are available.
@@ -69,20 +76,20 @@ func TestCXXRTLTool(withSlang bool) error {
 // verbose: verbosity level for logging.
 func NewCXXRTLSimulator(
 	workDir string,
-	originalVerilogFileBaseName string,
-	moduleName string,
+	svFile *verilog.VerilogFile,
+	module *verilog.Module,
 	cxxrtlIncludeDir string,
 	useSlang bool, // Added useSlang parameter
 	verbose int,
 ) *CXXRTLSimulator {
 	return &CXXRTLSimulator{
 		// execPath will be set after successful compilation
-		workDir:                     workDir,
-		originalVerilogFileBaseName: originalVerilogFileBaseName,
-		moduleName:                  moduleName,
-		cxxrtlIncludeDir:            cxxrtlIncludeDir,
-		useSlang:                    useSlang, // Store useSlang
-		logger:                      utils.NewDebugLogger(verbose),
+		workDir:             workDir,
+		verilogFileBaseName: svFile.Name,
+		module:              module,
+		cxxrtlIncludeDir:    cxxrtlIncludeDir,
+		useSlang:            useSlang, // Store useSlang
+		logger:              utils.NewDebugLogger(verbose),
 	}
 }
 
@@ -150,13 +157,13 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	sim.logger.Debug(
 		"Starting CXXRTL compilation in %s for module %s (UseSlang: %t)",
 		sim.workDir,
-		sim.moduleName,
+		sim.module.Name,
 		sim.useSlang,
 	)
 
 	// --- Step 1: Yosys - Convert Verilog to CXXRTL C++ ---
-	yosysInputFile := filepath.Join("..", sim.originalVerilogFileBaseName) // Relative to workDir
-	yosysOutputCCFile := sim.moduleName + ".cc"                            // Output in workDir
+	yosysInputFile := filepath.Join("..", sim.verilogFileBaseName) // Relative to workDir
+	yosysOutputCCFile := sim.module.Name + ".cc"                   // Output in workDir
 
 	var yosysScript string
 	var cmdYosys *exec.Cmd
@@ -164,11 +171,11 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 		yosysScript = fmt.Sprintf(
 			"read_slang %s --top %s; prep -top %s",
 			yosysInputFile,
-			sim.moduleName,
-			sim.moduleName,
+			sim.module.Name,
+			sim.module.Name,
 		)
 	} else {
-		yosysScript = fmt.Sprintf("read_verilog -sv %s; prep -top %s", yosysInputFile, sim.moduleName)
+		yosysScript = fmt.Sprintf("read_verilog -sv %s; prep -top %s", yosysInputFile, sim.module.Name)
 	}
 
 	// Add combinational loop detection and breaking
@@ -207,8 +214,8 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	}
 
 	// --- Step 2: g++ - Compile CXXRTL C++ code with testbench ---
-	testbenchCppFile := "testbench.cpp" // Assumed to be in workDir
-	executableName := sim.moduleName + "_cxxsim"
+	testbenchCppFile := "../testbench.cpp" // Assumed to be in workDir
+	executableName := sim.module.Name + "_cxxsim"
 	sim.execPath = filepath.Join(sim.workDir, executableName)
 
 	gxxArgs := []string{"-std=c++17"}
