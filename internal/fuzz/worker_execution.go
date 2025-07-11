@@ -150,7 +150,7 @@ func (sch *Scheduler) executeSimulatorsConcurrently(
 			for _, port := range workerModule.Ports {
 				if port.Direction == verilog.OUTPUT {
 					outputFile := fmt.Sprintf("%s%s.hex", si.Prefix, port.Name)
-					currentSimOutputPaths[&port] = filepath.Join(testSpecificDir, outputFile)
+					currentSimOutputPaths[port] = filepath.Join(testSpecificDir, outputFile)
 				}
 			}
 
