@@ -13,7 +13,7 @@ const (
 	None Type = iota
 	YOSYS
 	SV2V
-	VIVADO_SYNTH
+	VIVADO
 	QUARTUS_SYNTH
 	GENUS
 )
@@ -27,8 +27,8 @@ func (t Type) String() string {
 		return "Yosys"
 	case SV2V:
 		return "SV2V"
-	case VIVADO_SYNTH:
-		return "Vivado Synthesis"
+	case VIVADO:
+		return "Vivado"
 	case QUARTUS_SYNTH:
 		return "Quartus Synthesis"
 	case GENUS:
@@ -64,6 +64,12 @@ func TestAvailableSynthesizers(debugger *utils.DebugLogger) []Type {
 		available = append(available, SV2V)
 	} else {
 		debugger.Warn("SV2V tool not available: %v", err)
+	}
+
+	if err := TestVivadoTool(); err == nil {
+		available = append(available, VIVADO)
+	} else {
+		debugger.Warn("Vivado tool not available: %v", err)
 	}
 
 	return available

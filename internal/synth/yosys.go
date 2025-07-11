@@ -85,7 +85,7 @@ func YosysSynth(
 		}
 	}
 
-	outputPath := utils.AddSuffixToPath(srcPath, "yosys")
+	outputPath := utils.AddSuffixToPath(srcPath, YOSYS.String())
 
 	// Try synthesis with current settings first
 	err := attemptYosysSynth(moduleName, srcPath, outputPath, options)
