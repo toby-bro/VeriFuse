@@ -19,6 +19,9 @@ func TestVivadoTool() error {
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
 
+	vivadoSemaphore <- struct{}{}
+	defer func() { <-vivadoSemaphore }()
+
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("Vivado check failed: %v - %s", err, stderr.String())
 	}

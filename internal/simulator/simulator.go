@@ -65,6 +65,8 @@ func (t Type) SetupSimulator(
 		return NewCXXRTLSimulator(workDir, svFile, module, cxxrtlIncludeDir, false, verbose)
 	case CXXSLG:
 		return NewCXXRTLSimulator(workDir, svFile, module, cxxrtlIncludeDir, true, verbose)
+	case XCELLIUM:
+		return NewXCelliumSimulator(workDir, svFile, verbose)
 	default:
 		return nil
 	}
@@ -214,6 +216,12 @@ func TestAvailableSimulators(debugger *utils.DebugLogger) []Type {
 			debugger.Debug("Slang found.")
 			availableSimulators = append(availableSimulators, CXXSLG)
 		}
+	}
+	if err := TestXCelliumTool(); err != nil {
+		debugger.Warn("XCellium tool check failed: %v", err)
+	} else {
+		debugger.Debug("XCellium tool found.")
+		availableSimulators = append(availableSimulators, XCELLIUM)
 	}
 	return availableSimulators
 }
