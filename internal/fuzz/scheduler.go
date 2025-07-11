@@ -125,6 +125,26 @@ func (sch *Scheduler) Setup() ([]simulator.Type, []synth.Type, error) {
 	return availableSimulators, availableSynthesizers, nil
 }
 
+type workerError struct {
+	module *verilog.Module
+	err    error
+}
+
+func dumpAllWorkerErrors(
+	allWorkerErrors map[*verilog.Module]error,
+	debug *utils.DebugLogger,
+	operation string,
+) {
+	if len(allWorkerErrors) > 0 {
+		debug.Error("%s completed with %d worker error(s):", operation, len(allWorkerErrors))
+		for module, we := range allWorkerErrors {
+			debug.Error("Module %s: %s", module.Name, we)
+		}
+	} else {
+		debug.Info("%s completed successfully with no worker errors.", operation)
+	}
+}
+
 func (sch *Scheduler) Run(
 	numTests int,
 	availableSimulators []simulator.Type,
@@ -140,7 +160,8 @@ func (sch *Scheduler) Run(
 
 	var wg sync.WaitGroup
 	testCases := make(chan int, sch.workers)
-	errChan := make(chan error, max(sch.workers, len(sch.svFile.Modules)))
+
+	errChan := make(chan workerError, max(sch.workers, len(sch.svFile.Modules)))
 
 	// Create main context with overall timeout
 	ctx, cancel := context.WithTimeout(context.Background(), sch.timeouts.OverallTimeout)
@@ -186,7 +207,7 @@ func (sch *Scheduler) Run(
 				defer func() { cpuSlots <- struct{}{} }()
 
 				if err := sch.worker(ctx, testCases, mod, slotIdx, availableSimulators, availableSynthesizers); err != nil {
-					errChan <- fmt.Errorf("[worker_%d] for module %s error: \n[-] ERROR: %w", slotIdx, mod.Name, err)
+					errChan <- workerError{module: mod, err: fmt.Errorf("[worker_%d] for module %s error: \n[-] ERROR: %w", slotIdx, mod.Name, err)}
 				}
 			}(currentModule)
 		}
@@ -230,29 +251,31 @@ func (sch *Scheduler) Run(
 	feedingWg.Wait()
 	close(errChan)
 
-	var allWorkerErrors []error
-	for err := range errChan {
-		allWorkerErrors = append(allWorkerErrors, err)
+	allWorkerErrors := make(map[*verilog.Module]error)
+	for workerErr := range errChan {
+		allWorkerErrors[workerErr.module] = workerErr.err
 	}
-	if len(allWorkerErrors) > 0 {
-		sch.debug.Error("Fuzzing completed with %d worker error(s):", len(allWorkerErrors))
-		for _, we := range allWorkerErrors {
-			sch.debug.Error("%s", we)
+	switch sch.operation {
+	case OpFuzz, OpMutate:
+		dumpAllWorkerErrors(allWorkerErrors, sch.debug, "Fuzzing")
+	case OpCheckFile:
+		dumpAllWorkerErrors(allWorkerErrors, sch.debug, "File Check")
+	case OpRewriteValid:
+		var validModules []*verilog.Module
+		for _, mod := range sch.svFile.Modules {
+			if _, failed := allWorkerErrors[mod]; !failed {
+				validModules = append(validModules, mod)
+			}
 		}
-	} else {
-		switch sch.operation {
-		case OpCheckFile:
-			fmt.Printf("%s%s[+] File `%s` checked successfully, modules seem valid.%s%s\n", utils.BoldStart, utils.ColorGreen, sch.svFile.Name, utils.ColorReset, utils.BoldEnd)
-		case OpRewriteValid:
-			err := snippets.WriteFileAsSnippets(sch.svFile)
+		if len(validModules) > 0 {
+			err := snippets.WriteFileAsSnippetsSubset(sch.svFile, validModules)
 			if err != nil {
 				sch.debug.Error("failed to write snippets to file: %v", err)
 				return fmt.Errorf("failed to write snippets to file: %v", err)
 			}
-			sch.debug.Info("Snippets written to file successfully.")
-		case OpFuzz, OpMutate:
-			sch.debug.Info("Fuzzing completed successfully.")
+			sch.debug.Info("Snippets written to file successfully for valid modules.")
 		}
+		dumpAllWorkerErrors(allWorkerErrors, sch.debug, "Rewrite Valid")
 	}
 
 	if sch.operation >= OpFuzz {
@@ -284,13 +307,6 @@ func (sch *Scheduler) Run(
 		return fmt.Errorf("%d mismatches found", sch.stats.Mismatches)
 	}
 
-	if len(allWorkerErrors) > 0 {
-		return fmt.Errorf(
-			"fuzzing failed due to %d worker errors; first: %w",
-			len(allWorkerErrors),
-			allWorkerErrors[0],
-		)
-	}
 	if sch.operation >= OpFuzz {
 		sch.debug.Info("No mismatches found after %d tests.\n", numTests)
 	}

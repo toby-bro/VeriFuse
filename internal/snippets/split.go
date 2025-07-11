@@ -124,3 +124,27 @@ func PrintMinimalVerilogFileInDist(
 	}
 	return nil
 }
+
+// WriteFileAsSnippetsSubset writes only the provided modules as snippets to the file
+func WriteFileAsSnippetsSubset(svFile *verilog.VerilogFile, modules []*verilog.Module) error {
+	if svFile == nil {
+		return errors.New("verilog file is nil")
+	}
+	if len(modules) == 0 {
+		return errors.New("no modules to write")
+	}
+
+	for _, module := range modules {
+		snippet := &Snippet{
+			Name:       module.Name,
+			Module:     module,
+			ParentFile: svFile,
+		}
+		err := snippet.writeSnippetToFile()
+		if err != nil {
+			return fmt.Errorf("failed to write snippet %s to file: %v", module.Name, err)
+		}
+	}
+
+	return nil
+}
