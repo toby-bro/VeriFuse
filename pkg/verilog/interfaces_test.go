@@ -885,13 +885,13 @@ func TestExtractANSIInterfacePortDeclarations(t *testing.T) {
 	testCases := []struct {
 		name              string
 		portListStr       string
-		expectedPortsMap  map[string]Port
+		expectedPortsMap  map[string]*Port
 		expectedPortOrder []string
 	}{
 		{
 			name:        "Single interface port",
 			portListStr: "simple_bus.slave in_bus",
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"in_bus": {
 					Name:          "in_bus",
 					Direction:     INPUT,
@@ -907,7 +907,7 @@ func TestExtractANSIInterfacePortDeclarations(t *testing.T) {
 		{
 			name:        "Multiple interface ports",
 			portListStr: "simple_bus.slave in_bus, simple_bus.master out_bus",
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"in_bus": {
 					Name:          "in_bus",
 					Direction:     INPUT,
@@ -932,7 +932,7 @@ func TestExtractANSIInterfacePortDeclarations(t *testing.T) {
 		{
 			name:        "Mixed regular and interface ports",
 			portListStr: "input logic clk, simple_bus.slave data_bus, output logic ready",
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"clk": {
 					Name:          "clk",
 					Direction:     INPUT,
@@ -966,7 +966,7 @@ func TestExtractANSIInterfacePortDeclarations(t *testing.T) {
 		{
 			name:        "Interface port with explicit direction",
 			portListStr: "input axi_if.slave axi_in, output axi_if.master axi_out",
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"axi_in": {
 					Name:          "axi_in",
 					Direction:     INPUT,
