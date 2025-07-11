@@ -35,10 +35,10 @@ always @(posedge clk_monitor) begin
 end
 always @* begin
     if (enable_monitor && data_in_monitor > 100) begin
-       $strobe("ModuleMonitorStrobe: Strobe! data_in=%d data_out=%d", data_in_monitor, data_out_monitor);
-       $strobeb("Strobe Binary: %b", data_in_monitor);
-       $strobeo("Strobe Octal: %o", data_in_monitor);
-       $strobeh("Strobe Hex: %h", data_in_monitor);
+        $strobe("ModuleMonitorStrobe: Strobe! data_in=%d data_out=%d", data_in_monitor, data_out_monitor);
+        $strobeb("Strobe Binary: %b", data_in_monitor);
+        $strobeo("Strobe Octal: %o", data_in_monitor);
+        $strobeh("Strobe Hex: %h", data_in_monitor);
     end
 end
 endmodule

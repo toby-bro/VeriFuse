@@ -185,8 +185,8 @@ module StrengthsAndChargeStrength (
     trireg (large)  tri_large  = in_data_s | !in_data_s;
     trireg          tri_default = 1'b1;
     assign out_data_s = drive_wire_sup | drive_wire_sw | drive_wire_ws | drive_wire_p0w |
-                        drive_wire_wp1 | drive_wire_hz0w | drive_wire_whz1 | pull_wire0 |
-                        pull_wire1 | tri_medium | tri_small | tri_large | tri_default;
+        drive_wire_wp1 | drive_wire_hz0w | drive_wire_whz1 | pull_wire0 |
+        pull_wire1 | tri_medium | tri_small | tri_large | tri_default;
 endmodule
 module SequentialAndParallelBlocks (
     input  wire        start_sig,

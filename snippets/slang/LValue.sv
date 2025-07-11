@@ -91,7 +91,7 @@ module slice_unpacked_module (
     localparam unpacked_byte_array4_t modified_unpacked_array = modify_unpacked_slice(unpacked_array, new_data);
     always_comb begin
         if (3 >= 0 && 3 <= 3 && 0 >= 0 && 0 <= 3) begin
-             out4 = {modified_unpacked_array[3], modified_unpacked_array[0]};
+            out4 = {modified_unpacked_array[3], modified_unpacked_array[0]};
         end else out4 = '0;
     end
     logic _dummy_in = in4;
@@ -129,9 +129,9 @@ module concat_unpacked_module (
     } unpacked_parts_struct_t;
     localparam unpacked_parts_struct_t initial_unp_parts = '{ {8'hAA}, {8'hBB} };
     function automatic unpacked_parts_struct_t modify_unpacked_concat_store_via_struct(unpacked_parts_struct_t parts, bit [7:0] new_combined_array [0:1]);
-         unpacked_parts_struct_t result = parts;
-         {result.partA[0], result.partB[0]} = {new_combined_array[0], new_combined_array[1]};
-         return result;
+        unpacked_parts_struct_t result = parts;
+        {result.partA[0], result.partB[0]} = {new_combined_array[0], new_combined_array[1]};
+        return result;
     endfunction
     localparam bit [7:0] new_unp_data [0:1] = {8'hCC, 8'hDD};
     localparam unpacked_parts_struct_t modified_unp_parts = modify_unpacked_concat_store_via_struct(initial_unp_parts, new_unp_data);
@@ -185,8 +185,8 @@ module associative_array_module (
         if (modified_map_new.exists(int'(in8))) begin
             out8 = modified_map_new[int'(in8)];
         end else if (int'(in8) == 200) begin
-             if (map_with_default.exists(int'(in8))) out8 = map_with_default[int'(in8)];
-             else out8 = 8'hDE;
+            if (map_with_default.exists(int'(in8))) out8 = map_with_default[int'(in8)];
+            else out8 = 8'hDE;
         end else begin
             out8 = '0;
         end
@@ -212,7 +212,7 @@ module queue_module (
     function automatic byte_queue_t_q modify_queue_slice(byte_queue_t_q q_in, byte_t new_slice_vals [0:1]);
         byte_queue_t_q result = q_in;
         if (result.size() >= 2) begin
-             result[0:1] = new_slice_vals;
+            result[0:1] = new_slice_vals;
         end
         return result;
     endfunction
@@ -231,16 +231,16 @@ module queue_module (
     localparam byte_t source_q_small [0:1] = {8'hC0, 8'hC1};
     localparam byte_queue_max_t limited_q_assigned_small = assign_to_max_bound_queue(source_q_small);
     localparam int small_assigned_size = limited_q_assigned_small.size();
-     localparam byte_t source_q_smaller_than_current [0:0] = {8'hC1};
-     localparam limited_queue_t limited_q_assigned_smaller_current = assign_to_max_bound_queue(source_q_smaller_than_current);
-     localparam int smaller_current_assigned_size = limited_q_assigned_smaller_current.size();
+        localparam byte_t source_q_smaller_than_current [0:0] = {8'hC1};
+        localparam limited_queue_t limited_q_assigned_smaller_current = assign_to_max_bound_queue(source_q_smaller_than_current);
+        localparam int smaller_current_assigned_size = limited_q_assigned_smaller_current.size();
     typedef byte_t limited_queue_slice_t [$:4];
     localparam limited_queue_slice_t limited_q_slice_target = {8'hD0, 8'hD1, 8'hD2, 8'hD3, 8'hD4};
     localparam byte_t source_q_slice [0:1] = {8'hE1, 8'hE2};
     function automatic limited_queue_slice_t slice_assign_to_limited_queue(limited_queue_slice_t q_in, byte_t slice_val[0:1]);
-         limited_queue_slice_t result = q_in;
-         if (result.size() >= 3) result[1:2] = slice_val;
-         return result;
+        limited_queue_slice_t result = q_in;
+        if (result.size() >= 3) result[1:2] = slice_val;
+        return result;
     endfunction
     localparam limited_queue_slice_t limited_q_slice_modified = slice_assign_to_limited_queue(limited_q_slice_target, source_q_slice);
     // Move static declarations to the top of the always_comb block
@@ -248,15 +248,15 @@ module queue_module (
     always_comb begin
         static int dynamic_idx = $unsigned(in9) % (initial_queue.size() + 2);
         if (dynamic_idx >= 0 && dynamic_idx < initial_queue.size()) begin
-             out9[0] = initial_queue[dynamic_idx];
+            out9[0] = initial_queue[dynamic_idx];
         end else begin
-             out9[0] = initial_queue[dynamic_idx];
+            out9[0] = initial_queue[dynamic_idx];
         end
         if (initial_queue.size() >= 2) begin
-             out9[1] = initial_queue[0];
-             out9[2] = initial_queue[1];
+            out9[1] = initial_queue[0];
+            out9[2] = initial_queue[1];
         end else begin
-             out9[1] = '0; out9[2] = '0;
+            out9[1] = '0; out9[2] = '0;
         end
         // Fix: Move static declarations to the top of always_comb in queue_module
         if (large_assigned_size > 0) dyn_check_large0 = limited_q_assigned_large[0];
@@ -365,13 +365,13 @@ module compound_lvalue_access_module (
         if (0 >= 0 && 1 <= 1) result.arr[0:1] = {8'h22, 8'h33};
         result.word[7:0] = 8'h44;
         if (result.q.size() > 0) begin
-             result.q[0] = 8'h56;
+            result.q[0] = 8'h56;
         end
         if (result.q.size() > 1) begin
-             result.q[1] = 8'h57;
+            result.q[1] = 8'h57;
         end
-         if (result.q.size() > 2) begin
-             result.q[2:2] = {8'h58};
+            if (result.q.size() > 2) begin
+                result.q[2:2] = {8'h58};
         end
         result.map[32'd100] = 8'h66;
         if (0 >= 0 && 0 <= 1) result.p_arr[0] = 4'h7;
@@ -466,14 +466,14 @@ module basic_lvalue_load_paths_module (
         if (dynamic_idx_arr >= 0 && dynamic_idx_arr <= 1) begin
             dyn_element_access = data_arr[dynamic_idx_arr];
         end else begin
-             dyn_element_access = data_arr[dynamic_idx_arr];
+            dyn_element_access = data_arr[dynamic_idx_arr];
         end
         dynamic_idx_str = $unsigned(in14) % (data_str.len() + 2);
-         if (dynamic_idx_str >= 0 && dynamic_idx_str < data_str.len()) begin
-             dyn_string_access = data_str[dynamic_idx_str];
-         end else begin
-             dyn_string_access = data_str[dynamic_idx_str];
-         end
+            if (dynamic_idx_str >= 0 && dynamic_idx_str < data_str.len()) begin
+                dyn_string_access = data_str[dynamic_idx_str];
+            end else begin
+                dyn_string_access = data_str[dynamic_idx_str];
+            end
         dynamic_idx_q = $unsigned(in14) % (my_queue_paths.size() + 2);
         if (dynamic_idx_q >= 0 && dynamic_idx_q < my_queue_paths.size()) begin
             dyn_queue_element_access = my_queue_paths[dynamic_idx_q];
@@ -481,9 +481,9 @@ module basic_lvalue_load_paths_module (
             dyn_queue_element_access = my_queue_paths[dynamic_idx_q];
         end
         if (my_queue_paths.size() >= 2) begin
-             dyn_queue_slice_access = my_queue_paths[0:1];
+            dyn_queue_slice_access = my_queue_paths[0:1];
         end else begin
-             dyn_queue_slice_access = '{default: '0};
+            dyn_queue_slice_access = '{default: '0};
         end
         dynamic_key_map = $unsigned(in14) % 200;
         dyn_map_lookup_access_exists = my_map_paths.exists(32'd5) ? my_map_paths[32'd5] : 8'h0;
@@ -510,15 +510,15 @@ module queue_max_bound_store (
     localparam byte_t_max source_q_small [0:1] = {8'hB1, 8'hB2};
     localparam limited_queue_t limited_q_assigned_small = assign_to_limited_queue(source_q_small);
     localparam int small_assigned_size = limited_q_assigned_small.size();
-     localparam byte_t_max source_q_smaller_than_current [0:0] = {8'hC1};
-     localparam limited_queue_t limited_q_assigned_smaller_current = assign_to_limited_queue(source_q_smaller_than_current);
-     localparam int smaller_current_assigned_size = limited_q_assigned_smaller_current.size();
-     localparam limited_queue_slice_t limited_q_slice_target = {8'hD0, 8'hD1, 8'hD2, 8'hD3, 8'hD4};
-     localparam byte_t_max slice_source [0:1] = {8'hE1, 8'hE2};
-     function automatic limited_queue_slice_t slice_assign_to_limited_queue(limited_queue_slice_t q_in, byte_t_max slice_val[0:1]);
-         limited_queue_slice_t result = q_in;
-         if (result.size() >= 3) result[1:2] = slice_val;
-         return result;
+        localparam byte_t_max source_q_smaller_than_current [0:0] = {8'hC1};
+        localparam limited_queue_t limited_q_assigned_smaller_current = assign_to_limited_queue(source_q_smaller_than_current);
+        localparam int smaller_current_assigned_size = limited_q_assigned_smaller_current.size();
+        localparam limited_queue_slice_t limited_q_slice_target = {8'hD0, 8'hD1, 8'hD2, 8'hD3, 8'hD4};
+        localparam byte_t_max slice_source [0:1] = {8'hE1, 8'hE2};
+        function automatic limited_queue_slice_t slice_assign_to_limited_queue(limited_queue_slice_t q_in, byte_t_max slice_val[0:1]);
+            limited_queue_slice_t result = q_in;
+            if (result.size() >= 3) result[1:2] = slice_val;
+            return result;
     endfunction
     localparam limited_queue_slice_t limited_q_slice_modified = slice_assign_to_limited_queue(limited_q_slice_target, slice_source);
     always_comb begin
@@ -534,8 +534,8 @@ module queue_max_bound_store (
         if (limited_q_slice_modified.size() > 2) dyn_check_limited_slice_modified_elem2 = limited_q_slice_modified[2];
         else dyn_check_limited_slice_modified_elem2 = '0;
         out16 = dyn_check_large0 ^
-                       dyn_check_small0 ^
-                       dyn_check_smaller_current0 ^
-                       dyn_check_limited_slice_modified_elem1 ^ dyn_check_limited_slice_modified_elem2;
+            dyn_check_small0 ^
+            dyn_check_smaller_current0 ^
+            dyn_check_limited_slice_modified_elem1 ^ dyn_check_limited_slice_modified_elem2;
     end
 endmodule

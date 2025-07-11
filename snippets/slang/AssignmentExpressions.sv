@@ -144,8 +144,8 @@ module assign_patterns_simple (
         reg_unpacked_struct = '{ in_int1, in_real1 };
         reg_dyn_array = '{in_dyn_elem, in_dyn_elem + 1, in_dyn_elem + 2};
         reg_integral_pattern = '{ in_integral_val[0], in_integral_val[1], in_integral_val[2],
-                                in_integral_val[3], in_integral_val[4], in_integral_val[5],
-                                in_integral_val[6], in_integral_val[7] };
+            in_integral_val[3], in_integral_val[4], in_integral_val[5],
+            in_integral_val[6], in_integral_val[7] };
     end
     assign out_struct = reg_struct;
     assign out_fixed_array = reg_fixed_array;
@@ -425,8 +425,8 @@ class cg_factory;
     my_cg_t h;
     int dummy_out;
     function new(int num_bins, string name_str);
-         h = new(num_bins, name_str);
-         dummy_out = num_bins;
+        h = new(num_bins, name_str);
+        dummy_out = num_bins;
     endfunction
     function int get_bins();
         if (h != null) return h.get_coverage();

@@ -64,7 +64,7 @@ module param_implicit_string (
         if (i_char_index < $size(IMPLICIT_STR)) begin
             o_ascii_char = IMPLICIT_STR[i_char_index];
         end else begin
-             o_ascii_char = EXPLICIT_STR[0];
+            o_ascii_char = EXPLICIT_STR[0];
         end
     end
 endmodule

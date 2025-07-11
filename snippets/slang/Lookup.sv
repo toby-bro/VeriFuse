@@ -157,7 +157,7 @@ class ClassWithConstraint;
     constraint c_range { val inside {[0:temp_var_scope*2]}; }
 endclass
 module basic_lookup(input  logic [7:0] in_val,
-                    output logic [7:0] out_val);
+    output logic [7:0] out_val);
     parameter int PARAM = 10;
     logic [7:0] local_var_mb;
     function automatic logic [7:0] add_param(logic [7:0] input_val);
@@ -171,7 +171,7 @@ module basic_lookup(input  logic [7:0] in_val,
     assign out_val = local_var_mb + 1;
 endmodule
 module package_import_explicit_mod(input  logic [7:0] in_val,
-                                   output logic [7:0] out_val);
+    output logic [7:0] out_val);
     import my_package_explicit::PKG_PARAM;
     import my_package_explicit::multiply_by_2;
     logic [7:0] temp_piem;
@@ -183,7 +183,7 @@ module package_import_explicit_mod(input  logic [7:0] in_val,
     end
 endmodule
 module package_import_wildcard_mod(input  logic [7:0] in_val,
-                                   output logic [7:0] out_val);
+    output logic [7:0] out_val);
     import my_package_wildcard_a::*;
     import my_package_wildcard_b::*;
     always_comb begin
@@ -191,11 +191,11 @@ module package_import_wildcard_mod(input  logic [7:0] in_val,
     end
 endmodule
 module class_static_members_mod(input  logic dummy_in,
-                                output int   out_val);
+    output int   out_val);
     assign out_val = MyClassStatic::static_prop + MyClassStatic::get_static_prop();
 endmodule
 module class_instance_members_mod(input  int in_val,
-                                  output int out_val);
+    output int out_val);
     MyClassInstance instance_h;
     int local_cim;
     always_comb begin
@@ -205,7 +205,7 @@ module class_instance_members_mod(input  int in_val,
     assign out_val = local_cim;
 endmodule
 module class_visibility_local_mod(input  logic dummy_in,
-                                  output int   out_val);
+    output int   out_val);
     MyClassLocal instance_h;
     int local_cvlm;
     always_comb begin
@@ -215,7 +215,7 @@ module class_visibility_local_mod(input  logic dummy_in,
     assign out_val = local_cvlm;
 endmodule
 module class_visibility_protected_mod(input  logic dummy_in,
-                                      output int   out_val);
+    output int   out_val);
     DerivedClassProtected instance_h;
     int local_cvpm;
     always_comb begin
@@ -225,7 +225,7 @@ module class_visibility_protected_mod(input  logic dummy_in,
     assign out_val = local_cvpm;
 endmodule
 module hierarchical_dot_mod(input  logic [7:0] in_val,
-                            output logic [7:0] out_val);
+    output logic [7:0] out_val);
     logic [7:0] middle_var_hdm;
     always_comb begin : outer_block
         static logic [7:0] outer_var_hdm = in_val;
@@ -237,8 +237,8 @@ module hierarchical_dot_mod(input  logic [7:0] in_val,
     end
 endmodule
 module generate_lookup_mod #(parameter int enable_param = 1)
-                            (input  logic [7:0] in_val,
-                             output logic [7:0] out_val);
+    (input  logic [7:0] in_val,
+        output logic [7:0] out_val);
     genvar i;
     logic [7:0] temp_out_glm;
     generate
@@ -253,12 +253,12 @@ module generate_lookup_mod #(parameter int enable_param = 1)
     assign out_val = temp_out_glm;
 endmodule
 module system_names_mod(input  int in_val,
-                        output int out_val);
+    output int out_val);
     assign out_val = $bits(in_val);
 endmodule
 module this_super_mod(input  int in_val1,
-                      input  int in_val2,
-                      output int out_val);
+    input  int in_val2,
+    output int out_val);
     DerivedClassThisSuper instance_h;
     int local_tsm;
     always_comb begin
@@ -268,9 +268,9 @@ module this_super_mod(input  int in_val1,
     assign out_val = local_tsm;
 endmodule
 module generic_class_basic_mod(input  logic [7:0] in_byte,
-                               input  int          in_int,
-                               output logic [7:0]  out_byte,
-                               output int          out_int);
+    input  int          in_int,
+    output logic [7:0]  out_byte,
+    output int          out_int);
     GenericClass#(logic [7:0]) byte_instance;
     GenericClass#(int)         int_instance;
     logic [7:0] local_gcbm_byte;
@@ -285,8 +285,8 @@ module generic_class_basic_mod(input  logic [7:0] in_byte,
     assign out_int  = local_gcbm_int;
 endmodule
 module generic_class_scoped_mod(input  logic [15:0] in_val,
-                                output logic [15:0] out_val_16,
-                                output logic [7:0]  out_val_8);
+    output logic [15:0] out_val_16,
+    output logic [7:0]  out_val_8);
     always_comb begin
         GenericClassScoped#(16)::set_static_value(in_val);
         out_val_16 = GenericClassScoped#(16)::get_static_value();
@@ -295,11 +295,11 @@ module generic_class_scoped_mod(input  logic [15:0] in_val,
     end
 endmodule
 module virtual_interface_lookup_mod(input  logic [7:0] vif_data,
-                                    input  logic       vif_valid,
-                                    input  logic       dummy_in,
-                                    output logic [7:0] out_data,
-                                    output logic       out_valid,
-                                    output logic       dummy_out);
+    input  logic       vif_valid,
+    input  logic       dummy_in,
+    output logic [7:0] out_data,
+    output logic       out_valid,
+    output logic       dummy_out);
     always_comb begin
         out_data  = vif_data;
         out_valid = vif_valid;
@@ -307,9 +307,9 @@ module virtual_interface_lookup_mod(input  logic [7:0] vif_data,
     end
 endmodule
 module assertion_local_var_mod(input logic clk,
-                               input logic a,
-                               input logic b,
-                               output logic match);
+    input logic a,
+    input logic b,
+    output logic match);
     logic local_match;
     assign match = local_match;
     property p_check_match;
@@ -323,14 +323,14 @@ typedef struct {
     logic [15:0] field2;
 } simple_struct_t;
 module forwarding_typedef_mod(input  logic [31:0] in_val,
-                              output simple_struct_t out_struct);
+    output simple_struct_t out_struct);
     always_comb begin
         out_struct.field1 = in_val[15:0];
         out_struct.field2 = in_val[31:16];
     end
 endmodule
 module nested_scopes_mod(input  logic [7:0] in_val,
-                         output logic [7:0] out_val);
+    output logic [7:0] out_val);
     logic [7:0] module_var_nsm = in_val + 1;
     logic [7:0] local_out_val_nsm;
     always_comb begin : block_a
@@ -343,9 +343,9 @@ module nested_scopes_mod(input  logic [7:0] in_val,
     assign out_val = local_out_val_nsm;
 endmodule
 module complex_class_inst_mod(input  int  in_data,
-                              input  logic set_busy_cmd,
-                              output int  out_data,
-                              output int  out_state);
+    input  logic set_busy_cmd,
+    output int  out_data,
+    output int  out_state);
     MyClassComplexType instance_h;
     int local_ccim_data;
     int local_ccim_state;
@@ -359,44 +359,44 @@ module complex_class_inst_mod(input  int  in_data,
     assign out_state = local_ccim_state;
 endmodule
 module class_lookup_internal_mod(input  int dummy_in,
-                                 output int out_val);
+    output int out_val);
     ClassLookupChild instance_h;
     int local_clim;
     always_comb begin
         if (instance_h == null) instance_h = new();
         local_clim = instance_h.get_parent_prop_via_this() +
-                     instance_h.get_parent_prop_via_super();
+            instance_h.get_parent_prop_via_super();
     end
     assign out_val = local_clim;
 endmodule
 module package_parameter_access_mod(input  logic [7:0] in_val,
-                                    output logic [7:0] out_val);
+    output logic [7:0] out_val);
     assign out_val = in_val + my_package_explicit::PKG_PARAM;
 endmodule
 module not_a_generic_class_diag_mod(input  int dummy_in,
-                                    output int out_val);
+    output int out_val);
     assign out_val = NonGenericClass::static_prop;
 endmodule
 module dot_on_type_diag_mod(input  int in_val,
-                            output int out_val);
+    output int out_val);
     assign out_val = in_val + type_dot_diag_pkg::pkg_param;
 endmodule
 module not_a_hierarchical_scope_diag_mod(input  logic [7:0] in_var,
-                                         output logic [7:0] out_var);
+    output logic [7:0] out_var);
     logic [7:0] simple_var_nahsdm;
     always_comb simple_var_nahsdm = in_var;
     assign out_var = simple_var_nahsdm;
 endmodule
 module unknown_class_pkg_diag_mod(input  int in_val,
-                                  output int out_val);
+    output int out_val);
     assign out_val = in_val;
 endmodule
 module generic_class_scope_diag_mod(input  logic [7:0] in_val,
-                                    output logic [7:0] out_val);
+    output logic [7:0] out_val);
     assign out_val = in_val;
 endmodule
 module private_constructor_diag_mod(input  logic dummy_in,
-                                    output int   out_val);
+    output int   out_val);
     PrivateConstructor instance_h;
     always_comb begin
         if (instance_h == null) instance_h = PrivateConstructor::create();
@@ -404,15 +404,15 @@ module private_constructor_diag_mod(input  logic dummy_in,
     end
 endmodule
 module invalid_this_diag_mod(input  int in_val,
-                             output int out_val);
+    output int out_val);
     assign out_val = in_val;
 endmodule
 module super_outside_class_diag_mod(input  int in_val,
-                                    output int out_val);
+    output int out_val);
     assign out_val = in_val;
 endmodule
 module super_no_base_diag_wrapper(input  int dummy_in,
-                                  output int out_val);
+    output int out_val);
     ClassNoBaseSuperDiag instance_h;
     int local_snbdw;
     always_comb begin
@@ -422,26 +422,26 @@ module super_no_base_diag_wrapper(input  int dummy_in,
     assign out_val = local_snbdw;
 endmodule
 module scope_incomplete_typedef_diag_mod(input  int in_val,
-                                         output int out_val);
+    output int out_val);
     assign out_val = IncompleteClass::static_member;
 endmodule
 module local_not_allowed_diag_mod(input  int in_val,
-                                  output int out_val);
+    output int out_val);
     assign out_val = in_val;
 endmodule
 module definition_used_diag_mod(input  int in_val,
-                                output int out_val);
+    output int out_val);
     assign out_val = in_val;
 endmodule
 package undeclared_found_pkg;
     parameter int P = 99;
 endpackage
 module undeclared_but_found_pkg_diag_mod(input  int in_val,
-                                         output int out_val);
+    output int out_val);
     assign out_val = in_val;
 endmodule
 module type_this_mod(input  int dummy_in,
-                     output int out_val);
+    output int out_val);
     TypeThisClass instance_h;
     int local_ttm;
     always_comb begin
@@ -451,17 +451,17 @@ module type_this_mod(input  int dummy_in,
     assign out_val = local_ttm + TypeThisClass::static_prop;
 endmodule
 module covergroup_lookup_mod(input logic clk,
-                             input int   data_in,
-                             output logic dummy_out);
+    input int   data_in,
+    output logic dummy_out);
     covergroup cg @(posedge clk);
         cp: coverpoint data_in { bins low  = {[0:10]};
-                                 bins high = {[11:20]}; }
+            bins high = {[11:20]}; }
     endgroup
     cg cg_inst = new();
     assign dummy_out = 1'b1;
 endmodule
 module scope_not_indexable_diag_mod(input  int in_val,
-                                    output int out_val);
+    output int out_val);
     MyClassInstance instance_h;
     int local_snidm;
     always_comb begin
@@ -471,9 +471,9 @@ module scope_not_indexable_diag_mod(input  int in_val,
     assign out_val = local_snidm;
 endmodule
 module modport_access_diag_mod(input  logic mp_valid,
-                               input  logic dummy_in,
-                               output logic out_val,
-                               output logic dummy_out);
+    input  logic dummy_in,
+    output logic out_val,
+    output logic dummy_out);
     logic temp_valid_madm = mp_valid;
     always_comb begin
         out_val   = temp_valid_madm;
@@ -481,16 +481,16 @@ module modport_access_diag_mod(input  logic mp_valid,
     end
 endmodule
 module recursive_param_diag_mod(input  int dummy_in,
-                                output int out_val);
+    output int out_val);
     assign out_val = dummy_in;
 endmodule
 module used_before_declared_diag_mod(input  logic [7:0] in_val,
-                                     output logic [7:0] out_val);
+    output logic [7:0] out_val);
     logic [7:0] undeclared_var_ubddm = 8'd5;
     assign out_val = in_val + undeclared_var_ubddm;
 endmodule
 module hierarchical_path_fail_mod(input  logic [7:0] in_val,
-                                  output logic [7:0] out_val);
+    output logic [7:0] out_val);
     always_comb begin : block_a
         static logic [7:0] existing_var_hpfm = in_val + 1;
         begin : block_b
@@ -499,8 +499,8 @@ module hierarchical_path_fail_mod(input  logic [7:0] in_val,
     end
 endmodule
 module array_index_diag_mod #(parameter int index_param = 0)
-                             (input  logic [7:0] in_val,
-                              output logic [7:0] out_val);
+    (input  logic [7:0] in_val,
+        output logic [7:0] out_val);
     genvar i;
     logic [7:0] local_aidm_vars [0:1];
     generate
@@ -513,31 +513,31 @@ module array_index_diag_mod #(parameter int index_param = 0)
     assign out_val = (index_param >= 0 && index_param < 2) ? local_aidm_vars[index_param] : 8'b0;
 endmodule
 module invalid_scoped_index_diag_mod(input  int dummy_in,
-                                     output int out_val);
+    output int out_val);
     assign out_val = my_package_explicit::PKG_PARAM;
 endmodule
 module package_import_wildcard_ambiguous_mod(input  logic dummy_in,
-                                             output logic [7:0] out_val);
+    output logic [7:0] out_val);
     import my_package_wildcard_a::*;
     import my_package_wildcard_b::*;
     always_comb out_val = WILD_PARAM;
 endmodule
 module import_name_collision_diag_mod(input  logic [7:0] in_val,
-                                      output logic [7:0] out_val);
+    output logic [7:0] out_val);
     import my_package_wildcard_a::*;
     parameter int WILD_PARAM_LOCAL = 50;
     always_comb out_val = in_val + WILD_PARAM_LOCAL;
 endmodule
 module module_in_program_ref(input  int in_val,
-                             output int out_val);
+    output int out_val);
     assign out_val = in_val;
 endmodule
 module sub_inst_array_mod(input  logic [7:0] in,
-                          output logic [7:0] out);
+    output logic [7:0] out);
     assign out = in;
 endmodule
 module instance_array_select_mod(input  logic [7:0] in_val,
-                                 output logic [15:0] out_val);
+    output logic [15:0] out_val);
     logic [7:0] inst_out [0:3];
     sub_inst_array_mod inst_array [0:3] (.in(in_val), .out(inst_out));
     logic [7:0] slice_0 = inst_out[0];
@@ -545,7 +545,7 @@ module instance_array_select_mod(input  logic [7:0] in_val,
     assign out_val = {slice_1, slice_0};
 endmodule
 module class_constraint_temp_var_mod(input  int in_val,
-                                     output int out_val);
+    output int out_val);
     ClassWithConstraint instance_h;
     int local_cctvm;
     always_comb begin
@@ -555,6 +555,6 @@ module class_constraint_temp_var_mod(input  int in_val,
     assign out_val = local_cctvm + in_val;
 endmodule
 module simple_undeclared_mod(input  int in_val,
-                             output int out_val);
+    output int out_val);
     assign out_val = in_val;
 endmodule

@@ -59,9 +59,9 @@ module mod_event_signal (
     always @(data_in) begin
         out_data_any <= data_in;
     end
-     always @(posedge edge_in) begin
-         out_edge_specific <= 1'b1;
-     end
+        always @(posedge edge_in) begin
+            out_edge_specific <= 1'b1;
+        end
 endmodule
 module mod_event_list (
     input wire clk,

@@ -1,13 +1,13 @@
 timeunit 1ns;
 timeprecision 1ps;
 module BitwiseAssign(input  logic [3:0] in_a,
-                     input  logic [3:0] in_b,
-                     output logic [3:0] out_y);
+    input  logic [3:0] in_b,
+    output logic [3:0] out_y);
     assign out_y = in_a ^ in_b;
 endmodule
 module GenerateIfParam #(parameter bit GEN = 1)
-                        (input  logic sig_in,
-                         output logic sig_out);
+    (input  logic sig_in,
+        output logic sig_out);
     generate
         if (GEN) begin : g_true
             assign sig_out = sig_in;
@@ -18,7 +18,7 @@ module GenerateIfParam #(parameter bit GEN = 1)
     endgenerate
 endmodule
 module GenerateFor(input  logic [3:0] data_in,
-                   output logic [3:0] data_out);
+    output logic [3:0] data_out);
     genvar i;
     generate
         for (i = 0; i < 4; i = i + 1) begin : g_loop
@@ -27,7 +27,7 @@ module GenerateFor(input  logic [3:0] data_in,
     endgenerate
 endmodule
 module ClassCounter(input  logic clk,
-                    output logic [7:0] count_out);
+    output logic [7:0] count_out);
     class Counter;
         int count;
         function void inc(); count++; endfunction
@@ -40,7 +40,7 @@ module ClassCounter(input  logic clk,
     end
 endmodule
 module FunctionTaskMod(input  logic [7:0] data_in,
-                       output logic       is_even);
+    output logic       is_even);
     function automatic bit check_even(input logic [7:0] v);
         check_even = ~v[0];
     endfunction
@@ -51,17 +51,17 @@ module FunctionTaskMod(input  logic [7:0] data_in,
     assign is_even = check_even(data_in);
 endmodule
 module Parameterized #(parameter int WIDTH = 8)
-                      (input  logic [WIDTH-1:0] din,
-                       output logic [WIDTH-1:0] dout);
+    (input  logic [WIDTH-1:0] din,
+        output logic [WIDTH-1:0] dout);
     assign dout = din;
 endmodule
 module ContinuousWire(input  logic din,
-                      output wire  dout);
+    output wire  dout);
     wire internal_w;
     assign internal_w = din;
     assign dout       = internal_w;
 endmodule
 module AlwaysCombInvert(input  logic [3:0] a,
-                        output logic [3:0] y);
+    output logic [3:0] y);
     always_comb y = ~a;
 endmodule

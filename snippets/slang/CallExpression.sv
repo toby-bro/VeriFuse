@@ -87,11 +87,11 @@ module m_array_methods_with (
         begin
             static int found_indices[] = data_queue.find_index with ( item > threshold );
             if (found_indices.size() != 0) begin
-                 first_index_gt_threshold = found_indices[0];
-                 first_value_gt_threshold = data_queue[found_indices[0]];
+                first_index_gt_threshold = found_indices[0];
+                first_value_gt_threshold = data_queue[found_indices[0]];
             end else begin
-                 first_index_gt_threshold = -1;
-                 first_value_gt_threshold = -1;
+                first_index_gt_threshold = -1;
+                first_value_gt_threshold = -1;
             end
         end
         unique_count = data_queue.unique().size();
@@ -141,7 +141,7 @@ module m_randomize_method (
     RandClass rand_instance;
     always @(posedge clk) begin
         if (rand_instance == null) begin
-             rand_instance = new();
+            rand_instance = new();
         end
         void'(rand_instance.randomize() with {
             byte_var inside {[20:50]};
@@ -189,8 +189,8 @@ module m_const_eval_check (
     function automatic void void_func(input int val);
     endfunction
     function automatic int func_with_output(output int out_val);
-         out_val = 1;
-         return 0;
+        out_val = 1;
+        return 0;
     endfunction
     int dummy_out;
     assign unused_out = unused_in;

@@ -84,7 +84,7 @@ module covergroup_bins_features_module (
     bins_features_cg bins_features_cg_inst;
     always_ff @(posedge features_clk) begin
         if (bins_features_cg_inst == null) begin
-             bins_features_cg_inst = new(features_data, features_condition);
+            bins_features_cg_inst = new(features_data, features_condition);
         end
         bins_features_cg_inst.sample();
         features_out = features_data;
@@ -150,9 +150,9 @@ module covergroup_real_module (
         coverpoint real_val_int;
         cp_real_explicit_nobins: coverpoint real_val_int;
         cp_real_explicit_withbins: coverpoint real_val_int {
-             bins b_single = {1};
-             bins b_range[] = { [0:10] };
-             // removed illegal 'with', 'wildcard_real', transition bins, and default array bins
+            bins b_single = {1};
+            bins b_range[] = { [0:10] };
+            // removed illegal 'with', 'wildcard_real', transition bins, and default array bins
         }
     endgroup
     real_cg real_cg_inst;
@@ -214,11 +214,11 @@ module class_covergroup_inherit_module (
 );
     derived_cls_for_inherit derived_inst;
     initial begin
-         derived_inst = new();
+        derived_inst = new();
     end
     always_comb begin
         if (derived_inst != null && inherit_trigger) begin
-             derived_inst.derived_cg.sample();
+            derived_inst.derived_cg.sample();
         end
         inherit_dummy_out = inherit_trigger ? 1 : 0;
     end

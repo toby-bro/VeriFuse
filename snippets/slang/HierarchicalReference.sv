@@ -19,8 +19,8 @@ module mod_array (
         internal_struct_array[1].field2 = in_array[1] ? 8'hBB : 8'h44;
         if (internal_struct_array[0].field1[0]) begin
         end
-         if (internal_struct_array[1].field2[7:4] == 4'hB) begin
-         end
+            if (internal_struct_array[1].field2[7:4] == 4'hB) begin
+            end
         dummy_access = sub_inst_array[1].out_sub;
         if (dummy_access) begin
         end
@@ -134,7 +134,7 @@ module mod_if_top (
     wire dummy_producer_internal_access = dummy_producer_internal_out_wire; 
     logic [7:0] final_data_internal;
     always_comb begin
-         final_data_internal = consumer_status_access + top_accessed_addr + {7'b0, dummy_producer_internal_access};
+        final_data_internal = consumer_status_access + top_accessed_addr + {7'b0, dummy_producer_internal_access};
     end
     assign final_data_if = final_data_internal;
 endmodule : mod_if_top

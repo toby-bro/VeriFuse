@@ -78,13 +78,13 @@ module StaticInitializerCheck (
     static logic [7:0] static_var_ref_after_diag    = static_var_e + 1;
     always_comb begin
         out_val = static_var_b               +
-                  static_var_d               +
-                  static_var_ref_func        +
-                  static_var_ref_sys         +
-                  static_var_ref_input_diag  +
-                  static_var_ref_net_diag    +
-                  static_var_ref_after_diag  +
-                  static_var_e;
+            static_var_d               +
+            static_var_ref_func        +
+            static_var_ref_sys         +
+            static_var_ref_input_diag  +
+            static_var_ref_net_diag    +
+            static_var_ref_after_diag  +
+            static_var_e;
     end
     function automatic logic [7:0] get_static_val();
         return static_var_a * 2;
@@ -108,7 +108,7 @@ module FormalArguments (
         static logic [7:0] temp_task_inout       = inout_port_driver_reg;
         logic  [7:0]       temp_task_out;
         temp_sum_out = add_values(in_val, 8'h10, temp_sum_out,
-                                  temp_inout_func, const_ref_input_val);
+            temp_inout_func, const_ref_input_val);
         inout_port_driver_reg = temp_inout_func;
         func_sum_out_reg      = temp_sum_out;
         call_task(in_val, temp_task_inout, temp_task_out);

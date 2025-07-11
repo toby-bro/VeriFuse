@@ -260,7 +260,7 @@ module DimensionTest (
             if (in_unpacked_dynamic_size2_initial > 0) begin
                 dynamic_array_multi[0] = new[in_unpacked_dynamic_size2_initial];
             end else begin
-                 dynamic_array_multi[0] = new[0];
+                dynamic_array_multi[0] = new[0];
             end
         end else begin
             dynamic_array = new[0];

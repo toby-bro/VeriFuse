@@ -22,9 +22,9 @@ module StringPutcGetcMod (
         end
         modified_string = temp_string;
         if (get_index >= 0 && get_index < temp_string.len()) begin
-             char_gotten = temp_string.getc(get_index);
+            char_gotten = temp_string.getc(get_index);
         end else begin
-             char_gotten = 8'h00; 
+            char_gotten = 8'h00; 
         end
     end
 endmodule
