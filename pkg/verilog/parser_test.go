@@ -21,7 +21,7 @@ func TestMain(m *testing.M) {
 // Optional: Add tests specifically for parseRange if needed, though it's indirectly tested above.
 func TestParseRange(t *testing.T) {
 	// Add a test case for parameter resolution
-	paramMap := map[string]Parameter{
+	paramMap := map[string]*Parameter{
 		"WIDTH": {Name: "WIDTH", DefaultValue: "16"},
 		"ADDR":  {Name: "ADDR", DefaultValue: "32"},
 	}
@@ -29,7 +29,7 @@ func TestParseRange(t *testing.T) {
 	testCases := []struct {
 		name          string
 		rangeStr      string
-		params        map[string]Parameter // Add params to test cases
+		params        map[string]*Parameter // Add params to test cases
 		expectedWidth int
 		expectError   bool
 	}{
@@ -58,7 +58,7 @@ func TestParseRange(t *testing.T) {
 		{
 			"Param Non-numeric [NAME-1:0]",
 			"[NAME-1:0]",
-			map[string]Parameter{"NAME": {DefaultValue: "\"abc\""}},
+			map[string]*Parameter{"NAME": {DefaultValue: "\"abc\""}},
 			8,
 			true,
 		}, // Non-numeric, fallback
@@ -183,13 +183,13 @@ endmodule
 			targetModuleName: "simple_adder",
 			expectedModule: &Module{
 				Name: "simple_adder",
-				Ports: []Port{
+				Ports: []*Port{
 					{Name: "a", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
 					{Name: "b", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
 					{Name: "sum", Direction: OUTPUT, Type: LOGIC, Width: 9, IsSigned: false},
 				},
 				Body:       "\n    assign sum = a + b;\n",
-				Parameters: []Parameter{},
+				Parameters: []*Parameter{},
 				AnsiStyle:  true,
 			},
 			expectError: false,
@@ -209,7 +209,7 @@ endmodule
 			targetModuleName: "parameterized_module",
 			expectedModule: &Module{
 				Name: "parameterized_module",
-				Ports: []Port{
+				Ports: []*Port{
 					{
 						Name:            "in",
 						Direction:       INPUT,
@@ -227,7 +227,7 @@ endmodule
 						AlreadyDeclared: false,
 					},
 				},
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{
 						Name:         "WIDTH",
 						Type:         INTEGER,

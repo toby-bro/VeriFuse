@@ -113,8 +113,8 @@ func (p *Port) GetInterfaceType() string {
 
 type Module struct {
 	Name       string
-	Ports      []Port
-	Parameters []Parameter
+	Ports      []*Port
+	Parameters []*Parameter
 	Body       string
 	AnsiStyle  bool
 }
@@ -144,22 +144,22 @@ type Struct struct {
 // TODO: #4 Add support for virtual classes and static functions to get parametrized tasks https://stackoverflow.com/questions/57755991/passing-parameters-to-a-verilog-function
 type Function struct {
 	Name  string
-	Ports []Port
+	Ports []*Port
 	Body  string
 }
 
 type Task struct {
 	Name  string
-	Ports []Port
+	Ports []*Port
 	Body  string
 }
 
 type Class struct {
 	Name       string
-	Parameters []Parameter
+	Parameters []*Parameter
 	Body       string
-	Tasks      []Task
-	Functions  []Function
+	Tasks      []*Task
+	Functions  []*Function
 	isVirtual  bool
 	extends    string
 }
@@ -167,26 +167,26 @@ type Class struct {
 type Package struct {
 	Name       string
 	Body       string
-	Typedefs   []string    // typedef statements found in package
-	Imports    []string    // import statements that this package makes
-	Variables  []*Variable // Variables declared in the package
-	Parameters []Parameter // Parameters if any
+	Typedefs   []string     // typedef statements found in package
+	Imports    []string     // import statements that this package makes
+	Variables  []*Variable  // Variables declared in the package
+	Parameters []*Parameter // Parameters if any
 }
 
 type ModPort struct {
 	Name    string
-	Signals []ModPortSignal
+	Signals []*ModPortSignal
 }
 
 type Interface struct {
 	Name        string
-	Ports       []InterfacePort // Interface can have its own input/output ports
-	Parameters  []Parameter     // Interface parameters
-	ModPorts    []ModPort       // Modport declarations
-	Variables   []*Variable     // Variables declared in the interface
-	Body        string          // Raw body content for unparsed elements
-	IsVirtual   bool            // Whether this is a virtual interface
-	ExtendsFrom string          // Name of interface this extends from (if any)
+	Ports       []*InterfacePort // Interface can have its own input/output ports
+	Parameters  []*Parameter     // Interface parameters
+	ModPorts    []*ModPort       // Modport declarations
+	Variables   []*Variable      // Variables declared in the interface
+	Body        string           // Raw body content for unparsed elements
+	IsVirtual   bool             // Whether this is a virtual interface
+	ExtendsFrom string           // Name of interface this extends from (if any)
 }
 
 type VerilogFile struct { //nolint:revive

@@ -375,7 +375,7 @@ func parseVerilogLiteral(literalStr string) (int64, error) {
 }
 
 // Utility functions for bit width parsing
-func parseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
+func parseRange(rangeStr string, parameters map[string]*Parameter) (int, error) {
 	// Handle common formats: [7:0], [WIDTH-1:0], etc.
 	rangeStr = strings.TrimSpace(rangeStr)
 
@@ -466,7 +466,7 @@ func parseRange(rangeStr string, parameters map[string]Parameter) (int, error) {
 // It returns the parsed Port and true if successful, otherwise nil and false.
 func parsePortDeclaration(
 	line string,
-	parameters map[string]Parameter,
+	parameters map[string]*Parameter,
 	variables map[string]*Variable,
 ) (*Port, bool) {
 	var matches []string
@@ -560,9 +560,9 @@ func parsePortDeclaration(
 // Returns a map of port name to the parsed Port struct (or placeholder) and a slice maintaining the original order.
 func extractANSIPortDeclarations(
 	portListStr string,
-	parameters map[string]Parameter,
-) (map[string]Port, []string) {
-	headerPorts := make(map[string]Port)
+	parameters map[string]*Parameter,
+) (map[string]*Port, []string) {
+	headerPorts := make(map[string]*Port)
 	headerPortOrder := []string{}
 
 	for _, p := range strings.Split(portListStr, ",") {
@@ -709,7 +709,7 @@ func extractANSIPortDeclarations(
 					portName,
 				)
 			}
-			headerPorts[portName] = port // Store parsed/placeholder port
+			headerPorts[portName] = &port // Store parsed/placeholder port
 			headerPortOrder = append(headerPortOrder, portName)
 		}
 	}
@@ -720,14 +720,14 @@ func extractANSIPortDeclarations(
 // extractNonANSIPortDeclarations scans the provided content for non-ANSI port declarations in the module content
 func extractNonANSIPortDeclarations(
 	content string,
-	parameters map[string]Parameter,
-) (map[string]Port, error) {
-	paramList := []Parameter{}
+	parameters map[string]*Parameter,
+) (map[string]*Port, error) {
+	paramList := []*Parameter{}
 	for _, param := range parameters {
 		paramList = append(paramList, param)
 	}
 	scanner := bufio.NewScanner(strings.NewReader(content))
-	parsedPortsMap := make(map[string]Port)
+	parsedPortsMap := make(map[string]*Port)
 
 	parsedVariables := make(map[string]*Variable)
 
@@ -747,7 +747,7 @@ func extractNonANSIPortDeclarations(
 		port, ok := parsePortDeclaration(trimmedLine, parameters, parsedVariables)
 		if ok {
 			if _, exists := parsedPortsMap[port.Name]; !exists {
-				parsedPortsMap[port.Name] = *port
+				parsedPortsMap[port.Name] = port
 			}
 		}
 	}
@@ -763,10 +763,10 @@ func extractNonANSIPortDeclarations(
 // This now acts on ports that were in the header list but had no corresponding body declaration (if they were placeholders).
 func applyPortDeclarationFallback(
 	module *Module,
-	headerPorts map[string]Port,
-	parsedPortsMap map[string]Port,
+	headerPorts map[string]*Port,
+	parsedPortsMap map[string]*Port,
 ) {
-	portsToAdd := []Port{}
+	portsToAdd := []*Port{}
 	existingPorts := make(map[string]bool)
 	for _, p := range module.Ports {
 		existingPorts[p.Name] = true
@@ -797,7 +797,7 @@ func applyPortDeclarationFallback(
 				direction = INPUT // Default to input
 			}
 			// TODO: #6 remove these fallback ports, all should be defined
-			fallbackPort := Port{
+			fallbackPort := &Port{
 				Name:      name,
 				Direction: direction,
 				Type:      UNKNOWN, // Default type
@@ -815,10 +815,10 @@ func applyPortDeclarationFallback(
 // It prioritizes details found in the body scan (non-ANSI) over header placeholders or potentially incomplete ANSI info.
 // This version merges the two maps directly, and the order of the resulting ports is not guaranteed.
 func mergePortInfo(
-	headerPorts map[string]Port,
-	parsedPortsMap map[string]Port,
-) []Port {
-	finalPortsMap := make(map[string]Port)
+	headerPorts map[string]*Port,
+	parsedPortsMap map[string]*Port,
+) []*Port {
+	finalPortsMap := make(map[string]*Port)
 
 	// Add all ports from headerPorts first
 	for name, port := range headerPorts {
@@ -857,7 +857,7 @@ func mergePortInfo(
 	}
 
 	// Convert map to slice
-	finalPorts := make([]Port, 0, len(finalPortsMap))
+	finalPorts := make([]*Port, 0, len(finalPortsMap))
 	for _, port := range finalPortsMap {
 		finalPorts = append(finalPorts, port)
 	}
@@ -868,9 +868,9 @@ func mergePortInfo(
 // extractNonANSIParameterDeclarations scans the provided content for non-ANSI parameter declarations in the module body
 func extractNonANSIParameterDeclarations(
 	content string,
-) ([]Parameter, error) {
+) ([]*Parameter, error) {
 	scanner := bufio.NewScanner(strings.NewReader(content))
-	bodyParameters := []Parameter{}
+	bodyParameters := []*Parameter{}
 
 	for scanner.Scan() {
 		trimmedLine := strings.TrimSpace(scanner.Text())
@@ -904,9 +904,9 @@ func extractNonANSIParameterDeclarations(
 // mergeParameterInfo combines parameters from header (ANSI style) and body (non-ANSI style)
 // Header parameters are marked as AnsiStyle=true, body parameters as AnsiStyle=false
 // If a parameter exists in both places, the body declaration takes precedence for the value
-func mergeParameterInfo(headerParams []Parameter, bodyParams []Parameter) []Parameter {
-	paramMap := make(map[string]Parameter)
-	finalParams := []Parameter{}
+func mergeParameterInfo(headerParams []*Parameter, bodyParams []*Parameter) []*Parameter {
+	paramMap := make(map[string]*Parameter)
+	finalParams := []*Parameter{}
 
 	// First, add all header parameters
 	for _, param := range headerParams {
@@ -953,8 +953,8 @@ func mergeParameterInfo(headerParams []Parameter, bodyParams []Parameter) []Para
 }
 
 // Helper function to convert slice of Parameters to a map for easy lookup
-func parametersToMap(params []Parameter) map[string]Parameter {
-	paramMap := make(map[string]Parameter)
+func parametersToMap(params []*Parameter) map[string]*Parameter {
+	paramMap := make(map[string]*Parameter)
 	for _, p := range params {
 		paramMap[p.Name] = p
 	}
@@ -973,8 +973,8 @@ func (v *VerilogFile) parseModules(moduleText string) error {
 		portListStr := matchedModule[3]
 		module := &Module{
 			Name:       moduleName,
-			Ports:      []Port{},
-			Parameters: []Parameter{},
+			Ports:      []*Port{},
+			Parameters: []*Parameter{},
 			Body:       matchedModule[4],
 		}
 
@@ -988,7 +988,7 @@ func (v *VerilogFile) parseModules(moduleText string) error {
 		bodyParameters, err := extractNonANSIParameterDeclarations(module.Body)
 		if err != nil {
 			logger.Warn("Error parsing body parameters for module %s: %v", moduleName, err)
-			bodyParameters = []Parameter{} // Continue with empty body parameters
+			bodyParameters = []*Parameter{} // Continue with empty body parameters
 		}
 
 		// Merge header and body parameters
@@ -1161,9 +1161,9 @@ func splitParametersSmart(parameterListString string) []string {
 	return result
 }
 
-func parseParameters(parameterListString string, ansiStyle bool) ([]Parameter, error) {
+func parseParameters(parameterListString string, ansiStyle bool) ([]*Parameter, error) {
 	params := splitParametersSmart(parameterListString)
-	parametersList := []Parameter{}
+	parametersList := []*Parameter{}
 
 	for _, paramStr := range params {
 		trimmedParamStr := strings.TrimSpace(paramStr)
@@ -1231,7 +1231,7 @@ func parseParameters(parameterListString string, ansiStyle bool) ([]Parameter, e
 				}
 			}
 
-			parametersList = append(parametersList, Parameter{
+			parametersList = append(parametersList, &Parameter{
 				Name:         paramName,
 				Type:         paramType,
 				DefaultValue: paramValue,
@@ -1264,7 +1264,7 @@ func parsePortsAndUpdateModule(portList string, module *Module) error {
 	if scanErr != nil {
 		logger.Warn("Error during scan for non-ANSI ports: %v", scanErr)
 		if parsedPortsMap == nil {
-			parsedPortsMap = make(map[string]Port)
+			parsedPortsMap = make(map[string]*Port)
 		}
 	}
 
@@ -1692,7 +1692,7 @@ func isVariableBlockedInChildren(
 
 func ParseVariables(v *VerilogFile,
 	content string,
-	scopeParams []Parameter,
+	scopeParams []*Parameter,
 ) (map[string]*Variable, error) {
 	variables, _, err := parseVariablesWithScope(v, content, scopeParams, nil)
 	return variables, err
@@ -1700,8 +1700,8 @@ func ParseVariables(v *VerilogFile,
 
 func GetScopeTree(v *VerilogFile,
 	content string,
-	scopeParams []Parameter,
-	modulePorts []Port,
+	scopeParams []*Parameter,
+	modulePorts []*Port,
 ) (*ScopeNode, error) {
 	_, scopeTree, err := parseVariablesWithScope(v, content, scopeParams, modulePorts)
 	if err != nil {
@@ -1717,8 +1717,8 @@ var excludedScopeRegex = regexp.MustCompile(`^\s*(?:typedef)\b`)
 // The scopeParams are used to resolve parameter ranges, and modulePorts are ONLY used for the scope Tree
 func parseVariablesWithScope(v *VerilogFile,
 	content string,
-	scopeParams []Parameter,
-	modulePorts []Port,
+	scopeParams []*Parameter,
+	modulePorts []*Port,
 ) (map[string]*Variable, *ScopeNode, error) {
 	scopeParamsMap := parametersToMap(scopeParams)
 	variablesMap := make(map[string]*Variable)
@@ -1956,9 +1956,9 @@ func (v *VerilogFile) parseStructs(
 // parseInterfacePorts parses interface port declarations (input/output ports of the interface itself)
 func parseInterfacePorts(
 	portListStr string,
-	parameters map[string]Parameter,
-) ([]InterfacePort, error) {
-	ports := []InterfacePort{}
+	parameters map[string]*Parameter,
+) ([]*InterfacePort, error) {
+	ports := []*InterfacePort{}
 
 	if strings.TrimSpace(portListStr) == "" {
 		return ports, nil
@@ -2001,7 +2001,7 @@ func parseInterfacePorts(
 				Pragma:    pragma,
 			}
 
-			ports = append(ports, port)
+			ports = append(ports, &port)
 		}
 	}
 
@@ -2009,8 +2009,8 @@ func parseInterfacePorts(
 }
 
 // parseModPortsFromBody extracts modport declarations from interface body
-func parseModPortsFromBody(bodyStr string) ([]ModPort, error) {
-	modports := []ModPort{}
+func parseModPortsFromBody(bodyStr string) ([]*ModPort, error) {
+	modports := []*ModPort{}
 
 	// Regex to find all modport declarations in the body
 	matches := ModportRegex.FindAllStringSubmatch(bodyStr, -1)
@@ -2025,7 +2025,7 @@ func parseModPortsFromBody(bodyStr string) ([]ModPort, error) {
 
 		modport := ModPort{
 			Name:    modportName,
-			Signals: []ModPortSignal{},
+			Signals: []*ModPortSignal{},
 		}
 
 		// Parse signals within the modport
@@ -2038,15 +2038,15 @@ func parseModPortsFromBody(bodyStr string) ([]ModPort, error) {
 			}
 		}
 
-		modports = append(modports, modport)
+		modports = append(modports, &modport)
 	}
 
 	return modports, nil
 }
 
 // parseModPortSignals parses signal declarations within a modport
-func parseModPortSignals(signalsList string) ([]ModPortSignal, error) {
-	signals := []ModPortSignal{}
+func parseModPortSignals(signalsList string) ([]*ModPortSignal, error) {
+	signals := []*ModPortSignal{}
 
 	// Clean up the signals list and split by comma to handle individual declarations
 	signalsList = strings.ReplaceAll(signalsList, "\n", " ")
@@ -2073,7 +2073,7 @@ func parseModPortSignals(signalsList string) ([]ModPortSignal, error) {
 			signalName := strings.TrimSpace(signalMatches[2])
 
 			if signalName != "" {
-				signals = append(signals, ModPortSignal{
+				signals = append(signals, &ModPortSignal{
 					Name:      signalName,
 					Direction: currentDirection,
 				})
@@ -2086,7 +2086,7 @@ func parseModPortSignals(signalsList string) ([]ModPortSignal, error) {
 			if len(nameMatches) >= 2 && currentDirection != INTERNAL {
 				signalName := strings.TrimSpace(nameMatches[1])
 				if signalName != "" {
-					signals = append(signals, ModPortSignal{
+					signals = append(signals, &ModPortSignal{
 						Name:      signalName,
 						Direction: currentDirection,
 					})
@@ -2121,9 +2121,9 @@ func (v *VerilogFile) parseInterfaces(
 			IsVirtual:   virtualStr == "virtual",
 			ExtendsFrom: extendsFrom,
 			Body:        bodyStr,
-			Ports:       []InterfacePort{},
-			Parameters:  []Parameter{},
-			ModPorts:    []ModPort{},
+			Ports:       []*InterfacePort{},
+			Parameters:  []*Parameter{},
+			ModPorts:    []*ModPort{},
 			Variables:   []*Variable{},
 		}
 
@@ -2192,7 +2192,7 @@ func (v *VerilogFile) parsePackages(content string) error {
 			Typedefs:   []string{},
 			Imports:    []string{},
 			Variables:  []*Variable{},
-			Parameters: []Parameter{},
+			Parameters: []*Parameter{},
 		}
 
 		// Parse typedef statements - handle multi-line typedefs like enums and structs

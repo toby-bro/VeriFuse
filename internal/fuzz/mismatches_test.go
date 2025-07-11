@@ -1,11 +1,13 @@
 package fuzz
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/toby-bro/pfuzz/internal/simulator"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
@@ -102,9 +104,31 @@ func TestReplaceXandZwithZero(t *testing.T) {
 	}
 }
 
+type dummySim struct{}
+
+func (d *dummySim) RunTest(
+	_ context.Context,
+	_ string,
+	_ map[*verilog.Port]string,
+) error {
+	return nil // Dummy implementation for testing
+}
+
+func (d *dummySim) Compile(_ context.Context) error {
+	return nil // Dummy implementation for testing
+}
+
+func (d *dummySim) FailedCuzUnsupportedFeature(_ error) (bool, error) {
+	return false, nil // Dummy implementation for testing
+}
+
+func (d *dummySim) Type() simulator.Type {
+	return simulator.CXXRTL // Dummy implementation for testing
+}
+
 func TestCleanAllOutputValues(t *testing.T) {
-	sim1 := &SimInstance{Name: "sim1"}
-	sim2 := &SimInstance{Name: "sim2"}
+	sim1 := &SimInstance{Simulator: &dummySim{}}
+	sim2 := &SimInstance{Simulator: &dummySim{}}
 	port1 := &verilog.Port{Name: "port1"}
 	port2 := &verilog.Port{Name: "port2"}
 	tests := []struct {
@@ -148,7 +172,7 @@ func TestCleanAllOutputValues(t *testing.T) {
 					if actualValue != expectedValue {
 						t.Errorf(
 							"Expected %s[%s] = %q, got %q",
-							sim.Name,
+							sim.String(),
 							port.Name,
 							expectedValue,
 							actualValue,
@@ -161,8 +185,8 @@ func TestCleanAllOutputValues(t *testing.T) {
 }
 
 func TestScheduler_compareAllResults(t *testing.T) {
-	sim1 := &SimInstance{Name: "sim1"}
-	sim2 := &SimInstance{Name: "sim2"}
+	sim1 := &SimInstance{Simulator: &dummySim{}}
+	sim2 := &SimInstance{Simulator: &dummySim{}}
 	port1 := &verilog.Port{Name: "port1"}
 	port2 := &verilog.Port{Name: "port2"}
 	sch := &Scheduler{

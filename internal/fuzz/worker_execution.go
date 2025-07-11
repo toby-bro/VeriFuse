@@ -109,10 +109,10 @@ func (sch *Scheduler) generateAndPrepareInputs(
 
 	for _, port := range workerModule.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-			if _, exists := testCase[&port]; !exists {
+			if _, exists := testCase[port]; !exists {
 				// defaultValue := strings.Repeat("0", port.Width) // Old binary string
 				defaultValue := "0" // New: "0" is a valid hex representation of zero for any width
-				testCase[&port] = defaultValue
+				testCase[port] = defaultValue
 				sch.debug.Debug("[%s] Test %d: Added default value '%s' for new input port '%s'",
 					workerID, testIndex, defaultValue, port.Name)
 			}

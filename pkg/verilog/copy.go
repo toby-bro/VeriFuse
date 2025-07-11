@@ -9,20 +9,10 @@ func (m *Module) DeepCopy() *Module {
 		Body:      m.Body,
 		AnsiStyle: m.AnsiStyle,
 	}
-
-	if m.Ports != nil {
-		copiedModule.Ports = make([]Port, len(m.Ports))
-		copy(copiedModule.Ports, m.Ports)
-	} else {
-		copiedModule.Ports = []Port{}
-	}
-
-	if m.Parameters != nil {
-		copiedModule.Parameters = make([]Parameter, len(m.Parameters))
-		copy(copiedModule.Parameters, m.Parameters)
-	} else {
-		copiedModule.Parameters = []Parameter{}
-	}
+	copiedModule.Ports = make([]*Port, len(m.Ports))
+	copy(copiedModule.Ports, m.Ports)
+	copiedModule.Parameters = make([]*Parameter, len(m.Parameters))
+	copy(copiedModule.Parameters, m.Parameters)
 
 	return copiedModule
 }

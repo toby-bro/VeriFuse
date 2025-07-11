@@ -555,7 +555,7 @@ func (g *Generator) generateCXXRTLInputDeclarations() string {
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
-			varDeclType := getCXXRTLTestbenchVarType(&port) // Use testbench variable type
+			varDeclType := getCXXRTLTestbenchVarType(port) // Use testbench variable type
 			inputDecls.WriteString(fmt.Sprintf("    %s %s;\n", varDeclType, portName))
 		}
 	}
@@ -569,7 +569,7 @@ func (g *Generator) generateCXXRTLInputReads() string {
 			portName := strings.TrimSpace(port.Name)
 			fileName := fmt.Sprintf("input_%s.hex", portName)
 			cppFilePath := strings.ReplaceAll(fileName, "\\", "\\\\")
-			varDeclType := getCXXRTLTestbenchVarType(&port)
+			varDeclType := getCXXRTLTestbenchVarType(port)
 
 			// Determine effective width
 			width := port.Width
@@ -743,7 +743,7 @@ func (g *Generator) generateCXXRTLInputApply(instanceName string) string {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
 			mangledPortName := cxxrtlManglePortName(portName)
-			setMethod := getCXXRTLSetMethod(&port)
+			setMethod := getCXXRTLSetMethod(port)
 
 			inputApply.WriteString(
 				fmt.Sprintf(
@@ -841,7 +841,7 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 		var setMethodLow string
 		for _, port := range g.module.Ports {
 			if strings.TrimSpace(port.Name) == clockPort {
-				setMethodLow = getCXXRTLSetMethod(&port)
+				setMethodLow = getCXXRTLSetMethod(port)
 				break
 			}
 		}
@@ -863,7 +863,7 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 		var setMethodHigh string
 		for _, port := range g.module.Ports {
 			if strings.TrimSpace(port.Name) == clockPort {
-				setMethodHigh = getCXXRTLSetMethod(&port)
+				setMethodHigh = getCXXRTLSetMethod(port)
 				break
 			}
 		}
@@ -1022,7 +1022,7 @@ func (g *Generator) GenerateCXXRTLTestbench(outputDir string) error {
 }
 
 // GenerateInterfaceStimulus generates protocol-aware stimulus for interface ports
-func (g *Generator) GenerateInterfaceStimulus(port verilog.Port) string {
+func (g *Generator) GenerateInterfaceStimulus(port *verilog.Port) string {
 	var stimulus strings.Builder
 	portName := strings.TrimSpace(port.Name)
 
@@ -1063,7 +1063,7 @@ func (g *Generator) GenerateInterfaceStimulus(port verilog.Port) string {
 	var modport *verilog.ModPort
 	for _, mp := range intf.ModPorts {
 		if mp.Name == port.ModportName {
-			modport = &mp
+			modport = mp
 			break
 		}
 	}

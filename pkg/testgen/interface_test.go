@@ -141,7 +141,7 @@ func TestGenerateInterfaceStimulus(t *testing.T) {
 			var testPort *verilog.Port
 			for _, port := range targetModule.Ports {
 				if port.Name == tc.portName {
-					testPort = &port
+					testPort = port
 					break
 				}
 			}
@@ -162,7 +162,7 @@ func TestGenerateInterfaceStimulus(t *testing.T) {
 			}
 
 			// Generate stimulus
-			stimulus := gen.GenerateInterfaceStimulus(*testPort)
+			stimulus := gen.GenerateInterfaceStimulus(testPort)
 
 			// Verify expected content is present
 			for _, expected := range tc.expectedContains {
@@ -195,7 +195,7 @@ func TestGenerateInterfaceStimulusWithMissingInterface(t *testing.T) {
 	// Create a minimal module with an interface port but no interface definition
 	module := &verilog.Module{
 		Name: "test_module",
-		Ports: []verilog.Port{
+		Ports: []*verilog.Port{
 			{
 				Name:          "test_if",
 				InterfaceName: "missing_interface",
@@ -230,10 +230,10 @@ func TestGenerateInterfaceStimulusWithMissingModport(t *testing.T) {
 		Variables: []*verilog.Variable{
 			{Name: "data", Type: verilog.LOGIC, Width: 8},
 		},
-		ModPorts: []verilog.ModPort{
+		ModPorts: []*verilog.ModPort{
 			{
 				Name: "slave",
-				Signals: []verilog.ModPortSignal{
+				Signals: []*verilog.ModPortSignal{
 					{Name: "data", Direction: verilog.INPUT},
 				},
 			},
@@ -242,7 +242,7 @@ func TestGenerateInterfaceStimulusWithMissingModport(t *testing.T) {
 
 	module := &verilog.Module{
 		Name: "test_module",
-		Ports: []verilog.Port{
+		Ports: []*verilog.Port{
 			{
 				Name:          "test_if",
 				InterfaceName: "test_interface",

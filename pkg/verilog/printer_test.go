@@ -132,34 +132,34 @@ func TestPortTypeToString(t *testing.T) {
 func TestPrintParameter(t *testing.T) {
 	tests := []struct {
 		name   string
-		param  Parameter
+		param  *Parameter
 		isLast bool
 		want   string
 	}{
 		{
 			"SimpleNotLast",
-			Parameter{Name: "WIDTH", DefaultValue: "8"},
+			&Parameter{Name: "WIDTH", DefaultValue: "8"},
 			false,
 			"parameter WIDTH = 8,",
 		},
-		{"SimpleLast", Parameter{Name: "WIDTH", DefaultValue: "8"}, true, "parameter WIDTH = 8"},
+		{"SimpleLast", &Parameter{Name: "WIDTH", DefaultValue: "8"}, true, "parameter WIDTH = 8"},
 		{
 			"TypedNotLast",
-			Parameter{Name: "DATA_W", Type: INT, DefaultValue: "32"},
+			&Parameter{Name: "DATA_W", Type: INT, DefaultValue: "32"},
 			false,
 			"parameter int DATA_W = 32,",
 		},
 		{
 			"TypedLast",
-			Parameter{Name: "ADDR_W", Type: INTEGER, DefaultValue: "16"},
+			&Parameter{Name: "ADDR_W", Type: INTEGER, DefaultValue: "16"},
 			true,
 			"parameter integer ADDR_W = 16",
 		},
-		{"NoDefaultNotLast", Parameter{Name: "CLK_FREQ"}, false, "parameter CLK_FREQ,"},
-		{"NoDefaultLast", Parameter{Name: "CLK_FREQ"}, true, "parameter CLK_FREQ"},
+		{"NoDefaultNotLast", &Parameter{Name: "CLK_FREQ"}, false, "parameter CLK_FREQ,"},
+		{"NoDefaultLast", &Parameter{Name: "CLK_FREQ"}, true, "parameter CLK_FREQ"},
 		{
 			"TypedNoDefaultLast",
-			Parameter{Name: "MODE", Type: STRING},
+			&Parameter{Name: "MODE", Type: STRING},
 			true,
 			"parameter string MODE",
 		},
@@ -268,7 +268,7 @@ func TestPrintPort(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := printPort(tt.port, tt.isLast, true); got != tt.want {
+			if got := printPort(&tt.port, tt.isLast, true); got != tt.want {
 				// Normalizing whitespace for comparison as subtle differences can occur
 				if normalizeSpace(got) != normalizeSpace(tt.want) {
 					t.Errorf("PrintPort() =\n%q\nwant\n%q", got, tt.want)
@@ -384,7 +384,7 @@ endclass
 			name: "ClassWithParams",
 			c: &Class{
 				Name:       "ParamClass",
-				Parameters: []Parameter{{Name: "WIDTH", DefaultValue: "8"}},
+				Parameters: []*Parameter{{Name: "WIDTH", DefaultValue: "8"}},
 				Body:       "  logic [WIDTH-1:0] data;\n",
 			},
 			want: `class ParamClass #(
@@ -440,7 +440,7 @@ endmodule
 			name: "ModuleWithPorts",
 			m: &Module{
 				Name: "adder",
-				Ports: []Port{
+				Ports: []*Port{
 					{Name: "a", Direction: INPUT, Type: LOGIC, Width: 8},
 					{Name: "b", Direction: INPUT, Type: LOGIC, Width: 8},
 					{Name: "sum", Direction: OUTPUT, Type: LOGIC, Width: 8},
@@ -461,11 +461,11 @@ endmodule
 			name: "ModuleWithParamsAndPorts",
 			m: &Module{
 				Name: "fifo",
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{Name: "DATA_W", DefaultValue: "32", AnsiStyle: true},
 					{Name: "DEPTH", DefaultValue: "16", AnsiStyle: true},
 				},
-				Ports: []Port{
+				Ports: []*Port{
 					{Name: "clk", Direction: INPUT, Type: LOGIC},
 					{Name: "rst_n", Direction: INPUT, Type: LOGIC},
 					{Name: "wr_en", Direction: INPUT, Type: LOGIC},
@@ -648,11 +648,11 @@ func TestPrintVerilogFile(t *testing.T) {
 				Modules: map[string]*Module{
 					"top": {
 						Name: "top", Body: "  initial $display(\"Hello\");\n",
-						Parameters: []Parameter{
+						Parameters: []*Parameter{
 							{Name: "WIDTH", DefaultValue: "8", AnsiStyle: true},
 							{Name: "DEPTH", DefaultValue: "16", AnsiStyle: true},
 						},
-						Ports: []Port{
+						Ports: []*Port{
 							{Name: "clk", Direction: INPUT, Type: LOGIC},
 							{Name: "rst_n", Direction: INPUT, Type: LOGIC},
 							{Name: "data_in", Direction: INPUT, Type: LOGIC, Width: 8},
@@ -691,7 +691,7 @@ endmodule
 					"processor": {
 						Name:      "processor",
 						Body:      "  my_data_t data_bus;\n",
-						Ports:     []Port{{Name: "clk", Direction: INPUT, Type: LOGIC}},
+						Ports:     []*Port{{Name: "clk", Direction: INPUT, Type: LOGIC}},
 						AnsiStyle: true,
 					},
 				},
@@ -767,7 +767,7 @@ endmodule
 					"nonAnsiModule": {
 						Name:      "nonAnsiModule",
 						Body:      "  input logic clk;\n  initial $display(\"Non-ANSI Module\");\n",
-						Ports:     []Port{{Name: "clk", Direction: INPUT, Type: LOGIC}},
+						Ports:     []*Port{{Name: "clk", Direction: INPUT, Type: LOGIC}},
 						AnsiStyle: false, // Non-ANSI style
 					},
 				},
@@ -999,7 +999,7 @@ func TestPrintInterfacePort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := printInterfacePort(tt.port, tt.isLast)
+			got := printInterfacePort(&tt.port, tt.isLast)
 			if got != tt.want {
 				t.Errorf("PrintInterfacePort() = %v, want %v", got, tt.want)
 			}
@@ -1017,7 +1017,7 @@ func TestPrintModPort(t *testing.T) {
 			name: "Simple modport",
 			modport: ModPort{
 				Name: "master",
-				Signals: []ModPortSignal{
+				Signals: []*ModPortSignal{
 					{Name: "data", Direction: OUTPUT},
 					{Name: "valid", Direction: OUTPUT},
 					{Name: "ready", Direction: INPUT},
@@ -1033,7 +1033,7 @@ func TestPrintModPort(t *testing.T) {
 			name: "Single signal modport",
 			modport: ModPort{
 				Name: "simple",
-				Signals: []ModPortSignal{
+				Signals: []*ModPortSignal{
 					{Name: "clk", Direction: INPUT},
 				},
 			},
@@ -1045,7 +1045,7 @@ func TestPrintModPort(t *testing.T) {
 			name: "Empty modport",
 			modport: ModPort{
 				Name:    "empty",
-				Signals: []ModPortSignal{},
+				Signals: []*ModPortSignal{},
 			},
 			want: `modport empty (
 );`,
@@ -1054,7 +1054,7 @@ func TestPrintModPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := printModPort(tt.modport)
+			got := printModPort(&tt.modport)
 			if got != tt.want {
 				t.Errorf("PrintModPort() = %v, want %v", got, tt.want)
 			}
@@ -1072,9 +1072,9 @@ func TestPrintInterface(t *testing.T) {
 			name: "Simple interface",
 			intf: &Interface{
 				Name:        "simple_if",
-				Ports:       []InterfacePort{},
-				Parameters:  []Parameter{},
-				ModPorts:    []ModPort{},
+				Ports:       []*InterfacePort{},
+				Parameters:  []*Parameter{},
+				ModPorts:    []*ModPort{},
 				Variables:   []*Variable{},
 				Body:        "",
 				IsVirtual:   false,
@@ -1087,9 +1087,9 @@ endinterface`,
 			name: "Virtual interface",
 			intf: &Interface{
 				Name:        "virtual_if",
-				Ports:       []InterfacePort{},
-				Parameters:  []Parameter{},
-				ModPorts:    []ModPort{},
+				Ports:       []*InterfacePort{},
+				Parameters:  []*Parameter{},
+				ModPorts:    []*ModPort{},
 				Variables:   []*Variable{},
 				Body:        "",
 				IsVirtual:   true,
@@ -1102,12 +1102,12 @@ endinterface`,
 			name: "Interface with parameters",
 			intf: &Interface{
 				Name:  "param_if",
-				Ports: []InterfacePort{},
-				Parameters: []Parameter{
+				Ports: []*InterfacePort{},
+				Parameters: []*Parameter{
 					{Name: "WIDTH", Type: INT, DefaultValue: "8"},
 					{Name: "DEPTH", Type: INT, DefaultValue: "16"},
 				},
-				ModPorts:    []ModPort{},
+				ModPorts:    []*ModPort{},
 				Variables:   []*Variable{},
 				Body:        "",
 				IsVirtual:   false,
@@ -1123,12 +1123,12 @@ endinterface`,
 			name: "Interface with ports",
 			intf: &Interface{
 				Name: "port_if",
-				Ports: []InterfacePort{
+				Ports: []*InterfacePort{
 					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 					{Name: "rst_n", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 				},
-				Parameters:  []Parameter{},
-				ModPorts:    []ModPort{},
+				Parameters:  []*Parameter{},
+				ModPorts:    []*ModPort{},
 				Variables:   []*Variable{},
 				Body:        "",
 				IsVirtual:   false,
@@ -1144,9 +1144,9 @@ endinterface`,
 			name: "Interface extending another",
 			intf: &Interface{
 				Name:        "extended_if",
-				Ports:       []InterfacePort{},
-				Parameters:  []Parameter{},
-				ModPorts:    []ModPort{},
+				Ports:       []*InterfacePort{},
+				Parameters:  []*Parameter{},
+				ModPorts:    []*ModPort{},
 				Variables:   []*Variable{},
 				Body:        "",
 				IsVirtual:   false,
@@ -1159,9 +1159,9 @@ endinterface`,
 			name: "Interface with variables",
 			intf: &Interface{
 				Name:       "var_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts:   []ModPort{},
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts:   []*ModPort{},
 				Variables: []*Variable{
 					{Name: "data", Type: LOGIC, Width: 8},
 					{Name: "valid", Type: LOGIC, Width: 0},
@@ -1179,12 +1179,12 @@ endinterface`,
 			name: "Interface with modports",
 			intf: &Interface{
 				Name:       "modport_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "master",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: OUTPUT},
 							{Name: "ready", Direction: INPUT},
 							{Name: "valid", Direction: OUTPUT},
@@ -1192,7 +1192,7 @@ endinterface`,
 					},
 					{
 						Name: "slave",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: INPUT},
 							{Name: "ready", Direction: OUTPUT},
 							{Name: "valid", Direction: INPUT},
@@ -1222,16 +1222,16 @@ endinterface`,
 			name: "Complete interface with all features",
 			intf: &Interface{
 				Name: "complete_if",
-				Ports: []InterfacePort{
+				Ports: []*InterfacePort{
 					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 				},
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{Name: "WIDTH", Type: INT, DefaultValue: "8"},
 				},
-				ModPorts: []ModPort{
+				ModPorts: []*ModPort{
 					{
 						Name: "producer",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: OUTPUT},
 							{Name: "valid", Direction: OUTPUT},
 						},
@@ -1263,18 +1263,18 @@ endinterface`,
 			name: "Virtual interface extending with all features",
 			intf: &Interface{
 				Name: "full_virtual_if",
-				Ports: []InterfacePort{
+				Ports: []*InterfacePort{
 					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 					{Name: "rst_n", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 				},
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{Name: "WIDTH", Type: INT, DefaultValue: "32"},
 					{Name: "DEPTH", Type: INT, DefaultValue: "16"},
 				},
-				ModPorts: []ModPort{
+				ModPorts: []*ModPort{
 					{
 						Name: "master",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "addr", Direction: OUTPUT},
 							{Name: "data", Direction: INOUT},
 							{Name: "we", Direction: OUTPUT},
@@ -1331,12 +1331,12 @@ func TestPrintInterface_V3SchedVirtIface(t *testing.T) {
 			name: "my_if interface",
 			intf: &Interface{
 				Name:       "my_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "FullAccess",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: INPUT},
 							{Name: "ready", Direction: OUTPUT},
 							{Name: "valid", Direction: OUTPUT},
@@ -1344,7 +1344,7 @@ func TestPrintInterface_V3SchedVirtIface(t *testing.T) {
 					},
 					{
 						Name: "AccessIn",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: OUTPUT},
 							{Name: "valid", Direction: OUTPUT},
 							{Name: "ready", Direction: INPUT},
@@ -1352,7 +1352,7 @@ func TestPrintInterface_V3SchedVirtIface(t *testing.T) {
 					},
 					{
 						Name: "AccessOut",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: INPUT},
 							{Name: "valid", Direction: INPUT},
 							{Name: "ready", Direction: OUTPUT},
@@ -1381,12 +1381,12 @@ endinterface`,
 			name: "cond_if interface",
 			intf: &Interface{
 				Name:       "cond_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "CtrlStat",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "control_reg", Direction: OUTPUT},
 							{Name: "status_reg", Direction: INPUT},
 						},
@@ -1410,19 +1410,19 @@ endinterface`,
 			name: "loop_if interface",
 			intf: &Interface{
 				Name:       "loop_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "Ctrl",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "index", Direction: OUTPUT},
 							{Name: "done", Direction: OUTPUT},
 						},
 					},
 					{
 						Name: "Report",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "index", Direction: INPUT},
 							{Name: "done", Direction: INPUT},
 						},
@@ -1447,12 +1447,12 @@ endinterface`,
 			name: "seq_if interface",
 			intf: &Interface{
 				Name:       "seq_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "PortA",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "value_a", Direction: OUTPUT},
 						},
 					},
@@ -1473,12 +1473,12 @@ endinterface`,
 			name: "seq2_if interface",
 			intf: &Interface{
 				Name:       "seq2_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "PortB",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "status_byte", Direction: OUTPUT},
 						},
 					},
@@ -1499,12 +1499,12 @@ endinterface`,
 			name: "struct_if interface",
 			intf: &Interface{
 				Name:       "struct_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "Access",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "packet_field1", Direction: OUTPUT},
 							{Name: "packet_field2", Direction: OUTPUT},
 							{Name: "tx_en", Direction: OUTPUT},
@@ -1549,7 +1549,7 @@ func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
 			name: "FullAccess modport from my_if",
 			modport: ModPort{
 				Name: "FullAccess",
-				Signals: []ModPortSignal{
+				Signals: []*ModPortSignal{
 					{Name: "data", Direction: INPUT},
 					{Name: "ready", Direction: OUTPUT},
 					{Name: "valid", Direction: OUTPUT},
@@ -1565,7 +1565,7 @@ func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
 			name: "AccessIn modport from my_if",
 			modport: ModPort{
 				Name: "AccessIn",
-				Signals: []ModPortSignal{
+				Signals: []*ModPortSignal{
 					{Name: "data", Direction: OUTPUT},
 					{Name: "valid", Direction: OUTPUT},
 					{Name: "ready", Direction: INPUT},
@@ -1581,7 +1581,7 @@ func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
 			name: "AccessOut modport from my_if",
 			modport: ModPort{
 				Name: "AccessOut",
-				Signals: []ModPortSignal{
+				Signals: []*ModPortSignal{
 					{Name: "data", Direction: INPUT},
 					{Name: "valid", Direction: INPUT},
 					{Name: "ready", Direction: OUTPUT},
@@ -1597,7 +1597,7 @@ func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
 			name: "CtrlStat modport from cond_if",
 			modport: ModPort{
 				Name: "CtrlStat",
-				Signals: []ModPortSignal{
+				Signals: []*ModPortSignal{
 					{Name: "control_reg", Direction: OUTPUT},
 					{Name: "status_reg", Direction: INPUT},
 				},
@@ -1611,7 +1611,7 @@ func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
 			name: "Ctrl modport from loop_if",
 			modport: ModPort{
 				Name: "Ctrl",
-				Signals: []ModPortSignal{
+				Signals: []*ModPortSignal{
 					{Name: "index", Direction: OUTPUT},
 					{Name: "done", Direction: OUTPUT},
 				},
@@ -1625,7 +1625,7 @@ func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
 			name: "Report modport from loop_if",
 			modport: ModPort{
 				Name: "Report",
-				Signals: []ModPortSignal{
+				Signals: []*ModPortSignal{
 					{Name: "index", Direction: INPUT},
 					{Name: "done", Direction: INPUT},
 				},
@@ -1639,7 +1639,7 @@ func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
 			name: "PortA modport from seq_if",
 			modport: ModPort{
 				Name: "PortA",
-				Signals: []ModPortSignal{
+				Signals: []*ModPortSignal{
 					{Name: "value_a", Direction: OUTPUT},
 				},
 			},
@@ -1651,7 +1651,7 @@ func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
 			name: "PortB modport from seq2_if",
 			modport: ModPort{
 				Name: "PortB",
-				Signals: []ModPortSignal{
+				Signals: []*ModPortSignal{
 					{Name: "status_byte", Direction: OUTPUT},
 				},
 			},
@@ -1663,7 +1663,7 @@ func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
 			name: "Access modport from struct_if",
 			modport: ModPort{
 				Name: "Access",
-				Signals: []ModPortSignal{
+				Signals: []*ModPortSignal{
 					{Name: "packet_field1", Direction: OUTPUT},
 					{Name: "packet_field2", Direction: OUTPUT},
 					{Name: "tx_en", Direction: OUTPUT},
@@ -1679,7 +1679,7 @@ func TestPrintModPort_V3SchedVirtIface(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := printModPort(tt.modport)
+			got := printModPort(&tt.modport)
 			if got != tt.want {
 				t.Errorf("PrintModPort() for %s =\nGOT:\n%s\nWANT:\n%s", tt.name, got, tt.want)
 			}
@@ -1770,7 +1770,7 @@ func TestPrintInterfacePort_V3SchedVirtIface(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := printInterfacePort(tt.port, tt.isLast)
+			got := printInterfacePort(&tt.port, tt.isLast)
 			if got != tt.want {
 				t.Errorf("PrintInterfacePort() for %s =\nGOT: %q\nWANT: %q", tt.name, got, tt.want)
 			}
@@ -1788,9 +1788,9 @@ func TestPrintInterface_EdgeCases_V3SchedVirtIface(t *testing.T) {
 			name: "Empty interface",
 			intf: &Interface{
 				Name:        "empty_if",
-				Ports:       []InterfacePort{},
-				Parameters:  []Parameter{},
-				ModPorts:    []ModPort{},
+				Ports:       []*InterfacePort{},
+				Parameters:  []*Parameter{},
+				ModPorts:    []*ModPort{},
 				Variables:   []*Variable{},
 				Body:        "",
 				IsVirtual:   false,
@@ -1803,9 +1803,9 @@ endinterface`,
 			name: "Interface with only variables (generated from components)",
 			intf: &Interface{
 				Name:       "vars_only_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts:   []ModPort{},
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts:   []*ModPort{},
 				Variables: []*Variable{
 					{Name: "test_signal", Type: LOGIC, Width: 8},
 				},
@@ -1821,12 +1821,12 @@ endinterface`,
 			name: "Interface with only modports (generated from components)",
 			intf: &Interface{
 				Name:       "modports_only_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "test_port",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "test_sig", Direction: OUTPUT},
 						},
 					},
@@ -1846,12 +1846,12 @@ endinterface`,
 			name: "Interface with body takes precedence over components",
 			intf: &Interface{
 				Name:       "body_precedence_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "ignored_port",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "ignored_sig", Direction: OUTPUT},
 						},
 					},
@@ -1921,7 +1921,7 @@ endpackage
 			name: "PackageWithParameters",
 			pkg: &Package{
 				Name: "config_pkg",
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{Name: "WIDTH", DefaultValue: "8"},
 					{Name: "DEPTH", Type: INTEGER, DefaultValue: "256"},
 				},
@@ -1965,7 +1965,7 @@ endpackage
 			name: "ComplexPackage",
 			pkg: &Package{
 				Name: "complex_pkg",
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{Name: "DATA_WIDTH", DefaultValue: "32"},
 				},
 				Imports: []string{"import common_types_pkg::*;"},

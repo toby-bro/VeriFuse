@@ -569,7 +569,7 @@ func TestParseVariablesWithBlockingDetection(t *testing.T) {
 			variables, scopeTree, err := parseVariablesWithScope(
 				nil,
 				tt.content,
-				[]Parameter{},
+				[]*Parameter{},
 				nil,
 			)
 			if err != nil {
@@ -876,7 +876,7 @@ func TestRealWorldModuleInstantiationBlocking(t *testing.T) {
 		endmodule
 	`
 
-	variables, scopeTree, err := parseVariablesWithScope(nil, content, []Parameter{}, nil)
+	variables, scopeTree, err := parseVariablesWithScope(nil, content, []*Parameter{}, nil)
 	if err != nil {
 		t.Fatalf("ParseVariables() error = %v", err)
 	}
@@ -944,7 +944,7 @@ func TestModuleInstantiationAccuratePortDirection(t *testing.T) {
 	vf := NewVerilogFile("test")
 	vf.Modules["processor_core"] = &Module{
 		Name: "processor_core",
-		Ports: []Port{
+		Ports: []*Port{
 			{Name: "clk", Direction: INPUT},
 			{Name: "reset_n", Direction: INPUT},
 			{Name: "data_in", Direction: INPUT},
@@ -1119,7 +1119,7 @@ func TestModuleInstantiationRegexIssues(t *testing.T) {
 	// Add the modules we're testing
 	vf.Modules["split_conditional_blocking"] = &Module{
 		Name: "split_conditional_blocking",
-		Ports: []Port{
+		Ports: []*Port{
 			{Name: "condition_o", Direction: INPUT},
 			{Name: "in_false_o", Direction: INPUT},
 			{Name: "in_true_o", Direction: INPUT},
@@ -1128,7 +1128,7 @@ func TestModuleInstantiationRegexIssues(t *testing.T) {
 	}
 	vf.Modules["another_module"] = &Module{
 		Name: "another_module",
-		Ports: []Port{
+		Ports: []*Port{
 			{Name: "input_port", Direction: INPUT},
 			{Name: "output_port", Direction: OUTPUT},
 		},
@@ -1255,7 +1255,7 @@ func TestRealWorldRegexIssue(t *testing.T) {
 	vf := createTestVerilogFileWithModules()
 	vf.Modules["split_conditional_blocking"] = &Module{
 		Name: "split_conditional_blocking",
-		Ports: []Port{
+		Ports: []*Port{
 			{Name: "condition_o", Direction: INPUT},
 			{Name: "in_false_o", Direction: INPUT},
 			{Name: "in_true_o", Direction: INPUT},
@@ -1413,7 +1413,7 @@ func createTestVerilogFileWithModules() *VerilogFile {
 	// counter_module: clk, reset, enable are inputs; count_out is output
 	vf.Modules["counter_module"] = &Module{
 		Name: "counter_module",
-		Ports: []Port{
+		Ports: []*Port{
 			{Name: "clk", Direction: INPUT},
 			{Name: "reset", Direction: INPUT},
 			{Name: "enable", Direction: INPUT},
@@ -1424,7 +1424,7 @@ func createTestVerilogFileWithModules() *VerilogFile {
 	// adder_module: clk, data_in are inputs; result_out, valid_out are outputs
 	vf.Modules["adder_module"] = &Module{
 		Name: "adder_module",
-		Ports: []Port{
+		Ports: []*Port{
 			{Name: "clk", Direction: INPUT},
 			{Name: "data_in", Direction: INPUT},
 			{Name: "result_out", Direction: OUTPUT},
@@ -1435,7 +1435,7 @@ func createTestVerilogFileWithModules() *VerilogFile {
 	// split_inputs_outputs_only: inputs are in_val_*, outputs are out_val_*
 	vf.Modules["split_inputs_outputs_only"] = &Module{
 		Name: "split_inputs_outputs_only",
-		Ports: []Port{
+		Ports: []*Port{
 			{Name: "in_val_a_l", Direction: INPUT},
 			{Name: "in_val_b_l", Direction: INPUT},
 			{Name: "out_val_c_l", Direction: OUTPUT},
@@ -1446,7 +1446,7 @@ func createTestVerilogFileWithModules() *VerilogFile {
 	// split_if_only_then: clk_h, condition_h, in_val_h are inputs; out_reg_h is output
 	vf.Modules["split_if_only_then"] = &Module{
 		Name: "split_if_only_then",
-		Ports: []Port{
+		Ports: []*Port{
 			{Name: "clk_h", Direction: INPUT},
 			{Name: "condition_h", Direction: INPUT},
 			{Name: "in_val_h", Direction: INPUT},
@@ -1457,7 +1457,7 @@ func createTestVerilogFileWithModules() *VerilogFile {
 	// processor_module: clk, data_in are inputs; data_out is output
 	vf.Modules["processor_module"] = &Module{
 		Name: "processor_module",
-		Ports: []Port{
+		Ports: []*Port{
 			{Name: "clk", Direction: INPUT},
 			{Name: "data_in", Direction: INPUT},
 			{Name: "data_out", Direction: OUTPUT},

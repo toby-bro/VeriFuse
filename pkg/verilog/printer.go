@@ -154,7 +154,7 @@ func typeToString(pt PortType) string {
 }
 
 // printParameter formats a Parameter for module/class headers.
-func printParameter(param Parameter, isLast bool) string {
+func printParameter(param *Parameter, isLast bool) string {
 	var sb strings.Builder
 	sb.WriteString("parameter ")
 	if param.Type != UNKNOWN {
@@ -177,7 +177,7 @@ func printParameter(param Parameter, isLast bool) string {
 }
 
 // printPort formats a Port for module headers.
-func printPort(port Port, isLast bool, ansiStyle bool) string {
+func printPort(port *Port, isLast bool, ansiStyle bool) string {
 	var sb strings.Builder
 
 	// Add pragma if present
@@ -291,7 +291,7 @@ func printStruct(s *Struct) string {
 }
 
 // printInterfacePort formats an InterfacePort for interface port declarations.
-func printInterfacePort(port InterfacePort, isLast bool) string {
+func printInterfacePort(port *InterfacePort, isLast bool) string {
 	var sb strings.Builder
 
 	// Add pragma if present
@@ -330,12 +330,12 @@ func printInterfacePort(port InterfacePort, isLast bool) string {
 }
 
 // printModPort formats a ModPort declaration for interfaces.
-func printModPort(modport ModPort) string {
+func printModPort(modport *ModPort) string {
 	return printModPortWithIndent(modport, "")
 }
 
 // printModPortWithIndent formats a ModPort declaration with specified indentation
-func printModPortWithIndent(modport ModPort, indent string) string {
+func printModPortWithIndent(modport *ModPort, indent string) string {
 	var sb strings.Builder
 	sb.WriteString(indent)
 	sb.WriteString("modport ")
@@ -487,7 +487,7 @@ func printModule(m *Module) string {
 	sb.WriteString(m.Name)
 
 	// Only print ANSI-style parameters in the header
-	ansiParams := []Parameter{}
+	ansiParams := []*Parameter{}
 	for _, param := range m.Parameters {
 		if param.AnsiStyle {
 			ansiParams = append(ansiParams, param)

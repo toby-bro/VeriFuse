@@ -59,18 +59,18 @@ func TestParseInterface(t *testing.T) {
 endinterface`,
 			expectedInterface: &Interface{
 				Name: "fifo_if",
-				Ports: []InterfacePort{
+				Ports: []*InterfacePort{
 					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 					{Name: "rst_n", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 				},
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{Name: "DEPTH", Type: INT, DefaultValue: "16"},
 					{Name: "WIDTH", Type: INT, DefaultValue: "32"},
 				},
-				ModPorts: []ModPort{
+				ModPorts: []*ModPort{
 					{
 						Name: "producer",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: OUTPUT},
 							{Name: "push", Direction: OUTPUT},
 							{Name: "full", Direction: INPUT},
@@ -79,7 +79,7 @@ endinterface`,
 					},
 					{
 						Name: "consumer",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: INPUT},
 							{Name: "pop", Direction: OUTPUT},
 							{Name: "empty", Direction: INPUT},
@@ -88,7 +88,7 @@ endinterface`,
 					},
 					{
 						Name: "monitor",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: INPUT},
 							{Name: "push", Direction: INPUT},
 							{Name: "pop", Direction: INPUT},
@@ -118,9 +118,9 @@ endinterface`,
 endinterface`,
 			expectedInterface: &Interface{
 				Name:        "empty_if",
-				Ports:       []InterfacePort{},
-				Parameters:  []Parameter{},
-				ModPorts:    []ModPort{},
+				Ports:       []*InterfacePort{},
+				Parameters:  []*Parameter{},
+				ModPorts:    []*ModPort{},
 				Variables:   []*Variable{},
 				Body:        "",
 				IsVirtual:   false,
@@ -141,12 +141,12 @@ endinterface`,
 endinterface`,
 			expectedInterface: &Interface{
 				Name:       "advanced_bus_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "advanced_master",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "error", Direction: OUTPUT},
 							{Name: "interrupt", Direction: OUTPUT},
 						},
@@ -175,12 +175,12 @@ endinterface`,
 endinterface`,
 			expectedInterface: &Interface{
 				Name: "mem_if",
-				Ports: []InterfacePort{
+				Ports: []*InterfacePort{
 					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 					{Name: "rst_n", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 				},
-				Parameters: []Parameter{},
-				ModPorts:   []ModPort{},
+				Parameters: []*Parameter{},
+				ModPorts:   []*ModPort{},
 				Variables: []*Variable{
 					{Name: "addr", Type: LOGIC, Width: 32},
 					{Name: "data", Type: LOGIC, Width: 32},
@@ -226,12 +226,12 @@ endinterface`,
 endinterface`,
 			expectedInterface: &Interface{
 				Name:       "cpu_bus_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "master",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "addr", Direction: OUTPUT},
 							{Name: "data", Direction: INOUT},
 							{Name: "we", Direction: OUTPUT},
@@ -240,7 +240,7 @@ endinterface`,
 					},
 					{
 						Name: "slave",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "addr", Direction: INPUT},
 							{Name: "data", Direction: INOUT},
 							{Name: "we", Direction: INPUT},
@@ -250,7 +250,7 @@ endinterface`,
 					},
 					{
 						Name: "monitor",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "addr", Direction: INPUT},
 							{Name: "data", Direction: INPUT},
 							{Name: "we", Direction: INPUT},
@@ -308,12 +308,12 @@ endinterface`,
 endinterface`,
 			expectedInterface: &Interface{
 				Name:  "bus_if",
-				Ports: []InterfacePort{},
-				Parameters: []Parameter{
+				Ports: []*InterfacePort{},
+				Parameters: []*Parameter{
 					{Name: "WIDTH", Type: INT, DefaultValue: "8"},
 					{Name: "SIGNED", Type: LOGIC, DefaultValue: "1'b0"},
 				},
-				ModPorts: []ModPort{},
+				ModPorts: []*ModPort{},
 				Variables: []*Variable{
 					{Name: "data", Type: LOGIC, Width: 8}, // WIDTH parameter resolved
 					{Name: "valid", Type: LOGIC, Width: 0},
@@ -342,12 +342,12 @@ endinterface`,
 endinterface`,
 			expectedInterface: &Interface{
 				Name:       "mixed_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "producer",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "byte_data", Direction: OUTPUT},
 							{Name: "word_data", Direction: OUTPUT},
 							{Name: "counter", Direction: OUTPUT},
@@ -391,9 +391,9 @@ endinterface`,
 endinterface`,
 			expectedInterface: &Interface{
 				Name:       "simple_if",
-				Ports:      []InterfacePort{},
-				Parameters: []Parameter{},
-				ModPorts:   []ModPort{},
+				Ports:      []*InterfacePort{},
+				Parameters: []*Parameter{},
+				ModPorts:   []*ModPort{},
 				Variables: []*Variable{
 					{Name: "data", Type: LOGIC, Width: 0},
 					{Name: "valid", Type: LOGIC, Width: 0},
@@ -416,12 +416,12 @@ endinterface`,
 endinterface`,
 			expectedInterface: &Interface{
 				Name:       "control_if",
-				Ports:      []InterfacePort{}, // No external ports
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Ports:      []*InterfacePort{}, // No external ports
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "FullAccess",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: INPUT},
 							{Name: "ready", Direction: OUTPUT},
 							{Name: "valid", Direction: OUTPUT},
@@ -429,7 +429,7 @@ endinterface`,
 					},
 					{
 						Name: "AccessIn",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: OUTPUT},
 							{Name: "ready", Direction: INPUT},
 							{Name: "valid", Direction: OUTPUT},
@@ -437,7 +437,7 @@ endinterface`,
 					},
 					{
 						Name: "AccessOut",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: INPUT},
 							{Name: "ready", Direction: OUTPUT},
 							{Name: "valid", Direction: INPUT},
@@ -462,9 +462,9 @@ endinterface`,
 endinterface`,
 			expectedInterface: &Interface{
 				Name:        "axi_if",
-				Ports:       []InterfacePort{},
-				Parameters:  []Parameter{},
-				ModPorts:    []ModPort{},
+				Ports:       []*InterfacePort{},
+				Parameters:  []*Parameter{},
+				ModPorts:    []*ModPort{},
 				Variables:   []*Variable{},
 				Body:        "  // Virtual interface body would be empty or minimal",
 				IsVirtual:   true,
@@ -482,21 +482,21 @@ endinterface`,
 endinterface`,
 			expectedInterface: &Interface{
 				Name: "simple_if",
-				Ports: []InterfacePort{
+				Ports: []*InterfacePort{
 					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 				},
-				Parameters: []Parameter{},
-				ModPorts: []ModPort{
+				Parameters: []*Parameter{},
+				ModPorts: []*ModPort{
 					{
 						Name: "master",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: OUTPUT},
 							{Name: "ready", Direction: INPUT},
 						},
 					},
 					{
 						Name: "slave",
-						Signals: []ModPortSignal{
+						Signals: []*ModPortSignal{
 							{Name: "data", Direction: INPUT},
 							{Name: "ready", Direction: OUTPUT},
 						},
@@ -858,7 +858,7 @@ func TestParseInterfacePortDeclaration(t *testing.T) {
 	}
 
 	// Create an empty parameters map for testing
-	emptyParams := make(map[string]Parameter)
+	emptyParams := make(map[string]*Parameter)
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1231,7 +1231,7 @@ func TestInterfacePortParsing(t *testing.T) { // nolint: gocyclo
 		}
 
 		// Check for interface ports
-		portNames := make(map[string]Port)
+		portNames := make(map[string]*Port)
 		for _, port := range module.Ports {
 			portNames[port.Name] = port
 		}

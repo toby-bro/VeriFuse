@@ -163,7 +163,7 @@ func TestFindMatchingVariable(t *testing.T) {
 		"data_out": {Name: "data_out", Type: verilog.LOGIC, Width: 8},
 		"control":  {Name: "control", Type: verilog.BIT, Width: 1},
 	}
-	port := verilog.Port{Name: "input1", Type: verilog.LOGIC, Width: 8}
+	port := &verilog.Port{Name: "input1", Type: verilog.LOGIC, Width: 8}
 
 	matchedVariable := findMatchingVariable(port, variables, nil)
 	if matchedVariable == nil {
@@ -175,7 +175,7 @@ func TestFindMatchingVariable(t *testing.T) {
 	}
 
 	// Test case where no match is found
-	portNoMatch := verilog.Port{Name: "input2", Type: verilog.REAL, Width: 8}
+	portNoMatch := &verilog.Port{Name: "input2", Type: verilog.REAL, Width: 8}
 	matchedVariable = findMatchingVariable(portNoMatch, variables, nil)
 	if matchedVariable != nil {
 		t.Errorf("Expected no match, but got '%s'", matchedVariable.Name)
@@ -210,7 +210,7 @@ endmodule
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
 
-	portToMatch1 := verilog.Port{
+	portToMatch1 := &verilog.Port{
 		Name:      "snippet_port1",
 		Type:      verilog.LOGIC,
 		Width:     8,
@@ -223,7 +223,7 @@ endmodule
 		t.Logf("Matched snippet_port1 with %s. Variables: %+v", matchedVar1.Name, variables)
 	}
 
-	portToMatch2 := verilog.Port{
+	portToMatch2 := &verilog.Port{
 		Name:      "snippet_port2",
 		Type:      verilog.LOGIC,
 		Width:     4,
@@ -236,7 +236,7 @@ endmodule
 		t.Logf("Matched snippet_port2 with %s. Variables: %+v", matchedVar2.Name, variables)
 	}
 
-	portToMatch3 := verilog.Port{
+	portToMatch3 := &verilog.Port{
 		Name:      "snippet_port3",
 		Type:      verilog.INTEGER,
 		Width:     8,
@@ -256,7 +256,7 @@ endmodule
 		Width:     16,
 		Direction: verilog.INPUT,
 	}
-	matchedVar4 := findMatchingVariable(portToMatch4, variables, nil)
+	matchedVar4 := findMatchingVariable(&portToMatch4, variables, nil)
 	if matchedVar4 != nil {
 		t.Errorf(
 			"Expected no match for snippet_port4 (different width), but got '%s'",
@@ -269,7 +269,7 @@ func TestGenerateSignalDeclaration(t *testing.T) {
 	port := verilog.Port{Name: "output1", Type: verilog.LOGIC, Width: 8, IsSigned: true}
 	signalName := "inj_output1"
 
-	declaration := generateSignalDeclaration(port, signalName)
+	declaration := generateSignalDeclaration(&port, signalName)
 	expected := "input logic signed [7:0] inj_output1;"
 
 	if declaration != expected {
@@ -279,7 +279,7 @@ func TestGenerateSignalDeclaration(t *testing.T) {
 	portScalar := verilog.Port{Name: "output2", Type: verilog.LOGIC, Width: 1, IsSigned: false}
 	signalNameScalar := "inj_output2"
 
-	declarationScalar := generateSignalDeclaration(portScalar, signalNameScalar)
+	declarationScalar := generateSignalDeclaration(&portScalar, signalNameScalar)
 	expectedScalar := "input logic inj_output2;"
 
 	if declarationScalar != expectedScalar {
@@ -292,7 +292,7 @@ func TestGenerateSnippetInstantiation(t *testing.T) {
 		Name: "TestSnippet",
 		Module: &verilog.Module{
 			Name: "SnippetModule",
-			Ports: []verilog.Port{
+			Ports: []*verilog.Port{
 				{Name: "input1", Type: verilog.LOGIC, Width: 8, Direction: verilog.INPUT},
 				{Name: "output1", Type: verilog.LOGIC, Width: 8, Direction: verilog.OUTPUT},
 			},

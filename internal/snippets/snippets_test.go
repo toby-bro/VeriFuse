@@ -277,7 +277,7 @@ func createTestSnippet() *Snippet {
 	// Create a simple test snippet
 	module := &verilog.Module{
 		Name: "TestModule",
-		Ports: []verilog.Port{
+		Ports: []*verilog.Port{
 			{Name: "clk", Direction: verilog.INPUT, Type: verilog.LOGIC, Width: 1},
 			{Name: "data", Direction: verilog.OUTPUT, Type: verilog.LOGIC, Width: 8},
 		},
@@ -406,7 +406,7 @@ func TestGeneralAddDependencies_WithComplexDependencies(t *testing.T) {
 	// Create a more complex test scenario
 	module := &verilog.Module{
 		Name: "ComplexModule",
-		Ports: []verilog.Port{
+		Ports: []*verilog.Port{
 			{Name: "clk", Direction: verilog.INPUT, Type: verilog.LOGIC, Width: 1},
 		},
 	}
@@ -496,7 +496,7 @@ func TestLoadSnippets_HandleTopModuleRename(t *testing.T) {
 	testVF := verilog.NewVerilogFile("test_top.sv")
 	topModule := &verilog.Module{
 		Name: "top",
-		Ports: []verilog.Port{
+		Ports: []*verilog.Port{
 			{Name: "clk", Direction: verilog.INPUT, Type: verilog.LOGIC, Width: 1},
 		},
 		Body: "// Test module",

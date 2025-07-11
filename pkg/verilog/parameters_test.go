@@ -10,17 +10,17 @@ func TestParseParameters(t *testing.T) {
 	testCases := []struct {
 		name           string
 		paramListStr   string
-		expectedParams []Parameter
+		expectedParams []*Parameter
 	}{
 		{
 			name:           "Empty parameter list",
 			paramListStr:   "",
-			expectedParams: []Parameter{},
+			expectedParams: []*Parameter{},
 		},
 		{
 			name:         "Extra whitespace",
 			paramListStr: "  parameter   int    P_VAL   =  5  ,  NEXT_P  ",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "P_VAL", Type: INT, DefaultValue: "5", AnsiStyle: true},
 				{Name: "NEXT_P", Type: INT, DefaultValue: "", AnsiStyle: true},
 			},
@@ -28,7 +28,7 @@ func TestParseParameters(t *testing.T) {
 		{
 			name:         "Localparam (parsed as parameter)",
 			paramListStr: "localparam STATE_IDLE = 0",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{
 					Name:         "STATE_IDLE",
 					Type:         LOGIC,
@@ -41,27 +41,27 @@ func TestParseParameters(t *testing.T) {
 		{
 			name:           "Malformed - just equals",
 			paramListStr:   "= 5",
-			expectedParams: []Parameter{},
+			expectedParams: []*Parameter{},
 		},
 		{
 			name:           "Malformed - missing name after type",
 			paramListStr:   "parameter int = 5",
-			expectedParams: []Parameter{},
+			expectedParams: []*Parameter{},
 		},
 		{
 			name:           "Malformed - parameter keyword alone",
 			paramListStr:   "parameter",
-			expectedParams: []Parameter{},
+			expectedParams: []*Parameter{},
 		},
 		{
 			name:           "Malformed - parameter with only type",
 			paramListStr:   "parameter real",
-			expectedParams: []Parameter{},
+			expectedParams: []*Parameter{},
 		},
 		{
 			name:         "Multiple parameters",
 			paramListStr: "parameter A = 1, B = 2, C = 3",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "A", Type: LOGIC, DefaultValue: "1", AnsiStyle: true},
 				{Name: "B", Type: INTEGER, DefaultValue: "2", AnsiStyle: true},
 				{Name: "C", Type: INTEGER, DefaultValue: "3", AnsiStyle: true},
@@ -70,7 +70,7 @@ func TestParseParameters(t *testing.T) {
 		{
 			name:         "Multiple parameters with types",
 			paramListStr: "parameter integer COUNT = 10, parameter real DELAY = 1.2, bit ENABLE = 1'b1",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "COUNT", Type: INTEGER, DefaultValue: "10", AnsiStyle: true},
 				{Name: "DELAY", Type: REAL, DefaultValue: "1.2", AnsiStyle: true},
 				{Name: "ENABLE", Type: BIT, DefaultValue: "1'b1", AnsiStyle: true},
@@ -79,7 +79,7 @@ func TestParseParameters(t *testing.T) {
 		{
 			name:         "Parameter with complex value including function call",
 			paramListStr: `P_COMPLEX = $clog2(ANOTHER_PARAM + 1) - 1`,
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{
 					Name:         "P_COMPLEX",
 					Type:         UNKNOWN,
@@ -91,7 +91,7 @@ func TestParseParameters(t *testing.T) {
 		{
 			name:         "Parameter with expression as default value",
 			paramListStr: "ADDR_WIDTH = DATA_WIDTH / 2",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{
 					Name:         "ADDR_WIDTH",
 					Type:         UNKNOWN,
@@ -103,70 +103,70 @@ func TestParseParameters(t *testing.T) {
 		{
 			name:         "Parameter with string default value",
 			paramListStr: `FILENAME = "test.txt"`,
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "FILENAME", Type: STRING, DefaultValue: `"test.txt"`, AnsiStyle: true},
 			},
 		},
 		{
 			name:         "Parameter with trailing comma",
 			paramListStr: "P1 = 1,",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "P1", Type: LOGIC, DefaultValue: "1", AnsiStyle: true},
 			},
 		},
 		{
 			name:         "Parameter with type 'time'",
 			paramListStr: "parameter time SIM_TIME = 100ns",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "SIM_TIME", Type: TIME, DefaultValue: "100ns", AnsiStyle: true},
 			},
 		},
 		{
 			name:         "Parameter with type and signed-unsigned (type captures base)",
 			paramListStr: "parameter integer unsigned MAX_COUNT = 100",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "MAX_COUNT", Type: INTEGER, DefaultValue: "100", AnsiStyle: true},
 			}, // Regex captures 'integer' as type
 		},
 		{
 			name:         "Single parameter no type no default",
 			paramListStr: "WIDTH",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "WIDTH", Type: LOGIC, DefaultValue: "", AnsiStyle: true},
 			},
 		},
 		{
 			name:         "Single parameter with default value",
 			paramListStr: "WIDTH = 8",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "WIDTH", Type: INTEGER, DefaultValue: "8", AnsiStyle: true},
 			},
 		},
 		{
 			name:         "Single parameter with type and default value",
 			paramListStr: "parameter int DATA_WIDTH = 32",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "DATA_WIDTH", Type: INT, DefaultValue: "32", AnsiStyle: true},
 			},
 		},
 		{
 			name:         "Single parameter with type no default",
 			paramListStr: "parameter logic CLK_PERIOD",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "CLK_PERIOD", Type: LOGIC, DefaultValue: "", AnsiStyle: true},
 			},
 		},
 		{
 			name:         "Type",
 			paramListStr: "parameter type P_TYPE = logic",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "P_TYPE", Type: TYPE, DefaultValue: "logic", AnsiStyle: true},
 			},
 		},
 		{
 			name:         "param with width",
 			paramListStr: "parameter logic [7:0] P_SIZED = 8'hAA",
-			expectedParams: []Parameter{
+			expectedParams: []*Parameter{
 				{Name: "P_SIZED", Type: LOGIC, DefaultValue: "8'hAA", Width: 8, AnsiStyle: true},
 			},
 		},
@@ -236,12 +236,12 @@ endmodule
 `,
 			expectedModule: &Module{
 				Name: "non_ansi_params",
-				Ports: []Port{
+				Ports: []*Port{
 					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 					{Name: "rst", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 					{Name: "data_out", Direction: OUTPUT, Type: LOGIC, Width: 8, IsSigned: false},
 				},
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{Name: "WIDTH", Type: INTEGER, DefaultValue: "8", AnsiStyle: false},
 					{Name: "DEPTH", Type: INTEGER, DefaultValue: "16", AnsiStyle: false},
 					{
@@ -282,11 +282,11 @@ endmodule
 `,
 			expectedModule: &Module{
 				Name: "mixed_params",
-				Ports: []Port{
+				Ports: []*Port{
 					{Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 					{Name: "result", Direction: OUTPUT, Type: LOGIC, Width: 32, IsSigned: false},
 				},
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{Name: "INIT_VALUE", Type: LOGIC, DefaultValue: "0", AnsiStyle: true},
 					{Name: "DATA_WIDTH", Type: INTEGER, DefaultValue: "32", AnsiStyle: false},
 					{
@@ -319,11 +319,11 @@ endmodule
 `,
 			expectedModule: &Module{
 				Name: "typed_params",
-				Ports: []Port{
+				Ports: []*Port{
 					{Name: "enable", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 					{Name: "valid", Direction: OUTPUT, Type: LOGIC, Width: 0, IsSigned: false},
 				},
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{Name: "TIMEOUT", Type: INTEGER, DefaultValue: "1000", AnsiStyle: false},
 					{Name: "FREQUENCY", Type: REAL, DefaultValue: "100.5", AnsiStyle: false},
 					{Name: "MODE", Type: STRING, DefaultValue: `"FAST"`, AnsiStyle: false},
@@ -352,11 +352,11 @@ endmodule
 `,
 			expectedModule: &Module{
 				Name: "param_override",
-				Ports: []Port{
+				Ports: []*Port{
 					{Name: "data_in", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
 					{Name: "data_out", Direction: OUTPUT, Type: LOGIC, Width: 8, IsSigned: false},
 				},
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{
 						Name:         "WIDTH",
 						Type:         INTEGER,

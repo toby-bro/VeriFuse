@@ -40,7 +40,7 @@ func (s *RandomStrategy) GenerateTestCase(_ int) map[*verilog.Port]string {
 	inputs := make(map[*verilog.Port]string)
 	for _, port := range s.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-			inputs[&port] = generateRandomValue(port.Type, port.Width, port.IsSigned)
+			inputs[port] = generateRandomValue(port.Type, port.Width, port.IsSigned)
 		}
 	}
 	return inputs
@@ -219,7 +219,7 @@ func (s *SmartStrategy) GenerateTestCase(_ int) map[*verilog.Port]string {
 	inputs := make(map[*verilog.Port]string)
 	for _, port := range s.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-			inputs[&port] = generateSmartValue(port.Type, port.Width, port.IsSigned)
+			inputs[port] = generateSmartValue(port.Type, port.Width, port.IsSigned)
 		}
 	}
 	return inputs

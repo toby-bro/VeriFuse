@@ -269,7 +269,7 @@ func TestParsePortDeclaration(t *testing.T) {
 	}
 
 	// Create an empty parameters map for testing
-	emptyParams := make(map[string]Parameter)
+	emptyParams := make(map[string]*Parameter)
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -294,7 +294,7 @@ func TestParsePortDeclaration(t *testing.T) {
 
 func TestExtractANSIPortDeclarations(t *testing.T) {
 	// Define common parameters for testing
-	testParams := map[string]Parameter{
+	testParams := map[string]*Parameter{
 		"WIDTH":      {Name: "WIDTH", DefaultValue: "8"},
 		"DATA_WIDTH": {Name: "DATA_WIDTH", DefaultValue: "32"},
 		"ADDR_BUS":   {Name: "ADDR_BUS", DefaultValue: "16"},
@@ -303,22 +303,22 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 	testCases := []struct {
 		name              string
 		portListStr       string
-		parameters        map[string]Parameter
-		expectedPortsMap  map[string]Port
+		parameters        map[string]*Parameter
+		expectedPortsMap  map[string]*Port
 		expectedPortOrder []string
 	}{
 		{
 			name:              "Empty port list",
 			portListStr:       "",
 			parameters:        nil,
-			expectedPortsMap:  map[string]Port{},
+			expectedPortsMap:  map[string]*Port{},
 			expectedPortOrder: []string{},
 		},
 		{
 			name:        "Extra whitespace",
 			portListStr: "  input   logic   [ 3 : 0 ]   spaced_out  , output wire normal_out",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"spaced_out": {
 					Name:      "spaced_out",
 					Direction: INPUT,
@@ -340,7 +340,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Inout wire signed with range",
 			portListStr: "inout wire signed [15:0] addr",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"addr": {Name: "addr", Direction: INOUT, Type: WIRE, Width: 16, IsSigned: true},
 			},
 			expectedPortOrder: []string{"addr"},
@@ -349,7 +349,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Input logic with trailing comma",
 			portListStr: "input logic clk,",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"clk": {Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 			},
 			expectedPortOrder: []string{"clk"},
@@ -358,14 +358,14 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:              "Malformed - missing name",
 			portListStr:       "input logic [7:0]",
 			parameters:        nil,
-			expectedPortsMap:  map[string]Port{}, // Should not parse
+			expectedPortsMap:  map[string]*Port{}, // Should not parse
 			expectedPortOrder: []string{},
 		},
 		{
 			name:        "Mixed ANSI and simple names",
 			portListStr: "input logic start, stop, output [7:0] result",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"start": {Name: "start", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 				"stop": {
 					Name:      "stop",
@@ -394,7 +394,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Multiple ports",
 			portListStr: "input logic rst_n, output reg [3:0] count, input ena",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"rst_n": {Name: "rst_n", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 				"count": {Name: "count", Direction: OUTPUT, Type: REG, Width: 4, IsSigned: false},
 				"ena": {
@@ -411,7 +411,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Output logic with range",
 			portListStr: "output logic [7:0] data_out",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"data_out": {
 					Name:      "data_out",
 					Direction: OUTPUT,
@@ -426,7 +426,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Parameterized width",
 			portListStr: "input logic [WIDTH-1:0] param_in",
 			parameters:  testParams,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"param_in": {
 					Name:      "param_in",
 					Direction: INPUT,
@@ -441,7 +441,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Parameterized width ADDR_BUS direct",
 			portListStr: "input [ADDR_BUS:0] address", // Note: [PARAM:0] style
 			parameters:  testParams,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"address": {
 					Name:      "address",
 					Direction: INPUT,
@@ -456,7 +456,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Parameterized width DATA_WIDTH",
 			portListStr: "output logic [DATA_WIDTH-1:0] data_bus",
 			parameters:  testParams,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"data_bus": {
 					Name:      "data_bus",
 					Direction: OUTPUT,
@@ -471,7 +471,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Port with dot notation (interface style, parsed as simple name)",
 			portListStr: ".clk(clock_signal), .rst(reset_signal)",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				// The regex `simplePortRegex` captures the name before the parenthesis as the port name
 				"clk": {Name: "clk", Direction: INTERNAL, Type: UNKNOWN, Width: 0, IsSigned: false},
 				"rst": {Name: "rst", Direction: INTERNAL, Type: UNKNOWN, Width: 0, IsSigned: false},
@@ -482,7 +482,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Port with type 'bit'",
 			portListStr: "output bit error_flag",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"error_flag": {
 					Name:      "error_flag",
 					Direction: OUTPUT,
@@ -497,7 +497,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Port with type 'byte' and signed",
 			portListStr: "input byte signed control_byte",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"control_byte": {
 					Name:      "control_byte",
 					Direction: INPUT,
@@ -512,7 +512,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Port with type 'int'",
 			portListStr: "input int counter_val",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"counter_val": {
 					Name:      "counter_val",
 					Direction: INPUT,
@@ -527,7 +527,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Simple input logic",
 			portListStr: "input logic clk",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"clk": {Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 			},
 			expectedPortOrder: []string{"clk"},
@@ -536,14 +536,14 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:              "Simple port names (non-ANSI in header style)",
 			portListStr:       "clk, rst, data",
 			parameters:        nil,
-			expectedPortsMap:  map[string]Port{},
+			expectedPortsMap:  map[string]*Port{},
 			expectedPortOrder: []string{},
 		},
 		{
 			name:        "simple array",
 			portListStr: "input logic [7:0] data_array[4]",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"data_array": {
 					Name:      "data_array",
 					Direction: INPUT,
@@ -559,7 +559,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Port with verilator public pragma",
 			portListStr: "(* verilator public *) output logic [7:0] public_wire",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"public_wire": {
 					Name:      "public_wire",
 					Direction: OUTPUT,
@@ -575,7 +575,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Multiple ports with pragmas",
 			portListStr: "(* verilator public *) input logic clk, (* wire_force_assign *) output wire [3:0] data",
 			parameters:  nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"clk": {
 					Name:      "clk",
 					Direction: INPUT,
@@ -599,7 +599,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 			name:        "Port with pragma and parameterized width",
 			portListStr: "(* custom_attr = \"value\" *) input logic [WIDTH-1:0] param_port",
 			parameters:  testParams,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"param_port": {
 					Name:      "param_port",
 					Direction: INPUT,
@@ -654,7 +654,7 @@ func TestExtractANSIPortDeclarations(t *testing.T) {
 
 func TestExtractNonANSIPortDeclarations(t *testing.T) {
 	// Define common parameters for testing
-	testParams := map[string]Parameter{
+	testParams := map[string]*Parameter{
 		"P_WIDTH":    {Name: "P_WIDTH", DefaultValue: "8"},
 		"DATA_SIZE":  {Name: "DATA_SIZE", DefaultValue: "32"},
 		"ADDR_LINES": {Name: "ADDR_LINES", DefaultValue: "16"},
@@ -663,8 +663,8 @@ func TestExtractNonANSIPortDeclarations(t *testing.T) {
 	testCases := []struct {
 		name             string
 		content          string
-		parameters       map[string]Parameter
-		expectedPortsMap map[string]Port
+		parameters       map[string]*Parameter
+		expectedPortsMap map[string]*Port
 		expectError      bool
 	}{
 		{
@@ -674,14 +674,14 @@ func TestExtractNonANSIPortDeclarations(t *testing.T) {
    multi-line comment */
 wire clk; // Not a port declaration`,
 			parameters:       nil,
-			expectedPortsMap: map[string]Port{},
+			expectedPortsMap: map[string]*Port{},
 			expectError:      false,
 		},
 		{
 			name:             "Empty content",
 			content:          "",
 			parameters:       nil,
-			expectedPortsMap: map[string]Port{},
+			expectedPortsMap: map[string]*Port{},
 			expectError:      false,
 		},
 		{
@@ -691,7 +691,7 @@ input logic [7:0];
 output valid_out;
 `,
 			parameters: nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"valid_out": {
 					Name:      "valid_out",
 					Direction: OUTPUT,
@@ -718,7 +718,7 @@ endmodule
 inout control_sig;
 `,
 			parameters: nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"clk": {
 					Name:      "clk",
 					Direction: INPUT,
@@ -750,7 +750,7 @@ input rst_n;
 output logic [3:0] count;
 input wire ena;`,
 			parameters: nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"rst_n": {
 					Name:      "rst_n",
 					Direction: INPUT,
@@ -775,7 +775,7 @@ input wire ena;`,
 input [ADDR_LINES:0] address; // Note: [PARAM:0] style
 `,
 			parameters: testParams,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"address": {
 					Name:      "address",
 					Direction: INPUT,
@@ -793,7 +793,7 @@ input [P_WIDTH-1:0] param_in;
 output logic [DATA_SIZE-1:0] data_bus;
 `,
 			parameters: testParams,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"param_in": {
 					Name:      "param_in",
 					Direction: INPUT,
@@ -818,7 +818,7 @@ input logic [7:0] data;
 output reg [7:0] data; // This should be ignored for 'data'
 `,
 			parameters: nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"data": {Name: "data", Direction: INPUT, Type: LOGIC, Width: 8, IsSigned: false},
 			},
 			expectError: false,
@@ -829,7 +829,7 @@ output reg [7:0] data; // This should be ignored for 'data'
 output bit error_flag; // This is an error flag
 `,
 			parameters: nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"error_flag": {
 					Name:      "error_flag",
 					Direction: OUTPUT,
@@ -846,7 +846,7 @@ output bit error_flag; // This is an error flag
   input  byte  signed   control_byte  ;
 `,
 			parameters: nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"control_byte": {
 					Name:      "control_byte",
 					Direction: INPUT,
@@ -863,7 +863,7 @@ output bit error_flag; // This is an error flag
 input int counter_val;
 `,
 			parameters: nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"counter_val": {
 					Name:      "counter_val",
 					Direction: INPUT,
@@ -878,7 +878,7 @@ input int counter_val;
 			name:       "Single inout port signed with range",
 			content:    "inout wire signed [15:0] addr_bus;",
 			parameters: nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"addr_bus": {
 					Name:      "addr_bus",
 					Direction: INOUT,
@@ -893,7 +893,7 @@ input int counter_val;
 			name:       "Single input port",
 			content:    "input logic clk;",
 			parameters: nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"clk": {Name: "clk", Direction: INPUT, Type: LOGIC, Width: 0, IsSigned: false},
 			},
 			expectError: false,
@@ -902,7 +902,7 @@ input int counter_val;
 			name:       "Single output port with range",
 			content:    "output reg [7:0] data_out;",
 			parameters: nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"data_out": {
 					Name:      "data_out",
 					Direction: OUTPUT,
@@ -917,7 +917,7 @@ input int counter_val;
 			name:       "weirdWidths",
 			content:    "input wire [(1'h0):(1'h0)] clk;",
 			parameters: nil,
-			expectedPortsMap: map[string]Port{
+			expectedPortsMap: map[string]*Port{
 				"clk": {
 					Name:      "clk",
 					Direction: INPUT,
@@ -946,7 +946,7 @@ input int counter_val;
     //INJECT
 	`,
 			parameters:       nil,
-			expectedPortsMap: map[string]Port{},
+			expectedPortsMap: map[string]*Port{},
 			expectError:      false,
 		},
 	}

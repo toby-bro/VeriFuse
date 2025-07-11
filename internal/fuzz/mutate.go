@@ -122,9 +122,9 @@ func matchVariablesToSnippetPorts(
 	snippet *snippets.Snippet,
 	debugWorkerDir string,
 	bestScopeForSnippet *verilog.ScopeNode,
-) (map[string]string, []verilog.Port, error) {
+) (map[string]string, []*verilog.Port, error) {
 	portConnections := make(map[string]string)
-	newDeclarations := []verilog.Port{}
+	newDeclarations := []*verilog.Port{}
 
 	usedInternalVars := make(map[string]bool)
 	usedModuleInputPorts := make(map[string]bool)
@@ -194,7 +194,7 @@ func matchVariablesToSnippetPorts(
 				timestamp,
 				rand.Intn(1000),
 			)
-			newSignalObj := verilog.Port{
+			newSignalObj := &verilog.Port{
 				Name:            newSignalName,
 				Type:            port.Type,
 				Width:           port.Width,
@@ -301,7 +301,7 @@ func collectAccessibleVarsForOutput(node *verilog.ScopeNode) map[string]*verilog
 
 // This function finds a matching variable for a given port in the provided variables map.
 func findMatchingVariable(
-	port verilog.Port,
+	port *verilog.Port,
 	variables map[string]*verilog.Variable,
 	usedVars map[string]bool,
 ) *verilog.Variable {
@@ -313,7 +313,7 @@ func findMatchingVariable(
 	return nil
 }
 
-func generateSignalDeclaration(port verilog.Port, signalName string) string {
+func generateSignalDeclaration(port *verilog.Port, signalName string) string {
 	widthStr := ""
 	if port.Width > 1 {
 		widthStr = fmt.Sprintf("[%d:0] ", port.Width-1)
@@ -357,7 +357,7 @@ func ensureOutputPortForSnippet(
 					Width:     port.Width,
 					IsSigned:  port.IsSigned,
 				}
-				module.Ports = append(module.Ports, newPort)
+				module.Ports = append(module.Ports, &newPort)
 				portConnections[port.Name] = newPort.Name
 			}
 		}
@@ -480,7 +480,7 @@ func insertTextAtLine(module *verilog.Module, text string, line int, indentLevel
 func injectSnippetIntoModule(
 	module *verilog.Module,
 	instantiation string,
-	newDeclarations []verilog.Port,
+	newDeclarations []*verilog.Port,
 	bestScope *verilog.ScopeNode,
 	debugWorkerDir string,
 ) error {
