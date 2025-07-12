@@ -16,7 +16,7 @@ func TestWriteFileAsSnippets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get root directory: %v", err)
 	}
-	svFilePath := filepath.Join(rootDir, "snippets", "V3DepthBlock.sv")
+	svFilePath := filepath.Join(rootDir, "snippets", "slang", "AllTypes.sv")
 	content, err := utils.ReadFileContent(svFilePath)
 	if err != nil {
 		t.Fatalf("failed to read file content: %v", err)

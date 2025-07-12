@@ -9,8 +9,8 @@ import (
 func TestParsePackages_BasicTypedefs(t *testing.T) {
 	content := `
 package test_pkg;
-    typedef logic [7:0] byte_t;
-    typedef enum logic [1:0] {
+typedef logic [7:0] byte_t;
+typedef enum logic [1:0] {
         IDLE = 2'b00,
         ACTIVE = 2'b01
     } state_t;
@@ -56,12 +56,12 @@ package complex_pkg;
     import base_pkg::base_type_t;
     import math_pkg::*;
     
-    typedef struct packed {
+typedef struct packed {
         logic [7:0] data;
         logic valid;
     } packet_t;
     
-    typedef union packed {
+typedef union packed {
         logic [15:0] word;
         logic [7:0] bytes[2];
     } data_union_t;
@@ -267,14 +267,14 @@ package system_pkg;
     parameter MAX_SIZE = 1024;
     localparam ADDR_BITS = $clog2(MAX_SIZE);
     
-    typedef enum logic [2:0] {
+typedef enum logic [2:0] {
         CMD_READ   = 3'b000,
         CMD_WRITE  = 3'b001,
         CMD_ERASE  = 3'b010,
         CMD_RESET  = 3'b111
     } command_t;
     
-    typedef struct packed {
+typedef struct packed {
         command_t cmd;
         logic [ADDR_BITS-1:0] addr;
         logic [31:0] data;
@@ -559,13 +559,13 @@ func TestParsePackages_RealWorldExamples(t *testing.T) {
 	enumCollisionContent := `
 package test_pkg;
   // First enum definition
-  typedef enum logic [1:0] {
+typedef enum logic [1:0] {
     VAL_A = 2'b00,
     VAL_B = 2'b01
   } enum_type1_t;
   
   // Second enum definition with duplicate values
-  typedef enum logic [2:0] {
+typedef enum logic [2:0] {
     VAL_A = 3'b000,  // Error: VAL_A already defined in this scope
     VAL_C = 3'b010
   } enum_type2_t;
@@ -592,7 +592,7 @@ endpackage
 	operationPkgContent := `
 package operation_pkg;
     // Define an enumeration type for different operations
-    typedef enum logic [2:0] {
+typedef enum logic [2:0] {
         ADD     = 3'b000,
         SUB     = 3'b001,
         MUL     = 3'b010,

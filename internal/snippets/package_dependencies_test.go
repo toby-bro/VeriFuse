@@ -24,6 +24,28 @@ package operation_pkg;
     } operation_t;
 endpackage
 
+typedef class forward_my_class_t;
+class forward_my_class_t;
+    int data;
+    function new(); data = 0; endfunction
+endclass
+
+typedef struct { int data; } my_struct_t;
+
+class class_with_typedefs;
+    local typedef int local_int_t;
+    protected typedef real protected_real_t;
+    typedef my_struct_t my_internal_struct_t;
+    local_int_t local_var;
+    protected_real_t protected_var;
+    my_internal_struct_t struct_var_in_class;
+    function new();
+        local_var = 1;
+        protected_var = 1.0;
+        struct_var_in_class.data = 1;
+    endfunction
+endclass
+
 module enum_cast (
     input  logic        clk,
     input  logic        reset_n,

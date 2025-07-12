@@ -1444,7 +1444,7 @@ func TestParseTransFuzzFile(t *testing.T) {
 	}
 	filename := filepath.Join(
 		rootDir,
-		"testfiles/sv/ok/clocking_module.sv",
+		"snippets/slang/AllTypes.sv",
 	)
 	fileContent, err := utils.ReadFileContent(filename)
 	if err != nil {
@@ -1457,4 +1457,10 @@ func TestParseTransFuzzFile(t *testing.T) {
 	if svFile.DependencyMap == nil {
 		t.Fatalf("Failed to parse dependancy map from %s", filename)
 	}
+	t.Skip("Skipping printing Verilog file")
+	output, err := PrintVerilogFile(svFile)
+	if err != nil {
+		t.Fatalf("Failed to print Verilog file: %v", err)
+	}
+	fmt.Printf("Verilog output:\n%s\n", output)
 }

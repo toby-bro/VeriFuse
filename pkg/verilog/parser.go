@@ -210,9 +210,11 @@ var simplePortRegex = regexp.MustCompile(
 	`^\s*(?:\.\s*(\w+)\s*\()?\s*(\w+)\s*\)?\s*$`,
 )
 
-var typedefRegex = regexp.MustCompile(
-	`(?s)typedef\s+(?:enum|struct|union)?\s*[^;]*?\s*\w+\s*;`,
-)
+var typedefRegex = regexp.MustCompile(fmt.Sprintf(
+	`(?sm)^typedef(?:(?:\s+(?:struct|union|enum))?(?:\s+(?:packed|tagged))?)?(?:\s+(?:%s))?(?:\s*%s)?\s*([^{};]*?|\{[^{}]*?\})\s+(\w+)(?:\[[^\]]\])?;`,
+	baseTypes,
+	widthRegex,
+))
 
 // TODO: #15 improve to replace the initial \w with rand local const ... and I don't know what not Also add the support for declarations with , for many decls
 var generalVariableRegex = regexp.MustCompile(
@@ -287,7 +289,11 @@ func matchArraysFromString(content string) []string {
 	return arrayRegex.FindStringSubmatch(content)
 }
 
-func userDedinedVariablesRegex(verilogFile *VerilogFile) *regexp.Regexp {
+func matchAllTypedefsFromString(content string) [][]string {
+	return typedefRegex.FindAllStringSubmatch(content, -1)
+}
+
+func userDefinedVariablesRegex(verilogFile *VerilogFile) *regexp.Regexp {
 	newTypes := []string{}
 	for _, class := range verilogFile.Classes {
 		newTypes = append(newTypes, class.Name)
@@ -297,6 +303,9 @@ func userDedinedVariablesRegex(verilogFile *VerilogFile) *regexp.Regexp {
 	}
 	for _, strct := range verilogFile.Structs {
 		newTypes = append(newTypes, strct.Name)
+	}
+	for _, typedef := range verilogFile.Typedefs {
+		newTypes = append(newTypes, typedef.Name)
 	}
 	newTypesConcat := strings.Join(newTypes, "|")
 	regexpString := fmt.Sprintf(
@@ -308,10 +317,11 @@ func userDedinedVariablesRegex(verilogFile *VerilogFile) *regexp.Regexp {
 }
 
 func matchUserDefinedVariablesFromString(vf *VerilogFile, content string) [][]string {
-	if len(vf.Classes) == 0 && len(vf.Interfaces) == 0 && len(vf.Structs) == 0 {
+	if len(vf.Classes) == 0 && len(vf.Interfaces) == 0 && len(vf.Structs) == 0 &&
+		len(vf.Typedefs) == 0 {
 		return [][]string{}
 	}
-	return userDedinedVariablesRegex(vf).FindAllStringSubmatch(content, -1)
+	return userDefinedVariablesRegex(vf).FindAllStringSubmatch(content, -1)
 }
 
 func matchAllParametersFromString(param string) []string {
@@ -1951,6 +1961,24 @@ func (v *VerilogFile) parseStructs(
 	return nil
 }
 
+func (v *VerilogFile) parseTypedefs(content string) error {
+	v.Typedefs = make(map[string]*Typedef)
+	matches := matchAllTypedefsFromString(content)
+	for _, match := range matches {
+		if len(match) > 2 {
+			typedef := &Typedef{
+				Name:    strings.TrimSpace(match[2]),
+				Content: strings.TrimSpace(match[0]),
+			}
+			if typedef.Name == "" {
+				continue
+			}
+			v.Typedefs[typedef.Name] = typedef
+		}
+	}
+	return nil
+}
+
 // parseModPort parses a single modport declaration and returns the ModPort struct
 // This is primarily used for testing individual modport parsing
 // parseInterfacePorts parses interface port declarations (input/output ports of the interface itself)
@@ -2244,6 +2272,12 @@ func (v *VerilogFile) typeDependenciesParser() error {
 				class.extends,
 			)
 		}
+		if v.Typedefs[class.Name] != nil {
+			v.AddDependency(
+				class.Name,
+				v.Typedefs[class.Name].Name,
+			)
+		}
 		vars := matchUserDefinedVariablesFromString(v, class.Body)
 		for _, matchedVariable := range vars {
 			if len(matchedVariable) < 4 {
@@ -2337,6 +2371,13 @@ func (v *VerilogFile) createDependencyMap() {
 			DependedBy: []string{},
 		}
 	}
+	for _, typedef := range v.Typedefs {
+		v.DependencyMap[typedef.Name] = &DependencyNode{
+			Name:       typedef.Name,
+			DependsOn:  []string{},
+			DependedBy: []string{},
+		}
+	}
 }
 
 func removeEmptyLines(content string) string {
@@ -2368,7 +2409,11 @@ func ParseVerilog(content string, verbose int) (*VerilogFile, error) {
 	logger = utils.NewDebugLogger(verbose)
 	content = cleanText(content)
 	verilogFile := &VerilogFile{}
-	err := verilogFile.parseStructs(content, true)
+	err := verilogFile.parseTypedefs(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse typedefs: %v", err)
+	}
+	err = verilogFile.parseStructs(content, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse structs: %v", err)
 	}

@@ -197,6 +197,12 @@ type VerilogFile struct { //nolint:revive
 	Structs       map[string]*Struct
 	Packages      map[string]*Package
 	DependencyMap map[string]*DependencyNode
+	Typedefs      map[string]*Typedef
+}
+
+type Typedef struct {
+	Name    string
+	Content string
 }
 
 type DependencyNode struct {
@@ -222,5 +228,6 @@ func NewVerilogFile(name string) *VerilogFile {
 		Structs:       make(map[string]*Struct),
 		Packages:      make(map[string]*Package),
 		DependencyMap: make(map[string]*DependencyNode),
+		Typedefs:      make(map[string]*Typedef),
 	}
 }

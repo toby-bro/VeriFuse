@@ -290,6 +290,10 @@ func printStruct(s *Struct) string {
 	return sb.String()
 }
 
+func printTypedef(t *Typedef) string {
+	return t.Content
+}
+
 // printInterfacePort formats an InterfacePort for interface port declarations.
 func printInterfacePort(port *InterfacePort, isLast bool) string {
 	var sb strings.Builder
@@ -616,6 +620,12 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) { // nolint: gocyclo
 
 	if vf.DependencyMap == nil {
 		var names []string
+		for name := range vf.Packages {
+			names = append(names, name)
+		}
+		for name := range vf.Typedefs {
+			names = append(names, name)
+		}
 		for name := range vf.Structs {
 			names = append(names, name)
 		}
@@ -634,6 +644,8 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) { // nolint: gocyclo
 		allNodes[name] = append([]string{}, node.DependsOn...) // Make a copy
 		if _, ok := vf.Structs[name]; ok {
 			nodeType[name] = "struct"
+		} else if _, ok := vf.Typedefs[name]; ok {
+			nodeType[name] = "typedef"
 		} else if _, ok := vf.Classes[name]; ok {
 			nodeType[name] = "class"
 		} else if _, ok := vf.Interfaces[name]; ok {
@@ -656,6 +668,10 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) { // nolint: gocyclo
 
 	// Initialize inDegree and graph for nodes present in the VerilogFile
 	for name := range vf.Structs {
+		inDegree[name] = 0
+		graph[name] = []string{}
+	}
+	for name := range vf.Typedefs {
 		inDegree[name] = 0
 		graph[name] = []string{}
 	}
@@ -722,6 +738,8 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) { // nolint: gocyclo
 	definedNodeCount := len(
 		vf.Structs,
 	) + len(
+		vf.Typedefs,
+	) + len(
 		vf.Classes,
 	) + len(
 		vf.Modules,
@@ -751,6 +769,9 @@ func getPrintOrder(vf *VerilogFile) ([]string, error) { // nolint: gocyclo
 			}
 		}
 		for name := range vf.Structs { // Structs first
+			appendIfMissing(name)
+		}
+		for name := range vf.Typedefs { // Then Typedefs
 			appendIfMissing(name)
 		}
 		for name := range vf.Interfaces { // Then Interfaces
@@ -793,6 +814,12 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 		)
 		// Clear sortedNames to rebuild it in the desired fallback order
 		sortedNames = []string{}
+		for _, p := range vf.Packages {
+			sortedNames = append(sortedNames, p.Name)
+		}
+		for _, t := range vf.Typedefs {
+			sortedNames = append(sortedNames, t.Name)
+		}
 		for _, s := range vf.Structs {
 			sortedNames = append(sortedNames, s.Name)
 		}
@@ -810,7 +837,6 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 	printed := make(map[string]bool)
 
 	// Print items from sortedNames in strict categorical order: Structs, Interfaces, Classes, Modules
-	// Pass 1: Print Packages from sortedNames
 	for _, name := range sortedNames {
 		if pkg, ok := vf.Packages[name]; ok && !printed[name] {
 			sb.WriteString(printPackage(pkg))
@@ -819,7 +845,13 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 		}
 	}
 
-	// Pass 2: Print Structs from sortedNames
+	for _, name := range sortedNames {
+		if tpd, ok := vf.Typedefs[name]; ok {
+			sb.WriteString(printTypedef(tpd))
+			sb.WriteString("\n")
+		}
+	}
+
 	for _, name := range sortedNames {
 		if s, ok := vf.Structs[name]; ok && !printed[name] {
 			sb.WriteString(printStruct(s))
@@ -828,7 +860,6 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 		}
 	}
 
-	// Pass 3: Print Interfaces from sortedNames
 	for _, name := range sortedNames {
 		if i, ok := vf.Interfaces[name]; ok && !printed[name] {
 			sb.WriteString(printInterface(i))
@@ -837,7 +868,6 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 		}
 	}
 
-	// Pass 4: Print Classes from sortedNames
 	for _, name := range sortedNames {
 		if c, ok := vf.Classes[name]; ok && !printed[name] {
 			sb.WriteString(printClass(c))
@@ -846,7 +876,6 @@ func PrintVerilogFile(vf *VerilogFile) (string, error) { // nolint: gocyclo
 		}
 	}
 
-	// Pass 5: Print Modules from sortedNames
 	for _, name := range sortedNames {
 		if m, ok := vf.Modules[name]; ok && !printed[name] {
 			sb.WriteString(printModule(m))

@@ -264,6 +264,16 @@ func dfsDependencies(
 			continue
 		}
 		targetFile.DependencyMap[dep] = parentVF.DependencyMap[dep]
+		if t, found := parentVF.Typedefs[dep]; found {
+			if _, exists := targetFile.Typedefs[dep]; !exists {
+				targetFile.Typedefs[dep] = t
+				//// Add all children of this typedef as we do not know which implementations are used
+				// for _, child := range parentVF.DependencyMap[dep].DependedBy {
+				//	dfsDependencies(child, parentVF, targetFile)
+				//	targetFile.AddDependency(dep, child)
+				//}
+			}
+		}
 		if s, found := parentVF.Structs[dep]; found {
 			if _, exists := targetFile.Structs[dep]; !exists {
 				targetFile.Structs[dep] = s
