@@ -82,6 +82,10 @@ echo "Running snippet scoring..."
 
 
 for snippet in $(pwd)/isolated/*/*.sv ; do
+    if [ -f ${snippet}.sscr ]; then
+        # already scored, we skip to the next
+        continue
+    fi
     sim_score=0
     synth_score=0
     tmp=$(mktemp -d)
