@@ -10,10 +10,10 @@ module multiline_macro (
 
     // Use the multiline macro
     `ASSERT(IbexRegImmAluOpKnown, (opcode == OPCODE_OP_IMM) |->
-            !$isunknown(instr[14:12]))
+        !$isunknown(instr[14:12]))
 
     // Another example
     `ASSERT(ValidOpcode, (opcode == OPCODE_OP_IMM) |-> 
-            (instr[31:20] != '0))
+        (instr[31:20] != '0))
 
 endmodule
