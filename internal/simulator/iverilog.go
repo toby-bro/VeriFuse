@@ -209,7 +209,12 @@ func (sim *IVerilogSimulator) RunTest(
 
 	// Run with context timeout
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("iverilog execution failed to start: %v", err)
+		return fmt.Errorf(
+			"iverilog execution failed to start: %v, stdout: %s, stderr: %s",
+			err,
+			stdout.String(),
+			stderr.String(),
+		)
 	}
 
 	// Wait for command completion or context cancellation
@@ -224,7 +229,7 @@ func (sim *IVerilogSimulator) RunTest(
 			sim.debug.Debug("vvp execution failed with error: %v", err)
 			sim.debug.Debug("stderr: %s", stderr.String())
 			sim.debug.Debug("stdout: %s", stdout.String())
-			return fmt.Errorf("iverilog execution failed: %v - %s", err, stderr.String())
+			return fmt.Errorf("iverilog execution failed: %v", err)
 		}
 	case <-ctx.Done():
 		// Context was cancelled (timeout or cancellation)
