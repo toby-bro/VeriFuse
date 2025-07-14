@@ -39,7 +39,7 @@ func (t Type) String() string {
 	case QUARTUS:
 		return "Quartus"
 	case XCELIUM:
-		return "Xcilium"
+		return "Xcelium"
 	case VCS:
 		return "VCS"
 	case MODELSIM:
