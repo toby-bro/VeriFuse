@@ -23,7 +23,7 @@ func TestVivadoTool() error {
 	defer func() { <-vivadoSemaphore }()
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Vivado check failed: %v - %s", err, stderr.String())
+		return fmt.Errorf("Vivado check failed: %v", err)
 	}
 
 	// Success - should have version output in stdout
