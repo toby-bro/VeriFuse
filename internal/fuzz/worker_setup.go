@@ -102,8 +102,8 @@ func (sch *Scheduler) performWorkerAttempt(
 	} else {
 		sch.debug.Debug("[%s] Mutation not requested. Proceeding with original file.", workerID)
 		svFile = sch.svFile.DeepCopy()
-		svFile.Name = workerModule.Name + ".sv"
 	}
+	svFile.Name = workerModule.Name + ".sv"
 	if svFile == sch.svFile {
 		logger.Fatal(
 			"[%s] svFile is the same as original file. This should not happen.",
