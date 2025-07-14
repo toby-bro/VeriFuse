@@ -26,6 +26,7 @@ tmp/
 *.log
 *.zip
 *.tar.gz
+*.tar.xz
 *.vcd
 
 __debug_bin*
