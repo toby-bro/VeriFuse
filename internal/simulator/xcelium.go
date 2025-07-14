@@ -94,7 +94,12 @@ func (sim *XCeliumSimulator) Compile(ctx context.Context) error {
 	select {
 	case err := <-done:
 		if err != nil {
-			return fmt.Errorf("xrun compilation failed: %v - %s", err, stderr.String())
+			return fmt.Errorf(
+				"xrun compilation failed: %v - stdout: %s, stderr: %s",
+				err,
+				stdout.String(),
+				stderr.String(),
+			)
 		}
 	case <-ctx.Done():
 		// Context was cancelled (timeout or cancellation)
