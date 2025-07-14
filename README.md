@@ -66,6 +66,21 @@ For detailed information about the scoring system, see [docs/SCORING.md](docs/SC
 
 For more details on how we decide how many modules to use and which one we pick to ensure that we have simulatable code then check the [docs/INJECTING.md](docs/INJECTING.md)
 
+## Supported tools
+
+### Simulators
+
+- verilator
+- cxxrtl (in yosys)
+- icarus iverilog (>= 13.0)
+- xcellium
+
+### Synthesizers and co
+
+- yosys
+- sv2v (it is not a synthesizer but I tidied it there as it has a similar behaviour)
+- vivado
+
 ## Inject snippet - expected behavior
 
 The objective is to inject the snippet IN the original module not to write another module.
