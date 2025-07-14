@@ -3,8 +3,25 @@
 # Script to normalize indentation to multiples of 4 spaces  
 # Preserves the existing indentation hierarchy and relative changes
 
+# Flag to suppress output
+suppress_output=false
+
+while getopts "s" opt; do
+  case $opt in
+    s)
+      suppress_output=true
+      ;;
+    \\?)
+      echo "Usage: $0 [-s] <file>" >&2
+      exit 1
+      ;;
+  esac
+done
+
+shift $((OPTIND-1))
+
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <file>"
+    echo "Usage: $0 [-s] <file>"
     exit 1
 fi
 
@@ -106,4 +123,6 @@ if [ -z "$modified" ]; then
 fi
 mv "${input_file}.tmp" "$input_file"
 
-echo "Indentation fixed in $input_file (backup saved as ${input_file}.bak)"
+if [ "$suppress_output" = false ]; then
+    echo "Indentation fixed in $input_file (backup saved as ${input_file}.bak)"
+fi
