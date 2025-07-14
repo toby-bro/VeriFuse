@@ -21,7 +21,7 @@ const (
 	CXXRTL
 	CXXSLG
 	QUARTUS
-	XCELLIUM
+	XCELIUM
 	VCS
 	MODELSIM
 )
@@ -38,7 +38,7 @@ func (t Type) String() string {
 		return "CXXSLG"
 	case QUARTUS:
 		return "Quartus"
-	case XCELLIUM:
+	case XCELIUM:
 		return "Xcilium"
 	case VCS:
 		return "VCS"
@@ -65,8 +65,8 @@ func (t Type) SetupSimulator(
 		return NewCXXRTLSimulator(workDir, svFile, module, cxxrtlIncludeDir, false, verbose)
 	case CXXSLG:
 		return NewCXXRTLSimulator(workDir, svFile, module, cxxrtlIncludeDir, true, verbose)
-	case XCELLIUM:
-		return NewXCelliumSimulator(workDir, svFile, verbose)
+	case XCELIUM:
+		return NewXCeliumSimulator(workDir, svFile, verbose)
 	default:
 		return nil
 	}
@@ -217,11 +217,11 @@ func TestAvailableSimulators(debugger *utils.DebugLogger) []Type {
 			availableSimulators = append(availableSimulators, CXXSLG)
 		}
 	}
-	if err := TestXCelliumTool(); err != nil {
-		debugger.Warn("XCellium tool check failed: %v", err)
+	if err := TestXCeliumTool(); err != nil {
+		debugger.Warn("XCelium tool check failed: %v", err)
 	} else {
-		debugger.Debug("XCellium tool found.")
-		availableSimulators = append(availableSimulators, XCELLIUM)
+		debugger.Debug("XCelium tool found.")
+		availableSimulators = append(availableSimulators, XCELIUM)
 	}
 	return availableSimulators
 }

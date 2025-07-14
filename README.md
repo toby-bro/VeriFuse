@@ -73,7 +73,7 @@ For more details on how we decide how many modules to use and which one we pick 
 - [verilator](https://github.com/verilator/verilator)
 - [cxxrtl](https://cxxrtl.org/) (in [yosys](https://yosyshq.readthedocs.io/projects/yosys/en/latest/cmd/write_cxxrtl.html))
 - [icarus iverilog](https://github.com/steveicarus/iverilog) (>= 13.0)
-- [xcellium](https://www.cadence.com/ja_JP/home/tools/system-design-and-verification/simulation-and-testbench-verification/xcelium-simulator.html)
+- [xcelium](https://www.cadence.com/ja_JP/home/tools/system-design-and-verification/simulation-and-testbench-verification/xcelium-simulator.html)
 
 ### Synthesizers and co
 

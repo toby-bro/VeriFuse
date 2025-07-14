@@ -13,26 +13,26 @@ import (
 	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
-var xcelliumSemaphore = make(chan struct{}, 2)
+var xceliumSemaphore = make(chan struct{}, 2)
 
-// XCelliumSimulator represents the XCellium simulator
-type XCelliumSimulator struct {
+// XCeliumSimulator represents the XCelium simulator
+type XCeliumSimulator struct {
 	workDir    string
 	debug      *utils.DebugLogger
 	svFileName string
 }
 
-func (sim *XCelliumSimulator) Type() Type {
-	return XCELLIUM
+func (sim *XCeliumSimulator) Type() Type {
+	return XCELIUM
 }
 
-func TestXCelliumTool() error {
+func TestXCeliumTool() error {
 	cmd := exec.Command("xrun", "-version")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
-	xcelliumSemaphore <- struct{}{}
-	defer func() { <-xcelliumSemaphore }()
+	xceliumSemaphore <- struct{}{}
+	defer func() { <-xceliumSemaphore }()
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf(
@@ -43,30 +43,30 @@ func TestXCelliumTool() error {
 	return nil
 }
 
-// NewXCelliumSimulator creates a new XCellium simulator instance
-func NewXCelliumSimulator(
+// NewXCeliumSimulator creates a new XCelium simulator instance
+func NewXCeliumSimulator(
 	actualWorkDir string,
 	svFile *verilog.VerilogFile,
 	verbose int,
-) *XCelliumSimulator {
-	return &XCelliumSimulator{
+) *XCeliumSimulator {
+	return &XCeliumSimulator{
 		workDir:    actualWorkDir,
 		debug:      utils.NewDebugLogger(verbose),
 		svFileName: svFile.Name,
 	}
 }
 
-func (sim *XCelliumSimulator) Compile(ctx context.Context) error {
-	sim.debug.Debug("Ensuring XCellium simulation directory exists: %s", sim.workDir)
+func (sim *XCeliumSimulator) Compile(ctx context.Context) error {
+	sim.debug.Debug("Ensuring XCelium simulation directory exists: %s", sim.workDir)
 	if err := os.MkdirAll(sim.workDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create xcellium work dir %s: %v", sim.workDir, err)
+		return fmt.Errorf("failed to create xcelium work dir %s: %v", sim.workDir, err)
 	}
 
-	// acquire semaphore to limit concurrent XCellium runs or wait until one is available
-	xcelliumSemaphore <- struct{}{}
-	defer func() { <-xcelliumSemaphore }()
+	// acquire semaphore to limit concurrent XCelium runs or wait until one is available
+	xceliumSemaphore <- struct{}{}
+	defer func() { <-xceliumSemaphore }()
 
-	sim.debug.Debug("Starting XCellium compile in %s", sim.workDir)
+	sim.debug.Debug("Starting XCelium compile in %s", sim.workDir)
 
 	cmdArgs := []string{
 		"-elabonly",
@@ -112,12 +112,12 @@ func (sim *XCelliumSimulator) Compile(ctx context.Context) error {
 	return nil
 }
 
-func (sim *XCelliumSimulator) FailedCuzUnsupportedFeature(_ error) (bool, error) {
+func (sim *XCeliumSimulator) FailedCuzUnsupportedFeature(_ error) (bool, error) {
 	return false, nil
 }
 
 // RunTest runs the simulator with the provided input directory and output paths
-func (sim *XCelliumSimulator) RunTest(
+func (sim *XCeliumSimulator) RunTest(
 	ctx context.Context,
 	inputDir string,
 	outputPaths map[*verilog.Port]string,
@@ -149,8 +149,8 @@ func (sim *XCelliumSimulator) RunTest(
 	sim.debug.Debug("Running xrun command: xrun %s in directory %s",
 		strings.Join(cmdArgs, " "), sim.workDir)
 
-	xcelliumSemaphore <- struct{}{}
-	defer func() { <-xcelliumSemaphore }()
+	xceliumSemaphore <- struct{}{}
+	defer func() { <-xceliumSemaphore }()
 
 	cmd := exec.Command("xrun", cmdArgs...)
 	cmd.Dir = sim.workDir
@@ -161,7 +161,7 @@ func (sim *XCelliumSimulator) RunTest(
 
 	// Run with context timeout
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("iverilog execution failed to start: %v", err)
+		return fmt.Errorf("xcelium execution failed to start: %v", err)
 	}
 
 	// Wait for command completion or context cancellation
@@ -176,7 +176,7 @@ func (sim *XCelliumSimulator) RunTest(
 			sim.debug.Debug("vvp execution failed with error: %v", err)
 			sim.debug.Debug("stderr: %s", stderr.String())
 			sim.debug.Debug("stdout: %s", stdout.String())
-			return fmt.Errorf("iverilog execution failed: %v - %s", err, stderr.String())
+			return fmt.Errorf("xcelium execution failed: %v - %s", err, stderr.String())
 		}
 	case <-ctx.Done():
 		// Context was cancelled (timeout or cancellation)
@@ -185,7 +185,7 @@ func (sim *XCelliumSimulator) RunTest(
 				sim.debug.Debug("Failed to kill vvp process: %v", cmd.Process.Kill())
 			}
 		}
-		return fmt.Errorf("iverilog execution timed out or was cancelled: %v", ctx.Err())
+		return fmt.Errorf("xcelium execution timed out or was cancelled: %v", ctx.Err())
 	}
 
 	// Copy output files from sim.workDir to their expected paths
