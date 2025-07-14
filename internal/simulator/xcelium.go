@@ -69,7 +69,7 @@ func (sim *XCeliumSimulator) Compile(ctx context.Context) error {
 	sim.debug.Debug("Starting XCelium compile in %s", sim.workDir)
 
 	cmdArgs := []string{
-		"-elabonly",
+		"-elaborate",
 		"../" + sim.svFileName,
 	}
 	sim.debug.Debug("Running xrun command: xrun %s in directory %s",
