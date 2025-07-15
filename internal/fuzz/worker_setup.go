@@ -498,13 +498,16 @@ func (sch *Scheduler) setupSynthVariants(
 
 	// Check if the synthesized file exists
 	if !utils.FileExists(synthFilePath) {
-		sch.debug.Debug(
-			"[%s] No .v file found at %s, skipping %s simulator variants",
-			workerID,
-			synthFilePath,
-			synthType.String(),
-		)
-		return
+		synthFileName = utils.ChangeExtension(svFileToCompile.Name, "sv")
+		if !utils.FileExists(filepath.Join(baseWorkerDir, synthFileName)) {
+			sch.debug.Error(
+				"[%s] No .v or .sv file found at %s, skipping %s simulator variants",
+				workerID,
+				synthFilePath,
+				synthType.String(),
+			)
+			return
+		}
 	}
 
 	sch.debug.Debug(

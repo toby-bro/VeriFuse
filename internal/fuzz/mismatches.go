@@ -311,8 +311,7 @@ func (sch *Scheduler) copySvFile(baseSrcDir, mismatchDir string) {
 		} else {
 			sch.debug.Warn("Failed to find .v files in %s: %v", baseSrcDir, vErr)
 		}
-	}
-	if err != nil {
+	} else {
 		sch.debug.Error("Failed to find .sv files in %s: %v", baseSrcDir, err)
 		return
 	}
