@@ -248,7 +248,7 @@ func (sch *Scheduler) createMismatchDirectory(testIndex int) (string, error) {
 }
 
 // copyTestFiles copies files from the test directory to the mismatch directory
-func (sch *Scheduler) copyTestFiles(testDir, mismatchDir string) {
+func (sch *Scheduler) copyTestFiles(testDir string, mismatchDir string) {
 	sch.debug.Debug(
 		"Copying files from test directory %s to mismatch directory %s",
 		testDir,
@@ -302,32 +302,24 @@ func (sch *Scheduler) writeMismatchSummary(
 
 // copySvFile copies the main SystemVerilog file to the mismatch directory
 func (sch *Scheduler) copySvFile(baseSrcDir, mismatchDir string) {
-	if sch.svFile == nil || sch.svFile.Name == "" {
-		sch.debug.Warn(
-			"sch.svFile or sch.svFile.Name is not set. Skipping copy of original SV file.",
-		)
+	// find all the .sv files in the base source directory
+	svFiles, err := filepath.Glob(filepath.Join(baseSrcDir, "*.sv"))
+	if err != nil {
+		sch.debug.Error("Failed to find .sv files in %s: %v", baseSrcDir, err)
 		return
 	}
-
-	originalSvFileName := sch.svFile.Name
-	sourceSvFilePath := filepath.Join(baseSrcDir, originalSvFileName)
-	destSvFilePath := filepath.Join(mismatchDir, originalSvFileName)
-
-	if _, statErr := os.Stat(sourceSvFilePath); statErr == nil {
-		if copyErr := utils.CopyFile(sourceSvFilePath, destSvFilePath); copyErr != nil {
-			sch.debug.Warn(
-				"Failed to copy original SV file %s to %s: %v",
-				sourceSvFilePath,
-				destSvFilePath,
-				copyErr,
-			)
+	if len(svFiles) == 0 {
+		sch.debug.Warn("No .sv files found in %s. Skipping copy.", baseSrcDir)
+		return
+	}
+	// copy all the files to the mismatch directory
+	for _, svFile := range svFiles {
+		destSvFile := filepath.Join(mismatchDir, filepath.Base(svFile))
+		if err := utils.CopyFile(svFile, destSvFile); err != nil {
+			sch.debug.Error("Failed to copy .sv file %s to %s: %v", svFile, destSvFile, err)
 		} else {
-			sch.debug.Debug("Copied original SV file %s to %s", sourceSvFilePath, destSvFilePath)
+			sch.debug.Debug("Copied .sv file %s to %s", svFile, destSvFile)
 		}
-	} else if !os.IsNotExist(statErr) {
-		sch.debug.Warn("Error stating original SV file %s: %v. Skipping copy.", sourceSvFilePath, statErr)
-	} else {
-		sch.debug.Info("Original SV file %s not found. Skipping copy.", sourceSvFilePath)
 	}
 }
 
