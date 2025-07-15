@@ -247,6 +247,17 @@ func TestDetectBlockedVariables(t *testing.T) {
 				// Note: main_clk is an input, so it shouldn't be blocked
 			},
 		},
+		{
+			name: "inline if and else",
+			content: `        if (clkin_data[32]) celloutsig_0_3z = 4'h0;
+        else if (celloutsig_1_18z[0]) celloutsig_0_3z = { in_data[85:83], celloutsig_0_1z };`,
+			expected: map[string]bool{
+				"celloutsig_0_3z":  true,
+				"celloutsig_1_18z": true,
+				"in_data":          true,
+				"celloutsig_0_1z":  true,
+			},
+		},
 	}
 
 	for _, tt := range tests {
