@@ -82,8 +82,8 @@ func (g *Generator) generateSVPortDeclarations() string {
 		var finalDeclarationString string
 
 		// Handle interface ports differently
-		switch port.Type {
-		case verilog.INTERFACE: // nolint: default
+		switch port.Type { // nolint: exhaustive
+		case verilog.INTERFACE:
 			// For interface ports, instantiate the interface itself
 			finalDeclarationString = fmt.Sprintf("%s %s();", port.InterfaceName, portName)
 		case verilog.REAL, verilog.SHORTREAL, verilog.REALTIME: // Handle real type
@@ -572,7 +572,7 @@ func getCXXRTLSetMethod(port *verilog.Port) string {
 	}
 
 	// Return template-based function name that works with both value<> and wire<>
-	switch port.Type {
+	switch port.Type { // nolint:exhaustive
 	case verilog.REAL, verilog.REALTIME:
 		return "_set_port_value<double>"
 	case verilog.SHORTREAL:
