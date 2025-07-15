@@ -1883,7 +1883,7 @@ func parseVariablesWithScope(v *VerilogFile,
 	}
 	if !skipScopeTree {
 		// Add all module ports to the root of the scope tree
-		addModulesToScopeTree(modulePorts, scopeTree)
+		addPortsToScopeTree(modulePorts, scopeTree)
 
 		// After parsing all variable declarations, detect blocked variables and remove them from parent scopes
 		blockedVars := detectBlockedVariables(v, content)
@@ -1900,7 +1900,7 @@ func parseVariablesWithScope(v *VerilogFile,
 	return variablesMap, scopeTree, nil
 }
 
-func addModulesToScopeTree(modulePorts []*Port, scopeTree *ScopeNode) {
+func addPortsToScopeTree(modulePorts []*Port, scopeTree *ScopeNode) {
 	for _, port := range modulePorts {
 		if port.Name == "" {
 			logger.Warn("Skipping module port with empty name")
