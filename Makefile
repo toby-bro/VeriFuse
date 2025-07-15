@@ -88,3 +88,8 @@ addValidSnippets:
 .PHONY: isolated
 isolated:
 	for i in snippets/*.sv ; do ss=$(pfuzz rewrite-as-snippets -strategy smart -vv -file $i) ;if [ $? -eq 0 ]; then echo "[+] success" $i ; else echo "[-] failure" $i; fi ; done
+
+.PHONY: removeKnown
+removeKnown:
+	rm -r `find mismatches -name '*_inj_o_done*' -exec dirname {} \;`
+	rm -r `find mismatches -name '*_inj_data_reg*' -exec dirname {} \;`
