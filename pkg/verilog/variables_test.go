@@ -571,6 +571,7 @@ func TestParseVariablesWithBlockingDetection(t *testing.T) {
 				tt.content,
 				[]*Parameter{},
 				nil,
+				false,
 			)
 			if err != nil {
 				t.Fatalf("ParseVariables() error = %v", err)
@@ -876,7 +877,7 @@ func TestRealWorldModuleInstantiationBlocking(t *testing.T) {
 		endmodule
 	`
 
-	variables, scopeTree, err := parseVariablesWithScope(nil, content, []*Parameter{}, nil)
+	variables, scopeTree, err := parseVariablesWithScope(nil, content, []*Parameter{}, nil, false)
 	if err != nil {
 		t.Fatalf("ParseVariables() error = %v", err)
 	}
@@ -1512,7 +1513,7 @@ end
 logic [7:0] c;
 `
 
-	variables, scopeTree, err := parseVariablesWithScope(nil, content, nil, nil)
+	variables, scopeTree, err := parseVariablesWithScope(nil, content, nil, nil, false)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
@@ -1545,35 +1546,32 @@ logic [7:0] c;
 	// Variable 'c' should be in the root scope
 
 	// Find variable 'a' in the scope tree
-	varAScopeLevel := findVariableInScopeTree(scopeTree, "a")
-	switch varAScopeLevel {
-	case -1:
+	varA, varAScopeLevel := findVariableInScopeTree(scopeTree, "a")
+	if varA == nil {
+		t.Logf("Variable 'a' not found in any scope")
+	} else if varAScopeLevel == -1 && varA.Blocked {
 		t.Log("Variable 'a' not found in any scope, expected as unassignable")
-	case 0:
+	} else {
 		t.Error("Variable 'a' should be in a nested scope (task), but found in root scope")
-	default:
-		t.Errorf("Variable 'a' correctly found in scope level %d", varAScopeLevel)
 	}
 
 	// Find variable 'b' in the scope tree
-	varBScopeLevel := findVariableInScopeTree(scopeTree, "b")
-	switch varBScopeLevel {
-	case -1:
+	varB, varBScopeLevel := findVariableInScopeTree(scopeTree, "b")
+	if varB == nil {
+		t.Logf("Variable 'b' not found in any scope")
+	} else if varBScopeLevel == 1 && varB.Blocked {
 		t.Log("Variable 'b' not found in any scope, expected as unassignable")
-	case 0:
+	} else {
 		t.Error("Variable 'b' should be in a nested scope (always_comb), but found in root scope")
-	default:
-		t.Errorf("Variable 'b' correctly found in scope level %d", varBScopeLevel)
 	}
 
 	// Find variable 'c' in the scope tree
-	varCScopeLevel := findVariableInScopeTree(scopeTree, "c")
-	switch varCScopeLevel {
-	case -1:
-		t.Error("Variable 'c' not found in any scope")
-	case 0:
+	varC, varCScopeLevel := findVariableInScopeTree(scopeTree, "c")
+	if varC == nil {
+		t.Errorf("Variable 'c' not found in any scope")
+	} else if varCScopeLevel == 0 && !varC.Blocked {
 		t.Logf("Variable 'c' correctly found in root scope level %d", varCScopeLevel)
-	default:
+	} else {
 		t.Errorf(
 			"Variable 'c' should be in root scope (level 0), but found in level %d",
 			varCScopeLevel,
@@ -1605,26 +1603,25 @@ func getVariableNames(variables map[string]*Variable) []string {
 	return names
 }
 
-// Helper function to find a variable in the scope tree and return its scope level
-func findVariableInScopeTree(node *ScopeNode, varName string) int {
+// Helper function to find a variable in the scope tree and return its scope Variable and it's level
+func findVariableInScopeTree(node *ScopeNode, varName string) (*ScopeVariable, int) {
 	if node == nil {
-		return -1
+		return nil, -1
 	}
 
 	// Check if variable is in current scope
-	if _, exists := node.Variables[varName]; exists {
-		return node.Level
+	if sv, exists := node.Variables[varName]; exists {
+		return sv, node.Level
 	}
 
 	// Recursively check children
 	for _, child := range node.Children {
-		level := findVariableInScopeTree(child, varName)
-		if level != -1 {
-			return level
+		if sv, level := findVariableInScopeTree(child, varName); level != -1 {
+			return sv, level
 		}
 	}
 
-	return -1
+	return nil, -1
 }
 
 // Helper function to find the actual scope node that contains a variable
@@ -1772,7 +1769,7 @@ func TestRemoveTaskClassScopeNodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			variables, scopeTree, err := parseVariablesWithScope(nil, tt.content, nil, nil)
+			variables, scopeTree, err := parseVariablesWithScope(nil, tt.content, nil, nil, false)
 			if err != nil {
 				t.Fatalf("ParseVariables failed: %v", err)
 			}
@@ -1785,14 +1782,14 @@ func TestRemoveTaskClassScopeNodes(t *testing.T) {
 
 			// Check that expected variables are in the scope tree
 			for _, varName := range tt.expectedScopes {
-				if findVariableInScopeTree(scopeTree, varName) == -1 {
+				if _, level := findVariableInScopeTree(scopeTree, varName); level == -1 {
 					t.Errorf("Variable '%s' should be in scope tree but was not found", varName)
 				}
 			}
 
 			// Check that excluded variables are NOT in the scope tree
 			for _, varName := range tt.excludedScopes {
-				if findVariableInScopeTree(scopeTree, varName) != -1 {
+				if _, level := findVariableInScopeTree(scopeTree, varName); level != -1 {
 					t.Errorf(
 						"Variable '%s' should be excluded from scope tree but was found",
 						varName,
@@ -1946,7 +1943,7 @@ func TestComplexTaskClassScopeRemoval(t *testing.T) {
 		logic [7:0] global3;
 	`
 
-	variables, scopeTree, err := parseVariablesWithScope(nil, content, nil, nil)
+	variables, scopeTree, err := parseVariablesWithScope(nil, content, nil, nil, false)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
@@ -1972,14 +1969,14 @@ func TestComplexTaskClassScopeRemoval(t *testing.T) {
 
 	// Check variables in scope tree
 	for _, varName := range expectedInScope {
-		if findVariableInScopeTree(scopeTree, varName) == -1 {
+		if _, level := findVariableInScopeTree(scopeTree, varName); level == -1 {
 			t.Errorf("Variable '%s' should be in scope tree but was not found", varName)
 		}
 	}
 
 	// Check variables excluded from scope tree
 	for _, varName := range expectedExcluded {
-		if findVariableInScopeTree(scopeTree, varName) != -1 {
+		if _, level := findVariableInScopeTree(scopeTree, varName); level != -1 {
 			t.Errorf("Variable '%s' should be excluded from scope tree but was found", varName)
 		}
 	}
@@ -2072,21 +2069,21 @@ endclass
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			variables, scopeTree, err := parseVariablesWithScope(nil, tt.content, nil, nil)
+			variables, scopeTree, err := parseVariablesWithScope(nil, tt.content, nil, nil, false)
 			if err != nil {
 				t.Fatalf("ParseVariables failed: %v", err)
 			}
 
 			// Check variables in scope tree
 			for _, varName := range tt.expectedInScope {
-				if findVariableInScopeTree(scopeTree, varName) == -1 {
+				if _, level := findVariableInScopeTree(scopeTree, varName); level == -1 {
 					t.Errorf("Variable '%s' should be in scope tree but was not found", varName)
 				}
 			}
 
 			// Check variables excluded from scope tree
 			for _, varName := range tt.expectedExcluded {
-				if findVariableInScopeTree(scopeTree, varName) != -1 {
+				if _, level := findVariableInScopeTree(scopeTree, varName); level != -1 {
 					t.Errorf(
 						"Variable '%s' should be excluded from scope tree but was found",
 						varName,
@@ -2105,4 +2102,161 @@ endclass
 			}
 		})
 	}
+}
+
+var nonAnsiScopeContent = `
+/* Generated by Yosys 0.37+29 (git sha1 3c3788ee2, clang 10.0.0-4ubuntu1 -fPIC -Os) */
+
+module topi(clkin_data, in_data, out_data);
+    wire celloutsig_0_0z;
+    wire [8:0] celloutsig_0_11z;
+    reg [2:0] celloutsig_0_13z;
+    wire celloutsig_0_14z;
+    wire [6:0] celloutsig_0_17z;
+    wire [14:0] celloutsig_0_1z;
+    wire celloutsig_0_20z;
+    wire celloutsig_0_21z;
+    wire [7:0] celloutsig_0_24z;
+    wire [3:0] celloutsig_0_2z;
+    wire celloutsig_0_3z;
+    wire celloutsig_0_4z;
+    wire celloutsig_0_5z;
+    wire [19:0] celloutsig_0_6z;
+    wire celloutsig_0_7z;
+    wire [12:0] celloutsig_0_8z;
+    wire [12:0] celloutsig_0_9z;
+    wire celloutsig_1_0z;
+    wire celloutsig_1_10z;
+    wire [10:0] celloutsig_1_11z;
+    wire [2:0] celloutsig_1_12z;
+    wire [20:0] celloutsig_1_13z;
+    wire celloutsig_1_14z;
+    wire [9:0] celloutsig_1_18z;
+    wire celloutsig_1_19z;
+    wire [4:0] celloutsig_1_1z;
+    wire [3:0] celloutsig_1_2z;
+    wire celloutsig_1_3z;
+    wire celloutsig_1_4z;
+    wire celloutsig_1_5z;
+    wire [12:0] celloutsig_1_6z;
+    wire celloutsig_1_7z;
+    wire celloutsig_1_8z;
+    wire [5:0] celloutsig_1_9z;
+    input [63:0] clkin_data;
+    wire [63:0] clkin_data;
+    input [191:0] in_data;
+    wire [191:0] in_data;
+    output [191:0] out_data;
+    wire [191:0] out_data;
+    assign celloutsig_1_10z = ~(celloutsig_1_7z | celloutsig_1_4z);
+    assign celloutsig_1_19z = ~(celloutsig_1_14z | celloutsig_1_9z[1]);
+    assign celloutsig_0_5z = ~(in_data[15] | celloutsig_0_4z);
+    assign celloutsig_1_0z = ~(in_data[118] | in_data[162]);
+    assign celloutsig_0_3z = ~((celloutsig_0_0z | celloutsig_0_2z[3]) & (in_data[93] | celloutsig_0_0z));
+    assign celloutsig_1_4z = ~((celloutsig_1_3z | celloutsig_1_0z) & (in_data[160] | celloutsig_1_3z));
+    assign celloutsig_0_4z = celloutsig_0_3z | ~(celloutsig_0_3z);
+    assign celloutsig_1_7z = celloutsig_1_6z[11] ^ celloutsig_1_6z[2];
+    assign celloutsig_0_7z = celloutsig_0_1z[13] ^ in_data[79];
+    assign celloutsig_0_21z = in_data[26] ^ celloutsig_0_9z[5];
+    assign celloutsig_1_9z = { celloutsig_1_1z[3], celloutsig_1_4z, celloutsig_1_3z, celloutsig_1_3z, celloutsig_1_3z, celloutsig_1_5z } + celloutsig_1_6z[5:0];
+    assign celloutsig_0_6z = { in_data[79], celloutsig_0_2z, celloutsig_0_1z } + { celloutsig_0_1z[10:6], celloutsig_0_1z };
+    reg [11:0] _12_;
+    always_ff @(posedge clkin_data[32], negedge celloutsig_1_19z)
+        if (!celloutsig_1_19z) _12_ <= 12'h000;
+        else _12_ <= { celloutsig_0_1z[12:4], celloutsig_0_4z, celloutsig_0_20z, celloutsig_0_14z };
+    assign out_data[43:32] = _12_;
+    assign celloutsig_0_17z = { celloutsig_0_11z[5:2], celloutsig_0_13z } & celloutsig_0_1z[12:6];
+    assign celloutsig_0_24z = { celloutsig_0_17z[5:1], celloutsig_0_21z, celloutsig_0_7z, celloutsig_0_0z } & celloutsig_0_11z[8:1];
+    assign celloutsig_1_1z = in_data[190:186] & { in_data[146:143], celloutsig_1_0z };
+    assign celloutsig_1_2z = in_data[180:177] & in_data[146:143];
+    assign celloutsig_0_0z = in_data[84:81] && in_data[47:44];
+    assign celloutsig_1_5z = { in_data[172:170], celloutsig_1_4z, celloutsig_1_0z } && { celloutsig_1_1z[4], celloutsig_1_4z, celloutsig_1_4z, celloutsig_1_3z, celloutsig_1_0z };
+    assign celloutsig_0_14z = celloutsig_0_13z[1] & ~(celloutsig_0_9z[12]);
+    assign celloutsig_1_3z = celloutsig_1_2z[2] & ~(celloutsig_1_1z[3]);
+    assign celloutsig_1_11z = { celloutsig_1_6z[11:6], celloutsig_1_10z, celloutsig_1_2z } % { 1'h1, celloutsig_1_2z[1:0], celloutsig_1_2z, celloutsig_1_5z, celloutsig_1_5z, celloutsig_1_8z, celloutsig_1_5z };
+    assign celloutsig_1_13z = { in_data[176:174], celloutsig_1_1z, celloutsig_1_9z, celloutsig_1_9z, celloutsig_1_7z } % { 1'h1, in_data[121:113], celloutsig_1_1z, celloutsig_1_12z, celloutsig_1_7z, celloutsig_1_0z, celloutsig_1_3z };
+    assign celloutsig_0_2z = { in_data[90:88], celloutsig_0_0z } % { 1'h1, celloutsig_0_1z[9:7] };
+    assign celloutsig_1_18z = { in_data[162:161], celloutsig_1_9z, celloutsig_1_3z, celloutsig_1_14z } | { celloutsig_1_13z[14:12], celloutsig_1_12z, celloutsig_1_12z, celloutsig_1_5z };
+    assign celloutsig_0_1z = { in_data[10:0], celloutsig_0_0z, celloutsig_0_0z, celloutsig_0_0z, celloutsig_0_0z } | in_data[31:17];
+    assign celloutsig_1_14z = | { celloutsig_1_11z[6], celloutsig_1_12z };
+    assign celloutsig_0_8z = in_data[85:73] << celloutsig_0_1z[12:0];
+    assign celloutsig_0_11z = in_data[10:2] << celloutsig_0_1z[13:5];
+    assign celloutsig_1_6z = { celloutsig_1_1z[2:1], celloutsig_1_4z, celloutsig_1_3z, celloutsig_1_0z, celloutsig_1_4z, celloutsig_1_1z, celloutsig_1_3z, celloutsig_1_0z } <<< { in_data[165:154], celloutsig_1_4z };
+    assign celloutsig_1_12z = { celloutsig_1_11z[4:3], celloutsig_1_3z } <<< in_data[125:123];
+    assign celloutsig_0_9z = in_data[45:33] <<< { celloutsig_0_6z[16:7], celloutsig_0_0z, celloutsig_0_5z, celloutsig_0_4z };
+    assign celloutsig_0_20z = ~((celloutsig_0_0z & celloutsig_0_1z[8]) | celloutsig_0_8z[5]);
+    always_latch
+        if (celloutsig_1_19z) celloutsig_0_13z = 3'h0;
+        else if (!clkin_data[0]) celloutsig_0_13z = celloutsig_0_8z[2:0];
+    assign celloutsig_1_8z = ~((celloutsig_1_7z & in_data[168]) | (celloutsig_1_3z & celloutsig_1_2z[3]));
+    assign { out_data[137:128], out_data[96], out_data[7:0] } = { celloutsig_1_18z, celloutsig_1_19z, celloutsig_0_24z };
+endmodule`
+
+func TestNonAnsiScopeVariables(t *testing.T) {
+	svFile, err := ParseVerilog(nonAnsiScopeContent, 5)
+	if err != nil {
+		t.Fatalf("Failed to parse file content")
+	}
+	if svFile.DependencyMap == nil {
+		t.Fatalf("Failed to parse dependancy map")
+	}
+	var module *Module
+	for _, m := range svFile.Modules {
+		module = m
+		break
+	}
+	sc, err := GetScopeTree(svFile, module.Body, nil, module.Ports)
+	if err != nil {
+		t.Fatalf("Failed to get scope tree: %v", err)
+	}
+	if sc == nil {
+		t.Fatalf("Scope tree is nil")
+	}
+
+	// Check that all the ports are in the root scope tree once and only once
+	portNamesInRoot := make(map[string]bool)
+	for _, port := range module.Ports {
+		scopeVar, ok := sc.Variables[port.Name]
+		if !ok {
+			if port.Direction == INPUT {
+				t.Errorf("Input port %s not found in root scope tree variables", port.Name)
+			} else {
+				t.Logf("Output port %s not found in root scope tree variables", port.Name)
+			}
+			continue
+		}
+		if portNamesInRoot[port.Name] {
+			t.Errorf("Port %s found more than once in root scope tree variables", port.Name)
+		}
+		portNamesInRoot[port.Name] = true
+
+		if port.Direction == INPUT {
+			if scopeVar.Blocked {
+				t.Errorf("Input port %s in root scope should not be blocked, but is", port.Name)
+			}
+		} else if port.Direction == OUTPUT {
+			if !scopeVar.Blocked {
+				t.Errorf("Output port %s in root scope should be blocked, but is not", port.Name)
+			}
+		}
+	}
+
+	// Recursively check child scopes for ports
+	var checkChildScopesForPorts func(*ScopeNode, []*Port)
+	checkChildScopesForPorts = func(node *ScopeNode, ports []*Port) {
+		for _, child := range node.Children {
+			for _, port := range ports {
+				if _, ok := child.Variables[port.Name]; ok {
+					t.Errorf(
+						"Port %s found unexpectedly in child scope at level %d",
+						port.Name,
+						child.Level,
+					)
+				}
+			}
+			checkChildScopesForPorts(child, ports)
+		}
+	}
+
+	checkChildScopesForPorts(sc, module.Ports)
 }

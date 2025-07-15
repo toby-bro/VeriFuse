@@ -497,7 +497,7 @@ func TestParseVariables(t *testing.T) {
 	// and we are not testing user-defined type resolution here.
 	// The `myPacket pkt0, pkt1;` line in `aa` will be skipped by MatchAllVariablesFromString
 	// because `myPacket` is not a built-in type in the generalVariableRegex.
-	parsedVars, scopeTree, err := parseVariablesWithScope(nil, aa, nil, nil)
+	parsedVars, scopeTree, err := parseVariablesWithScope(nil, aa, nil, nil, false)
 	if err != nil {
 		t.Fatalf("ParseVariables failed: %v", err)
 	}
@@ -1435,7 +1435,7 @@ func TestMatchClassInstantiationsFromStringEdgeCases(t *testing.T) {
 
 func TestParseTransFuzzFile(t *testing.T) {
 	// skip this test
-	t.Skip("Skipping local only test")
+	// t.Skip("Skipping local only test")
 	fmt.Printf("Modules regex, \n%s\n", generalModuleRegex.String())
 	fmt.Printf("Classes regex, \n%s\n", generalClassRegex.String())
 	rootDir, err := utils.GetRootDir()
@@ -1444,7 +1444,7 @@ func TestParseTransFuzzFile(t *testing.T) {
 	}
 	filename := filepath.Join(
 		rootDir,
-		"snippets/slang/AllTypes.sv",
+		"testfiles/transfuzzTestFiles/obj_dir_example_sim_1000001/topi.sv",
 	)
 	fileContent, err := utils.ReadFileContent(filename)
 	if err != nil {
@@ -1456,6 +1456,18 @@ func TestParseTransFuzzFile(t *testing.T) {
 	}
 	if svFile.DependencyMap == nil {
 		t.Fatalf("Failed to parse dependancy map from %s", filename)
+	}
+	var module *Module
+	for _, m := range svFile.Modules {
+		module = m
+		break
+	}
+	sc, err := GetScopeTree(svFile, module.Body, nil, module.Ports)
+	if err != nil {
+		t.Fatalf("Failed to get scope tree: %v", err)
+	}
+	if sc == nil {
+		t.Fatalf("Scope tree is nil")
 	}
 	t.Skip("Skipping printing Verilog file")
 	output, err := PrintVerilogFile(svFile)

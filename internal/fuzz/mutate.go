@@ -57,6 +57,20 @@ func injectSnippetInModule(
 		bestScope = scopeTree
 	}
 
+	logger.Info(
+		"[%s] Best scope for snippet %s in module %s is at level %d with %d accessible variables",
+		workerDir,
+		snippet.Name,
+		targetModule.Name,
+		bestScope.Level,
+		len(bestScope.Variables),
+	)
+	logger.Info("[%s] Scope tree for module %s:\n%s",
+		workerDir,
+		targetModule.Name,
+		bestScope.Dump(1),
+	)
+
 	portConnections, newSignalDeclarations, err := matchVariablesToSnippetPorts(
 		targetModule,
 		snippet,
@@ -100,17 +114,19 @@ func injectSnippetInModule(
 	}
 	if instantiate {
 		logger.Info(
-			"[%s] Instantiated snippet %s into module %s",
+			"[%s] Instantiated snippet %s into module %s at scope level %d",
 			workerDir,
 			snippet.Name,
 			targetModule.Name,
+			bestScope.Level,
 		)
 	} else {
 		logger.Info(
-			"[%s] Injected snippet %s into module %s",
+			"[%s] Injected snippet %s into module %s at scope level %d",
 			workerDir,
 			snippet.Name,
 			targetModule.Name,
+			bestScope.Level,
 		)
 	}
 
@@ -140,7 +156,7 @@ func matchVariablesToSnippetPorts(
 			if port.Direction == verilog.INPUT {
 				varsAccessibleInBestScope = collectAccessibleVarsForInput(bestScopeForSnippet)
 			} else {
-				varsAccessibleInBestScope = collectAccessibleVarsForOutput(bestScopeForSnippet)
+				varsAccessibleInBestScope = make(map[string]*verilog.Variable)
 			}
 
 			matchedVarFromScope := findMatchingVariable(
@@ -486,6 +502,7 @@ func injectSnippetIntoModule(
 ) error {
 	// Determine the insertion line based on the best scope's LastLine
 	var insertionLine int
+	endOfDecls := findEndOfModuleDeclarations(strings.Split(module.Body, "\n"))
 	if bestScope != nil && bestScope.LastLine > -1 {
 		// Insert after the last line where a variable was declared in this scope
 		insertionLine = bestScope.LastLine + 1
@@ -497,8 +514,7 @@ func injectSnippetIntoModule(
 		)
 	} else {
 		// Fallback to the old method
-		lines := strings.Split(module.Body, "\n")
-		insertionLine = findEndOfModuleDeclarations(lines)
+		insertionLine = endOfDecls
 		logger.Debug(
 			"[%s] Using fallback insertion at line %d (no best scope found)",
 			debugWorkerDir,
@@ -511,12 +527,17 @@ func injectSnippetIntoModule(
 		for i := len(newDeclarations) - 1; i >= 0; i-- {
 			portToDeclare := newDeclarations[i]
 			declarationString := generateSignalDeclaration(portToDeclare, portToDeclare.Name)
-			err := insertTextAtLine(module, declarationString, insertionLine, bestScope.Level)
+			err := insertTextAtLine(
+				module,
+				declarationString,
+				endOfDecls,
+				1,
+			)
 			if err != nil {
 				return fmt.Errorf("failed to insert signal declaration: %v", err)
 			}
 			// Increment insertion line for next declaration
-			insertionLine++
+			endOfDecls++
 		}
 	}
 	logger.Debug(

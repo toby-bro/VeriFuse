@@ -1704,7 +1704,7 @@ func ParseVariables(v *VerilogFile,
 	content string,
 	scopeParams []*Parameter,
 ) (map[string]*Variable, error) {
-	variables, _, err := parseVariablesWithScope(v, content, scopeParams, nil)
+	variables, _, err := parseVariablesWithScope(v, content, scopeParams, nil, true)
 	return variables, err
 }
 
@@ -1713,7 +1713,7 @@ func GetScopeTree(v *VerilogFile,
 	scopeParams []*Parameter,
 	modulePorts []*Port,
 ) (*ScopeNode, error) {
-	_, scopeTree, err := parseVariablesWithScope(v, content, scopeParams, modulePorts)
+	_, scopeTree, err := parseVariablesWithScope(v, content, scopeParams, modulePorts, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1729,6 +1729,7 @@ func parseVariablesWithScope(v *VerilogFile,
 	content string,
 	scopeParams []*Parameter,
 	modulePorts []*Port,
+	skipScopeTree bool,
 ) (map[string]*Variable, *ScopeNode, error) {
 	scopeParamsMap := parametersToMap(scopeParams)
 	variablesMap := make(map[string]*Variable)
@@ -1749,7 +1750,7 @@ func parseVariablesWithScope(v *VerilogFile,
 		// Try to match variable declarations on this line
 		matchedVariable := generalVariableRegex.FindStringSubmatch(line)
 		if len(matchedVariable) < 6 {
-			if strings.TrimSpace(line) == "" {
+			if strings.TrimSpace(line) == "" || skipScopeTree {
 				continue
 			}
 			line = strings.ReplaceAll(line, "\t", "    ")
@@ -1770,7 +1771,7 @@ func parseVariablesWithScope(v *VerilogFile,
 					isExcludedScope = false
 					excludedLevel = -1
 				}
-				if !isExcludedScope {
+				if !isExcludedScope && !skipScopeTree {
 					newScopeNode := &ScopeNode{
 						Level:     indentation,
 						Variables: make(map[string]*ScopeVariable),
@@ -1852,7 +1853,7 @@ func parseVariablesWithScope(v *VerilogFile,
 			}
 			variablesMap[varName] = variable
 
-			if !isExcludedScope {
+			if !isExcludedScope && !skipScopeTree {
 				// Create ScopeVariable wrapper for scope tracking
 				scopeVariable := &ScopeVariable{
 					Variable: variable,
@@ -1880,41 +1881,61 @@ func parseVariablesWithScope(v *VerilogFile,
 			}
 		}
 	}
-	// Add all module ports to the root of the scope tree
+	if !skipScopeTree {
+		// Add all module ports to the root of the scope tree
+		addModulesToScopeTree(modulePorts, scopeTree)
+
+		// After parsing all variable declarations, detect blocked variables and remove them from parent scopes
+		blockedVars := detectBlockedVariables(v, content)
+		for blockedVar := range blockedVars {
+			MarkVariableAsBlockedInChildren(scopeTree, blockedVar)
+		}
+		// removeBlockedVariablesFromParents(scopeTree, blockedVars)
+
+		// Remove task/class variables from scope tree (but keep them in variablesMap)
+		taskClassVars := detectTaskClassScopeVariables(content)
+		removeTaskClassVariablesFromScopes(scopeTree, taskClassVars)
+	}
+
+	return variablesMap, scopeTree, nil
+}
+
+func addModulesToScopeTree(modulePorts []*Port, scopeTree *ScopeNode) {
 	for _, port := range modulePorts {
 		if port.Name == "" {
 			logger.Warn("Skipping module port with empty name")
 			continue
 		}
-		if port.Type != PortType(INPUT) {
-			continue
+		// Be careful for non ANSI ports they are parsed as variables and are in the scope of level 1
+		if port.Direction != INPUT {
+			MarkVariableAsBlockedInParents(scopeTree, port.Name)
+			MarkVariableAsBlockedInChildren(scopeTree, port.Name)
 		}
 		if _, exists := scopeTree.Variables[port.Name]; !exists {
-			variable := &Variable{
-				Name:     port.Name,
-				Type:     port.Type,
-				Width:    port.Width,
-				Unsigned: !port.IsSigned,
-				Array:    port.Array,
+			if _, exists := scopeTree.Children[0].Variables[port.Name]; !exists {
+				// for NON ANSI ports to be sure they do not exist
+				if port.Direction == INPUT {
+					variable := &Variable{
+						Name:     port.Name,
+						Type:     port.Type,
+						Width:    port.Width,
+						Unsigned: !port.IsSigned,
+						Array:    port.Array,
+					}
+					// Create ScopeVariable wrapper for module ports
+					scopeVariable := &ScopeVariable{
+						Variable: variable,
+						Blocked:  false, // Module input ports start unblocked
+					}
+					scopeTree.Variables[port.Name] = scopeVariable
+				}
+			} else {
+				// move it from the child to the root
+				scopeTree.Variables[port.Name] = scopeTree.Children[0].Variables[port.Name]
+				delete(scopeTree.Children[0].Variables, port.Name)
 			}
-			// Create ScopeVariable wrapper for module ports
-			scopeVariable := &ScopeVariable{
-				Variable: variable,
-				Blocked:  false, // Module input ports start unblocked
-			}
-			scopeTree.Variables[port.Name] = scopeVariable
 		}
 	}
-
-	// After parsing all variable declarations, detect blocked variables and remove them from parent scopes
-	blockedVars := detectBlockedVariables(v, content)
-	removeBlockedVariablesFromParents(scopeTree, blockedVars)
-
-	// Remove task/class variables from scope tree (but keep them in variablesMap)
-	taskClassVars := detectTaskClassScopeVariables(content)
-	removeTaskClassVariablesFromScopes(scopeTree, taskClassVars)
-
-	return variablesMap, scopeTree, nil
 }
 
 func (v *VerilogFile) parseStructs(
