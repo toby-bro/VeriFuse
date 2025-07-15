@@ -1759,12 +1759,9 @@ func parseVariablesWithScope(v *VerilogFile,
 				isExcludedScope = true
 				excludedLevel = indentation
 			}
-			if indentation == scopeNode.Level {
-				scopeNode.LastLine = lineNumber // choice to be done on only using the variable last lines or all the scope's lines
-			} else {
+			if indentation != scopeNode.Level {
 				for scopeNode.Level > indentation {
 					scopeNode = scopeNode.Parent
-					scopeNode.LastLine = lineNumber // Not used for the moment but might come in handy later
 				}
 				if isExcludedScope && excludedLevel > indentation {
 					// we exited the excluded scope
