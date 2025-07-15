@@ -303,7 +303,7 @@ func (sch *Scheduler) writeMismatchSummary(
 // copySvFile copies the main SystemVerilog file to the mismatch directory
 func (sch *Scheduler) copySvFile(baseSrcDir, mismatchDir string) {
 	// find all the .sv files in the base source directory
-	svFiles, err := filepath.Glob(filepath.Join(baseSrcDir, "*.sv"))
+	svFiles, err := filepath.Glob(filepath.Join(baseSrcDir, "*.[svv]"))
 	if err != nil {
 		sch.debug.Error("Failed to find .sv files in %s: %v", baseSrcDir, err)
 		return
