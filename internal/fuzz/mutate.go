@@ -156,7 +156,7 @@ func matchVariablesToSnippetPorts(
 			if port.Direction == verilog.INPUT {
 				varsAccessibleInBestScope = collectAccessibleVarsForInput(bestScopeForSnippet)
 			} else {
-				varsAccessibleInBestScope = collectAccessibleVarsForOutput(bestScopeForSnippet)
+				varsAccessibleInBestScope = make(map[string]*verilog.Variable)
 			}
 
 			matchedVarFromScope := findMatchingVariable(
