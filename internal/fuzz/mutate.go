@@ -65,7 +65,7 @@ func injectSnippetInModule(
 		bestScope.Level,
 		len(bestScope.Variables),
 	)
-	logger.Info("[%s] Scope tree for module %s:\n%s",
+	logger.Debug("[%s] Scope tree for module %s:\n%s",
 		workerDir,
 		targetModule.Name,
 		bestScope.Dump(1),
