@@ -1907,10 +1907,8 @@ func addModulesToScopeTree(modulePorts []*Port, scopeTree *ScopeNode) {
 			continue
 		}
 		// Be careful for non ANSI ports they are parsed as variables and are in the scope of level 1
-		if port.Direction != INPUT {
-			MarkVariableAsBlockedInParents(scopeTree, port.Name)
-			MarkVariableAsBlockedInChildren(scopeTree, port.Name)
-		}
+		MarkVariableAsBlockedInParents(scopeTree, port.Name)
+		MarkVariableAsBlockedInChildren(scopeTree, port.Name)
 		if _, exists := scopeTree.Variables[port.Name]; !exists {
 			if _, exists := scopeTree.Children[0].Variables[port.Name]; !exists {
 				// for NON ANSI ports to be sure they do not exist
@@ -1925,7 +1923,7 @@ func addModulesToScopeTree(modulePorts []*Port, scopeTree *ScopeNode) {
 					// Create ScopeVariable wrapper for module ports
 					scopeVariable := &ScopeVariable{
 						Variable: variable,
-						Blocked:  false, // Module input ports start unblocked
+						Blocked:  true, // Module input ports start blocked
 					}
 					scopeTree.Variables[port.Name] = scopeVariable
 				}
