@@ -93,3 +93,4 @@ isolated:
 removeKnown:
 	rm -r `find mismatches -name '*_inj_o_done*' -exec dirname {} \;`
 	rm -r `find mismatches -name '*_inj_data_reg*' -exec dirname {} \;`
+	rm -r `find mismatches -name '*_inj_count_out_*.hex' -exec dirname {} \;`
