@@ -2230,11 +2230,12 @@ func TestNonAnsiScopeVariables(t *testing.T) {
 		}
 		portNamesInRoot[port.Name] = true
 
-		if port.Direction == INPUT {
+		switch port.Direction {
+		case INPUT:
 			if scopeVar.Blocked {
 				t.Errorf("Input port %s in root scope should not be blocked, but is", port.Name)
 			}
-		} else if port.Direction == OUTPUT {
+		case OUTPUT:
 			if !scopeVar.Blocked {
 				t.Errorf("Output port %s in root scope should be blocked, but is not", port.Name)
 			}
