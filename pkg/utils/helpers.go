@@ -106,3 +106,45 @@ func Indent(input string) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// CopyDirWithDepth copies a directory and its contents up to a specified depth
+// If depth is 0, it only copies the directory itself without its contents.
+func CopyDirWithDepth(src, dst string, depth int) error {
+	if depth < 0 {
+		return nil // No more depth to copy
+	}
+
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	if !srcInfo.IsDir() {
+		return CopyFile(src, dst)
+	}
+
+	if err = os.MkdirAll(dst, srcInfo.Mode()); err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			if err = CopyDirWithDepth(srcPath, dstPath, depth-1); err != nil {
+				return err
+			}
+		} else {
+			if err = CopyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}

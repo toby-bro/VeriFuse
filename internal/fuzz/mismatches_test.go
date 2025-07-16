@@ -282,7 +282,7 @@ func TestScheduler_handleMismatch(t *testing.T) {
 		utils.MISMATCHES_DIR = oldMismatchesDir
 	}()
 	// Create test directory with some files
-	testDir := filepath.Join(tempDir, "test_1")
+	testDir := filepath.Join(tempDir, "dist", "worker_1", "test_1")
 	err := os.MkdirAll(testDir, 0o755)
 	if err != nil {
 		t.Fatal(err)
@@ -324,7 +324,7 @@ func TestScheduler_handleMismatch(t *testing.T) {
 	sch.handleMismatch(1, testDir, testCase, mismatchDetails, module)
 	// Verify mismatch directory was created
 	mismatchDirs, err := filepath.Glob(
-		filepath.Join(utils.MISMATCHES_DIR, "mismatch_test_1_time_*"),
+		filepath.Join(utils.MISMATCHES_DIR, "worker_*", "test_*"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -343,7 +343,9 @@ func TestScheduler_handleMismatch(t *testing.T) {
 	}
 
 	// Verify summary file was created
-	summaryFiles, err := filepath.Glob(filepath.Join(mismatchDir, "mismatch_*_summary.txt"))
+	summaryFiles, err := filepath.Glob(
+		filepath.Join(filepath.Dir(mismatchDir), "mismatch_*_summary.txt"),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -366,7 +368,9 @@ func TestScheduler_handleMismatch(t *testing.T) {
 	}
 
 	// Verify testbench.sv was copied
-	if _, err := os.Stat(filepath.Join(mismatchDir, "testbench.sv")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(filepath.Dir(mismatchDir), "testbench.sv")); os.IsNotExist(
+		err,
+	) {
 		t.Error("Expected testbench.sv to be copied to mismatch directory")
 	}
 }

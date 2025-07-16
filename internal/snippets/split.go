@@ -36,7 +36,7 @@ func (s *Snippet) writeSnippetToFile() error {
 		return fmt.Errorf("failed to get root directory: %v", err)
 	}
 	filePath := path + "/isolated/" + baseName
-	err = utils.EnsureDirWithPath(filePath)
+	err = utils.EnsureDir(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create directory for Verilog file: %v", err)
 	}
@@ -114,7 +114,7 @@ func PrintMinimalVerilogFileInDist(
 	if err != nil {
 		return fmt.Errorf("failed to print Verilog file: %v", err)
 	}
-	err = utils.EnsureDirWithPath(workerDir)
+	err = utils.EnsureDir(workerDir)
 	if err != nil {
 		return fmt.Errorf("failed to create directory for Verilog file: %v", err)
 	}

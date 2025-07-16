@@ -34,7 +34,7 @@ func EnsureDirs() error {
 	return nil
 }
 
-func EnsureDirWithPath(path string) error {
+func EnsureDir(path string) error {
 	if DEBUG {
 		fmt.Printf("%s[-] Creating directory %s%s\n", ColorBlue, path, ColorReset)
 	}
