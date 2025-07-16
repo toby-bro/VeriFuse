@@ -499,6 +499,7 @@ func (sch *Scheduler) setupSynthVariants(
 	// Check if the synthesized file exists
 	if !utils.FileExists(synthFilePath) {
 		synthFileName = utils.ChangeExtension(svFileToCompile.Name, "sv")
+		synthFilePath = filepath.Join(baseWorkerDir, synthFileName)
 		if !utils.FileExists(filepath.Join(baseWorkerDir, synthFileName)) {
 			sch.debug.Error(
 				"[%s] No .v or .sv file found at %s, skipping %s simulator variants",
@@ -523,7 +524,7 @@ func (sch *Scheduler) setupSynthVariants(
 	// For non-SystemVerilog files, parse and create VerilogFile object
 	synthFileContent, readErr := os.ReadFile(synthFilePath)
 	if readErr != nil {
-		sch.debug.Warn(
+		sch.debug.Error(
 			"[%s] Failed to read .v file %s: %v",
 			workerID,
 			synthFilePath,
@@ -534,7 +535,7 @@ func (sch *Scheduler) setupSynthVariants(
 
 	synthFile, err = verilog.ParseVerilog(string(synthFileContent), sch.verbose)
 	if err != nil {
-		sch.debug.Warn(
+		sch.debug.Error(
 			"[%s] Failed to parse .v file %s: %v",
 			workerID,
 			synthFilePath,
