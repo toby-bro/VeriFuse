@@ -15,7 +15,7 @@ module module_sv_class (
     assign o_class_data = stored_data;
     always @(posedge i_clk) begin
         if (i_enable_create && my_object == null) begin
-             my_object = new(123); 
+            my_object = new(123); 
         end
         if (my_object != null) begin
             stored_data <= my_object.data;

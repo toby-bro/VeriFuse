@@ -301,7 +301,9 @@ func collectAccessibleVarsForInput(node *verilog.ScopeNode) map[string]*verilog.
 	return collectedVars
 }
 
-func collectAccessibleVarsForOutput(node *verilog.ScopeNode) map[string]*verilog.Variable {
+func collectAccessibleVarsForOutput( // nolint: unused
+	node *verilog.ScopeNode,
+) map[string]*verilog.Variable {
 	collectedVars := make(map[string]*verilog.Variable)
 	curr := node
 	for curr != nil {

@@ -181,17 +181,17 @@ module container_for_inlining (
         .in2(main_data_in + 1),
         .out1(basic_comb_out)
     );
-     module_with_class u_module_with_class (
-        .clk(main_clk),
-        .reset(main_reset),
-        .class_in(basic_comb_out),
-        .class_out(class_module_out)
+        module_with_class u_module_with_class (
+            .clk(main_clk),
+            .reset(main_reset),
+            .class_in(basic_comb_out),
+            .class_out(class_module_out)
     );
-     hierarchy_if u_hierarchy_if (
-        .clk(main_clk),
-        .main_in(hierarchy_if_out),
-        .main_out(hierarchy_if_out)
-        );
+        hierarchy_if u_hierarchy_if (
+            .clk(main_clk),
+            .main_in(hierarchy_if_out),
+            .main_out(hierarchy_if_out)
+            );
     sequential_logic u_seq (
         .clk(main_clk),
         .rst_n(!main_reset),
