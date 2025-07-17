@@ -66,8 +66,11 @@ func TestAvailableSynthesizers(debugger *utils.DebugLogger) []Type {
 		debugger.Warn("SV2V tool not available: %v", err)
 	}
 
-	if err := TestVivadoTool(); err == nil && utils.RandomInt(0, 32) == 0 {
-		available = append(available, VIVADO)
+	if err := TestVivadoTool(); err == nil {
+		if utils.RandomInt(0, 32) == 0 {
+			available = append(available, VIVADO)
+		}
+		debugger.Debug("Bad luck, Vivado is taking a nap")
 	} else {
 		debugger.Warn("Vivado tool not available: %v", err)
 	}
