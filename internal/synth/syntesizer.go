@@ -67,7 +67,7 @@ func TestAvailableSynthesizers(debugger *utils.DebugLogger) []Type {
 	}
 
 	if err := TestVivadoTool(); err == nil {
-		if utils.RandomInt(0, 32) == 0 {
+		if utils.RandomInt(0, 24) == 0 {
 			available = append(available, VIVADO)
 		}
 		debugger.Debug("Bad luck, Vivado is taking a nap")
