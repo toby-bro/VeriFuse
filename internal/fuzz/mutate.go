@@ -184,12 +184,12 @@ func matchVariablesToSnippetPorts(
 	for _, port := range snippet.Module.Ports {
 		foundMatch := false
 		var connectedVarName string
-
-		if slices.Contains(clockPorts, port) {
+		switch {
+		case slices.Contains(clockPorts, port):
 			connectedVarName = ogClockPort.Name
-		} else if slices.Contains(resetPorts, port) {
+		case slices.Contains(resetPorts, port):
 			connectedVarName = ogResetPort.Name
-		} else if len(bestScopeForSnippet.Variables) > 0 {
+		case len(bestScopeForSnippet.Variables) > 0:
 			var varsAccessibleInBestScope map[string]*verilog.Variable
 			if port.Direction == verilog.INPUT {
 				varsAccessibleInBestScope = collectAccessibleVarsForInput(bestScopeForSnippet)
