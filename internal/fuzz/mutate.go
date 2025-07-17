@@ -172,11 +172,6 @@ func matchVariablesToSnippetPorts(
 				usedInternalVars[connectedVarName] = true              // Mark as used for this strategy
 				overallAssignedModuleVarNames[connectedVarName] = true // Mark as globally assigned
 				foundMatch = true
-
-				// If this is an output port, mark the variable as blocked
-				if port.Direction == verilog.OUTPUT {
-					verilog.MarkVariableAsBlocked(bestScopeForSnippet, connectedVarName)
-				}
 			}
 		}
 
@@ -253,7 +248,7 @@ func findBestScopeNode(
 		)
 		// Copy current node variables from ScopeVariable to Variable map
 		for name, scopeVar := range currentNode.Variables {
-			currentScopeAndParentVars[name] = scopeVar.Variable
+			currentScopeAndParentVars[name] = scopeVar
 		}
 		maps.Copy(currentScopeAndParentVars, parentAccessibleVars)
 
@@ -269,7 +264,7 @@ func findBestScopeNode(
 		)
 		// Copy current node variables from ScopeVariable to Variable map
 		for name, scopeVar := range currentNode.Variables {
-			varsForChildren[name] = scopeVar.Variable
+			varsForChildren[name] = scopeVar
 		}
 		maps.Copy(
 			varsForChildren,
@@ -294,23 +289,7 @@ func collectAccessibleVarsForInput(node *verilog.ScopeNode) map[string]*verilog.
 	curr := node
 	for curr != nil {
 		for name, scopeVar := range curr.Variables {
-			collectedVars[name] = scopeVar.Variable
-		}
-		curr = curr.Parent
-	}
-	return collectedVars
-}
-
-func collectAccessibleVarsForOutput( // nolint: unused
-	node *verilog.ScopeNode,
-) map[string]*verilog.Variable {
-	collectedVars := make(map[string]*verilog.Variable)
-	curr := node
-	for curr != nil {
-		for name, scopeVar := range curr.Variables {
-			if !scopeVar.Blocked {
-				collectedVars[name] = scopeVar.Variable
-			}
+			collectedVars[name] = scopeVar
 		}
 		curr = curr.Parent
 	}

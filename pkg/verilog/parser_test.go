@@ -434,33 +434,33 @@ func TestParseVariables(t *testing.T) {
 	expectedTree := &ScopeNode{
 		Level:  0,
 		Parent: nil,
-		Variables: map[string]*ScopeVariable{
-			"GGG_field1": {Variable: expectedVars["GGG_field1"], Blocked: false},
+		Variables: map[string]*Variable{
+			"GGG_field1": expectedVars["GGG_field1"],
 		},
 		Children: []*ScopeNode{},
 	}
 	expectedTree.Children = append(expectedTree.Children, &ScopeNode{
 		Level:  1,
 		Parent: expectedTree,
-		Variables: map[string]*ScopeVariable{
-			"GGG_field2": {Variable: expectedVars["GGG_field2"], Blocked: false},
+		Variables: map[string]*Variable{
+			"GGG_field2": expectedVars["GGG_field2"],
 		},
 		Children: []*ScopeNode{},
 	})
 	expectedTree.Children = append(expectedTree.Children, &ScopeNode{
 		Level:  0,
 		Parent: expectedTree,
-		Variables: map[string]*ScopeVariable{
-			"GGG_condition_var": {Variable: expectedVars["GGG_condition_var"], Blocked: false},
-			"GGG_array_var":     {Variable: expectedVars["GGG_array_var"], Blocked: false},
+		Variables: map[string]*Variable{
+			"GGG_condition_var": expectedVars["GGG_condition_var"],
+			"GGG_array_var":     expectedVars["GGG_array_var"],
 		},
 		Children: []*ScopeNode{},
 	})
 	expectedTree.Children[1].Children = append(expectedTree.Children[1].Children, &ScopeNode{
 		Level:  1,
 		Parent: expectedTree.Children[1],
-		Variables: map[string]*ScopeVariable{
-			"GGG_index_limit": {Variable: expectedVars["GGG_index_limit"], Blocked: false},
+		Variables: map[string]*Variable{
+			"GGG_index_limit": expectedVars["GGG_index_limit"],
 		},
 		Children: []*ScopeNode{},
 	})
@@ -469,27 +469,24 @@ func TestParseVariables(t *testing.T) {
 		&ScopeNode{
 			Level:  2,
 			Parent: expectedTree.Children[1].Children[0],
-			Variables: map[string]*ScopeVariable{
-				"m_queue": {Variable: expectedVars["m_queue"], Blocked: false},
-				"GGG_class_rand_var": {
-					Variable: expectedVars["GGG_class_rand_var"],
-					Blocked:  false,
-				},
+			Variables: map[string]*Variable{
+				"m_queue":            expectedVars["m_queue"],
+				"GGG_class_rand_var": expectedVars["GGG_class_rand_var"],
 			},
 			Children: []*ScopeNode{},
 		},
 		&ScopeNode{
 			Level:     1,
 			Parent:    expectedTree.Children[1].Children[0],
-			Variables: map[string]*ScopeVariable{},
+			Variables: map[string]*Variable{},
 			Children:  []*ScopeNode{},
 		},
 	)
 	expectedTree.Children[1].Children = append(expectedTree.Children[1].Children, &ScopeNode{
 		Level:  0,
 		Parent: expectedTree.Children[1],
-		Variables: map[string]*ScopeVariable{
-			"internal_wire": {Variable: expectedVars["internal_wire"], Blocked: false},
+		Variables: map[string]*Variable{
+			"internal_wire": expectedVars["internal_wire"],
 		},
 		Children: []*ScopeNode{},
 	})
@@ -557,7 +554,7 @@ func compareScopeTrees(actual, expected *ScopeNode) error {
 	if !reflect.DeepEqual(actual.Variables, expected.Variables) {
 		var actualVarNames []string
 		for _, scopeVar := range actual.Variables {
-			if scopeVar != nil && scopeVar.Variable != nil {
+			if scopeVar != nil {
 				actualVarNames = append(actualVarNames, scopeVar.Name)
 			} else {
 				actualVarNames = append(actualVarNames, "<nil>")
@@ -565,7 +562,7 @@ func compareScopeTrees(actual, expected *ScopeNode) error {
 		}
 		var expectedVarNames []string
 		for _, scopeVar := range expected.Variables {
-			if scopeVar != nil && scopeVar.Variable != nil {
+			if scopeVar != nil {
 				expectedVarNames = append(expectedVarNames, scopeVar.Name)
 			} else {
 				expectedVarNames = append(expectedVarNames, "<nil>")
