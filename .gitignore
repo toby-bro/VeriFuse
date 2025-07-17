@@ -28,6 +28,7 @@ tmp/
 *.tar.gz
 *.tar.xz
 *.vcd
+*.dmp
 
 __debug_bin*
 
