@@ -272,7 +272,6 @@ func (sch *Scheduler) handleMismatch(
 	workerDir := filepath.Dir(testDir)
 	mismatchDir := filepath.Join(utils.MISMATCHES_DIR, filepath.Base(workerDir))
 
-	utils.EnsureDir(mismatchDir)
 	if err := utils.EnsureDir(mismatchDir); err != nil {
 		sch.debug.Error("Failed to create mismatch directory: %v", err)
 		return

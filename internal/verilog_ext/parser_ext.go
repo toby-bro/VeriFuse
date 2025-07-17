@@ -7,21 +7,6 @@ import (
 )
 
 // This is loads of useless Copilot generated code, but that might come in handly one day so I did not purge it yet.
-// Regex patterns for detecting blocking constructs
-var (
-	assignRegex            = regexp.MustCompile(`(?m)^\s*assign\s+(\w+)`)
-	wireAssignRegex        = regexp.MustCompile(`(?m)^\s*wire\s+(?:[^;=]*\s+)?(\w+)\s*=`)
-	forceRegex             = regexp.MustCompile(`(?m)^\s*force\s+(\w+)`)
-	alwaysRegex            = regexp.MustCompile(`(?s)always\s*@\([^)]*\)\s*begin(.*?)end`)
-	blockingAssignRegex    = regexp.MustCompile(`(?m)^\s*(\w+)\s*(?:\[[^\]]*\])?\s*(?:<=|=)`)
-	nonBlockingAssignRegex = regexp.MustCompile( // nolint: unused
-		`(?m)^\s*(\w+)\s*(?:\[[^\]]*\])?\s*<=`,
-	)
-	moduleInstRegex = regexp.MustCompile(
-		`(?m)^\s*(\w+)\s+(\w+)\s*\(((?:[^()]|\([^)]*\))*)\)\s*;`,
-	)
-	portConnectionRegex = regexp.MustCompile(`\.(\w+)\s*\(\s*(\w+)\s*\)`)
-)
 
 // ===============================================
 // Advanced SystemVerilog Construct Regex Patterns
