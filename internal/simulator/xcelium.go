@@ -13,7 +13,7 @@ import (
 	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
-var xceliumSemaphore = make(chan struct{}, 2)
+var xceliumSemaphore = make(chan struct{}, 3)
 
 // XCeliumSimulator represents the XCelium simulator
 type XCeliumSimulator struct {

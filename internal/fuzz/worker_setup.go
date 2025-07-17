@@ -545,6 +545,13 @@ func (sch *Scheduler) setupSynthVariants(
 	}
 	synthFile.Name = synthFileName
 
+	availableSimulators = slices.DeleteFunc(
+		slices.Clone(availableSimulators),
+		func(t simulator.Type) bool {
+			return t == simulator.XCELIUM
+		},
+	)
+
 	// Randomly select one synthesizer variant
 	selectedVariant := availableSimulators[rand.Intn(len(availableSimulators))]
 	if simInstance, err := sch.setupSimulator(ctx, selectedVariant, workerID, baseWorkerDir, svFileToCompile, workerModule, synthType); err != nil {
