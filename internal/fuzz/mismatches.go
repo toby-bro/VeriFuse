@@ -33,7 +33,8 @@ func compareOutputValues(ivValue, vlValue string) bool {
 		return true
 	}
 	if len(ivNorm) == len(vlNorm) && ivNorm != vlNorm {
-		if strings.Contains(ivNorm, "x") || strings.Contains(vlNorm, "x") {
+		if strings.Contains(ivNorm, "x") || strings.Contains(vlNorm, "x") ||
+			strings.Contains(ivNorm, "z") || strings.Contains(vlNorm, "z") {
 			equivalent := true
 			for i := 0; i < len(ivNorm); i++ {
 				charMatch := ivNorm[i] == vlNorm[i] ||

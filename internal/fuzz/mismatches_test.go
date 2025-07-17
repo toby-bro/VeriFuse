@@ -278,3 +278,31 @@ func TestScheduler_handleMismatch(t *testing.T) {
 		t.Error("Expected testbench.sv to be copied to mismatch directory")
 	}
 }
+
+func TestCompareOutputValues_sameSnippet(t *testing.T) {
+	// Extracted from the `same` variable in mismatches_test.go
+	verilator := "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000"
+	iverilog := "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz0zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz0zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz1zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz0"
+	cxxrtl := "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000"
+	xcelium := "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz0zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz0zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz1zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz0"
+
+	// Save and restore skip flags
+	origSkipX := SKIP_X_OUTPUTS
+	origSkipZ := SKIP_Z_OUTPUTS
+	defer func() {
+		SKIP_X_OUTPUTS = origSkipX
+		SKIP_Z_OUTPUTS = origSkipZ
+	}()
+	SKIP_X_OUTPUTS = true
+	SKIP_Z_OUTPUTS = false
+
+	// All pairs should be considered equivalent
+	values := []string{verilator, iverilog, cxxrtl, xcelium}
+	for i := 0; i < len(values); i++ {
+		for j := 0; j < len(values); j++ {
+			if !compareOutputValues(values[i], values[j]) {
+				t.Errorf("compareOutputValues(values[%d], values[%d]) = false, want true", i, j)
+			}
+		}
+	}
+}
