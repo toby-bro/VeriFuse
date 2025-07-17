@@ -10,7 +10,7 @@ import (
 )
 
 // semaphore to limit concurrent Vivado synths to 5
-var vivadoSemaphore = make(chan struct{}, 5)
+var vivadoSemaphore = make(chan struct{}, 3)
 
 func TestVivadoTool() error {
 	cmd := exec.Command("vivado", "-version")
