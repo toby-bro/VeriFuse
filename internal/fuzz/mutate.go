@@ -149,7 +149,6 @@ func matchVariablesToSnippetPorts(
 	overallAssignedModuleVarNames := make(map[string]bool)
 	clockPorts, resetPorts, _ := verilog.IdentifyClockAndResetPorts(snippet.Module)
 	ogClockPort := verilog.GetClockPort(module)
-	endOfDecls := findEndOfModuleDeclarations(strings.Split(module.Body, "\n"))
 	if ogClockPort == nil {
 		ogClockPort = &verilog.Port{
 			Name:      "clk",
@@ -169,7 +168,7 @@ func matchVariablesToSnippetPorts(
 			if err := insertTextAtLine(
 				module,
 				signal,
-				endOfDecls,
+				0,
 				1,
 			); err != nil {
 				logger.Error("failed to insert clock port signal declaration: %v", err)
@@ -196,7 +195,7 @@ func matchVariablesToSnippetPorts(
 			if err := insertTextAtLine(
 				module,
 				signal,
-				endOfDecls,
+				0,
 				1,
 			); err != nil {
 				logger.Error("failed to insert reset port signal declaration: %v", err)
