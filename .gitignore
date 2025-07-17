@@ -34,3 +34,7 @@ __debug_bin*
 
 simulator.bin
 module_sim_iv
+
+vivado_*.backup.jou
+vivado.jou
+.Xil
