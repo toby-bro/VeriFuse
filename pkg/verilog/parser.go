@@ -2356,3 +2356,48 @@ func detectTaskClassScopeVariables(content string) map[string]bool {
 
 	return taskClassVars
 }
+
+// identifyClockAndResetPorts scans ports to find clock and reset signals
+func IdentifyClockAndResetPorts(
+	module *Module,
+) (clockPorts []*Port, resetPorts []*Port, isActiveHigh bool) {
+	for _, port := range module.Ports {
+		if port.Direction == INPUT || port.Direction == INOUT {
+			portName := strings.TrimSpace(port.Name)
+			portNameLower := strings.ToLower(portName)
+
+			// Identify clock ports by name convention
+			if strings.Contains(portNameLower, "clk") || strings.Contains(portNameLower, "clock") {
+				clockPorts = append(clockPorts, port)
+				continue // A port can't be both clock and reset for this logic
+			}
+
+			// Identify reset ports by name convention
+			if strings.Contains(portNameLower, "rst") || strings.Contains(portNameLower, "reset") {
+				resetPorts = append(resetPorts, port)
+				// Determine if active high or low (active low has _n, _ni, or _l suffix)
+				isActiveHigh = !strings.HasSuffix(portNameLower, "_n") &&
+					!strings.HasSuffix(portNameLower, "_ni") &&
+					!strings.HasSuffix(portNameLower, "_l")
+				continue
+			}
+		}
+	}
+	return clockPorts, resetPorts, isActiveHigh
+}
+
+func GetClockPort(module *Module) *Port {
+	clockPorts, _, _ := IdentifyClockAndResetPorts(module)
+	if len(clockPorts) > 0 {
+		return clockPorts[0] // Return the first clock port found
+	}
+	return nil
+}
+
+func GetResetPort(module *Module) *Port {
+	_, resetPorts, _ := IdentifyClockAndResetPorts(module)
+	if len(resetPorts) > 0 {
+		return resetPorts[0] // Return the first reset port found
+	}
+	return nil
+}

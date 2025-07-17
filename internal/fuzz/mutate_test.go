@@ -383,3 +383,262 @@ func TestUniqueVariableNamingForDuplicateInjections(t *testing.T) {
 		marker3,
 	)
 }
+
+func TestMatchVariablesToSnippetPorts_ClockAndResetMatching(t *testing.T) {
+	// Module with explicit clock and reset ports
+	moduleContent := `
+module Top (
+	input logic clk,
+	input logic rst_n,
+	input logic [3:0] a,
+	output logic [3:0] y
+);
+	assign y = a + 1;
+endmodule
+`
+	// Snippet with clock and reset ports (different names)
+	snippetContent := `
+module SnippetWithClkRst (
+	input logic clock,
+	input logic reset,
+	input logic [3:0] data,
+	output logic [3:0] result
+);
+	assign result = data + 2;
+endmodule
+`
+	verilogFile, err := verilog.ParseVerilog(moduleContent, 5)
+	if err != nil {
+		t.Fatalf("ParseVerilog failed for module: %v", err)
+	}
+	module := verilogFile.Modules["Top"]
+
+	snippetFile, err := verilog.ParseVerilog(snippetContent, 5)
+	if err != nil {
+		t.Fatalf("ParseVerilog failed for snippet: %v", err)
+	}
+	snippet := &snippets.Snippet{
+		Name:       "SnippetWithClkRst",
+		Module:     snippetFile.Modules["SnippetWithClkRst"],
+		ParentFile: snippetFile,
+	}
+
+	scopeTree, err := verilog.GetScopeTree(verilogFile, module.Body, nil, module.Ports)
+	if err != nil {
+		t.Fatalf("ParseVariables failed: %v", err)
+	}
+	bestScope := findBestScopeNode(scopeTree)
+
+	portConnections, newDeclarations, err := matchVariablesToSnippetPorts(
+		module,
+		snippet,
+		"test",
+		bestScope,
+	)
+	if err != nil {
+		t.Fatalf("matchVariablesToSnippetPorts failed: %v", err)
+	}
+
+	// Check that the snippet's clock and reset ports are connected to the module's clock and reset
+	if portConnections["clock"] != "clk" {
+		t.Errorf(
+			"Expected snippet clock port to connect to module 'clk', got '%s'",
+			portConnections["clock"],
+		)
+	}
+	if portConnections["reset"] != "rst_n" && portConnections["reset"] != "rst" {
+		t.Errorf(
+			"Expected snippet reset port to connect to module 'rst_n' or 'rst', got '%s'",
+			portConnections["reset"],
+		)
+	}
+	// Data port should connect to 'a'
+	if portConnections["data"] != "a" {
+		t.Errorf(
+			"Expected snippet data port to connect to module 'a', got '%s'",
+			portConnections["data"],
+		)
+	}
+	// Output port should be a new signal
+	if portConnections["result"] == "" {
+		t.Errorf("Expected snippet output port 'result' to be connected, got empty string")
+	}
+	found := false
+	for _, decl := range newDeclarations {
+		if decl.Name == portConnections["result"] {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected new declaration for output port 'result', but not found")
+	}
+}
+
+func TestMatchVariablesToSnippetPorts_NoClockOrResetInModule(t *testing.T) {
+	// Module without explicit clock/reset
+	moduleContent := `
+module NoClkRst (
+	input logic [7:0] din,
+	output logic [7:0] dout
+);
+	assign dout = din;
+endmodule
+`
+	// Snippet with clock and reset ports
+	snippetContent := `
+module NeedsClkRst (
+	input logic clk,
+	input logic rst,
+	input logic [7:0] in,
+	output logic [7:0] out
+);
+	assign out = in + 1;
+endmodule
+`
+	verilogFile, err := verilog.ParseVerilog(moduleContent, 5)
+	if err != nil {
+		t.Fatalf("ParseVerilog failed for module: %v", err)
+	}
+	module := verilogFile.Modules["NoClkRst"]
+
+	snippetFile, err := verilog.ParseVerilog(snippetContent, 5)
+	if err != nil {
+		t.Fatalf("ParseVerilog failed for snippet: %v", err)
+	}
+	snippet := &snippets.Snippet{
+		Name:       "NeedsClkRst",
+		Module:     snippetFile.Modules["NeedsClkRst"],
+		ParentFile: snippetFile,
+	}
+
+	scopeTree, err := verilog.GetScopeTree(verilogFile, module.Body, nil, module.Ports)
+	if err != nil {
+		t.Fatalf("ParseVariables failed: %v", err)
+	}
+	bestScope := findBestScopeNode(scopeTree)
+
+	portConnections, _, err := matchVariablesToSnippetPorts(
+		module,
+		snippet,
+		"test",
+		bestScope,
+	)
+	if err != nil {
+		t.Fatalf("matchVariablesToSnippetPorts failed: %v", err)
+	}
+
+	// Should have created default clk/rst ports in the module and connected them
+	if portConnections["clk"] != "clk" {
+		t.Errorf(
+			"Expected snippet clk port to connect to default 'clk', got '%s'",
+			portConnections["clk"],
+		)
+	}
+	if portConnections["rst"] != "rst" {
+		t.Errorf(
+			"Expected snippet rst port to connect to default 'rst', got '%s'",
+			portConnections["rst"],
+		)
+	}
+	// Input/output mapping
+	if portConnections["in"] != "din" {
+		t.Errorf(
+			"Expected snippet in port to connect to module 'din', got '%s'",
+			portConnections["in"],
+		)
+	}
+	if portConnections["out"] == "" {
+		t.Errorf("Expected snippet out port to be connected, got empty string")
+	}
+	// Check that the module now has clk and rst ports
+	foundClk, foundRst := false, false
+	for _, p := range module.Ports {
+		if p.Name == "clk" {
+			foundClk = true
+		}
+		if p.Name == "rst" {
+			foundRst = true
+		}
+	}
+	if !foundClk {
+		t.Errorf("Expected module to have a 'clk' port after matching, but not found")
+	}
+	if !foundRst {
+		t.Errorf("Expected module to have a 'rst' port after matching, but not found")
+	}
+}
+
+func TestMatchVariablesToSnippetPorts_ClockAndResetNotConnectedToData(t *testing.T) {
+	// Module with multiple input ports, but only one is clock/reset
+	moduleContent := `
+module Foo (
+	input logic clk,
+	input logic [3:0] foo,
+	output logic [3:0] bar
+);
+	assign bar = foo;
+endmodule
+`
+	// Snippet with clock, reset, and data ports
+	snippetContent := `
+module Snip (
+	input logic clk,
+	input logic rst,
+	input logic [3:0] data,
+	output logic [3:0] out
+);
+	assign out = data + 1;
+endmodule
+`
+	verilogFile, err := verilog.ParseVerilog(moduleContent, 5)
+	if err != nil {
+		t.Fatalf("ParseVerilog failed for module: %v", err)
+	}
+	module := verilogFile.Modules["Foo"]
+
+	snippetFile, err := verilog.ParseVerilog(snippetContent, 5)
+	if err != nil {
+		t.Fatalf("ParseVerilog failed for snippet: %v", err)
+	}
+	snippet := &snippets.Snippet{
+		Name:       "Snip",
+		Module:     snippetFile.Modules["Snip"],
+		ParentFile: snippetFile,
+	}
+
+	scopeTree, err := verilog.GetScopeTree(verilogFile, module.Body, nil, module.Ports)
+	if err != nil {
+		t.Fatalf("ParseVariables failed: %v", err)
+	}
+	bestScope := findBestScopeNode(scopeTree)
+
+	portConnections, _, err := matchVariablesToSnippetPorts(
+		module,
+		snippet,
+		"test",
+		bestScope,
+	)
+	if err != nil {
+		t.Fatalf("matchVariablesToSnippetPorts failed: %v", err)
+	}
+
+	// Clock should connect to clk, not foo
+	if portConnections["clk"] != "clk" {
+		t.Errorf(
+			"Expected snippet clk port to connect to module 'clk', got '%s'",
+			portConnections["clk"],
+		)
+	}
+	// Reset should be created as 'rst'
+	if portConnections["rst"] != "rst" {
+		t.Errorf("Expected snippet rst port to connect to 'rst', got '%s'", portConnections["rst"])
+	}
+	// Data should connect to foo, not clk
+	if portConnections["data"] != "foo" {
+		t.Errorf(
+			"Expected snippet data port to connect to module 'foo', got '%s'",
+			portConnections["data"],
+		)
+	}
+}

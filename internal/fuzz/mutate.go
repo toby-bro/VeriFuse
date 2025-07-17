@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -146,12 +147,49 @@ func matchVariablesToSnippetPorts(
 	usedModuleInputPorts := make(map[string]bool)
 	// Tracks module variable names (from scope or module ports) already connected to a snippet port
 	overallAssignedModuleVarNames := make(map[string]bool)
+	clockPorts, resetPorts, _ := verilog.IdentifyClockAndResetPorts(snippet.Module)
+	ogClockPort := verilog.GetClockPort(module)
+	if ogClockPort == nil {
+		ogClockPort = &verilog.Port{
+			Name:      "clk",
+			Direction: verilog.INPUT,
+			Type:      verilog.WIRE,
+			IsSigned:  false,
+		}
+		module.Ports = append(module.Ports, ogClockPort)
+		logger.Debug(
+			"[%s] No clock port found in module %s, created default clock port %s",
+			debugWorkerDir,
+			module.Name,
+			ogClockPort.Name,
+		)
+	}
+	ogResetPort := verilog.GetResetPort(module)
+	if ogResetPort == nil {
+		ogResetPort = &verilog.Port{
+			Name:      "rst",
+			Direction: verilog.INPUT,
+			Type:      verilog.WIRE,
+			IsSigned:  false,
+		}
+		module.Ports = append(module.Ports, ogResetPort)
+		logger.Debug(
+			"[%s] No reset port found in module %s, created default reset port %s",
+			debugWorkerDir,
+			module.Name,
+			ogResetPort.Name,
+		)
+	}
 
 	for _, port := range snippet.Module.Ports {
 		foundMatch := false
 		var connectedVarName string
 
-		if len(bestScopeForSnippet.Variables) > 0 {
+		if slices.Contains(clockPorts, port) {
+			connectedVarName = ogClockPort.Name
+		} else if slices.Contains(resetPorts, port) {
+			connectedVarName = ogResetPort.Name
+		} else if len(bestScopeForSnippet.Variables) > 0 {
 			var varsAccessibleInBestScope map[string]*verilog.Variable
 			if port.Direction == verilog.INPUT {
 				varsAccessibleInBestScope = collectAccessibleVarsForInput(bestScopeForSnippet)
@@ -168,11 +206,13 @@ func matchVariablesToSnippetPorts(
 			if matchedVarFromScope != nil &&
 				!overallAssignedModuleVarNames[matchedVarFromScope.Name] {
 				connectedVarName = matchedVarFromScope.Name
-				portConnections[port.Name] = connectedVarName
-				usedInternalVars[connectedVarName] = true              // Mark as used for this strategy
-				overallAssignedModuleVarNames[connectedVarName] = true // Mark as globally assigned
-				foundMatch = true
 			}
+		}
+		if connectedVarName != "" {
+			portConnections[port.Name] = connectedVarName
+			usedInternalVars[connectedVarName] = true              // Mark as used for this strategy
+			overallAssignedModuleVarNames[connectedVarName] = true // Mark as globally assigned
+			foundMatch = true
 		}
 
 		if !foundMatch {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
@@ -199,35 +200,11 @@ func (g *Generator) generateSVModuleInstantiation() string {
 	return moduleInst.String()
 }
 
-// identifyClockAndResetPorts scans ports to find clock and reset signals
-func (g *Generator) identifyClockAndResetPorts() (clockPorts []string, resetPort string, isActiveHigh bool) {
-	for _, port := range g.module.Ports {
-		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-			portName := strings.TrimSpace(port.Name)
-			portNameLower := strings.ToLower(portName)
-
-			// Identify clock ports by name convention
-			if strings.Contains(portNameLower, "clk") || strings.Contains(portNameLower, "clock") {
-				clockPorts = append(clockPorts, portName)
-				continue // A port can't be both clock and reset for this logic
-			}
-
-			// Identify reset ports by name convention
-			if resetPort == "" &&
-				(strings.Contains(portNameLower, "rst") || strings.Contains(portNameLower, "reset")) {
-				resetPort = portName
-				// Determine if active high or low (active low has _n, _ni, or _l suffix)
-				isActiveHigh = !strings.HasSuffix(portNameLower, "_n") &&
-					!strings.HasSuffix(portNameLower, "_ni") &&
-					!strings.HasSuffix(portNameLower, "_l")
-			}
-		}
-	}
-	return clockPorts, resetPort, isActiveHigh
-}
-
 // generateSVInputReads generates code to read input values from files
-func (g *Generator) generateSVInputReads(clockPorts []string, resetPort string) (string, int) {
+func (g *Generator) generateSVInputReads(
+	clockPorts []*verilog.Port,
+	resetPorts []*verilog.Port,
+) (string, int) {
 	var inputReads strings.Builder
 	var inputCount int
 
@@ -238,12 +215,12 @@ func (g *Generator) generateSVInputReads(clockPorts []string, resetPort string) 
 			// Skip clock and reset ports, handled separately
 			isClockPort := false
 			for _, clockPort := range clockPorts {
-				if portName == clockPort {
+				if portName == clockPort.Name {
 					isClockPort = true
 					break
 				}
 			}
-			if isClockPort || portName == resetPort {
+			if isClockPort || portName == resetPorts[0].Name {
 				// Initialize clocks and reset to 0 (or appropriate initial state if needed later)
 				inputReads.WriteString(fmt.Sprintf("        %s = 0;\n", portName))
 				continue
@@ -288,30 +265,30 @@ func (g *Generator) generateSVInputReads(clockPorts []string, resetPort string) 
 }
 
 // generateSVResetToggling generates code to toggle the reset signal
-func (g *Generator) generateSVResetToggling(resetPort string, isActiveHigh bool) string {
-	if resetPort == "" {
+func (g *Generator) generateSVResetToggling(resetPort *verilog.Port, isActiveHigh bool) string {
+	if resetPort == nil {
 		return "" // No reset port found
 	}
 
 	var resetToggle strings.Builder
-	resetToggle.WriteString(fmt.Sprintf("\n        // Toggle reset signal %s\n", resetPort))
+	resetToggle.WriteString(fmt.Sprintf("\n        // Toggle reset signal %s\n", resetPort.Name))
 	if isActiveHigh {
 		resetToggle.WriteString(
-			fmt.Sprintf("        %s = 1; // Assert reset (active high)\n", resetPort),
+			fmt.Sprintf("        %s = 1; // Assert reset (active high)\n", resetPort.Name),
 		)
 		resetToggle.WriteString("        #10;\n")
-		resetToggle.WriteString(fmt.Sprintf("        %s = 0; // De-assert reset\n", resetPort))
+		resetToggle.WriteString(fmt.Sprintf("        %s = 0; // De-assert reset\n", resetPort.Name))
 	} else {
-		resetToggle.WriteString(fmt.Sprintf("        %s = 0; // Assert reset (active low)\n", resetPort))
+		resetToggle.WriteString(fmt.Sprintf("        %s = 0; // Assert reset (active low)\n", resetPort.Name))
 		resetToggle.WriteString("        #10;\n")
-		resetToggle.WriteString(fmt.Sprintf("        %s = 1; // De-assert reset\n", resetPort))
+		resetToggle.WriteString(fmt.Sprintf("        %s = 1; // De-assert reset\n", resetPort.Name))
 	}
 	resetToggle.WriteString("        #10; // Wait after de-asserting reset\n")
 	return resetToggle.String()
 }
 
 // generateSVClockToggling generates code to toggle clock signals with safeguards
-func (g *Generator) generateSVClockToggling(clockPorts []string) string {
+func (g *Generator) generateSVClockToggling(clockPorts []*verilog.Port) string {
 	if len(clockPorts) == 0 {
 		// If no clock ports, just add a delay
 		return fmt.Sprintf(
@@ -429,9 +406,9 @@ func (g *Generator) GenerateSVTestbench(outputDir string) error {
 	// Generate different parts of the testbench
 	declarations := g.generateSVPortDeclarations()
 	moduleInst := g.generateSVModuleInstantiation()
-	clockPorts, resetPort, isActiveHigh := g.identifyClockAndResetPorts()
+	clockPorts, resetPort, isActiveHigh := verilog.IdentifyClockAndResetPorts(g.module)
 	inputReadsStr, inputCount := g.generateSVInputReads(clockPorts, resetPort)
-	resetToggleStr := g.generateSVResetToggling(resetPort, isActiveHigh)
+	resetToggleStr := g.generateSVResetToggling(resetPort[0], isActiveHigh)
 	clockToggleStr := g.generateSVClockToggling(clockPorts)
 	outputWritesStr, outputCount := g.generateSVOutputWrites()
 
@@ -462,7 +439,7 @@ func (g *Generator) GenerateSVTestbench(outputDir string) error {
 func (g *Generator) GenerateSVTestbenchWithInputs(inputs map[string]string) string {
 	declarations := g.generateSVPortDeclarations()
 	moduleInst := g.generateSVModuleInstantiation()
-	clockPorts, resetPort, isActiveHigh := g.identifyClockAndResetPorts()
+	clockPorts, resetPorts, isActiveHigh := verilog.IdentifyClockAndResetPorts(g.module)
 
 	// Generate SystemVerilog code to assign these values
 	var inputAssigns strings.Builder
@@ -484,7 +461,7 @@ func (g *Generator) GenerateSVTestbenchWithInputs(inputs map[string]string) stri
 		}
 	}
 
-	resetToggleStr := g.generateSVResetToggling(resetPort, isActiveHigh)
+	resetToggleStr := g.generateSVResetToggling(resetPorts[0], isActiveHigh)
 	clockToggleStr := g.generateSVClockToggling(clockPorts)
 	outputWritesStr, outputCount := g.generateSVOutputWrites()
 
@@ -873,7 +850,10 @@ func (g *Generator) generateCXXRTLResetLogic(
 	return resetLogic.String()
 }
 
-func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames []string) string {
+func (g *Generator) generateCXXRTLClockLogic(
+	instanceName string,
+	clockPortNames []*verilog.Port,
+) string {
 	if len(clockPortNames) == 0 {
 		var noClockLogic strings.Builder
 		noClockLogic.WriteString(
@@ -900,11 +880,11 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 	)
 
 	for _, clockPort := range clockPortNames {
-		mangledClockPortName := cxxrtlManglePortName(clockPort)
+		mangledClockPortName := cxxrtlManglePortName(clockPort.Name)
 		// Find the actual port to get its set method
 		var setMethodLow string
 		for _, port := range g.module.Ports {
-			if strings.TrimSpace(port.Name) == clockPort {
+			if strings.TrimSpace(port.Name) == clockPort.Name {
 				setMethodLow = getCXXRTLSetMethod(port)
 				break
 			}
@@ -922,11 +902,11 @@ func (g *Generator) generateCXXRTLClockLogic(instanceName string, clockPortNames
 	clockLogic.WriteString(fmt.Sprintf("        %s.step(); // clock low\n", instanceName))
 
 	for _, clockPort := range clockPortNames {
-		mangledClockPortName := cxxrtlManglePortName(clockPort)
+		mangledClockPortName := cxxrtlManglePortName(clockPort.Name)
 		// Find the actual port to get its set method
 		var setMethodHigh string
 		for _, port := range g.module.Ports {
-			if strings.TrimSpace(port.Name) == clockPort {
+			if strings.TrimSpace(port.Name) == clockPort.Name {
 				setMethodHigh = getCXXRTLSetMethod(port)
 				break
 			}
@@ -1056,20 +1036,20 @@ func (g *Generator) GenerateCXXRTLTestbench(outputDir string) error {
 	inputReadsStr := g.generateCXXRTLInputReads()
 	inputApplyStr := g.generateCXXRTLInputApply(instanceName)
 
-	svClockPorts, svResetPort, svIsActiveHigh := g.identifyClockAndResetPorts()
+	svClockPorts, svResetPorts, svIsActiveHigh := verilog.IdentifyClockAndResetPorts(g.module)
 
 	var cxxrtlResetName string
 	var cxxrtlIsActiveHigh bool
-	if svResetPort != "" {
-		cxxrtlResetName = svResetPort
+	if len(svResetPorts) > 0 {
+		cxxrtlResetName = svResetPorts[0].Name
 		cxxrtlIsActiveHigh = svIsActiveHigh
 	}
 
 	resetLogicStr := g.generateCXXRTLResetLogic(instanceName, cxxrtlResetName, cxxrtlIsActiveHigh)
 
-	var cxxrtlClockPortNames []string
+	var cxxrtlClockPortNames []*verilog.Port
 	for _, clkPort := range svClockPorts {
-		if clkPort == cxxrtlResetName {
+		if slices.Contains(svResetPorts, clkPort) {
 			continue
 		}
 		cxxrtlClockPortNames = append(cxxrtlClockPortNames, clkPort)
