@@ -50,28 +50,6 @@ func compareOutputValues(ivValue, vlValue string) bool {
 	return false
 }
 
-// replaceXandZwithZero replaces all occurrences of 'x', 'z', 'X', and 'Z' in the
-// given value with '0'. This is useful for normalizing output values before comparison.
-func replaceXandZwithZero(value string) string {
-	// Replace 'x' and 'z' with '0'
-	value = strings.ReplaceAll(value, "x", "0")
-	value = strings.ReplaceAll(value, "z", "0")
-	// Replace 'X' and 'Z' with '0'
-	value = strings.ReplaceAll(value, "X", "0")
-	value = strings.ReplaceAll(value, "Z", "0")
-	return value
-}
-
-// cleanAllOutputValues replaces 'x' and 'z' in all output values with '0'
-// in the results map. This is useful for normalizing output values before comparison.
-func cleanAllOutputValues(results map[*SimInstance]map[*verilog.Port]string) {
-	for simInstance, simResultMap := range results {
-		for port, value := range simResultMap {
-			results[simInstance][port] = replaceXandZwithZero(value)
-		}
-	}
-}
-
 // removeSynthesizers removes all SimInstances
 // from the results map where the Synthesizer type is not None.
 func removeSynthesizers(results map[*SimInstance]map[*verilog.Port]string) {
@@ -100,10 +78,6 @@ func (sch *Scheduler) compareAllResults(
 				break
 			}
 		}
-	}
-
-	if !SKIP_X_OUTPUTS && !SKIP_Z_OUTPUTS && xorzPresent {
-		cleanAllOutputValues(results)
 	}
 
 	// if x or z is present in any output we exclude all the SimInstances where the synth.Type is not None as they can do whatever they want

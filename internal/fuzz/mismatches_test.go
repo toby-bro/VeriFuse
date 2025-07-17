@@ -77,33 +77,6 @@ func TestCompareOutputValues(t *testing.T) {
 	})
 }
 
-func TestReplaceXandZwithZero(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"lowercase x", "1x0x", "1000"},
-		{"lowercase z", "1z0z", "1000"},
-		{"uppercase X", "1X0X", "1000"},
-		{"uppercase Z", "1Z0Z", "1000"},
-		{"mixed case", "1xZ0Xz", "100000"},
-		{"no x or z", "1010", "1010"},
-		{"all x", "xxxx", "0000"},
-		{"all z", "zzzz", "0000"},
-		{"empty string", "", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := replaceXandZwithZero(tt.input)
-			if result != tt.expected {
-				t.Errorf("replaceXandZwithZero(%q) = %q, want %q", tt.input, result, tt.expected)
-			}
-		})
-	}
-}
-
 type dummySim struct{}
 
 func (d *dummySim) RunTest(
@@ -124,64 +97,6 @@ func (d *dummySim) FailedCuzUnsupportedFeature(_ error) (bool, error) {
 
 func (d *dummySim) Type() simulator.Type {
 	return simulator.CXXRTL // Dummy implementation for testing
-}
-
-func TestCleanAllOutputValues(t *testing.T) {
-	sim1 := &SimInstance{Simulator: &dummySim{}}
-	sim2 := &SimInstance{Simulator: &dummySim{}}
-	port1 := &verilog.Port{Name: "port1"}
-	port2 := &verilog.Port{Name: "port2"}
-	tests := []struct {
-		name     string
-		input    map[*SimInstance]map[*verilog.Port]string
-		expected map[*SimInstance]map[*verilog.Port]string
-	}{
-		{
-			name: "basic cleaning",
-			input: map[*SimInstance]map[*verilog.Port]string{
-				sim1: {port1: "1x0z", port2: "1010"},
-				sim2: {port1: "1X0Z", port2: "0101"},
-			},
-			expected: map[*SimInstance]map[*verilog.Port]string{
-				sim1: {port1: "1000", port2: "1010"},
-				sim2: {port1: "1000", port2: "0101"},
-			},
-		},
-		{
-			name:     "empty map",
-			input:    map[*SimInstance]map[*verilog.Port]string{},
-			expected: map[*SimInstance]map[*verilog.Port]string{},
-		},
-		{
-			name: "no x or z",
-			input: map[*SimInstance]map[*verilog.Port]string{
-				sim1: {port1: "1010", port2: "0101"},
-			},
-			expected: map[*SimInstance]map[*verilog.Port]string{
-				sim1: {port1: "1010", port2: "0101"},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cleanAllOutputValues(tt.input)
-			for sim, ports := range tt.expected {
-				for port, expectedValue := range ports {
-					actualValue := tt.input[sim][port]
-					if actualValue != expectedValue {
-						t.Errorf(
-							"Expected %s[%s] = %q, got %q",
-							sim.String(),
-							port.Name,
-							expectedValue,
-							actualValue,
-						)
-					}
-				}
-			}
-		})
-	}
 }
 
 func TestScheduler_compareAllResults(t *testing.T) {
