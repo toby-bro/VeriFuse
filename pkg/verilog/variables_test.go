@@ -722,7 +722,6 @@ func TestNonAnsiScopeVariables(t *testing.T) {
 			t.Errorf("Port %s found more than once in root scope tree variables", port.Name)
 		}
 		portNamesInRoot[port.Name] = true
-
 	}
 
 	// Recursively check child scopes for ports
