@@ -239,24 +239,6 @@ var ModportPortRegex = regexp.MustCompile(
 	`(?s)(input|output|inout|ref)\s+(.*?)(?:,|$)`,
 )
 
-// Regex patterns for detecting blocking constructs
-var (
-	assignRegex            = regexp.MustCompile(`(?m)^\s*assign\s+(\w+)`)
-	wireAssignRegex        = regexp.MustCompile(`(?m)^\s*wire\s+(?:[^;=]*\s+)?(\w+)\s*=`)
-	forceRegex             = regexp.MustCompile(`(?m)^\s*force\s+(\w+)`)
-	alwaysCombRegex        = regexp.MustCompile(`(?s)always_comb\s*begin(.*?)end`)
-	alwaysFFRegex          = regexp.MustCompile(`(?s)always_ff\s*@\([^)]*\)\s*begin(.*?)end`)
-	alwaysRegex            = regexp.MustCompile(`(?s)always\s*@\([^)]*\)\s*begin(.*?)end`)
-	blockingAssignRegex    = regexp.MustCompile(`(?m)^\s*(\w+)\s*(?:\[[^\]]*\])?\s*(?:<=|=)`)
-	nonBlockingAssignRegex = regexp.MustCompile( // nolint: unused
-		`(?m)^\s*(\w+)\s*(?:\[[^\]]*\])?\s*<=`,
-	)
-	moduleInstRegex = regexp.MustCompile(
-		`(?m)^\s*(\w+)\s+(\w+)\s*\(((?:[^()]|\([^)]*\))*)\)\s*;`,
-	)
-	portConnectionRegex = regexp.MustCompile(`\.(\w+)\s*\(\s*(\w+)\s*\)`)
-)
-
 // ===============================================
 // End of Advanced SystemVerilog Construct Patterns
 // ===============================================
