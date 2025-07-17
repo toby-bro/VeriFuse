@@ -220,7 +220,7 @@ func (g *Generator) generateSVInputReads(
 					break
 				}
 			}
-			if isClockPort || portName == resetPorts[0].Name {
+			if isClockPort || slices.Contains(resetPorts, port) {
 				// Initialize clocks and reset to 0 (or appropriate initial state if needed later)
 				inputReads.WriteString(fmt.Sprintf("        %s = 0;\n", portName))
 				continue
@@ -265,10 +265,11 @@ func (g *Generator) generateSVInputReads(
 }
 
 // generateSVResetToggling generates code to toggle the reset signal
-func (g *Generator) generateSVResetToggling(resetPort *verilog.Port, isActiveHigh bool) string {
-	if resetPort == nil {
+func (g *Generator) generateSVResetToggling(resetPorts []*verilog.Port, isActiveHigh bool) string {
+	if len(resetPorts) == 0 {
 		return "" // No reset port found
 	}
+	resetPort := resetPorts[0] // Use the first reset port
 
 	var resetToggle strings.Builder
 	resetToggle.WriteString(fmt.Sprintf("\n        // Toggle reset signal %s\n", resetPort.Name))
@@ -408,7 +409,7 @@ func (g *Generator) GenerateSVTestbench(outputDir string) error {
 	moduleInst := g.generateSVModuleInstantiation()
 	clockPorts, resetPort, isActiveHigh := verilog.IdentifyClockAndResetPorts(g.module)
 	inputReadsStr, inputCount := g.generateSVInputReads(clockPorts, resetPort)
-	resetToggleStr := g.generateSVResetToggling(resetPort[0], isActiveHigh)
+	resetToggleStr := g.generateSVResetToggling(resetPort, isActiveHigh)
 	clockToggleStr := g.generateSVClockToggling(clockPorts)
 	outputWritesStr, outputCount := g.generateSVOutputWrites()
 
@@ -461,7 +462,7 @@ func (g *Generator) GenerateSVTestbenchWithInputs(inputs map[string]string) stri
 		}
 	}
 
-	resetToggleStr := g.generateSVResetToggling(resetPorts[0], isActiveHigh)
+	resetToggleStr := g.generateSVResetToggling(resetPorts, isActiveHigh)
 	clockToggleStr := g.generateSVClockToggling(clockPorts)
 	outputWritesStr, outputCount := g.generateSVOutputWrites()
 
