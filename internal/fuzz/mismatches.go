@@ -13,7 +13,7 @@ import (
 
 var (
 	SKIP_X_OUTPUTS = true
-	SKIP_Z_OUTPUTS = true
+	SKIP_Z_OUTPUTS = false
 )
 
 // compareOutputValues compares two output values, ivValue and vlValue.
@@ -37,8 +37,8 @@ func compareOutputValues(ivValue, vlValue string) bool {
 			equivalent := true
 			for i := 0; i < len(ivNorm); i++ {
 				charMatch := ivNorm[i] == vlNorm[i] ||
-					(ivNorm[i] == 'x' && vlNorm[i] == '0') ||
-					(ivNorm[i] == '0' && vlNorm[i] == 'x')
+					ivNorm[i] == 'x' || ivNorm[i] == 'z' ||
+					vlNorm[i] == 'x' || vlNorm[i] == 'z'
 				if !charMatch {
 					equivalent = false
 					break

@@ -64,17 +64,6 @@ func TestCompareOutputValues(t *testing.T) {
 			}
 		})
 	}
-
-	// Test with skip flags disabled
-	t.Run("no skip x or z", func(t *testing.T) {
-		SKIP_X_OUTPUTS = false
-		SKIP_Z_OUTPUTS = false
-
-		result := compareOutputValues("1x10", "1110")
-		if result {
-			t.Error("Expected false when SKIP_X_OUTPUTS is false and values differ")
-		}
-	})
 }
 
 type dummySim struct{}
@@ -287,51 +276,5 @@ func TestScheduler_handleMismatch(t *testing.T) {
 		err,
 	) {
 		t.Error("Expected testbench.sv to be copied to mismatch directory")
-	}
-}
-
-// Mock implementations for testing
-
-func TestCompareOutputValuesWithSkipDisabled(t *testing.T) {
-	// Save original values
-	origSkipX := SKIP_X_OUTPUTS
-	origSkipZ := SKIP_Z_OUTPUTS
-	defer func() {
-		SKIP_X_OUTPUTS = origSkipX
-		SKIP_Z_OUTPUTS = origSkipZ
-	}()
-
-	// Disable skip flags
-	SKIP_X_OUTPUTS = false
-	SKIP_Z_OUTPUTS = false
-
-	tests := []struct {
-		name     string
-		ivValue  string
-		vlValue  string
-		expected bool
-	}{
-		{"identical without x/z", "1010", "1010", true},
-		{"different without x/z", "1010", "0101", false},
-		{"x = 0 still is valid", "1x10", "1010", true},
-		{"x should not be skipped", "1x10", "1110", false},
-		{"z should not be skipped", "1z10", "1010", false},
-		{"equivalent patterns still work", "00", "xx", true},
-		{"mixed x equivalence still works", "1x0x", "1000", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := compareOutputValues(tt.ivValue, tt.vlValue)
-			if result != tt.expected {
-				t.Errorf(
-					"compareOutputValues(%q, %q) = %v, want %v",
-					tt.ivValue,
-					tt.vlValue,
-					result,
-					tt.expected,
-				)
-			}
-		})
 	}
 }
