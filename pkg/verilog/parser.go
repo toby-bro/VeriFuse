@@ -2344,7 +2344,10 @@ func IdentifyClockAndResetPorts(
 	module *Module,
 ) (clockPorts []*Port, resetPorts []*Port, isActiveHigh bool) {
 	for _, port := range module.Ports {
-		if port.Direction == INPUT || port.Direction == INOUT {
+		if (port.Direction == INPUT || port.Direction == INOUT) &&
+			GetWidthForType(port.Type) == 1 &&
+			port.Array == "" &&
+			port.Width <= 1 {
 			portName := strings.TrimSpace(port.Name)
 			portNameLower := strings.ToLower(portName)
 
