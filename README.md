@@ -35,6 +35,7 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
   - [`read_verilog`: `inout` parameters not copied out of tasks](https://github.com/YosysHQ/yosys/issues/5157)
 - yosys-slang
   - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/povik/yosys-slang/issues/161)
+  - [Incorrect handling of `wor`](https://github.com/povik/yosys-slang/issues/212)
 
 ### Low quality bugs
 
@@ -45,6 +46,7 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
 - Convention on initialisation
   - [Simulation error in always @* block ?](https://github.com/steveicarus/iverilog/issues/1254)
     This bug is interesting because icarus verilog is the only one of the free simulators to correctly handle this initialisation, but did not want to bother the other repos for the moment (if I am desperate for opening issues then so be it)
+  - Is it a posedge if there is no transition from 0 to 1 but an intialisation value already at one, same for negedge (cxxrtl does not agree with the other simulators about this)
 
 ## Example usage
 
@@ -91,20 +93,3 @@ What we are interested are mostly the values of the variables that are modified 
 If no variable in the module is interesting then we can see if any of the inputs or outputs of the module is of any interest, if possible select clock and reset rarely (using a random decision maker once all the interesting things have been identified)
 
 then see if the output variables of the module we are injecting have the same type as any variable higher up in the code and if they do have the same type then assign the output to this variable. Do not rename many to the same one. If you don't find any then add it to the global outputs of the module
-
-## How to read the worker dir
-
-### SubDirs
-
-- `cxxrtl_sim` execution dir for vanilla yosys and cxxrtl
-- `cxxrtl_slang_sim` execution dir for yosys with yosys slang and cxxrtl
-- `iverilog_run` same for iverilog
-- `vl_O0` same for verilator with optimisations set to 0
-- `vl_O0` same for verilator with optimisations set to 3
-
-- `test_X` is the test dir for test number X
-  - `input_NAME.hex` is the input to the testbench port named NAME
-  - `SIM_out_NAME.hex` is the output (in binary) for the port named NAME for the simulation with SIM
-
-- `testbench.sv` is the sv testbench for the module we are testing (the cpp testbench can be found in the `cxxrtl_sim` dir)
-- `MODULE.sv` is the file we are testing
