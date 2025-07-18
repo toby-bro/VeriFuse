@@ -36,6 +36,8 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
 - yosys-slang
   - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/povik/yosys-slang/issues/161)
   - [Incorrect handling of `wor`](https://github.com/povik/yosys-slang/issues/212)
+- Xcelium
+  - Scheduling semantics violation
 
 ### Low quality bugs
 
