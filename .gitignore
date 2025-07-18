@@ -38,3 +38,6 @@ module_sim_iv
 vivado_*.backup.jou
 vivado.jou
 .Xil
+
+report
+
