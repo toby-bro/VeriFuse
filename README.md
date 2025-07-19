@@ -52,6 +52,8 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
   - [Simulation error in always @* block ?](https://github.com/steveicarus/iverilog/issues/1254)
     This bug is interesting because icarus verilog is the only one of the free simulators to correctly handle this initialisation, but did not want to bother the other repos for the moment (if I am desperate for opening issues then so be it)
   - Is it a posedge if there is no transition from 0 to 1 but an intialisation value already at one, same for negedge (cxxrtl does not agree with the other simulators about this)
+- Transfuzz bugs not fixed yet
+  - [`opt_muxtree` broken optimisation](https://github.com/YosysHQ/yosys/issues/4151)
 
 ## Example usage
 
