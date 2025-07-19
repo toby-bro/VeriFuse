@@ -106,7 +106,7 @@ func (sch *Scheduler) performWorkerAttempt(
 	var svFile *verilog.VerilogFile
 	if sch.operation == OpMutate {
 		sch.debug.Debug("[%s] Attempting mutation on %s", workerID, workerVerilogPath)
-		if svFile, err = mutate.MutateFile(sch.svFile, workerVerilogPath, sch.verbose); err != nil {
+		if svFile, err = mutate.MutateAndRewriteFile(sch.svFile, workerVerilogPath, sch.verbose); err != nil {
 			return false, fmt.Errorf("[%s] mutation failed: %w", workerID, err)
 		}
 		sch.debug.Debug("[%s] Mutation applied. Proceeding.", workerID)

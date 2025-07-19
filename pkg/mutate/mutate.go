@@ -682,21 +682,16 @@ func gx() float32 {
 
 var target float32 = 0.75
 
+// MutateFile applies mutations to the given Verilog file by injecting random snippets into its modules.
 func MutateFile( //nolint: revive
-	originalSvFile *verilog.VerilogFile,
-	pathToWrite string,
+	svFile *verilog.VerilogFile,
+	workerDir string,
 	verbose int,
-) (*verilog.VerilogFile, error) {
-	svFile := originalSvFile.DeepCopy()
+) bool {
+	loadLogger(verbose)
+	g := gx()
 	fileName := svFile.Name
 	mutatedOverall := false
-	injectedSnippetParentFiles := make(map[string]*verilog.VerilogFile)
-	loadLogger(verbose)
-
-	workerDir := filepath.Base(filepath.Dir(pathToWrite))
-
-	g := gx()
-
 	for {
 		for moduleName, currentModule := range svFile.Modules {
 			if len(svFile.DependencyMap[moduleName].DependedBy) > 0 {
@@ -808,14 +803,26 @@ func MutateFile( //nolint: revive
 				moduleToMutate.Name,
 				fileName,
 			)
-
-			// Key by snippet.Module.Name so we know exactly which module to DFS
-			injectedSnippetParentFiles[snippet.Name] = snippet.ParentFile
 		}
 		if rand.Float32() < g {
 			break
 		}
 	}
+	return mutatedOverall
+}
+
+// MutateAndRewriteFile applies mutations to the given Verilog file and writes the mutated content to the specified path.
+func MutateAndRewriteFile( //nolint: revive
+	originalSvFile *verilog.VerilogFile,
+	pathToWrite string,
+	verbose int,
+) (*verilog.VerilogFile, error) {
+	svFile := originalSvFile.DeepCopy()
+	loadLogger(verbose)
+
+	workerDir := filepath.Base(filepath.Dir(pathToWrite))
+
+	mutatedOverall := MutateFile(svFile, workerDir, verbose)
 
 	if !mutatedOverall {
 		logger.Info(
@@ -834,7 +841,6 @@ func MutateFile( //nolint: revive
 			err,
 		)
 	}
-
 	err = utils.WriteFileContent(pathToWrite, finalMutatedContent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write mutated content to %s: %v", pathToWrite, err)
