@@ -1,4 +1,4 @@
-package fuzz
+package mutate
 
 import (
 	"fmt"
@@ -682,7 +682,7 @@ func gx() float32 {
 
 var target float32 = 0.75
 
-func MutateFile(
+func MutateFile( //nolint: revive
 	originalSvFile *verilog.VerilogFile,
 	pathToWrite string,
 	verbose int,

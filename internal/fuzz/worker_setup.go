@@ -16,6 +16,7 @@ import (
 	"github.com/toby-bro/pfuzz/internal/simulator"
 	"github.com/toby-bro/pfuzz/internal/snippets"
 	"github.com/toby-bro/pfuzz/internal/synth"
+	"github.com/toby-bro/pfuzz/pkg/mutate"
 	"github.com/toby-bro/pfuzz/pkg/testgen"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
@@ -36,6 +37,14 @@ func simulationName(sim simulator.Type, synthesizer synth.Type) string {
 		return sim.String()
 	}
 	return fmt.Sprintf("%s_%s", sim.String(), synthesizer.String())
+}
+
+var logger *utils.DebugLogger
+
+func loadLogger(v int) {
+	if logger == nil {
+		logger = utils.NewDebugLogger(v)
+	}
 }
 
 func (sch *Scheduler) setupWorker(workerID string) (string, func(), error) {
@@ -91,11 +100,13 @@ func (sch *Scheduler) performWorkerAttempt(
 		}
 	}()
 
+	loadLogger(sch.verbose)
+
 	workerVerilogPath := filepath.Join(workerDir, workerModule.Name+".sv")
 	var svFile *verilog.VerilogFile
 	if sch.operation == OpMutate {
 		sch.debug.Debug("[%s] Attempting mutation on %s", workerID, workerVerilogPath)
-		if svFile, err = MutateFile(sch.svFile, workerVerilogPath, sch.verbose); err != nil {
+		if svFile, err = mutate.MutateFile(sch.svFile, workerVerilogPath, sch.verbose); err != nil {
 			return false, fmt.Errorf("[%s] mutation failed: %w", workerID, err)
 		}
 		sch.debug.Debug("[%s] Mutation applied. Proceeding.", workerID)
