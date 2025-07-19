@@ -685,11 +685,14 @@ var target float32 = 0.75
 // MutateFile applies mutations to the given Verilog file by injecting random snippets into its modules.
 func MutateFile( //nolint: revive
 	svFile *verilog.VerilogFile,
+	g float32,
 	workerDir string,
 	verbose int,
 ) bool {
+	if g == 0 {
+		g = gx()
+	}
 	loadLogger(verbose)
-	g := gx()
 	fileName := svFile.Name
 	mutatedOverall := false
 	for {
@@ -821,8 +824,8 @@ func MutateAndRewriteFile( //nolint: revive
 	loadLogger(verbose)
 
 	workerDir := filepath.Base(filepath.Dir(pathToWrite))
-
-	mutatedOverall := MutateFile(svFile, workerDir, verbose)
+	g := gx()
+	mutatedOverall := MutateFile(svFile, g, workerDir, verbose)
 
 	if !mutatedOverall {
 		logger.Info(

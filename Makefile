@@ -2,16 +2,12 @@
 all: build run
 
 .PHONY: build
-build: build-fuzzer build-testbench pre-commit-hook
+build: build-fuzzer build-testbench pre-commit-hook build-generate
 
-.PHONY: build-fuzzer
-build-fuzzer: pfuzz
-
-GOLANGFILES=$(shell find . -name '*.go')
+GOBUILDFILES=$(shell find . -name '*.go' -not -path './cmd/*' -not -name '*_test.go')
+GOTESTFILES=$(shell find . -name '*_test.go')
+ALLGOFILES=$(shell find . -name '*.go')
 SVFILES=$(shell find snippets -name '*.sv')
-
-pfuzz: cmd/pfuzz/main.go $(GOLANGFILES)
-	go build -o pfuzz cmd/pfuzz/main.go
 
 pre-commit-hook: .git/hooks/pre-commit 
 
@@ -22,13 +18,25 @@ pre-commit-hook: .git/hooks/pre-commit
 	@echo "make tests" >> .git/hooks/pre-commit
 	chmod +x .git/hooks/pre-commit
 
+.PHONY: build-fuzzer
+build-fuzzer: pfuzz
+
+pfuzz: cmd/pfuzz/main.go $(GOBUILDFILES)
+	go build -o pfuzz cmd/pfuzz/main.go
+
 .PHONY: build-testbench
 build-testbench: testbench
 
-testbench: cmd/testbench/main.go $(GOLANGFILES)
+testbench: cmd/testbench/main.go $(GOBUILDFILES)
 	go build -o testbench cmd/testbench/main.go
 
-.test-go.log: pfuzz
+.PHONY: build-generate
+build-generate: generate
+
+generate: cmd/generate/main.go $(GOBUILDFILES)
+	go build -o generate cmd/generate/main.go
+
+.test-go.log: pfuzz $(GOTESTFILES)
 	@echo "Running Go tests..."
 	@go test -parallel 1 -timeout 120s ./...
 	@touch .test-go.log
@@ -39,9 +47,9 @@ tests: .test-go.log
 .PHONY: lint
 lint: .lint.log
 
-.lint.log: $(GOLANGFILES) $(SVFILES)
+.lint.log: $(ALLGOFILES) $(SVFILES)
 	@echo "Running linters..."
-	@golangci-lint run ./... --timeout 10s --color=always --fix
+	@golangci-lint run ./... --timeout 20s --color=always --fix
 	@find snippets -name '*.sv' -exec ./scripts/fix-indent.sh {} \;
 	@touch .lint.log
 

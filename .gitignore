@@ -4,10 +4,15 @@ obj_dir/
 testbench.*
 !confirmed/**/testbench.*
 dist/
+
 pfuzz
 !cmd/pfuzz
 testbench
 !cmd/testbench
+generate
+!cmd/generate
+
+
 mismatches/
 analyze
 !cmd/analyze
