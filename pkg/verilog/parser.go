@@ -1519,7 +1519,10 @@ func addPortsToScopeTree(modulePorts []*Port, scopeTree *ScopeNode) {
 		}
 		// Be careful for non ANSI ports they are parsed as variables and are in the scope of level 1
 		if _, exists := scopeTree.Variables[port.Name]; !exists {
-			if _, exists := scopeTree.Children[0].Variables[port.Name]; !exists {
+			if len(scopeTree.Children) != 0 {
+				_, exists = scopeTree.Children[0].Variables[port.Name]
+			}
+			if !exists {
 				// for NON ANSI ports to be sure they do not exist
 				if port.Direction == INPUT {
 					variable := &Variable{
