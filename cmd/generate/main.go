@@ -18,10 +18,9 @@ func main() {
 	fs.BoolVar(&verbose,
 		"v",
 		false,
-		"Verbose output (level 1). Higher levels (-vv, -vvv) take precedence.",
+		"Verbose output",
 	)
 	var outputFile string
-	fs.StringVar(&outputFile, "output", "", "Path to the output verilog file")
 	fs.StringVar(&outputFile, "o", "", "Path to the output verilog file (shorthand)")
 	var g int
 	fs.IntVar(&g, "g", 0, "The expected value of numbers of injected modules (default is random)")
