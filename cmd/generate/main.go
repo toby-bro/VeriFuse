@@ -54,8 +54,8 @@ func main() {
 		svFile = verilog.NewVerilogFile("snippet.sv")
 		module := svFile.CreateModule("snippet")
 		module.Ports = []*verilog.Port{
-			{Name: "clk", Direction: verilog.INPUT},
-			{Name: "reset", Direction: verilog.INPUT},
+			{Name: "clk", Direction: verilog.INPUT, Type: verilog.WIRE},
+			{Name: "reset", Direction: verilog.INPUT, Type: verilog.WIRE},
 		}
 	}
 	var ginv float32
