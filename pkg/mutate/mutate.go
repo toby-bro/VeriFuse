@@ -672,7 +672,7 @@ func isDeclarationLine(line string) bool {
 	return false
 }
 
-func gx() float32 {
+func Gx() float32 {
 	x := rand.Float32()
 	return max(
 		(1-x)*(1-x)*(1-x),
@@ -690,7 +690,7 @@ func MutateFile( //nolint: revive
 	verbose int,
 ) bool {
 	if g == 0 {
-		g = gx()
+		g = Gx()
 	}
 	loadLogger(verbose)
 	fileName := svFile.Name
@@ -824,7 +824,7 @@ func MutateAndRewriteFile( //nolint: revive
 	loadLogger(verbose)
 
 	workerDir := filepath.Base(filepath.Dir(pathToWrite))
-	g := gx()
+	g := Gx()
 	mutatedOverall := MutateFile(svFile, g, workerDir, verbose)
 
 	if !mutatedOverall {
