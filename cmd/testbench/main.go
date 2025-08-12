@@ -16,6 +16,8 @@ func main() {
 	// Parse -d flag for output directory
 	var outputDir string
 	fs.StringVar(&outputDir, "d", "", "Output directory for generated testbenches (optional)")
+	var topModule string
+	fs.StringVar(&topModule, "top", "", "Top module for testbench generation (optional)")
 	// Verbose flags
 	vFlag := fs.Bool(
 		"v",
@@ -80,18 +82,32 @@ func main() {
 	}
 	// Use the first module found if no module with the same name as the file is found
 	var module *verilog.Module
-	// Trim extension from vf.Name to match module names if needed
-	baseName := vf.Name
-	ext := filepath.Ext(baseName)
-	if ext != "" {
-		baseName = baseName[:len(baseName)-len(ext)]
-	}
-	if baseName != "" && vf.Modules[baseName] != nil {
-		module = vf.Modules[baseName]
-	} else {
-		for _, m := range vf.Modules {
+	if topModule != "" {
+		if m, ok := vf.Modules[topModule]; ok {
 			module = m
-			break
+		} else {
+			fmt.Fprintf(os.Stderr, "Top module %s not found in file\n", topModule)
+			// Print available modules
+			fmt.Fprintf(os.Stderr, "Available modules:\n")
+			for name := range vf.Modules {
+				fmt.Fprintf(os.Stderr, " - %s\n", name)
+			}
+			os.Exit(1)
+		}
+	} else {
+		// Trim extension from vf.Name to match module names if needed
+		baseName := vf.Name
+		ext := filepath.Ext(baseName)
+		if ext != "" {
+			baseName = baseName[:len(baseName)-len(ext)]
+		}
+		if baseName != "" && vf.Modules[baseName] != nil {
+			module = vf.Modules[baseName]
+		} else {
+			for _, m := range vf.Modules {
+				module = m
+				break
+			}
 		}
 	}
 
