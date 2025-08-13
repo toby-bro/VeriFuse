@@ -2,6 +2,7 @@ package mutate
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"path/filepath"
 	"regexp"
@@ -672,12 +673,11 @@ func isDeclarationLine(line string) bool {
 	return false
 }
 
+var max_snippets float64 = 20
+
 func Gx() float32 {
-	x := rand.Float32()
-	return max(
-		(1-x)*(1-x)*(1-x),
-		0.1,
-	) // to avoid injecting more than 10 snippets for the time being
+	x := rand.Float64()
+	return float32(math.Pow((1-1/max_snippets)-x, 3) + 1/max_snippets)
 }
 
 var target float32 = 0.75
