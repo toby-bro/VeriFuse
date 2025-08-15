@@ -27,6 +27,10 @@ func (sim *IVerilogSimulator) Type() Type {
 	return IVERILOG
 }
 
+func (sim *IVerilogSimulator) DumpOptimisations() string {
+	return ""
+}
+
 func TestIVerilogTool() error {
 	cmd := exec.Command("iverilog", "-V")
 	var stderr bytes.Buffer

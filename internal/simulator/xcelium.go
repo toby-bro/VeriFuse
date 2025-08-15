@@ -26,6 +26,10 @@ func (sim *XCeliumSimulator) Type() Type {
 	return XCELIUM
 }
 
+func (sim *XCeliumSimulator) DumpOptimisations() string {
+	return ""
+}
+
 func TestXCeliumTool() error {
 	cmd := exec.Command("xrun", "-version")
 	var stderr bytes.Buffer

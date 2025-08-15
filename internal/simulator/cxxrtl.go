@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,6 +27,7 @@ type CXXRTLSimulator struct {
 	cxxrtlIncludeDir    string // Path to CXXRTL runtime include directory
 	useSlang            bool   // Whether to use Slang with Yosys
 	logger              *utils.DebugLogger
+	optLevel            int // Optimization level (0-4)
 }
 
 func (sim *CXXRTLSimulator) Type() Type {
@@ -90,7 +92,14 @@ func NewCXXRTLSimulator(
 		cxxrtlIncludeDir:    cxxrtlIncludeDir,
 		useSlang:            useSlang, // Store useSlang
 		logger:              utils.NewDebugLogger(verbose),
+		optLevel:            rand.Intn(5), // Random optimization level
 	}
+}
+
+func (sim *CXXRTLSimulator) DumpOptimisations() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("-O%d", sim.optLevel))
+	return sb.String()
 }
 
 // killProcessGroup kills the process and its entire process group to ensure cleanup
@@ -179,7 +188,7 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	}
 
 	// Add combinational loop detection and breaking
-	yosysScript += "; write_cxxrtl " + yosysOutputCCFile
+	yosysScript += fmt.Sprintf("; write_cxxrtl -O%d %s", sim.optLevel, yosysOutputCCFile)
 
 	if sim.useSlang {
 		cmdYosys = exec.Command("yosys", "-m", "slang", "-p", yosysScript)

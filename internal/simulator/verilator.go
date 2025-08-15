@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,17 +16,64 @@ import (
 	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
 
+var OPTIMISATIONS = []string{
+	"acyc-simp",
+	"assemble",
+	"case",
+	"combine",
+	"const",
+	"combine",
+	"const-bit-op-tree",
+	"dedup",
+	"dfg",
+	"dfg-peephole",
+	"dfg-pre-inline",
+	"dfg-post-inline",
+	"expand",
+	"func-opt",
+	"func-opt-balance-cat",
+	"func-opt-split-cat",
+	"gate",
+	"inline",
+	"life",
+	"life-post",
+	"localize",
+	"merge-cond",
+	"merge-cond-motion",
+	"merge-cond-pool",
+	"reloop",
+	"reorder",
+	"split",
+	"subst",
+	"subst-cond",
+	"table",
+}
+
 // VerilatorSimulator represents the Verilator simulator
 type VerilatorSimulator struct {
 	execPath   string
 	workDir    string
 	svFileName string
 	optimized  bool
+	options    []string
 	logger     *utils.DebugLogger
 }
 
 func (sim *VerilatorSimulator) Type() Type {
 	return VERILATOR
+}
+
+func (sim *VerilatorSimulator) DumpOptimisations() string {
+	var sb strings.Builder
+	for _, opt := range sim.options {
+		sb.WriteString(fmt.Sprintf("-fno-%s ", opt))
+	}
+	if sim.optimized {
+		sb.WriteString("-O3")
+	} else {
+		sb.WriteString("-O0")
+	}
+	return sb.String()
 }
 
 func TestVerilatorTool() error {
@@ -54,6 +102,7 @@ func NewVerilatorSimulator(
 		workDir:    workDir,
 		svFileName: svFile.Name,
 		optimized:  optimized,
+		options:    []string{OPTIMISATIONS[rand.Intn(len(OPTIMISATIONS))]},
 		logger:     utils.NewDebugLogger(verbose),
 	}
 }

@@ -246,6 +246,7 @@ func (sch *Scheduler) detectAndHandleMismatches(
 				testCase,
 				details,
 				workerModule,
+				sims,
 			)
 		}
 	}

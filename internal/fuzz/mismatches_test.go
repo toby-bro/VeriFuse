@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/toby-bro/pfuzz/internal/simulator"
+	"github.com/toby-bro/pfuzz/internal/synth"
 	"github.com/toby-bro/pfuzz/pkg/utils"
 	"github.com/toby-bro/pfuzz/pkg/verilog"
 )
@@ -86,6 +87,10 @@ func (d *dummySim) FailedCuzUnsupportedFeature(_ error) (bool, error) {
 
 func (d *dummySim) Type() simulator.Type {
 	return simulator.CXXRTL // Dummy implementation for testing
+}
+
+func (d *dummySim) DumpOptimisations() string {
+	return ""
 }
 
 func TestScheduler_compareAllResults(t *testing.T) {
@@ -225,7 +230,14 @@ func TestScheduler_handleMismatch(t *testing.T) {
 		outPort: "sim1=1010, sim2=1111",
 	}
 	// Run the function
-	sch.handleMismatch(1, testDir, testCase, mismatchDetails, module)
+	sch.handleMismatch(
+		1,
+		testDir,
+		testCase,
+		mismatchDetails,
+		module,
+		[]*SimInstance{{&dummySim{}, synth.None}},
+	)
 	// Verify mismatch directory was created
 	mismatchDirs, err := filepath.Glob(
 		filepath.Join(utils.MISMATCHES_DIR, "worker_*", "test_*"),

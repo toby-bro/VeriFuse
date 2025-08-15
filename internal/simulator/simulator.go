@@ -75,6 +75,7 @@ func (t Type) SetupSimulator(
 // Simulator defines the interface for RTL simulators
 type Simulator interface {
 	Type() Type
+	DumpOptimisations() string
 	// Compile compiles the simulator from source files with context for timeout
 	Compile(ctx context.Context) error
 

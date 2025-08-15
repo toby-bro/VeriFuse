@@ -207,15 +207,30 @@ func (sch *Scheduler) logMismatchInfo(
 	}
 }
 
+func dumpOptimisations(sims []*SimInstance) string {
+	var sb strings.Builder
+	sb.WriteString("Optimisations:\n")
+	for _, sim := range sims {
+		sb.WriteString(fmt.Sprintf("  %s: %s\n", sim.String(), sim.Simulator.DumpOptimisations()))
+	}
+	return sb.String()
+}
+
 // writeMismatchSummary creates and writes the mismatch summary file
 func (sch *Scheduler) writeMismatchSummary(
 	testIndex int,
 	mismatchDir string,
 	testCase map[*verilog.Port]string,
 	mismatchDetails map[*verilog.Port]string,
+	sims []*SimInstance,
 ) {
 	summaryPath := filepath.Join(mismatchDir, fmt.Sprintf("mismatch_%d_summary.txt", testIndex))
-	fileContent := fmt.Sprintf("Test case %d\n\nInputs:\n", testIndex)
+
+	fileContent := fmt.Sprintf("Test case %d\n\n", testIndex)
+
+	fileContent += dumpOptimisations(sims)
+
+	fileContent += "\nInputs:\n"
 
 	for port, value := range testCase {
 		fileContent += fmt.Sprintf("  %v = %s\n", port, value)
@@ -242,6 +257,7 @@ func (sch *Scheduler) handleMismatch(
 	testCase map[*verilog.Port]string,
 	mismatchDetails map[*verilog.Port]string,
 	workerModule *verilog.Module,
+	sims []*SimInstance,
 ) {
 	sch.logMismatchInfo(testIndex, testDir, testCase, mismatchDetails, workerModule)
 	workerDir := filepath.Dir(testDir)
@@ -259,7 +275,7 @@ func (sch *Scheduler) handleMismatch(
 		sch.debug.Error("Failed to copy test directory: %v", err)
 	}
 
-	sch.writeMismatchSummary(testIndex, mismatchDir, testCase, mismatchDetails)
+	sch.writeMismatchSummary(testIndex, mismatchDir, testCase, mismatchDetails, sims)
 
 	sch.debug.Debug("Mismatch artifacts for test %d saved to %s", testIndex, mismatchDir)
 }

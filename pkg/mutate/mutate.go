@@ -672,11 +672,11 @@ func isDeclarationLine(line string) bool {
 	return false
 }
 
-var max_snippets float64 = 20
+var maxSnippets float64 = 20
 
 func Gx() float32 {
 	x := rand.Float64()
-	return float32((1-1/max_snippets-x)*(1-1/max_snippets-x)*(1-1/max_snippets-x) + 1/max_snippets)
+	return float32((1-1/maxSnippets-x)*(1-1/maxSnippets-x)*(1-1/maxSnippets-x) + 1/maxSnippets)
 }
 
 var target float32 = 0.75
