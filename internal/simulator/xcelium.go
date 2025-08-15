@@ -31,7 +31,7 @@ func (sim *XCeliumSimulator) DumpOptimisations() string {
 }
 
 func TestXCeliumTool() error {
-	cmd := exec.Command("xrun", "-version")
+	cmd := exec.Command("xrun", "-version") //nolint: noctx
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
@@ -79,7 +79,7 @@ func (sim *XCeliumSimulator) Compile(ctx context.Context) error {
 	sim.debug.Debug("Running xrun command: xrun %s in directory %s",
 		strings.Join(cmdArgs, " "), sim.workDir)
 
-	cmd := exec.Command("xrun", cmdArgs...)
+	cmd := exec.CommandContext(ctx, "xrun", cmdArgs...)
 	cmd.Dir = sim.workDir
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer
@@ -161,7 +161,7 @@ func (sim *XCeliumSimulator) RunTest(
 	xceliumSemaphore <- struct{}{}
 	defer func() { <-xceliumSemaphore }()
 
-	cmd := exec.Command("xrun", cmdArgs...)
+	cmd := exec.CommandContext(ctx, "xrun", cmdArgs...)
 	cmd.Dir = sim.workDir
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer

@@ -44,7 +44,7 @@ func TestCXXRTLTool(withSlang bool) error {
 		return errors.New("Yosys tool check failed. Ensure Yosys is installed and in PATH")
 	}
 	// Check for g++
-	cmdGXX := exec.Command("g++", "--version")
+	cmdGXX := exec.Command("g++", "--version") //nolint: noctx
 	var stderrGXX bytes.Buffer
 	cmdGXX.Stderr = &stderrGXX
 	cmdGXX.Stdout = &stderrGXX
@@ -191,9 +191,9 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 	yosysScript += fmt.Sprintf("; write_cxxrtl -O%d %s", sim.optLevel, yosysOutputCCFile)
 
 	if sim.useSlang {
-		cmdYosys = exec.Command("yosys", "-m", "slang", "-p", yosysScript)
+		cmdYosys = exec.CommandContext(ctx, "yosys", "-m", "slang", "-p", yosysScript)
 	} else {
-		cmdYosys = exec.Command("yosys", "-p", yosysScript)
+		cmdYosys = exec.CommandContext(ctx, "yosys", "-p", yosysScript)
 	}
 
 	sim.logger.Debug(
@@ -239,7 +239,7 @@ func (sim *CXXRTLSimulator) Compile(ctx context.Context) error {
 		strings.Join(gxxArgs, " "),
 		sim.workDir,
 	)
-	cmdGXX := exec.Command("g++", gxxArgs...)
+	cmdGXX := exec.CommandContext(ctx, "g++", gxxArgs...)
 	cmdGXX.Dir = sim.workDir
 	var stderrGXX bytes.Buffer
 	cmdGXX.Stderr = &stderrGXX
@@ -317,7 +317,7 @@ func (sim *CXXRTLSimulator) RunTest(
 	}
 
 	// Run the simulation executable with improved timeout handling
-	cmd := exec.Command("./" + filepath.Base(sim.execPath))
+	cmd := exec.CommandContext(ctx, "./"+filepath.Base(sim.execPath))
 	cmd.Dir = sim.workDir
 	var stdoutSim, stderrSim bytes.Buffer
 	cmd.Stdout = &stdoutSim

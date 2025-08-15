@@ -47,8 +47,8 @@ func buildPfuzz(projectRoot string) (string, error) {
 	}
 
 	fmt.Println("Building pfuzz binary...")
-	cmd := exec.Command("go", "build", "-o", pfuzzPath, cmdPath)
-	cmd.Dir = projectRoot // Run 'go build' from the project root
+	cmd := exec.Command("go", "build", "-o", pfuzzPath, cmdPath) //nolint: noctx
+	cmd.Dir = projectRoot                                        // Run 'go build' from the project root
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to build pfuzz binary: %v\nOutput:\n%s", err, string(output))
@@ -189,8 +189,8 @@ func TestPfuzzEndToEnd(t *testing.T) {
 			}
 
 			// Use the local pfuzz binary path
-			cmd := exec.Command("./"+pfuzzBinaryName, args...)
-			cmd.Dir = tempTestDir // Run the command from the isolated temp directory
+			cmd := exec.Command("./"+pfuzzBinaryName, args...) //nolint: noctx
+			cmd.Dir = tempTestDir                              // Run the command from the isolated temp directory
 
 			// Execute command and capture output
 			output, err := cmd.CombinedOutput()

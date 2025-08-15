@@ -17,7 +17,7 @@ var (
 
 // TestSV2VTool checks if sv2v is available.
 func TestSV2VTool() error {
-	cmd := exec.Command("sv2v", "--version")
+	cmd := exec.Command("sv2v", "--version") //nolint: noctx
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer
 	cmd.Stderr = &stderr
@@ -55,7 +55,7 @@ func TransformSV2V(
 	outPath := utils.ChangeExtension(srcPath, "v")
 	outPath = utils.AddSuffixToPath(outPath, SV2V.String())
 	// Run sv2v with context for timeout
-	cmd := exec.Command(
+	cmd := exec.Command( //nolint: noctx
 		"sv2v",
 		"--top",
 		moduleName,

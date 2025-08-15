@@ -2,6 +2,7 @@ package synth
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -11,13 +12,13 @@ import (
 )
 
 func TestYosysTool() error {
-	cmdYosys := exec.Command("yosys", "-V") // -V prints version and exits 0
+	cmdYosys := exec.Command("yosys", "-V") //nolint: noctx
 	var stderrYosys bytes.Buffer
 	cmdYosys.Stderr = &stderrYosys
 	cmdYosys.Stdout = &stderrYosys // Some versions print to stdout
 	if err := cmdYosys.Run(); err != nil {
 		// Try `yosys -h` as a fallback for older versions or different behavior
-		cmdYosysHelp := exec.Command("yosys", "-h")
+		cmdYosysHelp := exec.Command("yosys", "-h") //nolint: noctx
 		var stderrYosysHelp bytes.Buffer
 		cmdYosysHelp.Stderr = &stderrYosysHelp
 		cmdYosysHelp.Stdout = &stderrYosysHelp
@@ -35,7 +36,7 @@ func TestYosysTool() error {
 }
 
 func TestSlangPlugin() error {
-	cmdSlang := exec.Command("yosys", "-m", "slang", "-q", "-p", "help")
+	cmdSlang := exec.Command("yosys", "-m", "slang", "-q", "-p", "help") //nolint: noctx
 	var stderrSlang bytes.Buffer
 	cmdSlang.Stderr = &stderrSlang
 	cmdSlang.Stdout = &stderrSlang
@@ -67,6 +68,7 @@ const (
 // If first attempt fails, it will try with slang plugin (if available)
 // Returns error only if all attempts fail
 func YosysSynth(
+	ctx context.Context,
 	moduleName string,
 	srcPath string,
 	options *YosysSynthOptions,
@@ -88,7 +90,7 @@ func YosysSynth(
 	outputPath := utils.AddSuffixToPath(srcPath, YOSYS.String())
 
 	// Try synthesis with current settings first
-	err := attemptYosysSynth(moduleName, srcPath, outputPath, options)
+	err := attemptYosysSynth(ctx, moduleName, srcPath, outputPath, options)
 	if err == nil {
 		return nil
 	}
@@ -98,7 +100,7 @@ func YosysSynth(
 		slangOptions := *options
 		slangOptions.UseSlang = true
 
-		if slangErr := attemptYosysSynth(moduleName, srcPath, outputPath, &slangOptions); slangErr == nil {
+		if slangErr := attemptYosysSynth(ctx, moduleName, srcPath, outputPath, &slangOptions); slangErr == nil {
 			return nil
 		}
 
@@ -127,6 +129,7 @@ func YosysFailedCuzUnsupportedFeature(log error) (bool, error) {
 
 // attemptYosysSynth performs a single synthesis attempt with given options
 func attemptYosysSynth(
+	ctx context.Context,
 	moduleName string,
 	srcPath string,
 	outputPath string,
@@ -167,9 +170,9 @@ func attemptYosysSynth(
 	// Execute Yosys command
 	var cmd *exec.Cmd
 	if options.UseSlang {
-		cmd = exec.Command("yosys", "-m", "slang", "-p", yosysScript)
+		cmd = exec.CommandContext(ctx, "yosys", "-m", "slang", "-p", yosysScript)
 	} else {
-		cmd = exec.Command("yosys", "-p", yosysScript)
+		cmd = exec.CommandContext(ctx, "yosys", "-p", yosysScript)
 	}
 
 	var stderr bytes.Buffer

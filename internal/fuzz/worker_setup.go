@@ -168,7 +168,7 @@ func (sch *Scheduler) performWorkerAttempt(
 				)
 			}
 		case synth.YOSYS:
-			if err := synth.YosysSynth(workerModule.Name, workerVerilogPath, nil); err != nil {
+			if err := synth.YosysSynth(ctx, workerModule.Name, workerVerilogPath, nil); err != nil {
 				if unsup, pretext := synth.YosysFailedCuzUnsupportedFeature(err); unsup {
 					sch.debug.Info(
 						"[%s] Yosys synthesis failed for module %s due to unsupported feature: %s",
@@ -195,7 +195,7 @@ func (sch *Scheduler) performWorkerAttempt(
 				sch.debug.Debug("[%s] Yosys synthesis successful for module %s", workerID, workerModule.Name)
 			}
 		case synth.VIVADO:
-			if err := synth.VivadoSynthSync(workerModule.Name, workerVerilogPath); err != nil {
+			if err := synth.VivadoSynthSync(ctx, workerModule.Name, workerVerilogPath); err != nil {
 				sch.debug.Warn(
 					"[%s] Vivado synthesis failed for module %s: %v",
 					workerID,
@@ -353,7 +353,7 @@ var (
 // It runs only once and caches the result for subsequent calls.
 func (sch *Scheduler) getCXXRTLIncludeDir() string {
 	cxxrtlIncludeDirOnce.Do(func() {
-		yosysCmd := exec.Command("yosys-config", "--datdir")
+		yosysCmd := exec.Command("yosys-config", "--datdir") //nolint: noctx
 		var yosysOut bytes.Buffer
 		var yosysErr bytes.Buffer
 		yosysCmd.Stdout = &yosysOut

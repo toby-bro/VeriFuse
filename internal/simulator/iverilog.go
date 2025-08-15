@@ -32,11 +32,11 @@ func (sim *IVerilogSimulator) DumpOptimisations() string {
 }
 
 func TestIVerilogTool() error {
-	cmd := exec.Command("iverilog", "-V")
+	cmd := exec.Command("iverilog", "-V") // nolint: noctx
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		cmd = exec.Command("iverilog")
+		cmd = exec.Command("iverilog") // nolint: noctx
 		stderr.Reset()
 		cmd.Stderr = &stderr
 		if errSimple := cmd.Run(); errSimple != nil &&
@@ -90,7 +90,7 @@ func (sim *IVerilogSimulator) Compile(ctx context.Context) error {
 	sim.debug.Debug("Running iverilog command: iverilog %s in directory %s",
 		strings.Join(cmdArgs, " "), sim.workDir)
 
-	cmd := exec.Command("iverilog", cmdArgs...)
+	cmd := exec.CommandContext(ctx, "iverilog", cmdArgs...)
 	cmd.Dir = sim.workDir
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer
@@ -204,7 +204,7 @@ func (sim *IVerilogSimulator) RunTest(
 	// Run the simulation from within sim.workDir
 	// relExecPath will be "module_sim_iv"
 	relExecPath := filepath.Base(sim.execPath)
-	cmd := exec.Command("vvp", relExecPath)
+	cmd := exec.CommandContext(ctx, "vvp", relExecPath)
 	cmd.Dir = sim.workDir // Execute from the iverilog_run subdirectory
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer

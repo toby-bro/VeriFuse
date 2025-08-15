@@ -2,6 +2,7 @@ package synth
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,7 +14,7 @@ import (
 var vivadoSemaphore = make(chan struct{}, 3)
 
 func TestVivadoTool() error {
-	cmd := exec.Command("vivado", "-version")
+	cmd := exec.Command("vivado", "-version") //nolint: noctx
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer
 	cmd.Stderr = &stderr
@@ -38,6 +39,7 @@ synth_design -top %s
 write_verilog %s`
 
 func vivadoSynth(
+	ctx context.Context,
 	moduleName string,
 	srcPath string,
 ) error {
@@ -73,7 +75,8 @@ func vivadoSynth(
 		return fmt.Errorf("failed to write to temporary script file: %v", err)
 	}
 
-	cmd := exec.Command(
+	cmd := exec.CommandContext(
+		ctx,
 		"vivado",
 		"-mode",
 		"batch",
@@ -97,6 +100,7 @@ func vivadoSynth(
 }
 
 func VivadoSynthSync(
+	ctx context.Context,
 	moduleName string,
 	srcPath string,
 ) error {
@@ -104,7 +108,7 @@ func VivadoSynthSync(
 	vivadoSemaphore <- struct{}{}
 	defer func() { <-vivadoSemaphore }()
 
-	if err := vivadoSynth(moduleName, srcPath); err != nil {
+	if err := vivadoSynth(ctx, moduleName, srcPath); err != nil {
 		return fmt.Errorf("Vivado synthesis failed: %v", err)
 	}
 

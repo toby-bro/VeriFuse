@@ -77,7 +77,7 @@ func (sim *VerilatorSimulator) DumpOptimisations() string {
 }
 
 func TestVerilatorTool() error {
-	cmd := exec.Command("verilator", "--version")
+	cmd := exec.Command("verilator", "--version") //nolint: noctx
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -218,7 +218,7 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 	}
 
 	// Run Verilator in the worker directory with improved timeout handling
-	cmd := exec.Command("verilator", verilatorArgs...)
+	cmd := exec.CommandContext(ctx, "verilator", verilatorArgs...)
 	cmd.Dir = sim.workDir
 
 	var stderr bytes.Buffer
@@ -234,7 +234,7 @@ func (sim *VerilatorSimulator) Compile(ctx context.Context) error {
 		time.Sleep(10 * time.Millisecond)
 
 		// Retry with timeout
-		cmd = exec.Command("verilator", verilatorArgs...)
+		cmd = exec.CommandContext(ctx, "verilator", verilatorArgs...)
 		cmd.Dir = sim.workDir
 		cmd.Stderr = &stderr
 
@@ -318,7 +318,7 @@ func (sim *VerilatorSimulator) RunTest(
 	// 4. Run the simulation executable with improved timeout handling
 	relExecPath := filepath.Join(".", "obj_dir", "Vtestbench") // Use relative path
 	sim.logger.Debug("Running Verilator command: %s in %s", relExecPath, sim.workDir)
-	cmd := exec.Command(relExecPath)
+	cmd := exec.CommandContext(ctx, relExecPath)
 	cmd.Dir = sim.workDir // Set the working directory for the command
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer
