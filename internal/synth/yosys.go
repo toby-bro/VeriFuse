@@ -183,12 +183,12 @@ func attemptYosysSynth(
 	}
 
 	// Add optimization passes if requested
-	switch rand.Intn(5) {
+	switch rand.Intn(15) {
 	case 0:
 		yosysScript += "; proc; opt; fsm; opt; memory; opt; techmap; opt"
 	case 1:
 		yosysScript += "; synth"
-	case 2, 3, 4:
+	default:
 		// select a random number of optimisations and apply them in a random order from the YOSYS_OPTIMISATON slice
 		numOptimizations := rand.Intn(len(YOSYS_OPTIMISATIONS)) + 1
 		rand.Shuffle(len(YOSYS_OPTIMISATIONS), func(i, j int) {
@@ -226,7 +226,7 @@ func attemptYosysSynth(
 		return fmt.Errorf("yosys %s synthesis failed: %v - %s", synthType, err, stderr.String())
 	}
 	// add a comment with the Yosys script used at the top of the generated file at outputPath
-	comment := fmt.Sprintf("// Yosys script used:\n%s\n", yosysScript)
+	comment := fmt.Sprintf("// Yosys script used:\n// %s\n", yosysScript)
 	if err := utils.PrependToFile(outputPath, comment); err != nil {
 		return fmt.Errorf("failed to add comment to output file: %v", err)
 	}
