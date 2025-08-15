@@ -236,5 +236,5 @@ func PrependToFile(path string, content string) error {
 
 	// Write new content
 	err = os.WriteFile(path, []byte(content+string(existingContent)), 0o644)
-	return EnsureFileWritten(path, err, len(content))
+	return EnsureFileWritten(path, err, (len(content) + len(existingContent)))
 }
