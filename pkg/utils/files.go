@@ -214,3 +214,27 @@ func DeleteFile(path string) error {
 	}
 	return nil
 }
+
+func PrependToFile(path string, content string) error {
+	fileOpMutex.Lock()
+	defer fileOpMutex.Unlock()
+
+	if DEBUG {
+		fmt.Printf("%s[-] Prepending to file %s%s\n", ColorBlue, path, ColorReset)
+	}
+	// Ensure the directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %v", dir, err)
+	}
+
+	// Read existing content
+	existingContent, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read file %s: %v", path, err)
+	}
+
+	// Write new content
+	err = os.WriteFile(path, []byte(content+string(existingContent)), 0o644)
+	return EnsureFileWritten(path, err, len(content))
+}

@@ -4,12 +4,44 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math/rand"
 	"os/exec"
 	"regexp"
 	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/utils"
 )
+
+var YOSYS_OPTIMISATIONS = []string{
+	"opt_expr",
+	"opt_expr -fine",
+	"opt_expr -keepdc",
+	"opt_merge -nomux",
+	"opt",
+	"opt_muxtree",
+	"opt_merge",
+	"opt_rmdff",
+	"opt_clean",
+	"opt_clean -purge",
+	"opt_reduce",
+	"opt_demorgan",
+	"opt_mem",
+	"opt_lut",
+	"opt_dff -nodffe",
+	"opt_dff",
+	"fsm_detect",
+	"fsm",
+	"fsm_extract",
+	"fsm_opt",
+	"fsm_expand",
+	"fsm_recode",
+	"fsm_map",
+	"fsm -norecodec",
+	"abc",
+	"hierarchy",
+	"techmap",
+	"proc",
+}
 
 func TestYosysTool() error {
 	cmdYosys := exec.Command("yosys", "-V") //nolint: noctx
@@ -151,10 +183,18 @@ func attemptYosysSynth(
 	}
 
 	// Add optimization passes if requested
-	if options.Optimized {
+	switch rand.Intn(5) {
+	case 0:
 		yosysScript += "; proc; opt; fsm; opt; memory; opt; techmap; opt"
-	} else {
+	case 1:
 		yosysScript += "; synth"
+	case 2, 3, 4:
+		// select a random number of optimisations and apply them in a random order from the YOSYS_OPTIMISATON slice
+		numOptimizations := rand.Intn(len(YOSYS_OPTIMISATIONS)) + 1
+		rand.Shuffle(len(YOSYS_OPTIMISATIONS), func(i, j int) {
+			YOSYS_OPTIMISATIONS[i], YOSYS_OPTIMISATIONS[j] = YOSYS_OPTIMISATIONS[j], YOSYS_OPTIMISATIONS[i]
+		})
+		yosysScript += "; " + strings.Join(YOSYS_OPTIMISATIONS[:numOptimizations], "; ")
 	}
 
 	// Write output in requested format
@@ -184,6 +224,11 @@ func attemptYosysSynth(
 			synthType = "slang"
 		}
 		return fmt.Errorf("yosys %s synthesis failed: %v - %s", synthType, err, stderr.String())
+	}
+	// add a comment with the Yosys script used at the top of the generated file at outputPath
+	comment := fmt.Sprintf("// Yosys script used:\n%s\n", yosysScript)
+	if err := utils.PrependToFile(outputPath, comment); err != nil {
+		return fmt.Errorf("failed to add comment to output file: %v", err)
 	}
 
 	return nil
