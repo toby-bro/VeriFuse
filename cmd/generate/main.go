@@ -60,9 +60,9 @@ func main() {
 	}
 	var ginv float32
 	if g == 0 {
-		ginv = 0
-	} else {
 		ginv = mutate.Gx()
+	} else {
+		ginv = 1 / float32(g)
 	}
 	mutateSuccessful := mutate.MutateFile(svFile, ginv, "generate", verboseLevel)
 	if !mutateSuccessful {
