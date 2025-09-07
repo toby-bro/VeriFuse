@@ -1,0 +1,37 @@
+Test case 934
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-const -O3
+  CXXRTL: -O0
+  Xcelium: 
+  CXXRTL_Yosys: -O0
+  Verilator_SV2V: -fno-combine -O3
+
+Inputs:
+  rst = 0
+  in_d = 0
+  inj_in_a_1755377830619_624 = 0
+  inj_in_b_1755377830619_91 = 0
+  inj_in_cond_neq_rhs_1755377830619_112 = 0
+  inj_in_not_then_1755377830619_89 = 0
+  clk = 0
+  inj_in_b_1755377830741_259 = 0
+  inj_in_cond_not_1755377830619_249 = 0
+  inj_in_val_1755377830600_794 = 0
+  inj_in_a_1755377830739_416 = 0
+  inj_in_a_1755377830741_970 = 0
+  inj_in_c_1755377830619_518 = 0
+  inj_in_cond_neq_lhs_1755377830619_284 = 0
+  inj_in_not_else_1755377830619_148 = 0
+  inj_in_val_1755377830612_330 = 0
+  inj_select_a_1755377830600_823 = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0000
+    Verilator_SV2V=0000
+    Iverilog=0000
+    CXXRTL=1000
+    CXXRTL_Yosys=1000
+    Xcelium=0000

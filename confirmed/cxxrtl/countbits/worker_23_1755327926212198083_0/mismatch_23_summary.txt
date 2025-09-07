@@ -1,0 +1,27 @@
+Test case 23
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-subst -O3
+  CXXRTL: -O0
+  Xcelium: 
+  CXXRTL_Yosys: -O4
+  Verilator_SV2V: -fno-merge-cond-motion -O3
+
+Inputs:
+  rst = 0
+  in_d = 91
+  clk = 0
+  inj_a_1755327926594_927 = 0
+  inj_b_1755327926594_559 = 0
+  inj_data_in_1755327926602_730 = 0
+  inj_in_packed_data_1755327926592_863 = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0011
+    Verilator_SV2V=0011
+    Iverilog=0011
+    CXXRTL=1000
+    CXXRTL_Yosys=1000
+    Xcelium=0011

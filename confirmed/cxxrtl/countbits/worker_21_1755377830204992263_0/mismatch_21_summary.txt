@@ -1,0 +1,25 @@
+Test case 21
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-life-post -O3
+  CXXRTL: -O4
+  Xcelium: 
+
+Inputs:
+  inj_case_inside_val_1755377830573_7 = 0
+  inj_in_a_1755377830652_305 = 0
+  inj_in_b_1755377830652_350 = 0
+  inj_p_in1_1755377830570_818 = 0
+  inj_p_in2_1755377830570_72 = 0
+  inj_p_mode_1755377830570_231 = 0
+  rst = 0
+  in_d = 4b
+  clk = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0100
+    Iverilog=0100
+    CXXRTL=1000
+    Xcelium=0100

@@ -1,0 +1,21 @@
+Test case 267
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-gate -O3
+  CXXRTL: -O2
+  Xcelium: 
+  Verilator_SV2V: -fno-table -O3
+
+Inputs:
+  rst = 0
+  in_d = e1
+  clk = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0100
+    Verilator_SV2V=0100
+    Iverilog=0100
+    CXXRTL=1000
+    Xcelium=0100

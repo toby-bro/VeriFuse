@@ -1,0 +1,23 @@
+Test case 28
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-localize -O3
+  CXXRTL: -O1
+  Xcelium: 
+  Iverilog_SV2V: 
+
+Inputs:
+  in_d = 5f
+  clk = 0
+  inj_i_val_1755377830519_7 = 0
+  inj_in_1755377830518_867 = 0
+  rst = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0110
+    Iverilog=0110
+    Iverilog_SV2V=0110
+    CXXRTL=1000
+    Xcelium=0110

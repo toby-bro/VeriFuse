@@ -1,0 +1,43 @@
+Test case 23
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-split -O3
+  CXXRTL: -O2
+  CXXSLG: -O2
+  Xcelium: 
+  Verilator_Yosys: -fno-expand -O3
+  CXXSLG_SV2V: -O4
+
+Inputs:
+  in = 0
+  inj_condition_m10_1755351743672_470 = 0
+  inj_data_in_pl_1755351743721_249 = 0
+  inj_in1_1755351743714_553 = 0
+  inj_in3_1755351743714_88 = 0
+  inj_val_true_1755351743831_159 = 0
+  rst = 0
+  clk = 0
+  inj_dcac_start_val_1755351743527_742 = 0
+  inj_in1_1755351743486_683 = 0
+  inj_in2_1755351743486_583 = 0
+  inj_in_val_m10_1755351743672_115 = 0
+  inj_val_false_1755351743831_806 = 0
+
+Mismatched outputs:
+  eq:
+    Verilator=1
+    Verilator_Yosys=1
+    Iverilog=0
+    CXXRTL=1
+    CXXSLG=1
+    CXXSLG_SV2V=1
+    Xcelium=0
+  neq:
+    Verilator=0
+    Verilator_Yosys=0
+    Iverilog=1
+    CXXRTL=0
+    CXXSLG=0
+    CXXSLG_SV2V=0
+    Xcelium=1

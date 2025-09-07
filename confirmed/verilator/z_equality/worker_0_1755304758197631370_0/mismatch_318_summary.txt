@@ -1,0 +1,37 @@
+Test case 318
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-const -O3
+  CXXRTL: -O3
+  CXXSLG: -O3
+  Xcelium: 
+  Verilator_Yosys: -fno-combine -O3
+  CXXSLG_SV2V: -O1
+
+Inputs:
+  in = 0
+  clk = 0
+  inj_control_1755304758505_57 = 0
+  inj_data_a_1755304758505_682 = 0
+  inj_data_b_1755304758505_655 = 0
+  inj_in_val_1755304758570_619 = 0
+  rst = 0
+
+Mismatched outputs:
+  neq:
+    Verilator=0
+    Verilator_Yosys=0
+    Iverilog=1
+    CXXRTL=0
+    CXXSLG=0
+    CXXSLG_SV2V=0
+    Xcelium=1
+  eq:
+    Verilator=1
+    Verilator_Yosys=1
+    Iverilog=0
+    CXXRTL=1
+    CXXSLG=1
+    CXXSLG_SV2V=1
+    Xcelium=0

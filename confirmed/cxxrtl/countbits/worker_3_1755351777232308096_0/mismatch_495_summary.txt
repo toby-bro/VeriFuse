@@ -1,0 +1,22 @@
+Test case 495
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-combine -O3
+  CXXRTL: -O1
+  Xcelium: 
+
+Inputs:
+  in_d = b1
+  clk = 0
+  inj_data0_1755351777564_99 = 0
+  inj_data1_1755351777564_71 = 0
+  inj_sel_1755351777564_214 = 0
+  rst = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0100
+    Iverilog=0100
+    CXXRTL=1000
+    Xcelium=0100

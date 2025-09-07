@@ -1,0 +1,31 @@
+Test case 849
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-gate -O3
+  CXXRTL: -O3
+  CXXSLG: -O3
+  Xcelium: 
+  CXXRTL_SV2V: -O1
+
+Inputs:
+  in = 0
+  clk = 0
+  inj_large_data_in_1755425167553_111 = 0
+  rst = 0
+
+Mismatched outputs:
+  eq:
+    Verilator=1
+    Iverilog=0
+    CXXRTL=1
+    CXXRTL_SV2V=1
+    CXXSLG=1
+    Xcelium=0
+  neq:
+    Verilator=0
+    Iverilog=1
+    CXXRTL=0
+    CXXRTL_SV2V=0
+    CXXSLG=0
+    Xcelium=1

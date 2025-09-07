@@ -1,0 +1,31 @@
+Test case 908
+
+Optimisations:
+  Verilator: -fno-life-post -O3
+  CXXRTL: -O2
+  Xcelium: 
+  CXXRTL_Yosys: -O4
+
+Inputs:
+  inj_start_val_1755327926552_878 = 0
+  inj_wide_a_1755327927255_788 = 0
+  in_d = 0
+  inj_data2_1755327927048_859 = 0
+  inj_data3_1755327927048_672 = 0
+  inj_i_p1_1755327926568_45 = 0
+  inj_wide_b_1755327927268_588 = 0
+  inj_wide_c_1755327927268_34 = 0
+  clk = 0
+  inj_i_in_1755327926544_780 = 0
+  inj_i_p2_1755327926568_809 = 0
+  inj_in_data_1755327926663_217 = 0
+  inj_sel_code_1755327927048_231 = 0
+  inj_data_in_1755327926991_898 = 0
+  rst = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0000
+    CXXRTL=1000
+    CXXRTL_Yosys=1000
+    Xcelium=0000

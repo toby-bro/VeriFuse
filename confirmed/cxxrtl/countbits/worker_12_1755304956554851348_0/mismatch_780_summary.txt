@@ -1,0 +1,27 @@
+Test case 780
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-acyc-simp -O3
+  CXXRTL: -O0
+  Xcelium: 
+  CXXRTL_Yosys: -O0
+
+Inputs:
+  rst = 0
+  inj_b_aa_1755304956884_948 = 0
+  inj_i_in_1755304956891_678 = 0
+  in_d = 34
+  clk = 0
+  inj_c_aa_1755304956884_870 = 0
+  inj_in1_1755304956885_384 = 0
+  inj_in2_1755304956885_264 = 0
+  inj_sel_1755304956885_332 = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0011
+    Iverilog=0011
+    CXXRTL=1000
+    CXXRTL_Yosys=1000
+    Xcelium=0011

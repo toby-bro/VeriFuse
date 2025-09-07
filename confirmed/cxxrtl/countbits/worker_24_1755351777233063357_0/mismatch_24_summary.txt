@@ -1,0 +1,24 @@
+Test case 24
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-assemble -O3
+  CXXRTL: -O2
+  Xcelium: 
+  Verilator_Yosys: -fno-gate -O3
+
+Inputs:
+  inj_data_case_b_1755351777634_656 = 0
+  inj_in_value_1755351777633_372 = 0
+  inj_select_case_1755351777634_128 = 0
+  rst = 0
+  in_d = 9b
+  clk = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0101
+    Verilator_Yosys=0101
+    Iverilog=0101
+    CXXRTL=1000
+    Xcelium=0101

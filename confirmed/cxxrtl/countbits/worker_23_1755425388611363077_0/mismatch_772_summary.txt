@@ -1,0 +1,21 @@
+Test case 772
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-func-opt-balance-cat -O3
+  CXXRTL: -O3
+  Xcelium: 
+
+Inputs:
+  in_d = f2
+  clk = 0
+  inj_condition_y_1755425388970_81 = 0
+  inj_in_val_1755425388934_179 = 0
+  rst = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0101
+    Iverilog=0101
+    CXXRTL=1000
+    Xcelium=0101

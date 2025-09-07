@@ -1,0 +1,21 @@
+Test case 890
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-gate -O3
+  CXXRTL: -O2
+  Xcelium: 
+  Verilator_SV2V: -fno-table -O3
+
+Inputs:
+  in_d = 0
+  clk = 0
+  rst = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0000
+    Verilator_SV2V=0000
+    Iverilog=0000
+    CXXRTL=1000
+    Xcelium=0000

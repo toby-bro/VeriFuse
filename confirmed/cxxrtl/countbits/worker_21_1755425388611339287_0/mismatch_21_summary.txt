@@ -1,0 +1,23 @@
+Test case 21
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-inline -O3
+  CXXRTL: -O3
+  Xcelium: 
+  CXXRTL_SV2V: -O2
+
+Inputs:
+  in_d = a4
+  clk = 0
+  inj_case_expr_1755425388977_720 = 0
+  inj_shift_val_1755425388976_868 = 0
+  rst = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0011
+    Iverilog=0011
+    CXXRTL=1000
+    CXXRTL_SV2V=1000
+    Xcelium=0011

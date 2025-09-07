@@ -1,0 +1,30 @@
+Test case 719
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-dedup -O3
+  CXXRTL: -O1
+  Xcelium: 
+  Iverilog_Yosys: 
+
+Inputs:
+  inj_in_a_1755327926597_456 = 0
+  inj_in_b_1755327926597_288 = 0
+  inj_in_val_1755327926679_968 = 0
+  inj_in_val_1755327927134_292 = 0
+  inj_wdata_1755327926605_780 = 0
+  inj_wide_a_1755327927347_668 = 0
+  clk = 0
+  inj_condition_m10_1755327926899_772 = 0
+  inj_wide_b_1755327927347_670 = 0
+  rst = 0
+  in_d = 29
+  inj_c_1755327926877_515 = 0
+
+Mismatched outputs:
+  cnt:
+    Verilator=0011
+    Iverilog=0011
+    Iverilog_Yosys=0011
+    CXXRTL=1000
+    Xcelium=0011

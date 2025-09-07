@@ -1,0 +1,34 @@
+Test case 892
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-expand -O3
+  CXXRTL: -O1
+  CXXSLG: -O3
+  Xcelium: 
+  CXXRTL_Yosys: -O0
+  CXXRTL_SV2V: -O2
+
+Inputs:
+  in = 0
+  clk = 0
+  inj_i_target_data_1755425167519_276 = 0
+  rst = 0
+
+Mismatched outputs:
+  eq:
+    Verilator=1
+    Iverilog=0
+    CXXRTL=1
+    CXXRTL_Yosys=1
+    CXXRTL_SV2V=1
+    CXXSLG=1
+    Xcelium=0
+  neq:
+    Verilator=0
+    Iverilog=1
+    CXXRTL=0
+    CXXRTL_Yosys=0
+    CXXRTL_SV2V=0
+    CXXSLG=0
+    Xcelium=1
