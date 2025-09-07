@@ -1,0 +1,30 @@
+Test case 752
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-merge-cond -O3
+  CXXRTL: -O4
+  CXXSLG: -O4
+  Xcelium: 
+  CXXRTL_SV2V: -O3
+
+Inputs:
+  inj_in_val_a_l_1755356032565_367 = 0
+  inj_p_a_1755356032531_261 = 0
+  inj_p_b_1755356032531_46 = 0
+  rst = 0
+  clk = 0
+  inj_in_its_1755356032428_511 = 0
+  inj_in_q_1755356032435_222 = 0
+  inj_in_val_b_l_1755356032565_172 = 0
+  in_data = 13c8
+  inj_in_bit_1755356032427_491 = 0
+
+Mismatched outputs:
+  inj_packed_out_1755356032583_802:
+    Verilator=0000000000000000
+    Iverilog=0001001100000000
+    CXXRTL=0001001100000000
+    CXXRTL_SV2V=0001001100000000
+    CXXSLG=0001001100000000
+    Xcelium=0001001100000000

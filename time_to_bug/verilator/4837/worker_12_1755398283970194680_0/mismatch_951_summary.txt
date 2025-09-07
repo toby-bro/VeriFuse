@@ -1,0 +1,25 @@
+Test case 951
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-dfg-peephole -O3
+  CXXRTL: -O0
+  CXXSLG: -O1
+  Xcelium: 
+  CXXSLG_SV2V: -O0
+
+Inputs:
+  inj_en_1755398284271_120 = 0
+  inj_in1_1755398284270_206 = 0
+  inj_in2_1755398284270_577 = 0
+  rst = 0
+  bus_in = ffffffff
+  clk = 0
+
+Mismatched outputs:
+  bus_out:
+    Verilator=11111111000000001111111111111111
+    Iverilog=11111111111111111111111111111111
+    CXXRTL=11111111111111111111111111111111
+    CXXSLG=11111111111111111111111111111111
+    Xcelium=11111111111111111111111111111111

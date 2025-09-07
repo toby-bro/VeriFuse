@@ -1,0 +1,33 @@
+Test case 396
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-const-bit-op-tree -O3
+  CXXRTL: -O4
+  CXXSLG: -O4
+  Xcelium: 
+  CXXRTL_Yosys: -O1
+  Iverilog_SV2V: 
+
+Inputs:
+  inj_in_false_d_1755301683159_692 = 0
+  inj_in_port_1755301683145_593 = 0
+  inj_in_true_d_1755301683159_497 = 0
+  bus_in = 93b8cf54
+  clk = 0
+  inj_a_1755301683265_754 = 0
+  inj_b_1755301683265_298 = 0
+  inj_data_value_1755301683149_555 = 0
+  inj_level1_en_1755301683149_533 = 0
+  inj_level2_en_1755301683149_657 = 0
+  rst = 0
+
+Mismatched outputs:
+  bus_out:
+    Verilator=01010100000000001011100010010011
+    Iverilog=01010100110011111011100010010011
+    Iverilog_SV2V=01010100110011111011100010010011
+    CXXRTL=01010100110011111011100010010011
+    CXXRTL_Yosys=01010100110011111011100010010011
+    CXXSLG=01010100110011111011100010010011
+    Xcelium=01010100110011111011100010010011

@@ -1,0 +1,20 @@
+Test case 377
+
+Optimisations:
+  Verilator: -fno-case -O3
+  CXXSLG: -O1
+  Xcelium: 
+
+Inputs:
+  select_in = f
+  clk = 0
+  inj_b_1755335546256_464 = 0
+  inj_i_data_1755335546263_189 = 0
+  rst = 0
+  data_in_a = ff
+  data_in_b = 15
+
+Mismatched outputs:
+  inj_out_vec_1755335546262_949:
+    Verilator=10000001
+    CXXSLG=11111111

@@ -1,0 +1,33 @@
+Test case 612
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-subst -O3
+  CXXRTL: -O0
+  CXXSLG: -O4
+  Xcelium: 
+  CXXRTL_SV2V: -O3
+
+Inputs:
+  clk = 0
+  inj_condition_p_1755349247876_821 = 0
+  inj_in1_1755349247823_835 = 0
+  inj_in_a_1755349248068_320 = 0
+  inj_in_b_1755349248068_169 = 0
+  rst = 0
+  inj_addr_1755349247946_317 = 0
+  inj_data_in_1755349247855_714 = 0
+  inj_in2_1755349247823_350 = 0
+  inj_in2_1755349248078_519 = 0
+  inj_in_c_1755349248068_465 = 0
+  inj_sel_in_1755349247855_410 = 0
+  bus_in = ffffffff
+
+Mismatched outputs:
+  bus_out:
+    Verilator=11111111000000001111111111111111
+    Iverilog=11111111111111111111111111111111
+    CXXRTL=11111111111111111111111111111111
+    CXXRTL_SV2V=11111111111111111111111111111111
+    CXXSLG=11111111111111111111111111111111
+    Xcelium=11111111111111111111111111111111

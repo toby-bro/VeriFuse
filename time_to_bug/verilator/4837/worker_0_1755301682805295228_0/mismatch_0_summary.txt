@@ -1,0 +1,24 @@
+Test case 0
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-localize -O3
+  CXXRTL: -O1
+  CXXSLG: -O0
+  Xcelium: 
+  CXXSLG_SV2V: -O4
+
+Inputs:
+  inj_select_a_1755301683136_508 = 0
+  rst = 0
+  bus_in = bb6fc770
+  clk = 0
+
+Mismatched outputs:
+  bus_out:
+    Verilator=  01110000000000000110111110111011
+    Iverilog=   01110000110001110110111110111011
+    CXXRTL=     01110000110001110110111110111011
+    CXXSLG=     01110000110001110110111110111011
+    CXXSLG_SV2V=01110000110001110110111110111011
+    Xcelium=    01110000110001110110111110111011

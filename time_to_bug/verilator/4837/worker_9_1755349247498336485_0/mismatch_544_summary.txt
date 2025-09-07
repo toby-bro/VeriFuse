@@ -1,0 +1,24 @@
+Test case 544
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-const -O3
+  CXXRTL: -O2
+  CXXSLG: -O4
+  Xcelium: 
+  CXXSLG_SV2V: -O4
+
+Inputs:
+  bus_in = ffffffff
+  clk = 0
+  inj_in_data_1755349247825_180 = 0
+  rst = 0
+
+Mismatched outputs:
+  bus_out:
+    Verilator=11111111000000001111111111111111
+    Iverilog=11111111111111111111111111111111
+    CXXRTL=11111111111111111111111111111111
+    CXXSLG=11111111111111111111111111111111
+    CXXSLG_SV2V=11111111111111111111111111111111
+    Xcelium=11111111111111111111111111111111

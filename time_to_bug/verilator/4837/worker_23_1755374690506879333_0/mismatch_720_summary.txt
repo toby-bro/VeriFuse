@@ -1,0 +1,27 @@
+Test case 720
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-table -O3
+  CXXRTL: -O3
+  CXXSLG: -O1
+  Xcelium: 
+  CXXRTL_Yosys: -O4
+  Iverilog_SV2V: 
+  CXXSLG_Vivado: -O4
+
+Inputs:
+  clk = 0
+  inj_data_in_1755374690838_411 = 0
+  inj_en_1755374690838_231 = 0
+  inj_packed_in_1755374690832_418 = 0
+  rst = 0
+  bus_in = a69ffd38
+
+Mismatched outputs:
+  bus_out:
+    Verilator=00111000000000001001111110100110
+    Iverilog=00111000111111011001111110100110
+    CXXRTL=00111000111111011001111110100110
+    CXXSLG=00111000111111011001111110100110
+    Xcelium=00111000111111011001111110100110

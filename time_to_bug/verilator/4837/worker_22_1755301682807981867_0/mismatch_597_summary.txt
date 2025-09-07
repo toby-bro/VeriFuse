@@ -1,0 +1,28 @@
+Test case 597
+
+Optimisations:
+  Iverilog: 
+  Verilator: -fno-merge-cond-pool -O3
+  CXXRTL: -O0
+  CXXSLG: -O2
+  Xcelium: 
+  CXXRTL_Yosys: -O2
+  Verilator_SV2V: -fno-merge-cond-pool -O3
+
+Inputs:
+  inj_in1_1755301683136_381 = 0
+  inj_in2_1755301683136_197 = 0
+  inj_in_data_1755301683231_169 = 0
+  rst = 0
+  bus_in = 6ea15d7d
+  clk = 0
+
+Mismatched outputs:
+  bus_out:
+    Verilator=01111101000000001010000101101110
+    Verilator_SV2V=01111101000000001010000101101110
+    Iverilog=01111101010111011010000101101110
+    CXXRTL=01111101010111011010000101101110
+    CXXRTL_Yosys=01111101010111011010000101101110
+    CXXSLG=01111101010111011010000101101110
+    Xcelium=01111101010111011010000101101110
