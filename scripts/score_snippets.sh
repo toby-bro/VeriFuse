@@ -81,7 +81,7 @@ echo ""
 echo "Running snippet scoring..."
 
 
-for snippet in $(pwd)/isolated/*/*.sv ; do
+for snippet in $(pwd)/../generated0.5/*.sv ; do
     if [ -f ${snippet}.sscr ]; then
         # already scored, we skip to the next
         continue
@@ -95,7 +95,7 @@ for snippet in $(pwd)/isolated/*/*.sv ; do
     echo "Processing snippet: $snippet in temporary directory: $tmp"
     snippet_file_base=$(basename "$snippet")
     cp "$snippet" "$tmp/$snippet_file_base"
-    ./testbench -d "$tmp" "$snippet"
+    ./testbench -top snippet -d "$tmp" "$snippet"
     (cd $tmp && mkdir iverilog verilator yosys cxxrtl sv2v cxxslg)
     if [ $SIMULATORS_AVAILABLE -gt 0 ]; then
         if command -v iverilog >/dev/null 2>&1; then
@@ -147,7 +147,7 @@ for snippet in $(pwd)/isolated/*/*.sv ; do
 
         # --- CXXRTL simulation (plain) ---
         if command -v yosys &>/dev/null && command -v g++ >/dev/null 2>&1; then
-            (cd "$tmp" && yosys -q -p "read_verilog -sv $snippet_file_base; check -assert ; prep -top ${snippet_file_base%.*}; write_cxxrtl cxxrtl/${snippet_file_base%.*}.cc" &>/dev/null)
+            (cd "$tmp" && yosys -q -p "read_verilog -sv $snippet_file_base; check -assert ; prep -top snippet; write_cxxrtl cxxrtl/snippet.cc" &>/dev/null)
             if [ $? -ne 0 ]; then
                 echo "Yosys CXXRTL generation failed for $snippet_file_base"
             else
@@ -168,7 +168,7 @@ for snippet in $(pwd)/isolated/*/*.sv ; do
 
         # --- CXXRTL simulation (with slang) ---
         if command -v yosys &>/dev/null && command -v g++ >/dev/null 2>&1 && yosys -m slang -p 'help' &>/dev/null; then
-            (cd "$tmp" && yosys -q -m slang -p "read_slang $snippet_file_base --top ${snippet_file_base%.*}; check -assert ; prep -top ${snippet_file_base%.*}; write_cxxrtl cxxslg/${snippet_file_base%.*}.cc" &>/dev/null)
+            (cd "$tmp" && yosys -q -m slang -p "read_slang $snippet_file_base --top snippet; check -assert ; prep -top snippet; write_cxxrtl cxxslg/snippet.cc" &>/dev/null)
             if [ $? -ne 0 ]; then
                 echo "Yosys CXXRTL slang generation failed for $snippet_file_base"
             else
@@ -188,12 +188,12 @@ for snippet in $(pwd)/isolated/*/*.sv ; do
         fi
 
         if command -v yosys >/dev/null 2>&1; then
-            (cd ${tmp}/yosys && yosys -q -p "read_verilog -sv ${snippet}; check -assert ; prep -top ${snippet_file_base%.*}; synth; write_verilog -noattr $snippet_file_base.v" &>/dev/null)
+            (cd ${tmp}/yosys && yosys -q -p "read_verilog -sv ${snippet}; check -assert ; prep -top snippet; synth; write_verilog -noattr $snippet_file_base.v" &>/dev/null)
             if [ $? -eq 0 ]; then
                 echo "Yosys synthesis succeeded for $snippet_file_base"
                 synth_score=$((synth_score + 1))
             else
-                (cd ${tmp}/yosys && yosys -q -m slang -p "read_slang ${snippet} --top ${snippet_file_base%.*}; prep -top ${snippet_file_base%.*}; synth; write_verilog -noattr ${snippet_file_base%.*}.v" &>/dev/null)
+                (cd ${tmp}/yosys && yosys -q -m slang -p "read_slang ${snippet} --top snippet; prep -top snippet; synth; write_verilog -noattr ${snippet_file_base%.*}.v" &>/dev/null)
                 if [ $? -eq 0 ]; then
                     echo "Yosys slang synthesis succeeded for $snippet_file_base"
                     synth_score=$((synth_score + 1))
@@ -203,7 +203,7 @@ for snippet in $(pwd)/isolated/*/*.sv ; do
             fi
         fi
         if command -v sv2v >/dev/null 2>&1; then
-            (cd $tmp/sv2v && sv2v --top ${snippet_file_base%.*} ../${snippet_file_base} -w $snippet_file_base.v &>/dev/null)
+            (cd $tmp/sv2v && sv2v --top snippet ../${snippet_file_base} -w $snippet_file_base.v &>/dev/null)
             if [ $? -eq 0 ]; then
                 echo "SV2V conversion succeeded for $snippet_file_base"
                 synth_score=$((synth_score + 1))
