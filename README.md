@@ -32,6 +32,7 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
 
 - Verilator
   - [Incorrect handling of `x` in if blocks `(if (x) else )`](https://github.com/verilator/verilator/issues/6199)
+  - [Fix static variable initialization in procedural blocks](https://github.com/verilator/verilator/issues/6462)
 - Yosys
   - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/YosysHQ/yosys/issues/5151)
   - [`read_verilog`: `inout` parameters not copied out of tasks](https://github.com/YosysHQ/yosys/issues/5157)
