@@ -9,11 +9,6 @@ echo "This script will score all snippets in the isolated/ directory"
 echo "against available simulators and synthesizers."
 echo ""
 
-# Check if pfuzz binary exists
-if [ ! -f "./pfuzz" ]; then
-    echo "Error: pfuzz binary not found. Please run 'go build -o pfuzz cmd/pfuzz/main.go' first."
-    exit 1
-fi
 
 # Check for available tools
 echo "Checking available tools..."
@@ -81,7 +76,8 @@ echo ""
 echo "Running snippet scoring..."
 
 
-for snippet in $(pwd)/../generated0.5/*.sv ; do
+#for snippet in $(pwd)/generated/*/*.sv ; do
+for snippet in $(pwd)/collapse/*/*.sv ; do
     if [ -f ${snippet}.sscr ]; then
         # already scored, we skip to the next
         continue
@@ -135,7 +131,7 @@ for snippet in $(pwd)/../generated0.5/*.sv ; do
                 -Wno-CASEX \
                 ../testbench.sv \
                 ../"$snippet_file_base" \
-                &>/dev/null)
+            &>/dev/null)
             if [ $? -eq 0 ]; then
                 (cd ${tmp}/verilator && ./obj_dir/Vtestbench &>/dev/null) && echo "Verilator simulation succeeded for $snippet_file_base"
                 sim_score=$((sim_score + 2))

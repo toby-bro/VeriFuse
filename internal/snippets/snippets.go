@@ -165,6 +165,18 @@ func px(g float32, avg float32, target float32) float32 {
 	return (target*(1-avg) + g*avg*(target-1)) / ((1 - avg) * (g + target - target*g))
 }
 
+func GetCompletelyRandomSnippet(verbose int, _ float32, _ float32) (*Snippet, error) {
+	logger.SetVerboseLevel(verbose)
+	snippets, _, err := getSnippets()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get snippets: %v", err)
+	}
+	if len(snippets) == 0 {
+		return nil, errors.New("no snippets available")
+	}
+	return snippets[rand.Intn(len(snippets))], nil
+}
+
 func GetRandomSnippet(verbose int, g float32, target float32) (*Snippet, error) {
 	logger.SetVerboseLevel(verbose)
 	goodSnippets, complicatedSnippets, badAvg, err := GetSplitedSnippets()

@@ -691,6 +691,7 @@ func MutateFile( //nolint: revive
 	if g == 0 {
 		g = Gx()
 	}
+	cc := 0
 	loadLogger(verbose)
 	fileName := svFile.Name
 	mutatedOverall := false
@@ -716,7 +717,7 @@ func MutateFile( //nolint: revive
 				continue
 			}
 
-			snippet, err := snippets.GetRandomSnippet(verbose, g, target)
+			snippet, err := snippets.GetCompletelyRandomSnippet(verbose, g, target)
 			if err != nil {
 				logger.Warn(
 					"[%s] Failed to get snippet for module %s: %v. Skipping mutation for this module.",
@@ -806,9 +807,13 @@ func MutateFile( //nolint: revive
 				fileName,
 			)
 		}
-		if rand.Float32() < g {
+		cc++
+		if float32(cc) >= float32(1)/g-0.05 {
 			break
 		}
+		// if rand.Float32() < g {
+		// 	break
+		// }
 	}
 	return mutatedOverall
 }

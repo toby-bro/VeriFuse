@@ -1432,7 +1432,7 @@ func TestMatchClassInstantiationsFromStringEdgeCases(t *testing.T) {
 
 func TestParseTransFuzzFile(t *testing.T) {
 	// skip this test
-	t.Skip("Skipping local only test")
+	// t.Skip("Skipping local only test")
 	fmt.Printf("Modules regex, \n%s\n", generalModuleRegex.String())
 	fmt.Printf("Classes regex, \n%s\n", generalClassRegex.String())
 	rootDir, err := utils.GetRootDir()
@@ -1441,7 +1441,7 @@ func TestParseTransFuzzFile(t *testing.T) {
 	}
 	filename := filepath.Join(
 		rootDir,
-		"testfiles/transfuzzTestFiles/obj_dir_example_sim_1000001/topi.sv",
+		"isolated/LoopStatements/module_assignments_in_loops.sv",
 	)
 	fileContent, err := utils.ReadFileContent(filename)
 	if err != nil {
@@ -1466,7 +1466,9 @@ func TestParseTransFuzzFile(t *testing.T) {
 	if sc == nil {
 		t.Fatalf("Scope tree is nil")
 	}
-	t.Skip("Skipping printing Verilog file")
+	fmt.Printf("Scope tree: \n%s\n", sc.Dump(1))
+
+	// t.Skip("Skipping printing Verilog file")
 	output, err := PrintVerilogFile(svFile)
 	if err != nil {
 		t.Fatalf("Failed to print Verilog file: %v", err)
