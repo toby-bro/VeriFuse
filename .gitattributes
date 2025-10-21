@@ -2,4 +2,4 @@ snippets/** linguist-vendored
 isolated/** linguist-vendored
 confirmed/** linguist-vendored
 
-**/*.sscr linguist-generated
+*.sscr* linguist-generated
