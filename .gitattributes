@@ -3,3 +3,6 @@ isolated/** linguist-vendored
 confirmed/** linguist-vendored
 
 *.sscr* linguist-generated
+
+mismatches*/** linguist-vendored
+confirmed/** linguist-vendored
