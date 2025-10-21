@@ -6,3 +6,6 @@ confirmed/** linguist-vendored
 
 mismatches*/** linguist-vendored
 confirmed/** linguist-vendored
+
+**/worker_*/** linguist-generated
+
