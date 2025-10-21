@@ -1,16 +1,7 @@
-# pfuzz
+# pfuzz - VeriFuse
 
 P stands for parser and not python which was the original idea and the reason for the name.
 Other suggested names are:
-
-| Name       | Votes |
-| ---------- | ----- |
-| pfuzz      | 0     |
-| parsifuzz  | #rems     |
-| parsifluzz | #flo     |
-| parsifleur | 0     |
-
-The objective of this project is to create a fuzzing tool to fuzz system verilog simulators.
 
 ## Features
 
@@ -37,11 +28,14 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
   - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/YosysHQ/yosys/issues/5151)
   - [`read_verilog`: `inout` parameters not copied out of tasks](https://github.com/YosysHQ/yosys/issues/5157)
   - [Incorrect handling of `x` in if blocks `(if (x) else )`](https://github.com/YosysHQ/yosys/issues/5238)
+  - [Interface and modport support bug ?](https://github.com/YosysHQ/yosys/issues/5366)
 - yosys-slang
   - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/povik/yosys-slang/issues/161)
   - [Incorrect handling of `wor`](https://github.com/povik/yosys-slang/issues/212)
 - Xcelium
   - Scheduling semantics violation
+- cxxrtl
+  - [cxxrtl: -O1 optimisation unbuffers wires too permissively](https://github.com/YosysHQ/yosys/issues/5371)
 
 ### Low quality bugs
 
@@ -55,6 +49,8 @@ The objective of this project is to create a fuzzing tool to fuzz system verilog
   - Is it a posedge if there is no transition from 0 to 1 but an intialisation value already at one, same for negedge (cxxrtl does not agree with the other simulators about this)
 - Transfuzz bugs not fixed yet
   - [`opt_muxtree` broken optimisation](https://github.com/YosysHQ/yosys/issues/4151)
+- Non exploitable and duplicate
+  - [yosys-slang: weird assignement to int error](https://github.com/povik/yosys-slang/issues/230)
 
 ## Example usage
 

@@ -16,4 +16,6 @@ This list includes : undefined behaviour as well as implementation dependant cho
   - CXXRTL gives 1
   - icarus gives x
   - vlator gives 0
+- ferror with invalid file descriptor
+- use of random probability laws
 
