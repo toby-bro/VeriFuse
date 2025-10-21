@@ -23,6 +23,7 @@ patterns
 !cmd/patterns
 ibex_*.sv
 backups
+worker_*/
 
 tmp/
 
