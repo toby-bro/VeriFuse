@@ -9,14 +9,11 @@ GOTESTFILES=$(shell find . -name '*_test.go')
 ALLGOFILES=$(shell find . -name '*.go')
 SVFILES=$(shell find snippets -name '*.sv')
 
-pre-commit-hook: .git/hooks/pre-commit 
-
-.git/hooks/pre-commit:
-	touch .git/hooks/pre-commit
-	@echo "#!/bin/sh" > .git/hooks/pre-commit
-	@echo "make lint" >> .git/hooks/pre-commit
-	@echo "make tests" >> .git/hooks/pre-commit
-	chmod +x .git/hooks/pre-commit
+.PHONY: pre-commit-hook
+pre-commit-hook: .pre-commit
+	@chmod +x .pre-commit
+	@ln -sf ../../.pre-commit .git/hooks/pre-commit
+	@echo "Pre-commit hook installed"
 
 .PHONY: build-fuzzer
 build-fuzzer: pfuzz
