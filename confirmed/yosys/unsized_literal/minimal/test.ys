@@ -1,0 +1,14 @@
+read_verilog -sv <<EOF
+module top (
+    output logic [3:0] o
+);
+   localparam logic [3:0] L1 = '1;
+   assign o = L1;
+   always_comb assert(o == 4'b1111);
+endmodule
+EOF
+
+prep -top top
+chformal -lower
+select top
+sat -prove-asserts -verify
