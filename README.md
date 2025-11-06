@@ -37,6 +37,7 @@ Other suggested names are:
   - Scheduling semantics violation
 - cxxrtl
   - [cxxrtl: -O1 optimisation unbuffers wires too permissively](https://github.com/YosysHQ/yosys/issues/5371)
+  - [cxxrtl: timing bug in flip-flop evaluation](https://github.com/YosysHQ/yosys/issues/5471)
 
 ### Low quality bugs
 
@@ -48,7 +49,8 @@ Other suggested names are:
   - [Simulation error in always @* block ?](https://github.com/steveicarus/iverilog/issues/1254)
     This bug is interesting because icarus verilog is the only one of the free simulators to correctly handle this initialisation, but did not want to bother the other repos for the moment (if I am desperate for opening issues then so be it)
   - Is it a posedge if there is no transition from 0 to 1 but an intialisation value already at one, same for negedge (cxxrtl does not agree with the other simulators about this)
-- Transfuzz bugs not fixed yet
+- Previously known
+  - [The out-of-bounds part-select write behavior is inconsistent with IEEE](https://github.com/verilator/verilator/issues/2984)
   - [`opt_muxtree` broken optimisation](https://github.com/YosysHQ/yosys/issues/4151)
 - Non exploitable and duplicate
   - [yosys-slang: weird assignement to int error](https://github.com/povik/yosys-slang/issues/230)
