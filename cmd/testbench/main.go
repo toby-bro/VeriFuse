@@ -115,59 +115,72 @@ func main() {
 	gen := testgen.NewGenerator(module, inputPath, vf)
 
 	if outputDir != "" {
-		// Use the provided output directory
-		if !*skipInputs {
-			// Generate and write input files for all input ports (like generateAndPrepareInputs)
-			// Skip clock and reset ports as they are handled separately in the testbench
-			clockPorts, resetPorts, _ := verilog.IdentifyClockAndResetPorts(module)
-
-			inputs := make(map[string]string)
-			for _, port := range module.Ports {
-				if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-					portName := strings.TrimSpace(port.Name)
-
-					// Skip clock ports
-					isClockPort := false
-					for _, clk := range clockPorts {
-						if portName == clk.Name {
-							isClockPort = true
-							break
-						}
-					}
-
-					// Skip reset ports
-					isResetPort := false
-					for _, rst := range resetPorts {
-						if portName == rst.Name {
-							isResetPort = true
-							break
-						}
-					}
-
-					if !isClockPort && !isResetPort {
-						inputs[port.Name] = "0" // You can replace this with your strategy if desired
-					}
-				}
-			}
-			for portName, value := range inputs {
-				inputPath := filepath.Join(outputDir, fmt.Sprintf("input_%s.hex", portName))
-				if err := os.WriteFile(inputPath, []byte(value), 0o644); err != nil {
-					fmt.Fprintf(os.Stderr, "Error writing input file %s: %v\n", inputPath, err)
-					os.Exit(1)
-				}
-			}
-		}
-		if err := gen.GenerateTestbenchesInDir(outputDir); err != nil {
-			fmt.Fprintf(os.Stderr, "Error generating SystemVerilog testbench: %v\n", err)
-			os.Exit(1)
-		}
-		if err := gen.GenerateCXXRTLTestbench(outputDir); err != nil {
-			fmt.Fprintf(os.Stderr, "Error generating CXXRTL testbench: %v\n", err)
-			os.Exit(1)
-		}
+		runWithOutputDir(outputDir, gen, module, skipInputs)
 		return
 	}
 
+	runWithoutOutputDir(gen, module)
+}
+
+func runWithOutputDir(
+	outputDir string,
+	gen *testgen.Generator,
+	module *verilog.Module,
+	skipInputs *bool,
+) {
+	// Use the provided output directory
+	if !*skipInputs {
+		// Generate and write input files for all input ports (like generateAndPrepareInputs)
+		// Skip clock and reset ports as they are handled separately in the testbench
+		clockPorts, resetPorts, _ := verilog.IdentifyClockAndResetPorts(module)
+
+		inputs := make(map[string]string)
+		for _, port := range module.Ports {
+			if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
+				portName := strings.TrimSpace(port.Name)
+
+				// Skip clock ports
+				isClockPort := false
+				for _, clk := range clockPorts {
+					if portName == clk.Name {
+						isClockPort = true
+						break
+					}
+				}
+
+				// Skip reset ports
+				isResetPort := false
+				for _, rst := range resetPorts {
+					if portName == rst.Name {
+						isResetPort = true
+						break
+					}
+				}
+
+				if !isClockPort && !isResetPort {
+					inputs[port.Name] = "0" // You can replace this with your strategy if desired
+				}
+			}
+		}
+		for portName, value := range inputs {
+			inputPath := filepath.Join(outputDir, fmt.Sprintf("input_%s.hex", portName))
+			if err := os.WriteFile(inputPath, []byte(value), 0o644); err != nil {
+				fmt.Fprintf(os.Stderr, "Error writing input file %s: %v\n", inputPath, err)
+				os.Exit(1)
+			}
+		}
+	}
+	if err := gen.GenerateTestbenchesInDir(outputDir); err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating SystemVerilog testbench: %v\n", err)
+		os.Exit(1)
+	}
+	if err := gen.GenerateCXXRTLTestbench(outputDir); err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating CXXRTL testbench: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func runWithoutOutputDir(gen *testgen.Generator, module *verilog.Module) {
 	// Default: generate a testbench with hardcoded random inputs and print to stdout
 	// Import the strategy here to avoid cycles
 	randomStrategy := struct {
