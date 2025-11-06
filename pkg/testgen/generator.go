@@ -212,15 +212,8 @@ func (g *Generator) generateSVInputReads(
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
 
-			// Skip clock and reset ports, handled separately
-			isClockPort := false
-			for _, clockPort := range clockPorts {
-				if portName == clockPort.Name {
-					isClockPort = true
-					break
-				}
-			}
-			if isClockPort || slices.Contains(resetPorts, port) {
+			// Skip clock and reset ports - they are handled separately
+			if isClockOrResetPort(portName, clockPorts, resetPorts) {
 				// Initialize clocks and reset to 0 (or appropriate initial state if needed later)
 				inputReads.WriteString(fmt.Sprintf("        %s = 0;\n", portName))
 				continue
@@ -577,9 +570,17 @@ func getCXXRTLSetMethod(port *verilog.Port) string {
 
 func (g *Generator) generateCXXRTLInputDeclarations() string {
 	var inputDecls strings.Builder
+	clockPorts, resetPorts, _ := verilog.IdentifyClockAndResetPorts(g.module)
+
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
+
+			// Skip clock and reset ports - they are handled separately
+			if isClockOrResetPort(portName, clockPorts, resetPorts) {
+				continue
+			}
+
 			varDeclType := getCXXRTLTestbenchVarType(port) // Use testbench variable type
 			inputDecls.WriteString(fmt.Sprintf("    %s %s;\n", varDeclType, portName))
 		}
@@ -587,11 +588,38 @@ func (g *Generator) generateCXXRTLInputDeclarations() string {
 	return inputDecls.String()
 }
 
+// isClockOrResetPort checks if a port name matches any clock or reset port
+func isClockOrResetPort(
+	portName string,
+	clockPorts []*verilog.Port,
+	resetPorts []*verilog.Port,
+) bool {
+	for _, clk := range clockPorts {
+		if portName == clk.Name {
+			return true
+		}
+	}
+	for _, rst := range resetPorts {
+		if portName == rst.Name {
+			return true
+		}
+	}
+	return false
+}
+
 func (g *Generator) generateCXXRTLInputReads() string {
 	var inputReads strings.Builder
+	clockPorts, resetPorts, _ := verilog.IdentifyClockAndResetPorts(g.module)
+
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
+
+			// Skip clock and reset ports - they are handled separately
+			if isClockOrResetPort(portName, clockPorts, resetPorts) {
+				continue
+			}
+
 			fileName := fmt.Sprintf("input_%s.hex", portName)
 			cppFilePath := strings.ReplaceAll(fileName, "\\", "\\\\")
 			varDeclType := getCXXRTLTestbenchVarType(port)
@@ -781,9 +809,17 @@ func (g *Generator) generateCXXRTLInputReads() string {
 
 func (g *Generator) generateCXXRTLInputApply(instanceName string) string {
 	var inputApply strings.Builder
+	clockPorts, resetPorts, _ := verilog.IdentifyClockAndResetPorts(g.module)
+
 	for _, port := range g.module.Ports {
 		if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
 			portName := strings.TrimSpace(port.Name)
+
+			// Skip clock and reset ports - they are handled separately
+			if isClockOrResetPort(portName, clockPorts, resetPorts) {
+				continue
+			}
+
 			mangledPortName := cxxrtlManglePortName(portName)
 			setMethod := getCXXRTLSetMethod(port)
 
@@ -813,34 +849,77 @@ func (g *Generator) generateCXXRTLResetLogic(
 	var resetLogic strings.Builder
 	mangledResetPortName := cxxrtlManglePortName(resetPortName)
 	resetLogic.WriteString(fmt.Sprintf("\n    // Toggle reset signal %s\n", mangledResetPortName))
-	const resetSignalType = "bool" // Reset is single bit
+
+	// Use _set_port_value consistently to avoid API mixing issues
+	setMethod := "_set_port_value<bool>"
+
+	// Initialize reset to inactive state first and step to sync
 	if isActiveHigh {
 		resetLogic.WriteString(
 			fmt.Sprintf(
-				"    %s.%s.set<%s>(true); // Assert reset (active high)\n",
+				"    %s(%s.%s, false); // Initialize reset to inactive (active high reset)\n",
+				setMethod,
 				instanceName,
 				mangledResetPortName,
-				resetSignalType,
 			),
 		)
 	} else {
-		resetLogic.WriteString(fmt.Sprintf("    %s.%s.set<%s>(false); // Assert reset (active low)\n", instanceName, mangledResetPortName, resetSignalType))
+		resetLogic.WriteString(
+			fmt.Sprintf(
+				"    %s(%s.%s, true); // Initialize reset to inactive (active low reset)\n",
+				setMethod,
+				instanceName,
+				mangledResetPortName,
+			),
+		)
+	}
+	resetLogic.WriteString(
+		fmt.Sprintf("    %s.step(); // Step to sync initial reset state\n", instanceName),
+	)
+
+	// Now assert reset
+	if isActiveHigh {
+		resetLogic.WriteString(
+			fmt.Sprintf(
+				"    %s(%s.%s, true); // Assert reset (active high)\n",
+				setMethod,
+				instanceName,
+				mangledResetPortName,
+			),
+		)
+	} else {
+		resetLogic.WriteString(
+			fmt.Sprintf(
+				"    %s(%s.%s, false); // Assert reset (active low)\n",
+				setMethod,
+				instanceName,
+				mangledResetPortName,
+			),
+		)
 	}
 	resetLogic.WriteString(
 		fmt.Sprintf("    %s.step(); // Step to propagate reset assertion\n", instanceName),
 	)
 
+	// De-assert reset
 	if isActiveHigh {
 		resetLogic.WriteString(
 			fmt.Sprintf(
-				"    %s.%s.set<%s>(false); // De-assert reset\n",
+				"    %s(%s.%s, false); // De-assert reset\n",
+				setMethod,
 				instanceName,
 				mangledResetPortName,
-				resetSignalType,
 			),
 		)
 	} else {
-		resetLogic.WriteString(fmt.Sprintf("    %s.%s.set<%s>(true); // De-assert reset\n", instanceName, mangledResetPortName, resetSignalType))
+		resetLogic.WriteString(
+			fmt.Sprintf(
+				"    %s(%s.%s, true); // De-assert reset\n",
+				setMethod,
+				instanceName,
+				mangledResetPortName,
+			),
+		)
 	}
 	resetLogic.WriteString(
 		fmt.Sprintf("    %s.step(); // Step to propagate reset de-assertion\n", instanceName),

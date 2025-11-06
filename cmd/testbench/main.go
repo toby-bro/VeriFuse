@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/toby-bro/pfuzz/pkg/testgen"
 	"github.com/toby-bro/pfuzz/pkg/utils"
@@ -117,10 +118,35 @@ func main() {
 		// Use the provided output directory
 		if !*skipInputs {
 			// Generate and write input files for all input ports (like generateAndPrepareInputs)
+			// Skip clock and reset ports as they are handled separately in the testbench
+			clockPorts, resetPorts, _ := verilog.IdentifyClockAndResetPorts(module)
+
 			inputs := make(map[string]string)
 			for _, port := range module.Ports {
 				if port.Direction == verilog.INPUT || port.Direction == verilog.INOUT {
-					inputs[port.Name] = "0" // You can replace this with your strategy if desired
+					portName := strings.TrimSpace(port.Name)
+
+					// Skip clock ports
+					isClockPort := false
+					for _, clk := range clockPorts {
+						if portName == clk.Name {
+							isClockPort = true
+							break
+						}
+					}
+
+					// Skip reset ports
+					isResetPort := false
+					for _, rst := range resetPorts {
+						if portName == rst.Name {
+							isResetPort = true
+							break
+						}
+					}
+
+					if !isClockPort && !isResetPort {
+						inputs[port.Name] = "0" // You can replace this with your strategy if desired
+					}
 				}
 			}
 			for portName, value := range inputs {
