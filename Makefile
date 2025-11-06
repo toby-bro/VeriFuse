@@ -4,9 +4,11 @@ all: build run
 .PHONY: build
 build: build-fuzzer build-testbench pre-commit-hook build-generate
 
-GOBUILDFILES=$(shell find . -name '*.go' -not -path './cmd/*' -not -name '*_test.go')
-GOTESTFILES=$(shell find . -name '*_test.go')
-ALLGOFILES=$(shell find . -name '*.go')
+GODIRS=./cmd ./pkg ./internal
+_GODIRS=./cmd/... ./pkg/... ./internal/...
+GOBUILDFILES=$(shell find $(GODIRS) -name '*.go' -not -path './cmd/*' -not -name '*_test.go')
+GOTESTFILES=$(shell find $(GODIRS) -name '*_test.go')
+ALLGOFILES=$(shell find $(GODIRS) -name '*.go')
 SVFILES=$(shell find snippets -name '*.sv')
 
 .PHONY: pre-commit-hook
@@ -46,7 +48,7 @@ lint: .lint.log
 
 .lint.log: $(ALLGOFILES) $(SVFILES)
 	@echo "Running linters..."
-	@golangci-lint run ./... --timeout 20s --color=always --fix
+	@golangci-lint run $(_GODIRS) --timeout 20s --color=always --fix
 	@find snippets -name '*.sv' -exec ./scripts/fix-indent.sh {} \;
 	@touch .lint.log
 
