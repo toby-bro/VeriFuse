@@ -6,6 +6,7 @@ set working-directory := "mismatches"
 
 # Variables
 script_dir := justfile_directory() + "/scripts"
+default_file := shell('cd ' + invocation_directory() + ' && if [[ $(basename $(pwd) | grep -c "worker_") -gt 0 ]]; then basename $(find . -maxdepth 1 -name "*.sv" -not -name "*-Yosys.sv" -not -name "*-SV2V.sv" -not -name "testbench.*" | grep -oP "(?<=\\./)[^/]*(?=\\.sv)" | sort | head -1); else basename $(find . -maxdepth 2 -path "./worker_*" -name "*.sv" -not -name "*-Yosys.sv" -not -name "*-SV2V.sv" -not -name "testbench.*" | grep -oP "(?<=\\./)[^/]*(?=\\.sv)" | sort | head -1); fi')
 
 # Default recipe - show available commands
 default:
@@ -27,37 +28,45 @@ find-file:
     echo ${FILE}
 
 # Count lines in all versions of a file (sorted by line count)
-count-lines file=`just find-file`:
+[no-cd]
+count-lines file=default_file:
+    #!/usr/bin/env zsh
+    cd {{justfile_directory()}}/mismatches
     find . -maxdepth 2 -name "{{file}}.sv" -exec wc -l {} + | sort -n
 
 # Move file directories to a target directory (creates target if it doesn't exist)
-move-to-fixed targetdir file=`just find-file`:
+[no-cd]
+move-to-fixed targetdir file=default_file:
     #!/usr/bin/env zsh
     # Check if target directory exists, if not create it
-    if [[ ! -d "{{targetdir}}" ]]; then
-        echo "Target directory '{{targetdir}}' does not exist. Creating it..."
-        mkdir -p "{{targetdir}}"
-    else
-        echo "Target directory '{{targetdir}}' already exists. Proceeding with move..."
+    targetdir=$(realpath "{{targetdir}}")
+    echo "Starting to move directories containing {{file}}.sv to '$targetdir'..."
+    # get absolute path of targetdir
+    if [[ ! -d "$targetdir" ]]; then
+        echo "Target directory '$targetdir' does not exist. Creating it..."
+        mkdir -p "$targetdir"
     fi
-    # Find and move the directories
-    source_dirs=$(find . -maxdepth 2 -name "{{file}}.sv" -exec dirname {} \;)
-    if [[ -n "$source_dirs" ]]; then
-        mv $source_dirs "{{targetdir}}/"
-        echo "Moved directories containing {{file}}.sv to {{targetdir}}/"
-    else
-        echo "No directories found containing {{file}}.sv"
-    fi
+    # Find and move the directories one by one
+    cd {{justfile_directory()}}/mismatches
+    find . -maxdepth 2 -name "{{file}}.sv" -exec dirname {} \; | while read -r dir; do
+        if [[ -d "$dir" ]]; then
+            echo "Moving $dir to $targetdir/"
+            mv "$dir" "$targetdir/"
+        fi
+    done
+    echo "Completed moving directories containing {{file}}.sv to $targetdir/"
 
 # Find files that reference a given file
-find-references file=`just find-file`:
+[no-cd]
+find-references file=default_file:
+    cd {{justfile_directory()}}/mismatches
     find . -maxdepth 2 -name '*.sv' -not -name '*-Yosys.sv' -not -name '*-SV2V.sv' -not -name 'testbench.*' -exec grep -l {{file}} {} \;
 
 # Simulator operations
 
 # Run Verilator simulation
 [no-cd]
-verilator file=`just find-file`:
+verilator file=default_file:
     #!/usr/bin/env zsh
     verilator --binary --exe --build -Mdir obj_dir -sv --timing --assert \
         -Wno-CMPCONST -Wno-DECLFILENAME -Wno-MULTIDRIVEN -Wno-NOLATCH \
@@ -67,14 +76,14 @@ verilator file=`just find-file`:
 
 # Run Yosys synthesis and simulation
 [no-cd]
-yosys file=`just find-file`:
+yosys file=default_file:
     #!/usr/bin/env zsh
     yosys -q -p "read_verilog -sv {{file}}.sv; prep -top {{file}} ; write_cxxrtl -O3 {{file}}.cc"
     g++ -std=c++17 -O0 -I$(yosys-config --datdir)/include/backends/cxxrtl/runtime -I. -o testbench testbench.cpp && ./testbench
 
 # Run iverilog simulation  
 [no-cd]
-iverilog file=`just find-file`:
+iverilog file=default_file:
     #!/usr/bin/env zsh
     iverilog -o module_sim_iv -g2012 -gsupported-assertions ../testbench.sv ../{{file}}.sv && ./module_sim_iv
 
@@ -87,6 +96,18 @@ hardcode:
         {{script_dir}}/hardcode.sh testbench.sv
     else
         echo "Error: testbench.sv not found in current directory"
+        exit 1
+    fi
+
+# Reproduce mismatch by running all simulators and comparing outputs
+[no-cd]
+reproduce:
+    #!/usr/bin/env zsh
+    if [[ -f "testbench.sv" ]]; then
+        {{script_dir}}/reproduce.sh
+    else
+        echo "Error: testbench.sv not found in current directory"
+        echo "Make sure you're in a worker directory with a testbench.sv file"
         exit 1
     fi
 
@@ -108,3 +129,4 @@ show-current-file:
 # List all .sv files in worker directories (excluding generated ones)
 list-sv-files:
     find . -maxdepth 2 -path './worker_*' -name '*.sv' -not -name '*-Yosys.sv' -not -name '*-SV2V.sv' -not -name 'testbench.*' | sort
+
