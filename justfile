@@ -2,9 +2,11 @@
 
 # Set shell to zsh
 set shell := ["zsh", "-c"]
+set working-directory := "mismatches"
 
 # Variables
 default_file := `basename $(find . -maxdepth 2 -path './worker*' -name '*.sv' -not -name '*-Yosys.sv' -not -name '*-SV2V.sv' -not -name 'testbench.*' | grep -oP '(?<=\./).*?(?=\.sv)' | sort | head -1) 2>/dev/null || echo ""`
+script_dir := justfile_directory() + "/scripts"
 
 # Default recipe - show available commands
 default:
@@ -77,11 +79,19 @@ iverilog file=default_file:
     #!/usr/bin/env zsh
     iverilog -o module_sim_iv -g2012 -gsupported-assertions ../testbench.sv ../{{file}}.sv && ./module_sim_iv
 
-# Mismatch analysis
+# Convert testbench to hardcoded values (no file I/O)
+[no-cd]
+hardcode:
+    #!/usr/bin/env zsh
+    if [[ -f "testbench.sv" ]]; then
+        # if script_dir is a symlink, resolve it to the actual path
+        {{script_dir}}/hardcode.sh testbench.sv
+    else
+        echo "Error: testbench.sv not found in current directory"
+        exit 1
+    fi
 
-# Move directories with NaN patterns to ignored/nan/
-move-nan-matches:
-    mv $(dirname $(find . -path './worker_*' -name 'mismatch_*_summary.txt' -exec grep -lP '=nan$' {} +) | sort -u) ignored/nan/
+# Mismatch analysis
 
 # Move directories with a specific grep pattern to a target directory
 move-pattern-matches pattern targetdir:
