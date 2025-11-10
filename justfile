@@ -37,28 +37,6 @@ count-lines file=default_file:
     cd {{justfile_directory()}}/mismatches
     find . -maxdepth 2 -name "{{file}}.sv" -exec wc -l {} + | sort -n
 
-# Move file directories to a target directory (creates target if it doesn't exist)
-[no-cd]
-move-to-fixed targetdir file=default_file:
-    #!/usr/bin/env zsh
-    # Check if target directory exists, if not create it
-    echo "Starting to move directories containing {{file}}.sv to '{{targetdir}}'..."
-    # get absolute path of targetdir
-    if [[ ! -d "{{targetdir}}" ]]; then
-        echo "Target directory '{{targetdir}}' does not exist. Creating it..."
-        mkdir -p "{{targetdir}}"
-    fi
-    targetdir=$(realpath "{{targetdir}}") || exit 1
-    # Find and move the directories one by one
-    cd {{justfile_directory()}}/mismatches
-    find . -maxdepth 2 -name "{{file}}.sv" -exec dirname {} \; | while read -r dir; do
-        if [[ -d "$dir" ]]; then
-            echo "Moving $dir to $targetdir/"
-            mv "$dir" "$targetdir/"
-        fi
-    done
-    echo "Completed moving directories containing {{file}}.sv to $targetdir/"
-
 # Find files that reference a given file
 [no-cd]
 find-references file=default_file:
@@ -116,12 +94,64 @@ reproduce *args:
 
 # Mismatch analysis
 
+# Move file directories to a target directory (creates target if it doesn't exist)
+[no-cd]
+move-to-fixed targetdir file=default_file:
+    #!/usr/bin/env zsh
+    # Check if target directory exists, if not create it
+    echo "Starting to move directories containing {{file}}.sv to '{{targetdir}}'..."
+    # get absolute path of targetdir
+    if [[ ! -d "{{targetdir}}" ]]; then
+        echo "Target directory '{{targetdir}}' does not exist. Creating it..."
+        mkdir -p "{{targetdir}}"
+    fi
+    targetdir=$(realpath "{{targetdir}}") || exit 1
+    # Find and move the directories one by one
+    cd {{justfile_directory()}}/mismatches
+    find . -maxdepth 2 -name "{{file}}.sv" -exec dirname {} \; | while read -r dir; do
+        if [[ -d "$dir" ]]; then
+            echo "Moving $dir to $targetdir/"
+            mv "$dir" "$targetdir/"
+        fi
+    done
+    echo "Completed moving directories containing {{file}}.sv to $targetdir/"
+
 # Move directories with a specific grep pattern to a target directory
 move-mismatch-pattern-matches pattern targetdir:
-    mv $(dirname $(find . -path './worker_*' -name 'mismatch_*_summary.txt' -exec grep -lP "{{pattern}}" {} +) | sort -u) {{targetdir}}
+    #!/usr/bin/env zsh
+    echo "Starting to move directories matching pattern '{{pattern}}' to '{{targetdir}}'..."
+    if [[ ! -d "{{targetdir}}" ]]; then
+        echo "Target directory '{{targetdir}}' does not exist. Creating it..."
+        mkdir -p "{{targetdir}}"
+    fi
+    targetdir=$(realpath "{{targetdir}}") || exit 1
+    cd {{justfile_directory()}}/mismatches
+    find . -path './worker_*' -name 'mismatch_*_summary.txt' -exec grep -lP "{{pattern}}" {} + | while read -r file; do
+        dir=$(dirname "$file")
+        if [[ -d "$dir" ]]; then
+            echo "Moving $dir to $targetdir/"
+            mv "$dir" "$targetdir/"
+        fi
+    done
+    echo "Completed moving directories matching pattern '{{pattern}}' to $targetdir/"
 
 move-svfile-pattern-matches pattern targetdir:
-    mv $(dirname $(find . -path './worker_*' -name '*.sv' -not -name '*-Yosys.sv' -not -name '*-SV2V.sv' -not -name 'testbench.*' -exec grep -lP "{{pattern}}" {} +) | sort -u) {{targetdir}}
+    #!/usr/bin/env zsh
+    echo "Starting to move directories with .sv files matching pattern '{{pattern}}' to '{{targetdir}}'..."
+    if [[ ! -d "{{targetdir}}" ]]; then
+        echo "Target directory '{{targetdir}}' does not exist. Creating it..."
+        mkdir -p "{{targetdir}}"
+    fi
+    targetdir=$(realpath "{{targetdir}}") || exit 1
+    cd {{justfile_directory()}}/mismatches
+    find . -path './worker_*' -name '*.sv' -not -name '*-Yosys.sv' -not -name '*-SV2V.sv' -not -name 'testbench.*' -exec grep -lP "{{pattern}}" {} + | while read -r file; do
+        dir=$(dirname "$file")
+        if [[ -d "$dir" ]]; then
+            echo "Moving $dir to $targetdir/"
+            mv "$dir" "$targetdir/"
+        fi
+    done
+    echo "Completed moving directories with .sv files matching pattern '{{pattern}}' to $targetdir/"
 
 # Clean up build artifacts
 clean:
