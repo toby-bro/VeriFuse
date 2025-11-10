@@ -50,6 +50,7 @@ Other suggested names are:
     This bug is interesting because icarus verilog is the only one of the free simulators to correctly handle this initialisation, but did not want to bother the other repos for the moment (if I am desperate for opening issues then so be it)
   - Is it a posedge if there is no transition from 0 to 1 but an intialisation value already at one, same for negedge (cxxrtl does not agree with the other simulators about this)
 - Previously known
+  - [Internal module wires are not accessible using dot notation](https://github.com/YosysHQ/yosys/issues/647)
   - [The out-of-bounds part-select write behavior is inconsistent with IEEE](https://github.com/verilator/verilator/issues/2984)
   - [`opt_muxtree` broken optimisation](https://github.com/YosysHQ/yosys/issues/4151)
 - Non exploitable and duplicate

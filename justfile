@@ -39,13 +39,13 @@ count-lines file=default_file:
 move-to-fixed targetdir file=default_file:
     #!/usr/bin/env zsh
     # Check if target directory exists, if not create it
-    targetdir=$(realpath "{{targetdir}}")
-    echo "Starting to move directories containing {{file}}.sv to '$targetdir'..."
+    echo "Starting to move directories containing {{file}}.sv to '{{targetdir}}'..."
     # get absolute path of targetdir
-    if [[ ! -d "$targetdir" ]]; then
-        echo "Target directory '$targetdir' does not exist. Creating it..."
-        mkdir -p "$targetdir"
+    if [[ ! -d "{{targetdir}}" ]]; then
+        echo "Target directory '{{targetdir}}' does not exist. Creating it..."
+        mkdir -p "{{targetdir}}"
     fi
+    targetdir=$(realpath "{{targetdir}}") || exit 1
     # Find and move the directories one by one
     cd {{justfile_directory()}}/mismatches
     find . -maxdepth 2 -name "{{file}}.sv" -exec dirname {} \; | while read -r dir; do
