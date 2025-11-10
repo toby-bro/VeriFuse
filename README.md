@@ -35,6 +35,7 @@ Other suggested names are:
   - [Incorrect handling of `wor`](https://github.com/povik/yosys-slang/issues/212)
 - Xcelium
   - Scheduling semantics violation
+  - Power operator IEEE violation
 - cxxrtl
   - [cxxrtl: -O1 optimisation unbuffers wires too permissively](https://github.com/YosysHQ/yosys/issues/5371)
   - [cxxrtl: timing bug in flip-flop evaluation](https://github.com/YosysHQ/yosys/issues/5471)

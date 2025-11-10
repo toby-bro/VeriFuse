@@ -12,6 +12,9 @@ default_file := shell('cd ' + invocation_directory() + ' && if [[ $(basename $(p
 default:
     @just --list
 
+count:
+    ls . | wc -l
+
 # FILE operations
 
 # Find and set the FILE variable, show the detected file
@@ -101,10 +104,10 @@ hardcode:
 
 # Reproduce mismatch by running all simulators and comparing outputs
 [no-cd]
-reproduce:
+reproduce *args:
     #!/usr/bin/env zsh
     if [[ -f "testbench.sv" ]]; then
-        {{script_dir}}/reproduce.sh
+        {{script_dir}}/reproduce.sh {{args}}
     else
         echo "Error: testbench.sv not found in current directory"
         echo "Make sure you're in a worker directory with a testbench.sv file"
@@ -114,8 +117,11 @@ reproduce:
 # Mismatch analysis
 
 # Move directories with a specific grep pattern to a target directory
-move-pattern-matches pattern targetdir:
-    mv $(dirname $(find . -path './worker_*' -name 'mismatch_*_summary.txt' -exec grep -lP '{{pattern}}' {} +) | sort -u) {{targetdir}}
+move-mismatch-pattern-matches pattern targetdir:
+    mv $(dirname $(find . -path './worker_*' -name 'mismatch_*_summary.txt' -exec grep -lP "{{pattern}}" {} +) | sort -u) {{targetdir}}
+
+move-svfile-pattern-matches pattern targetdir:
+    mv $(dirname $(find . -path './worker_*' -name '*.sv' -not -name '*-Yosys.sv' -not -name '*-SV2V.sv' -not -name 'testbench.*' -exec grep -lP "{{pattern}}" {} +) | sort -u) {{targetdir}}
 
 # Clean up build artifacts
 clean:
