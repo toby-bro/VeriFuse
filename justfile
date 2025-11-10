@@ -6,7 +6,7 @@ set working-directory := "mismatches"
 
 # Variables
 script_dir := justfile_directory() + "/scripts"
-default_file := shell('cd ' + invocation_directory() + ' && if [[ $(basename $(pwd) | grep -c "worker_") -gt 0 ]]; then basename $(find . -maxdepth 1 -name "*.sv" -not -name "*-Yosys.sv" -not -name "*-SV2V.sv" -not -name "testbench.*" | grep -oP "(?<=\\./)[^/]*(?=\\.sv)" | sort | head -1); else basename $(find . -maxdepth 2 -path "./worker_*" -name "*.sv" -not -name "*-Yosys.sv" -not -name "*-SV2V.sv" -not -name "testbench.*" | grep -oP "(?<=\\./)[^/]*(?=\\.sv)" | sort | head -1); fi')
+default_file := shell('cd ' + invocation_directory() + ' && if [[ $(basename $(pwd) | grep -c "worker_") -gt 0 ]]; then basename $(find . -maxdepth 1 -name "*.sv" -not -name "*-Yosys.sv" -not -name "*-SV2V.sv" -not -name "testbench.*" | grep -oP "(?<=\\./)[^/]*(?=\\.sv)" | sort | head -1); else basename $(find . -maxdepth 2 -path "./worker_*" -name "*.sv" -not -name "*-Yosys.sv" -not -name "*-SV2V.sv" -not -name "testbench.*" | grep -oP "(?<=\\./).*?(?=\\.sv)" | sort | head -1); fi')
 
 # Default recipe - show available commands
 default:
