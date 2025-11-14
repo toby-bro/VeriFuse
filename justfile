@@ -31,16 +31,11 @@ find-file:
     echo ${FILE}
 
 # Count lines in all versions of a file (sorted by line count)
-[no-cd]
 count-lines file=default_file:
-    #!/usr/bin/env zsh
-    cd {{justfile_directory()}}/mismatches
     find . -maxdepth 2 -name "{{file}}.sv" -exec wc -l {} + | sort -n
 
 # Find files that reference a given file
-[no-cd]
 find-references file=default_file:
-    cd {{justfile_directory()}}/mismatches
     find . -maxdepth 2 -name '*.sv' -not -name '*-Yosys.sv' -not -name '*-SV2V.sv' -not -name 'testbench.*' -exec grep -l {{file}} {} \;
 
 # Simulator operations
@@ -166,3 +161,7 @@ show-current-file:
 list-sv-files:
     find . -maxdepth 2 -path './worker_*' -name '*.sv' -not -name '*-Yosys.sv' -not -name '*-SV2V.sv' -not -name 'testbench.*' | sort
 
+# Generate a testbench for the file
+[no-cd]
+generate-testbench file *args:
+    {{justfile_directory()}}/testbench {{file}} {{args}}

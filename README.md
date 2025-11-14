@@ -34,6 +34,7 @@ Other suggested names are:
 - yosys-slang
   - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/povik/yosys-slang/issues/161)
   - [Incorrect handling of `wor`](https://github.com/povik/yosys-slang/issues/212)
+  - [Variable initializers not synthesized](https://github.com/povik/yosys-slang/issues/249)
 - Xcelium
   - Scheduling semantics violation
   - Power operator IEEE violation
