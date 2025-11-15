@@ -31,6 +31,7 @@ Other suggested names are:
   - [Incorrect handling of `x` in if blocks `(if (x) else )`](https://github.com/YosysHQ/yosys/issues/5238)
   - [Interface and modport support bug ?](https://github.com/YosysHQ/yosys/issues/5366)
   - [SystemVerilog unsized literal '1 incorrectly evaluated as 1-bit value instead of filling all bits](https://github.com/YosysHQ/yosys/issues/5465)
+  - [`proc_prune` / scheduling semantics bug](https://github.com/YosysHQ/yosys/issues/5487)
 - yosys-slang
   - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/povik/yosys-slang/issues/161)
   - [Incorrect handling of `wor`](https://github.com/povik/yosys-slang/issues/212)
