@@ -6,7 +6,7 @@ set working-directory := "mismatches"
 
 # Variables
 script_dir := justfile_directory() + "/scripts"
-default_file := shell('cd ' + invocation_directory() + ' && if [[ $(basename $(pwd) | grep -c "worker_") -gt 0 ]]; then basename $(find . -maxdepth 1 -name "*.sv" -not -name "*-Yosys.sv" -not -name "*-SV2V.sv" -not -name "testbench.*" | grep -oP "(?<=\\./)[^/]*(?=\\.sv)" | sort | head -1); else basename $(find . -maxdepth 2 -path "./worker_*" -name "*.sv" -not -name "*-Yosys.sv" -not -name "*-SV2V.sv" -not -name "testbench.*" | grep -oP "(?<=\\./).*?(?=\\.sv)" | sort | head -1); fi')
+default_file := shell('cd ' + invocation_directory() + ' && if [[ $(pwd | grep -c "worker_") -gt 0 ]]; then cd $(pwd | grep -Po "^.*/worker_[\d_]+") && basename $(find . -maxdepth 1 -name "*.sv" -not -name "*-Yosys.sv" -not -name "*-SV2V.sv" -not -name "testbench.*" | grep -oP "(?<=\\./)[^/]*(?=\\.sv)" | sort | head -1); else basename $(find . -maxdepth 2 -path "./worker_*" -name "*.sv" -not -name "*-Yosys.sv" -not -name "*-SV2V.sv" -not -name "testbench.*" | grep -oP "(?<=\\./).*?(?=\\.sv)" | sort | head -1); fi')
 
 # Default recipe - show available commands
 default:
@@ -42,26 +42,23 @@ find-references file=default_file:
 
 # Run Verilator simulation
 [no-cd]
-verilator file=default_file:
-    #!/usr/bin/env zsh
+verilator path="." file=default_file:
     verilator --binary --exe --build -Mdir obj_dir -sv --timing --assert \
         -Wno-CMPCONST -Wno-DECLFILENAME -Wno-MULTIDRIVEN -Wno-NOLATCH \
         -Wno-UNDRIVEN -Wno-UNOPTFLAT -Wno-UNUSED -Wno-UNSIGNED \
         -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-MULTITOP -Wno-ALWCOMBORDER \
-        ../../testbench.sv-O3 -I ../../{{file}}.sv && ./obj_dir/Vtestbench
+        {{path}}/testbench.sv -O3 -I {{path}}/{{file}}.sv && ./obj_dir/Vtestbench
 
 # Run Yosys synthesis and simulation
 [no-cd]
-yosys file=default_file:
-    #!/usr/bin/env zsh
-    yosys -q -p "read_verilog -sv {{file}}.sv; prep -top {{file}} ; write_cxxrtl -O3 {{file}}.cc"
-    g++ -std=c++17 -O0 -I$(yosys-config --datdir)/include/backends/cxxrtl/runtime -I. -o testbench testbench.cpp && ./testbench
+yosys path="." file=default_file:
+    yosys -q -p "read_verilog -sv {{path}}/{{file}}.sv; prep -top {{file}} ; write_cxxrtl -O3 {{file}}.cc"
+    g++ -std=c++17 -O0 -I$(yosys-config --datdir)/include/backends/cxxrtl/runtime -I. -o testbench {{path}}/testbench.cpp && ./testbench
 
 # Run iverilog simulation  
 [no-cd]
-iverilog file=default_file:
-    #!/usr/bin/env zsh
-    iverilog -o module_sim_iv -g2012 -gsupported-assertions ../testbench.sv ../{{file}}.sv && ./module_sim_iv
+iverilog path='.' file=default_file:
+    iverilog -o module_sim_iv -g2012 -gsupported-assertions {{path}}/testbench.sv {{path}}/{{file}}.sv && ./module_sim_iv
 
 # Convert testbench to hardcoded values (no file I/O)
 [no-cd]
@@ -161,7 +158,7 @@ show-current-file:
 list-sv-files:
     find . -maxdepth 2 -path './worker_*' -name '*.sv' -not -name '*-Yosys.sv' -not -name '*-SV2V.sv' -not -name 'testbench.*' | sort
 
-# Generate a testbench for the file
+# Generate a testbench for the file (use the args -d /foo/bar to specify output directory, if none will print to stdout)
 [no-cd]
 generate-testbench file *args:
     {{justfile_directory()}}/testbench {{file}} {{args}}

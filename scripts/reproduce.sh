@@ -84,24 +84,51 @@ echo "===Synth and ran all simulators.==="
 
 cd ..
 
+# Create ASCII table for results
+echo ""
+echo "╔═══════════════════════════════════════════════════════════════════════════════════════╗"
+echo "║                               SIMULATION RESULTS TABLE                                ║"
+echo "╚═══════════════════════════════════════════════════════════════════════════════════════╝"
+echo ""
+
+# Print header
+echo "┌───────────────────────────┬──────────────┬──────────────┬──────────────┬──────────────┐"
+printf "│ %-25s │ %-12s │ %-12s │ %-12s │ %-12s │\n" "Signal" "Verilator" "Iverilog" "CXXRTL" "CXXSLG"
+echo "├───────────────────────────┼──────────────┼──────────────┼──────────────┼──────────────┤"
+
+# Print data rows
 for output in $wrong_outputs; do
-    echo "MISMATCHED OUTPUT SIGNAL: ${output}"
+    # Truncate signal name to 20 chars if needed
+    signal_name=$(echo "$output" | cut -c1-25)
+    
+    # Get outputs or FAILED status
     if [ $vtor_success -eq 0 ]; then
-    echo "Verilator output:"
-    cat verilator/output_${output}.hex
+        vtor_out=$(cat verilator/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
+    else
+        vtor_out="FAILED"
     fi
+    
     if [ $iv_success -eq 0 ]; then
-    echo "Iverilog output:"
-    cat iverilog/output_${output}.hex
+        iv_out=$(cat iverilog/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
+    else
+        iv_out="FAILED"
     fi
+    
     if [ $cxxrtl_success -eq 0 ]; then
-    echo "CXXRTL output:"
-    cat cxxrtl/output_${output}.hex
+        cxxrtl_out=$(cat cxxrtl/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
+    else
+        cxxrtl_out="FAILED"
     fi
+    
     if [ $cxxslg_success -eq 0 ]; then
-    echo "CXXSLG output:"
-    cat cxxslg/output_${output}.hex
+        cxxslg_out=$(cat cxxslg/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
+    else
+        cxxslg_out="FAILED"
     fi
+    
+    printf "│ %-25s │ %-12s │ %-12s │ %-12s │ %-12s │\n" "$signal_name" "$vtor_out" "$iv_out" "$cxxrtl_out" "$cxxslg_out"
 done
+
+echo "└───────────────────────────┴──────────────┴──────────────┴──────────────┴──────────────┘"
 
 cd ..
