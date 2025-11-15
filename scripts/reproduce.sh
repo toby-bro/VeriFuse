@@ -91,44 +91,80 @@ echo "║                               SIMULATION RESULTS TABLE                
 echo "╚═══════════════════════════════════════════════════════════════════════════════════════╝"
 echo ""
 
-# Print header
-echo "┌───────────────────────────┬──────────────┬──────────────┬──────────────┬──────────────┐"
-printf "│ %-25s │ %-12s │ %-12s │ %-12s │ %-12s │\n" "Signal" "Verilator" "Iverilog" "CXXRTL" "CXXSLG"
-echo "├───────────────────────────┼──────────────┼──────────────┼──────────────┼──────────────┤"
-
-# Print data rows
+# Collect all outputs for each signal
+declare -A outputs
 for output in $wrong_outputs; do
-    # Truncate signal name to 20 chars if needed
-    signal_name=$(echo "$output" | cut -c1-25)
-    
-    # Get outputs or FAILED status
     if [ $vtor_success -eq 0 ]; then
-        vtor_out=$(cat verilator/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
+        outputs["vtor_${output}"]=$(cat verilator/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
     else
-        vtor_out="FAILED"
+        outputs["vtor_${output}"]="FAILED"
     fi
     
     if [ $iv_success -eq 0 ]; then
-        iv_out=$(cat iverilog/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
+        outputs["iv_${output}"]=$(cat iverilog/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
     else
-        iv_out="FAILED"
+        outputs["iv_${output}"]="FAILED"
     fi
     
     if [ $cxxrtl_success -eq 0 ]; then
-        cxxrtl_out=$(cat cxxrtl/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
+        outputs["cxxrtl_${output}"]=$(cat cxxrtl/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
     else
-        cxxrtl_out="FAILED"
+        outputs["cxxrtl_${output}"]="FAILED"
     fi
     
     if [ $cxxslg_success -eq 0 ]; then
-        cxxslg_out=$(cat cxxslg/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
+        outputs["cxxslg_${output}"]=$(cat cxxslg/output_${output}.hex | tr '\n' ' ' | sed 's/ *$//')
     else
-        cxxslg_out="FAILED"
+        outputs["cxxslg_${output}"]="FAILED"
     fi
-    
-    printf "│ %-25s │ %-12s │ %-12s │ %-12s │ %-12s │\n" "$signal_name" "$vtor_out" "$iv_out" "$cxxrtl_out" "$cxxslg_out"
 done
 
-echo "└───────────────────────────┴──────────────┴──────────────┴──────────────┴──────────────┘"
+# Build header dynamically
+header="│ %-15s │"
+separator="┌─────────────────┬"
+footer="└─────────────────┴"
+for output in $wrong_outputs; do
+    signal_name=$(echo "$output" | cut -c1-25)
+    header="$header %-25s │"
+    separator="${separator}───────────────────────────┬"
+    footer="${footer}───────────────────────────┴"
+done
+# Remove trailing characters and close
+separator="${separator%┬}┐"
+footer="${footer%┴}┘"
+
+echo "$separator"
+printf "$header\n" "Simulator" $wrong_outputs
+middle_sep="${separator//┌/├}"
+middle_sep="${middle_sep//┬/┼}"
+middle_sep="${middle_sep//┐/┤}"
+echo "$middle_sep"
+
+# Print each simulator row
+printf "│ %-15s │" "Verilator"
+for output in $wrong_outputs; do
+    printf " %-25s │" "${outputs[vtor_${output}]}"
+done
+echo ""
+
+printf "│ %-15s │" "Iverilog"
+for output in $wrong_outputs; do
+    printf " %-25s │" "${outputs[iv_${output}]}"
+done
+echo ""
+
+printf "│ %-15s │" "CXXRTL"
+for output in $wrong_outputs; do
+    printf " %-25s │" "${outputs[cxxrtl_${output}]}"
+done
+echo ""
+
+printf "│ %-15s │" "CXXSLG"
+for output in $wrong_outputs; do
+    printf " %-25s │" "${outputs[cxxslg_${output}]}"
+done
+echo ""
+
+echo "$footer"
 
 cd ..
