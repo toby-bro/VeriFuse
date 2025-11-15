@@ -3,8 +3,6 @@
 # hardcode.sh - Convert testbench file I/O to hardcoded values and display outputs
 # Usage: ./hardcode.sh <testbench.sv> [input_dir] [output_file]
 
-set -e
-
 # Function to display usage
 usage() {
     echo "Usage: $0 [-v] [-c] <testbench.sv|directory> [output_file]"
@@ -109,37 +107,37 @@ find_input_source() {
     local required_inputs=($(get_required_inputs))
     
     if [ ${#required_inputs[@]} -eq 0 ]; then
-        log_verbose "No input files found in testbench"
+        log_verbose "  [-] No input files found in testbench"
         return 1
     fi
     
-    log_verbose "[+] Required input files: ${required_inputs[*]}"
+    log_verbose "  [+] Required input files: ${required_inputs[*]}"
     
     # Look for test_* directories in the same directory as the testbench
     for test_dir in "$TESTBENCH_DIR"/test_*; do
         if [ -d "$test_dir" ]; then
-            log_verbose "  [+] Checking directory: $(basename "$test_dir")"
+            log_verbose "    [+] Checking directory: $(basename "$test_dir")"
             
             # Check if this directory has all required input files
             local has_all_files=true
             for input_file in "${required_inputs[@]}"; do
                 if [ ! -f "$test_dir/$input_file" ]; then
-                    log_verbose "    [!] Missing: $input_file"
+                    log_verbose "       [!] Missing: $input_file"
                     has_all_files=false
                     break
                 fi
             done
             
             if $has_all_files; then
-                log_verbose "    [+] Found complete set of input files!"
+                log_verbose "      [+] Found complete set of input files!"
                 echo "FOUND:$test_dir"
                 return 0
             fi
         fi
     done
     
-    log_verbose "[!] No test directory found with all required input files"
-    log_verbose "[+] Will generate random input values instead"
+    log_verbose "  [!] No test directory found with all required input files"
+    log_verbose "  [+] Will generate random input values instead"
     echo "GENERATE"
     return 0
 }
@@ -172,43 +170,6 @@ generate_random_hex() {
     fi
     
     echo "$hex_val"
-}
-
-# Find the input directory automatically or prepare for random generation
-INPUT_SOURCE=$(find_input_source)
-if [ $? -ne 0 ]; then
-    exit 1
-fi
-
-if [[ "$INPUT_SOURCE" == FOUND:* ]]; then
-    INPUT_DIR="${INPUT_SOURCE#FOUND:}"
-    log_verbose "[+] Using input directory: $INPUT_DIR"
-    USE_RANDOM=false
-elif [[ "$INPUT_SOURCE" == "GENERATE" ]]; then
-    INPUT_DIR=""
-    log_verbose "[+] Will generate random input values"
-    USE_RANDOM=true
-else
-    echo "Error: Unexpected input source result"
-    exit 1
-fi
-
-# Create a temporary working file
-TEMP_FILE=$(mktemp)
-cp "$TESTBENCH_FILE" "$TEMP_FILE"
-
-# Function to get the bit width from signal declaration
-get_signal_width() {
-    local signal_name="$1"
-    local width=$(grep -E "^\s*(logic|reg|wire)\s*(\[[^\]]+\])?\s+${signal_name}\s*[;,]" "$TESTBENCH_FILE" | \
-                  sed -n 's/.*\[\([^:]*\):\([^]]*\)\].*/\1/p' | head -1)
-    
-    if [ -z "$width" ]; then
-        echo "0"  # Single bit
-    else
-        # Extract the left bound of the range [N:M] -> N+1 bits
-        echo "$width" | sed 's/[^0-9]//g'
-    fi
 }
 
 # Function to convert hex value to proper SystemVerilog literal
@@ -244,73 +205,111 @@ hex_to_sv_literal() {
     fi
 }
 
-# Step 1: Find all input file reads and replace with hardcoded values
-log_verbose "[+] Converting input file reads to hardcoded values..."
-
-# Find all $fopen calls for input files
-input_files=$(grep -o 'input_[^"]*\.hex' "$TEMP_FILE" | sort -u)
-
-for input_file in $input_files; do
-    log_verbose "  [+] Processing input file: $input_file"
+# Function to get the bit width from signal declaration
+get_signal_width() {
+    local signal_name="$1"
+    local width=$(grep -E "^\s*(logic|reg|wire)\s*(\[[^\]]+\])?\s+${signal_name}\s*[;,]" "$TESTBENCH_FILE" | \
+                  sed -n 's/.*\[\([^:]*\):\([^]]*\)\].*/\1/p' | head -1)
     
-    # Extract signal name from filename (input_SIGNAL.hex -> SIGNAL)
-    signal_name=$(echo "$input_file" | sed 's/input_\(.*\)\.hex/\1/')
-    
-    if [ "$USE_RANDOM" = true ]; then
-        # Generate random hex value
-        hex_value=$(generate_random_hex "$signal_name")
-        log_verbose "    [+] Generated random value: $hex_value for signal: $signal_name"
-        
-        # Convert to proper SystemVerilog literal
-        sv_literal=$(hex_to_sv_literal "$hex_value" "$signal_name")
-        log_verbose "    [+] SystemVerilog literal: $sv_literal"
-        
-        # Remove the entire file reading block for this input
-        sed -i "/fd = \$fopen(\"$input_file\"/,/\$fclose(fd);/c\\
-        // Random generated value for $signal_name\\
-        $signal_name = $sv_literal;" "$TEMP_FILE"
-        
+    if [ -z "$width" ]; then
+        echo "0"  # Single bit
     else
-        # Look for the corresponding hex file in input directory
-        hex_file="$INPUT_DIR/$input_file"
-        
-        if [ -f "$hex_file" ]; then
-            # Read the hex value from file
-            hex_value=$(head -1 "$hex_file" | tr -d ' \t\n\r')
-            log_verbose "    [+] Found value: $hex_value for signal: $signal_name"
-            
+        # Extract the left bound of the range [N:M] -> N+1 bits
+        echo "$width" | sed 's/[^0-9]//g'
+    fi
+}
+
+
+# Create a temporary working file
+TEMP_FILE=$(mktemp)
+cp "$TESTBENCH_FILE" "$TEMP_FILE"
+
+# Find the input directory automatically or prepare for random generation
+INPUT_SOURCE=$(find_input_source)
+if [ $? -eq 0 ]; then
+    if [[ "$INPUT_SOURCE" == FOUND:* ]]; then
+        INPUT_DIR="${INPUT_SOURCE#FOUND:}"
+        log_verbose "[+] Using input directory: $INPUT_DIR"
+        USE_RANDOM=false
+    elif [[ "$INPUT_SOURCE" == "GENERATE" ]]; then
+        INPUT_DIR=""
+        log_verbose "[+] Will generate random input values"
+        USE_RANDOM=true
+    else
+        echo "Error: Unexpected input source result"
+        exit 1
+    fi
+
+
+
+    # Step 1: Find all input file reads and replace with hardcoded values
+    log_verbose "[+] Converting input file reads to hardcoded values..."
+
+    # Find all $fopen calls for input files
+    input_files=$(grep -o 'input_[^"]*\.hex' "$TEMP_FILE" | sort -u)
+
+    for input_file in $input_files; do
+        log_verbose "  [+] Processing input file: $input_file"
+
+        # Extract signal name from filename (input_SIGNAL.hex -> SIGNAL)
+        signal_name=$(echo "$input_file" | sed 's/input_\(.*\)\.hex/\1/')
+
+        if [ "$USE_RANDOM" = true ]; then
+            # Generate random hex value
+            hex_value=$(generate_random_hex "$signal_name")
+            log_verbose "    [+] Generated random value: $hex_value for signal: $signal_name"
+
             # Convert to proper SystemVerilog literal
             sv_literal=$(hex_to_sv_literal "$hex_value" "$signal_name")
             log_verbose "    [+] SystemVerilog literal: $sv_literal"
-            
-            # Remove the entire file reading block for this input
-            # Pattern: from $fopen to $fclose for this specific file
-            sed -i "/fd = \$fopen(\"$input_file\"/,/\$fclose(fd);/c\\
-            // Hardcoded value for $signal_name (from $input_file)\\
-            $signal_name = $sv_literal;" "$TEMP_FILE"
-            
-        else
-            log_verbose "    [!] Warning: Input file $hex_file not found, using default value"
-            # Use a default value based on signal width
-            width=$(get_signal_width "$signal_name")
-            if [ "$width" == "0" ]; then
-                default_val="1'b0"
-            else
-                default_val="${width}'h0"
-            fi
-            
-            sed -i "/fd = \$fopen(\"$input_file\"/,/\$fclose(fd);/c\\
-            // Default value for $signal_name (input file not found)\\
-            $signal_name = $default_val;" "$TEMP_FILE"
-        fi
-    fi
-done
 
-# Step 2: Remove variable declarations that are no longer needed
-log_verbose "[+] Removing unused variable declarations..."
-sed -i '/string line;/d' "$TEMP_FILE"
-sed -i '/int fd;/d' "$TEMP_FILE"
-sed -i '/int status;/d' "$TEMP_FILE"
+            # Remove the entire file reading block for this input
+            sed -i "/fd = \$fopen(\"$input_file\"/,/\$fclose(fd);/c\\
+            // Random generated value for $signal_name\\
+            $signal_name = $sv_literal;" "$TEMP_FILE"
+
+        else
+            # Look for the corresponding hex file in input directory
+            hex_file="$INPUT_DIR/$input_file"
+
+            if [ -f "$hex_file" ]; then
+                # Read the hex value from file
+                hex_value=$(head -1 "$hex_file" | tr -d ' \t\n\r')
+                log_verbose "    [+] Found value: $hex_value for signal: $signal_name"
+
+                # Convert to proper SystemVerilog literal
+                sv_literal=$(hex_to_sv_literal "$hex_value" "$signal_name")
+                log_verbose "    [+] SystemVerilog literal: $sv_literal"
+
+                # Remove the entire file reading block for this input
+                # Pattern: from $fopen to $fclose for this specific file
+                sed -i "/fd = \$fopen(\"$input_file\"/,/\$fclose(fd);/c\\
+                // Hardcoded value for $signal_name (from $input_file)\\
+                $signal_name = $sv_literal;" "$TEMP_FILE"
+
+            else
+                log_verbose "    [!] Warning: Input file $hex_file not found, using default value"
+                # Use a default value based on signal width
+                width=$(get_signal_width "$signal_name")
+                if [ "$width" == "0" ]; then
+                    default_val="1'b0"
+                else
+                    default_val="${width}'h0"
+                fi
+
+                sed -i "/fd = \$fopen(\"$input_file\"/,/\$fclose(fd);/c\\
+                // Default value for $signal_name (input file not found)\\
+                $signal_name = $default_val;" "$TEMP_FILE"
+            fi
+        fi
+    done
+
+    # Step 2: Remove variable declarations that are no longer needed
+    log_verbose "[+] Removing unused variable declarations..."
+    sed -i '/string line;/d' "$TEMP_FILE"
+    sed -i '/int fd;/d' "$TEMP_FILE"
+    sed -i '/int status;/d' "$TEMP_FILE"
+fi
 
 # Step 3: Convert output file writes to display statements
 log_verbose "[+] Converting output file writes to display statements..."
