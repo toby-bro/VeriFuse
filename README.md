@@ -25,6 +25,7 @@ Other suggested names are:
   - [Incorrect handling of `x` in if blocks `(if (x) else )`](https://github.com/verilator/verilator/issues/6199)
   - [Fix static variable initialization in procedural blocks](https://github.com/verilator/verilator/issues/6462)
   - [Incorrect `streaming_concatenation`](https://github.com/verilator/verilator/issues/6693)
+  - [Initialisation treated as continuous assignement](https://github.com/verilator/verilator/issues/6695)
 - Yosys
   - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/YosysHQ/yosys/issues/5151)
   - [`read_verilog`: `inout` parameters not copied out of tasks](https://github.com/YosysHQ/yosys/issues/5157)

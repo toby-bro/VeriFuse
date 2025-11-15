@@ -60,18 +60,6 @@ yosys path="." file=default_file:
 iverilog path='.' file=default_file:
     iverilog -o module_sim_iv -g2012 -gsupported-assertions {{path}}/testbench.sv {{path}}/{{file}}.sv && ./module_sim_iv
 
-# Convert testbench to hardcoded values (no file I/O)
-[no-cd]
-hardcode:
-    #!/usr/bin/env zsh
-    if [[ -f "testbench.sv" ]]; then
-        # if script_dir is a symlink, resolve it to the actual path
-        {{script_dir}}/hardcode.sh testbench.sv
-    else
-        echo "Error: testbench.sv not found in current directory"
-        exit 1
-    fi
-
 # Reproduce mismatch by running all simulators and comparing outputs
 [no-cd]
 reproduce *args:
@@ -162,3 +150,9 @@ list-sv-files:
 [no-cd]
 generate-testbench file *args:
     {{justfile_directory()}}/testbench {{file}} {{args}}
+
+# Convert testbench to hardcoded values (no file I/O)
+[no-cd]
+hardcode file="testbench.sv" *args:
+    {{script_dir}}/hardcode.sh {{args}} {{file}}
+
