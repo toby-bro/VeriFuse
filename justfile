@@ -156,3 +156,7 @@ generate-testbench file *args:
 hardcode file="testbench.sv" *args:
     {{script_dir}}/hardcode.sh {{args}} {{file}}
 
+# Hardcode and replace the testbench file
+[no-cd]
+hardcode-inplace file="testbench.sv" *args:
+    {{script_dir}}/hardcode.sh {{args}} {{file}} {{file}}

@@ -26,11 +26,13 @@ Other suggested names are:
   - [Fix static variable initialization in procedural blocks](https://github.com/verilator/verilator/issues/6462)
   - [Incorrect `streaming_concatenation`](https://github.com/verilator/verilator/issues/6693)
   - [Initialisation treated as continuous assignement](https://github.com/verilator/verilator/issues/6695)
+  - [possible scheduling semantics violation or `<=` / `=` confusion](https://github.com/verilator/verilator/issues/6696)
 - Yosys
   - [Incorrect handling of post-decrement operation in `always_comb`](https://github.com/YosysHQ/yosys/issues/5151)
   - [`read_verilog`: `inout` parameters not copied out of tasks](https://github.com/YosysHQ/yosys/issues/5157)
   - [Incorrect handling of `x` in if blocks `(if (x) else )`](https://github.com/YosysHQ/yosys/issues/5238)
   - [Interface and modport support bug ?](https://github.com/YosysHQ/yosys/issues/5366)
+  - [Interface synthesis bug: Logic missing from main evaluation path ?](https://github.com/YosysHQ/yosys/issues/5405)
   - [SystemVerilog unsized literal '1 incorrectly evaluated as 1-bit value instead of filling all bits](https://github.com/YosysHQ/yosys/issues/5465)
   - [`proc_prune` / scheduling semantics bug](https://github.com/YosysHQ/yosys/issues/5487)
 - yosys-slang
