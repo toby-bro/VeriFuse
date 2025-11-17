@@ -232,26 +232,26 @@ func (g *Generator) generateSVInputReads(
 			fileName := fmt.Sprintf("input_%s.hex", portName)
 
 			inputReads.WriteString(fmt.Sprintf(`
-        fd = $fopen("%s", "r");
-        if (fd == 0) begin
+        _fd = $fopen("%s", "r");
+        if (_fd == 0) begin
             $display("Error: Unable to open %s");
             $finish;
         end
-        status = $fgets(line, fd);
+        _status = $fgets(_line, _fd);
         `, fileName, fileName))
 
 			if port.Type == verilog.REAL || port.Type == verilog.SHORTREAL ||
 				port.Type == verilog.REALTIME { // Handle real type
 				inputReads.WriteString(
-					fmt.Sprintf("status = $sscanf(line, \"%%f\", %s);\n", portName),
+					fmt.Sprintf("_status = $sscanf(_line, \"%%f\", %s);\n", portName),
 				)
 			} else {
 				inputReads.WriteString(
-					fmt.Sprintf("status = $sscanf(line, \"%%h\", %s);\n", portName),
+					fmt.Sprintf("_status = $sscanf(_line, \"%%h\", %s);\n", portName),
 				)
 			}
 
-			inputReads.WriteString("        $fclose(fd);\n")
+			inputReads.WriteString("        $fclose(_fd);\n")
 		}
 	}
 	return inputReads.String(), inputCount
@@ -350,8 +350,8 @@ func (g *Generator) generateSVOutputWrites() (string, int) {
 			fileName := fmt.Sprintf("output_%s.hex", portName)
 
 			outputWrites.WriteString(fmt.Sprintf(`
-        fd = $fopen("%s", "w");
-        if (fd == 0) begin
+        _fd = $fopen("%s", "w");
+        if (_fd == 0) begin
             $display("Error: Unable to open output file '%s' for port '%s'.", "%s", "%s");
             $finish;
         end
@@ -360,7 +360,7 @@ func (g *Generator) generateSVOutputWrites() (string, int) {
 			if port.Type == verilog.REAL || port.Type == verilog.SHORTREAL ||
 				port.Type == verilog.REALTIME { // Handle real type
 				outputWrites.WriteString(
-					fmt.Sprintf("        $fwrite(fd, \"%%f\\n\", %s);\n", portName),
+					fmt.Sprintf("        $fwrite(_fd, \"%%f\\n\", %s);\n", portName),
 				)
 			} else {
 				// Determine the width for writing logic
@@ -378,18 +378,18 @@ func (g *Generator) generateSVOutputWrites() (string, int) {
 						fmt.Sprintf("        for (int i = %d; i >= 0; i--) begin\n", effectiveWidth-1),
 					)
 					outputWrites.WriteString(
-						fmt.Sprintf("            $fwrite(fd, \"%%b\", %s[i]);\n", portName),
+						fmt.Sprintf("            $fwrite(_fd, \"%%b\", %s[i]);\n", portName),
 					)
 					outputWrites.WriteString("        end\n")
 					outputWrites.WriteString(
-						"        $fwrite(fd, \"\\n\");",
+						"        $fwrite(_fd, \"\\n\");",
 					)
 				} else { // effectiveWidth is 1
-					outputWrites.WriteString(fmt.Sprintf("        $fwrite(fd, \"%%b\\n\", %s);\n", portName))
+					outputWrites.WriteString(fmt.Sprintf("        $fwrite(_fd, \"%%b\\n\", %s);\n", portName))
 				}
 			}
 
-			outputWrites.WriteString("        $fclose(fd);\n")
+			outputWrites.WriteString("        $fclose(_fd);\n")
 		}
 	}
 	return outputWrites.String(), outputCount

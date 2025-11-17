@@ -3,6 +3,7 @@ package fuzz
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,9 +36,11 @@ func (fs *Stats) AddMismatch(tc map[*verilog.Port]string) {
 
 	// Create a unique key for this mismatch by combining input values
 	var key string
+	var keySb38 strings.Builder
 	for k, v := range tc {
-		key += fmt.Sprintf("%s=%s_", k, v)
+		keySb38.WriteString(fmt.Sprintf("%s=%s_", k, v))
 	}
+	key += keySb38.String()
 
 	// Track unique mismatches
 	if !fs.FoundMutants[key] {

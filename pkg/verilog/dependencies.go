@@ -53,17 +53,17 @@ func (v *VerilogFile) AddDependency(childName string, parentNames ...string) {
 func (v *VerilogFile) DumpDependencyGraph() string {
 	var result string
 	for _, node := range v.DependencyMap {
-		result += "- " + node.Name + "\n"
+		result += "- " + node.Name + "\n" // nolint: perfsprint
 		if len(node.DependsOn) != 0 {
 			result += "╭ depends on:\n"
 			for _, dep := range node.DependsOn {
-				result += fmt.Sprintf("| %s\n", dep)
+				result += fmt.Sprintf("| %s\n", dep) // nolint: perfsprint
 			}
 		}
 		if len(node.DependedBy) != 0 {
 			result += "╭ depended by:\n"
 			for _, depBy := range node.DependedBy {
-				result += fmt.Sprintf("| %s\n", depBy)
+				result += fmt.Sprintf("| %s\n", depBy) // nolint: perfsprint
 			}
 		}
 	}

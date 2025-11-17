@@ -18,4 +18,5 @@ This list includes : undefined behaviour as well as implementation dependant cho
   - vlator gives 0
 - ferror with invalid file descriptor
 - use of random probability laws
+- generate loops with module instanciations and named variables => multiple drivers
 

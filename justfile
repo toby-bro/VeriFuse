@@ -55,6 +55,12 @@ yosys path="." file=default_file:
     yosys -q -p "read_verilog -sv {{path}}/{{file}}.sv; prep -top {{file}} ; write_cxxrtl -O3 {{file}}.cc"
     g++ -std=c++17 -O0 -I$(yosys-config --datdir)/include/backends/cxxrtl/runtime -I. -o testbench {{path}}/testbench.cpp && ./testbench
 
+# Run yosys slang synthesis and simulation
+[no-cd]
+yosys-slang path="." file=default_file:
+    yosys -m slang -q -p "read_slang {{path}}/{{file}}.sv --top {{file}}; prep -top {{file}} ; write_cxxrtl -O3 {{file}}.cc"
+    g++ -std=c++17 -O0 -I$(yosys-config --datdir)/include/backends/cxxrtl/runtime -I. -o testbench {{path}}/testbench.cpp && ./testbench
+
 # Run iverilog simulation  
 [no-cd]
 iverilog path='.' file=default_file:

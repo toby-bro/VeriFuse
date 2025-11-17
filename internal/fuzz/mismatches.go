@@ -165,9 +165,11 @@ func (sch *Scheduler) compareAllResults(
 		var simNamesStr string
 		if len(sims) > 0 {
 			simNamesStr = "[" + sims[0].String()
+			var simNamesStrSb168 strings.Builder
 			for i := 1; i < len(sims); i++ {
-				simNamesStr += ", " + sims[i].String()
+				simNamesStrSb168.WriteString(", " + sims[i].String())
 			}
+			simNamesStr += simNamesStrSb168.String()
 			simNamesStr += "]"
 		} else {
 			sch.debug.Error("No simulator names found in results map")
@@ -232,18 +234,26 @@ func (sch *Scheduler) writeMismatchSummary(
 
 	fileContent += "\nInputs:\n"
 
+	var fileContentSb235 strings.Builder
 	for port, value := range testCase {
-		fileContent += fmt.Sprintf("  %v = %s\n", port, value)
+		fileContentSb235.WriteString(fmt.Sprintf("  %v = %s\n", port, value))
 	}
+	fileContent += fileContentSb235.String()
 
 	fileContent += "\nMismatched outputs:\n"
+	var fileContentSb240 strings.Builder
+	var fileContentSb245 strings.Builder
 	for port, detail := range mismatchDetails {
-		fileContent += fmt.Sprintf("  %v:\n", port)
+		fileContentSb240.WriteString(fmt.Sprintf("  %v:\n", port))
 		detailsSplit := strings.Split(detail, ", ")
+		var fileContentSb243 strings.Builder
 		for _, part := range detailsSplit {
-			fileContent += fmt.Sprintf("    %s\n", part)
+			fileContentSb243.WriteString(fmt.Sprintf("    %s\n", part))
 		}
+		fileContentSb245.WriteString(fileContentSb243.String())
 	}
+	fileContent += fileContentSb245.String()
+	fileContent += fileContentSb240.String()
 
 	sch.debug.Debug("Writing mismatch summary to %s", summaryPath)
 	if err := utils.WriteFileContent(summaryPath, fileContent); err != nil {

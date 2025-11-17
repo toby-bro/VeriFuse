@@ -19,9 +19,9 @@ module top;
 %s
 
     initial begin
-        string line;
-        int fd;
-        int status;
+        string _line;
+        int _fd;
+        int _status;
 
         // Read %d input files
 %s

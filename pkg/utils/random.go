@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 )
 
 func RandomInt(minInt, maxInt int) int {
@@ -11,8 +12,10 @@ func RandomInt(minInt, maxInt int) int {
 
 func NegativeLookAhead(s string) string {
 	pattern := ""
+	var patternSb14 strings.Builder
 	for i := range s {
-		pattern += fmt.Sprintf("%s[^%s]|", s[:i], string(s[i]))
+		patternSb14.WriteString(fmt.Sprintf("%s[^%s]|", s[:i], string(s[i])))
 	}
+	pattern += patternSb14.String()
 	return pattern[:len(pattern)-1]
 }
